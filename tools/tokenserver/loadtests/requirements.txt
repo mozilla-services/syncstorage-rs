@@ -1,6 +1,5 @@
 authlib
 cryptography
 locust
-pybrowserid
 pyjwt
 sqlalchemy

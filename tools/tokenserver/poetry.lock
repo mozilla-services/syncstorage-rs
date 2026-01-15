@@ -683,21 +683,6 @@ dev = ["pre-commit", "tox"]
 testing = ["coverage", "pytest", "pytest-benchmark"]
 
 [[package]]
-name = "pybrowserid"
-version = "0.14.0"
-description = "Python library for the BrowserID Protocol"
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "PyBrowserID-0.14.0-py2-none-any.whl", hash = "sha256:8e237d6a2bc9ead849a4472a84d3e6a9309bec99cf8e10d36213710dda8df8ca"},
-    {file = "PyBrowserID-0.14.0.tar.gz", hash = "sha256:6c227669e87cc25796ae76f6a0ef65025528c8ad82d352679fa9a3e5663a71e3"},
-]
-
-[package.dependencies]
-requests = "*"
-
-[[package]]
 name = "pydocstyle"
 version = "6.3.0"
 description = "Python docstring style checker"
@@ -1268,4 +1253,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.9.2,<4.0"
-content-hash = "ae4cadc57653696e4c53048e6a7c3b932a18483cde9e36884ef7e8edd096db0b"
+content-hash = "7cabd602c7339c184b128ff2077e063da5e8a9041ac1c063c65638b9119db1c9"

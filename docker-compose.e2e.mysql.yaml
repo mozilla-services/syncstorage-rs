@@ -24,8 +24,6 @@ services:
       SYNC_SYNCSTORAGE__DATABASE_URL: mysql://test:test@sync-db:3306/syncstorage
       SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
       SYNC_TOKENSERVER__ENABLED: "true"
-      SYNC_TOKENSERVER__FXA_BROWSERID_AUDIENCE: "https://token.stage.mozaws.net/"
-      SYNC_TOKENSERVER__FXA_BROWSERID_ISSUER: "api-accounts.stage.mozaws.net"
       SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: api-accounts.stage.mozaws.net
       SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: secret0
       SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"

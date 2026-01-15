@@ -89,36 +89,25 @@ Ex. `poetry run python locustfile.py`
    SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_FXA_CREATED_AT=0
    ```
 
-4. Configure Tokenserver to verify BrowserID assertions through FxA stage. This is done by setting the following environment variables:
+   Note that, because these settings cache the JWK used to verify OAuth tokens, no verification requests will be made to FxA, so the value of `SYNC_TOKENSERVER__FXA_OAUTH_VERIFIER_URL` does not matter; however, Tokenserver expects it to be set, so setting it to something like `http://localhost` will suffice.
 
-   ```sh
-   # The exact value of this environment variable is not important as long as it matches the `BROWSERID_AUDIENCE` environment variable set on the machine running the load tests, as described below
-   SYNC_TOKENSERVER__FXA_BROWSERID_SERVER_URL=https://verifier.stage.mozaws.net/v2
-
-   SYNC_TOKENSERVER__FXA_BROWSERID_AUDIENCE=https://token.stage.mozaws.net
-   SYNC_TOKENSERVER__FXA_BROWSERID_ISSUER=mockmyid.s3-us-west-2.amazonaws.com
-   ```
-
-   Note that, because we have cached the JWK used to verify OAuth tokens, no verification requests will be made to FxA, so the value of `SYNC_TOKENSERVER__FXA_OAUTH_VERIFIER_URL` does not matter; however, Tokenserver expects it to be set, so setting it to something like `http://localhost` will suffice.
-
-5. Set the following environment variables on the machine that will be running the load tests:
+4. Set the following environment variables on the machine that will be running the load tests:
 
    - `OAUTH_PEM_FILE` should be set to the location of the private RSA key generated in a previous step
-   - `BROWSERID_AUDIENCE` should be set to match the `SYNC_TOKENSERVER__FXA_BROWSERID_AUDIENCE` environment variable on Tokenserver
 
-6. Tokenserver uses [locust](https://locust.io/) for load testing. To run the load tests, simply run the following command in this directory:
+5. Tokenserver uses [locust](https://locust.io/) for load testing. To run the load tests, simply run the following command in this directory:
 
    ```sh
    locust
    ```
 
-7. Navigate your browser to <http://localhost:8090>, where you'll find the locust GUI. Enter the following information:
+6. Navigate your browser to <http://localhost:8090>, where you'll find the locust GUI. Enter the following information:
 
    - Number of users: The peak number of Tokenserver users to be used during the load tests
    - Spawn rate: The rate at which new users are spawned
    - Host: The URL of the server to be load tested. Note that this URL must include the protocol (e.g. "http://")
 
-8. Click the "Start swarming" button to begin the load tests.
+7. Click the "Start swarming" button to begin the load tests.
 
 ## Populating the Database
 

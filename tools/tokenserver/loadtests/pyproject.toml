@@ -7,7 +7,7 @@ authors = [
 ]
 license = "Mozilla Public License Version 2.0"
 readme = "README.md"
-requires-python = ">=3.10,<3.12"
+requires-python = ">=3.10"
 
 
 [tool.poetry]
@@ -17,7 +17,6 @@ package-mode = false
 authlib = "^1.6.6"
 cryptography = "^45.0.4"
 locust = "^2.37.10"
-pybrowserid = "^0.14.0"
 pyjwt = "^2.10.1"
 sqlalchemy = "1.4.46"
 
