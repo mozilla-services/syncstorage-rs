@@ -12,34 +12,19 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Display Version Info
-        run: |
-          if [ "$(which rustc)" != "" ]; then rustc --version; fi
-          if [ "$(which python)" != "" ]; then python --version; fi
-          uname -a
-          cat /etc/os-release
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.89
+      - uses: ./.github/actions/setup-rust-python
         with:
-          components: rustfmt, clippy
+          workspace-path: workflow
 
-      - name: Setup Rust checks
-        run: |
-          rustup component add rustfmt
-          cargo install --locked cargo-audit
-          rustup component add clippy
+      - name: Setup documentation checks
+        run: make doc-install-deps
 
       - name: Core Rust Checks
         run: |
           cargo fmt -- --check
           cargo audit
-
-      - name: Setup documentation checks
-        run: make doc-install-deps
 
       - name: Documentation checks
         run: make doc-test
@@ -53,17 +38,7 @@ jobs:
       - name: Rust Clippy Postgres
         run: make clippy_postgres
 
-      - name: Setup python
-        run: |
-          sudo apt-get update && sudo apt-get install -y python3-dev python3-pip python3-venv
-          pip3 install hawkauthlib konfig pyramid pyramid_hawkauth requests simplejson unittest2 WebTest WSGIProxy2 poetry
-          python3 -mvenv venv
-          .  venv/bin/activate
-          poetry self add poetry-plugin-export
-          poetry install --with tokenserver-unit-tests,dev --no-interaction --no-ansi
-
       - name: Core Python Checks
         run: |
-          .  venv/bin/activate
-          make ruff-fmt-chk
-          make ruff-lint
+          poetry run make ruff-fmt-chk
+          poetry run make ruff-lint
