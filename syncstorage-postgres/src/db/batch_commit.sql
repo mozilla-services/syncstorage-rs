@@ -16,8 +16,8 @@
                       modified = $4,
                       expiry = COALESCE(
                           CASE
-                              WHEN batch.ttl IS NOT NULL THEN $4 + (batch.ttl || ' seconds')::INTERVAL
-                              ELSE NULL
+                          WHEN batch.ttl IS NOT NULL THEN $4 + (batch.ttl || ' seconds')::INTERVAL
+                          ELSE NULL
                           END,
                           bsos.expiry
                       )
