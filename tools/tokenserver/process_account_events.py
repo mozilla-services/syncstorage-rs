@@ -112,7 +112,9 @@ def process_account_event(database, body, metrics=None):
         ):
             generation = event["generation"]
     except (ValueError, KeyError) as e:
-        logger.exception(f"Invalid account message: {e}", )
+        logger.exception(
+            f"Invalid account message: {e}",
+        )
     else:
         if email is not None:
             record_metric = True

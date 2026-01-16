@@ -9,25 +9,35 @@ on:
       - "**"
 
 jobs:
-  checks:
+  python-checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - uses: ./.github/actions/setup-rust-python
+      - uses: ./.github/actions/setup-python
         with:
           workspace-path: workflow
 
-      - name: Setup documentation checks
-        run: make doc-install-deps
+      - name: Python Format Check
+        run: make ruff-fmt-chk
 
-      - name: Core Rust Checks
-        run: |
-          cargo fmt -- --check
-          cargo audit
+      - name: Python Lint Check
+        run: make ruff-lint
 
-      - name: Documentation checks
-        run: make doc-test
+  rust-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-rust
+        with:
+          workspace-path: workflow
+
+      - name: Rust Format Check
+        run: cargo fmt -- --check
+
+      - name: Cargo Audit
+        run: cargo audit
 
       - name: Rust Clippy Spanner
         run: make clippy_spanner
@@ -38,7 +48,8 @@ jobs:
       - name: Rust Clippy Postgres
         run: make clippy_postgres
 
-      - name: Core Python Checks
-        run: |
-          poetry run make ruff-fmt-chk
-          poetry run make ruff-lint
+      - name: Setup documentation checks
+        run: make doc-install-deps
+
+      - name: Documentation checks
+        run: make doc-test
