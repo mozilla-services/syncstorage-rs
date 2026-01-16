@@ -28,7 +28,7 @@ runs:
 
     - name: Create workspace directory
       shell: bash
-      run: mkdir -p ${{ inputs. workspace-path }}
+      run: mkdir -p ${{ inputs.workspace-path }}
 
     - name: Display Version Info
       shell: bash
