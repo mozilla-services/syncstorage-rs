@@ -1,8 +1,8 @@
 use chrono::{offset::Utc, DateTime};
+use diesel::{AsChangeset, Identifiable, Queryable};
 use uuid::Uuid;
 
 use crate::schema::{batch_bsos, batches, bsos, collections, user_collections};
-use diesel::{AsChangeset, Identifiable, Queryable};
 
 #[derive(Queryable, Debug, Identifiable)]
 #[diesel(primary_key(user_id, collection_id, batch_id, batch_bso_id))]
@@ -18,7 +18,7 @@ pub struct BatchBso {
 
 #[derive(Queryable, Debug, Identifiable)]
 #[diesel(primary_key(user_id, collection_id, batch_id))]
-#[diesel(table_name=batches)]
+#[diesel(table_name = batches)]
 pub struct Batch {
     pub user_id: i64,
     pub collection_id: i32,
@@ -26,8 +26,9 @@ pub struct Batch {
     pub expiry: DateTime<Utc>,
 }
 
-#[derive(Queryable, Debug, Identifiable)]
+#[derive(Queryable, Debug, Identifiable, Insertable)]
 #[diesel(primary_key(user_id, collection_id, bso_id))]
+#[diesel(table_name = bsos)]
 pub struct Bso {
     pub user_id: i64,
     pub collection_id: i32,
@@ -63,4 +64,31 @@ pub struct UserCollection {
     pub modified: DateTime<Utc>,
     pub count: Option<i64>,
     pub total_bytes: Option<i64>,
+}
+
+pub mod sql_types {
+    use diesel::{
+        pg::Pg,
+        serialize::{self, Output, ToSql, WriteTuple},
+        sql_types::{BigInt, Integer, Nullable, Text},
+    };
+    use syncstorage_db_common::params;
+
+    #[derive(SqlType, QueryId)]
+    #[diesel(postgres_type(name = "post_bso"))]
+    pub struct PostBso;
+
+    impl ToSql<PostBso, Pg> for params::PostCollectionBso {
+        fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> serialize::Result {
+            WriteTuple::<(Text, Nullable<Integer>, Nullable<Text>, Nullable<BigInt>)>::write_tuple(
+                &(
+                    &self.id,
+                    &self.sortindex,
+                    &self.payload,
+                    &self.ttl.map(|ttl| ttl as i64),
+                ),
+                &mut out.reborrow(),
+            )
+        }
+    }
 }
