@@ -1,5 +1,0 @@
-authlib
-cryptography
-locust
-pyjwt
-sqlalchemy

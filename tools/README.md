@@ -12,4 +12,11 @@ These tools are mostly written in python. It is recommended that you create a co
 
 to create a `/venv` directory. To activate this, call `sh /venv/bin/activate`.
 
-Script dependencies can be installed via `pip install -r requirements.txt` for each tool.
+Script dependencies can be installed via poetry:
+
+```shell
+pip install poetry
+poetry install
+```
+
+for each tool.
