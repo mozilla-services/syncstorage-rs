@@ -18,7 +18,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Display Version Info
       shell: bash
@@ -39,13 +39,14 @@ runs:
       run: cargo install --locked cargo-audit
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6 # <https://github.com/actions/setup-python>
       with:
         python-version: ${{ inputs.python-version }}
+        cache: poetry
 
     - name: Install Poetry
       shell: bash
-      run: pip install poetry
+      run: pipx install poetry
 
     - name: Create workspace directory
       shell: bash
