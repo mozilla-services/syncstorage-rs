@@ -3,7 +3,7 @@ use chrono::{offset::Utc, DateTime, TimeDelta};
 use diesel::{
     delete,
     dsl::{count, max, now, sql},
-    sql_types::{BigInt, Nullable, Timestamptz},
+    sql_types::{Array, BigInt, Integer, Nullable, Timestamptz},
     upsert::excluded,
     ExpressionMethods, IntoSql, OptionalExtension, QueryDsl, SelectableHelper,
 };
@@ -17,7 +17,7 @@ use super::{PgDb, TOMBSTONE};
 use crate::{
     bsos_query,
     db::{CollectionLock, PRETOUCH_DT},
-    orm_models::BsoChangeset,
+    orm_models::{sql_types::PostBso, BsoChangeset},
     pool::Conn,
     schema::{bsos, collections, user_collections},
     DbError, DbResult,
@@ -352,33 +352,6 @@ impl Db for PgDb {
         Ok(results::GetBsoIds { items, offset })
     }
 
-    async fn post_bsos(&mut self, params: params::PostBsos) -> DbResult<results::PostBsos> {
-        let collection_id = self.get_or_create_collection_id(&params.collection).await?;
-        let modified = self.checked_timestamp()?;
-
-        self.ensure_user_collection(params.user_id.legacy_id as i64, collection_id)
-            .await?;
-        for pbso in params.bsos {
-            self.put_bso(params::PutBso {
-                user_id: params.user_id.clone(),
-                collection: params.collection.clone(),
-                id: pbso.id.clone(),
-                payload: pbso.payload,
-                sortindex: pbso.sortindex,
-                ttl: pbso.ttl,
-            })
-            .await?;
-        }
-        self.update_collection(params::UpdateCollection {
-            user_id: params.user_id,
-            collection_id,
-            collection: params.collection,
-        })
-        .await?;
-
-        Ok(modified)
-    }
-
     async fn delete_bso(&mut self, params: params::DeleteBso) -> DbResult<results::DeleteBso> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection).await?;
@@ -478,6 +451,35 @@ impl Db for PgDb {
             user_id: bso.user_id,
             collection_id,
             collection: bso.collection,
+        })
+        .await
+    }
+
+    async fn post_bsos(&mut self, params: params::PostBsos) -> DbResult<results::PostBsos> {
+        let user_id = params.user_id.legacy_id as i64;
+        let collection_id = self.get_or_create_collection_id(&params.collection).await?;
+        self.check_quota(&params.user_id, &params.collection, collection_id)
+            .await?;
+        self.ensure_user_collection(user_id, collection_id).await?;
+
+        // Rendering a VALUES statement for MERGE INTO here is painful so we
+        // pass the bsos in a single bind param as an Array of a named
+        // composite type (post_bso[]). The composite type must be explicitly
+        // named/declared as postgres disallows unnamed/anonymous composite
+        // types to be used as bind parameters
+        diesel::sql_query(include_str!("post_bsos.sql"))
+            .bind::<BigInt, _>(user_id)
+            .bind::<Integer, _>(collection_id)
+            .bind::<Array<PostBso>, _>(params.bsos)
+            .bind::<Timestamptz, _>(self.checked_timestamp()?.as_datetime()?)
+            .bind::<BigInt, _>(DEFAULT_BSO_TTL as i64)
+            .execute(&mut self.conn)
+            .await?;
+
+        self.update_collection(params::UpdateCollection {
+            user_id: params.user_id,
+            collection_id,
+            collection: params.collection,
         })
         .await
     }

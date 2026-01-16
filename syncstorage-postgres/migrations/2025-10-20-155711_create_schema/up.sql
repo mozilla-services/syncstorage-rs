@@ -112,3 +112,14 @@ CREATE TABLE batch_bsos (
     ) ON DELETE CASCADE
 );
 
+
+-- solely used for the ease of passing post_bsos data via a single
+-- bind parameter
+CREATE TYPE post_bso AS (
+    bso_id TEXT,
+
+    sortindex INTEGER,
+    payload TEXT,
+
+    ttl BIGINT
+);
