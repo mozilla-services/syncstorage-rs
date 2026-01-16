@@ -7,7 +7,13 @@
            UPDATE SET
                       sortindex = COALESCE(post.sortindex, bsos.sortindex),
                       payload = COALESCE(post.payload, bsos.payload),
-                      modified = $4,
+                      modified = COALESCE(
+                         CASE
+                         WHEN post.payload is NOT NULL OR post.sortindex IS NOT NULL THEN $4
+                         ELSE NULL
+                         END,
+                         bsos.modified
+                     ),
                       expiry = COALESCE(
                           CASE
                           WHEN post.ttl IS NOT NULL THEN $4 + (post.ttl || ' seconds')::INTERVAL
