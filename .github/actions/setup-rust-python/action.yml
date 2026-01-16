@@ -5,7 +5,7 @@ inputs:
   rust-version:
     description: "Rust version to install"
     required: false
-    default: "1.89"
+    default: "1.89" # RUST_VER
   workspace-path:
     description: "The directory path to store test results"
     required: false
@@ -13,7 +13,7 @@ inputs:
   python-version:
     description: "Python version to use"
     required: false
-    default: "3.12"
+    default: "3.12" # PYTHON_VER
 
 runs:
   using: "composite"
@@ -29,7 +29,7 @@ runs:
         cat /etc/os-release
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@v1
+      uses: dtolnay/rust-toolchain@v1 # See <https://github.com/dtolnay/rust-toolchain>
       with:
         toolchain: ${{ inputs.rust-version }}
         components: rustfmt, clippy
