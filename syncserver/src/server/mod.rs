@@ -2,6 +2,7 @@
 
 use std::{convert::Infallible, num::NonZeroUsize, sync::Arc, time::Duration};
 
+use crate::error::ApiError;
 use actix_cors::Cors;
 use actix_web::{
     dev::{self, Payload},
@@ -13,6 +14,7 @@ use actix_web::{
 };
 use cadence::{Gauged, StatsdClient};
 use futures::future::{self, Ready};
+use glean::server_events::GleanEventsLogger;
 use syncserver_common::{
     middleware::sentry::SentryWrapper, BlockingThreadpool, BlockingThreadpoolMetrics, Metrics,
     Taggable,
@@ -22,9 +24,8 @@ use syncserver_settings::Settings;
 use syncstorage_db::{DbError, DbPool, DbPoolImpl};
 use syncstorage_settings::{Deadman, ServerLimits};
 use tokio::{sync::RwLock, time};
-
-use crate::error::ApiError;
-use glean::server_events::GleanEventsLogger;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::tokenserver;
 use crate::web::{handlers, middleware};
@@ -78,6 +79,31 @@ pub fn cfg_path(path: &str) -> String {
     format!("/{}/{{uid:{}}}{}", SYNC_VERSION_PATH, MYSQL_UID_REGEX, path)
 }
 
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "Syncstorage-rs API",
+        version = env!("CARGO_PKG_VERSION"),
+        description = "OpenAPI documentation for Syncstorage and Tokenserver endpoints."
+    ),
+    // Add handler fns here as you annotate them with #[utoipa::path]
+    // paths(
+    //     crate::web::handlers::get_collections,
+    //     crate::web::handlers::get_collection_counts,
+    //     crate::web::handlers::get_collection_usage,
+    //     crate::web::handlers::get_configuration,
+    //     crate::web::handlers::get_quota,
+    //     crate::web::handlers::heartbeat,
+    //     crate::tokenserver::handlers::get_tokenserver_result,
+    // ),
+    // components(schemas(...))  // optional; add as you define request/response structs
+    tags(
+        (name = "syncstorage", description = "Syncstorage endpoints"),
+        (name = "tokenserver", description = "Tokenserver endpoints"),
+        (name = "dockerflow", description = "Service health/version endpoints")
+    )
+)]
+pub struct ApiDoc;
 pub struct Server;
 
 #[macro_export]
@@ -191,6 +217,15 @@ macro_rules! build_app {
                         .finish()
                 })),
             )
+            // OpenAPI (utoipa) + Swagger UI (utoipa-swagger-ui)
+            .service(
+                web::resource("/api-doc/openapi.json")
+                    .route(web::get().to(|| async { HttpResponse::Ok().json(ApiDoc::openapi()) })),
+            )
+            .service(
+                SwaggerUi::new("/swagger-ui/{_:.*}")
+                    .url("/api-doc/openapi.json", ApiDoc::openapi()),
+            )
     };
 }
 
@@ -252,6 +287,15 @@ macro_rules! build_app_without_syncstorage {
                         .insert_header((LOCATION, TOKENSERVER_DOCS_URL))
                         .finish()
                 })),
+            )
+            // OpenAPI (utoipa) + Swagger UI (utoipa-swagger-ui)
+            .service(
+                web::resource("/api-doc/openapi.json")
+                    .route(web::get().to(|| async { HttpResponse::Ok().json(ApiDoc::openapi()) })),
+            )
+            .service(
+                SwaggerUi::new("/swagger-ui/{_:.*}")
+                    .url("/api-doc/openapi.json", ApiDoc::openapi()),
             )
     };
 }
