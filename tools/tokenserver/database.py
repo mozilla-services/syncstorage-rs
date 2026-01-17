@@ -594,7 +594,8 @@ class Database:
           insert into services (service, pattern)
           values (:servicename, :pattern)
         """)
-        res = self._execute_sql(insert_sql,
+        res = self._execute_sql(
+            insert_sql,
             servicename=service_name,
             pattern=pattern,
             **kwds,

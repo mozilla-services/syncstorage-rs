@@ -1,0 +1,38 @@
+name: Setup Rust Environment
+description: Sets up Rust
+
+inputs:
+  rust-version:
+    description: "Rust version to install"
+    required: false
+    default: "1.89" # RUST_VER
+  workspace-path:
+    description: "The directory path to store test results"
+    required: false
+    default: "workflow"
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v6
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@v1 # See <https://github.com/dtolnay/rust-toolchain>
+      with:
+        toolchain: ${{ inputs.rust-version }}
+        components: rustfmt, clippy
+
+    - name: Install cargo-audit
+      shell: bash
+      run: cargo install --locked cargo-audit
+
+    - name: Create workspace directory
+      shell: bash
+      run: mkdir -p ${{ inputs.workspace-path }}
+
+    - name: Display Version Info
+      shell: bash
+      run: |
+        if [ "$(which rustc)" != "" ]; then rustc --version; fi
+        uname -a
+        cat /etc/os-release

@@ -93,17 +93,19 @@ class TestGetExpiryCondition:
 
 
 class TestGetDbEngine:
-    @patch('purge_ttl.sqlalchemy.create_engine')
+    @patch("purge_ttl.sqlalchemy.create_engine")
     def test_postgresql_url(self, mock_create_engine):
         url = "postgresql://root:secretz@localhost/db"
         get_db_engine(url)
         mock_create_engine.assert_called_once_with(url)
 
-    @patch('purge_ttl.sqlalchemy.create_engine')
+    @patch("purge_ttl.sqlalchemy.create_engine")
     def test_postgres_url(self, mock_create_engine):
         url = "postgres://root:secretz@localhost/db"
         get_db_engine(url)
-        mock_create_engine.assert_called_once_with("postgresql://root:secretz@localhost/db")
+        mock_create_engine.assert_called_once_with(
+            "postgresql://root:secretz@localhost/db"
+        )
 
     def test_invalid_scheme(self):
         url = "invalid://leaf@localhost/db"
@@ -112,7 +114,7 @@ class TestGetDbEngine:
 
 
 class TestExecDelete:
-    @patch('purge_ttl.statsd')
+    @patch("purge_ttl.statsd")
     def test_dryrun(self, mock_statsd):
         mock_timer = MagicMock()
         mock_statsd.timer.return_value.__enter__ = Mock(return_value=mock_timer)
@@ -126,7 +128,7 @@ class TestExecDelete:
 
         mock_db_engine.connect.assert_not_called()
 
-    @patch('purge_ttl.statsd')
+    @patch("purge_ttl.statsd")
     def test_query_execution(self, mock_statsd):
         mock_timer = MagicMock()
         mock_statsd.timer.return_value.__enter__ = Mock(return_value=mock_timer)
@@ -156,7 +158,7 @@ class TestExecDelete:
         mock_db_engine.connect.assert_called_once()
         mock_conn.execute.assert_called_once()
 
-    @patch('purge_ttl.statsd')
+    @patch("purge_ttl.statsd")
     def test_metrics(self, mock_statsd):
         mock_timer = MagicMock()
         mock_statsd.timer.return_value.__enter__ = Mock(return_value=mock_timer)
@@ -189,7 +191,9 @@ class TestIntegration:
         args = Namespace(collection_ids=["1"], expiry_mode="now")
 
         batches_query = "DELETE FROM batches WHERE expiry < CURRENT_TIMESTAMP"
-        actual_batches_query, actual_batches_params = add_conditions(args, batches_query)
+        actual_batches_query, actual_batches_params = add_conditions(
+            args, batches_query
+        )
 
         bsos_query = "DELETE FROM bso WHERE expiry < CURRENT_TIMESTAMP"
         actual_bsos_query, actual_bso_params = add_conditions(args, bsos_query)

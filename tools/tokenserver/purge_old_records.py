@@ -97,9 +97,7 @@ def purge_old_records(
                 # Instead wait for them to either come back up or to be
                 # completely removed from service.
                 if row.node is None:
-                    logger.info(
-                        f"Deleting user record for uid {row.uid} on row.node"
-                    )
+                    logger.info(f"Deleting user record for uid {row.uid} on row.node")
                     if not dryrun:
                         if metrics:
                             metrics.incr("delete_user", tags={"type": "nodeless"})
