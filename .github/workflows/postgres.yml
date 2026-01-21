@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - master
+      - chore/postgres-build-test-gh-action-STOR-453-debug
     tags:
       - '**'
   workflow_dispatch: {}

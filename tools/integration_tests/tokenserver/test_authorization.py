@@ -104,9 +104,13 @@ class TestAuthorization(TestCase, unittest.TestCase):
 
     def test_disallow_reusing_old_client_state(self):
         # Add a user record that has already been replaced
-        self._add_user(client_state="aaaa", replaced_at=1200)
+        uid0 = self._add_user(client_state="aaaa", replaced_at=1200)
         # Add the most up-to-date user record
-        self._add_user(client_state="bbbb")
+        uid1 = self._add_user(client_state="bbbb")
+        print(f"uid0: {uid0} uid1: {uid1}")
+        cursor = self._execute_sql("SELECT * FROM users", {})
+        print(cursor.fetchall())
+        cursor.close()
         # A request cannot use a client state associated with a replaced user
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=1234, client_state="aaaa"
