@@ -114,3 +114,29 @@ jobs:
       dockerfile_path: tools/postgres/Dockerfile
       image_build_context: tools/postgres
       should_tag_ghcr: true
+
+  build-and-push-syncstorage-rs-mysql:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'push' &&
+        (github.ref_name == 'master' || startsWith(github.ref, 'refs/tags/'))
+      ) ||
+      (
+        github.event_name == 'pull_request' &&
+        contains(github.event.pull_request.labels.*.name, 'preview') &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@1b87069d293273436a84dff04954a8950d3ff9ca # v6.1.0
+    with:
+      image_name: syncstorage-rs-mysql
+      gar_name: sync-prod
+      project_id: moz-fx-sync-prod
+      docker_build_args: |
+        SYNCSTORAGE_DATABASE_BACKEND=mysql
+        TOKENSERVER_DATABASE_BACKEND=mysql
+      should_tag_ghcr: true
