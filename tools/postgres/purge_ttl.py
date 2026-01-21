@@ -24,12 +24,12 @@ logging.basicConfig(
 def get_db_engine(database_url: str):
     """Create a SQLAlchemy engine from a database url."""
     parsed = urlparse(database_url)
-    if parsed.scheme not in ['postgresql', 'postgres']:
+    if parsed.scheme not in ["postgresql", "postgres"]:
         raise ValueError(f"Unsupported database scheme: {parsed.scheme}")
 
     # newer versions of SQLAlchemy want 'postgresql' instead of 'postgres'
-    if parsed.scheme == 'postgres':
-        parsed = parsed._replace(scheme='postgresql')
+    if parsed.scheme == "postgres":
+        parsed = parsed._replace(scheme="postgresql")
 
     return sqlalchemy.create_engine(parsed.geturl())
 
@@ -52,9 +52,7 @@ def exec_delete(
                 result_proxy = conn.execute(text(query), params or {})
                 result = result_proxy.rowcount
         end = datetime.now()
-        logging.info(
-            f"{name}: removed {result} rows, {name}_duration: {end - start}"
-        )
+        logging.info(f"{name}: removed {result} rows, {name}_duration: {end - start}")
 
 
 def add_conditions(args, query: str) -> Tuple[str, dict]:
@@ -121,7 +119,9 @@ def purge_records(args) -> None:
 
 def get_args():
     """Parse cli args."""
-    parser = argparse.ArgumentParser(description="Purge expired records from the database")
+    parser = argparse.ArgumentParser(
+        description="Purge expired records from the database"
+    )
     parser.add_argument(
         "-u",
         "--database_url",
@@ -159,7 +159,9 @@ def get_args():
     args = parser.parse_args()
 
     if not args.database_url:
-        parser.error("--database_url is required, or set SYNC_SYNCSTORAGE__DATABASE_URL")
+        parser.error(
+            "--database_url is required, or set SYNC_SYNCSTORAGE__DATABASE_URL"
+        )
 
     return args
 
