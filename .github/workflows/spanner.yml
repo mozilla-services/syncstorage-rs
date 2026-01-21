@@ -1,4 +1,4 @@
-name: MySQL Build and Test
+name: Spanner Build, Test, and Push
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
     branches:
       - master
     tags:
-      - '**'
+      - "**"
   workflow_dispatch: {}
 
 env:
@@ -15,28 +15,25 @@ env:
   PYTHON_VERSION: "3.12" # PY_VER
 
 jobs:
-  build-and-test-mysql:
+  build-and-test-spanner:
     runs-on: ubuntu-latest
 
     services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: password
-          MYSQL_USER: test
-          MYSQL_PASSWORD: test
-          MYSQL_DATABASE: syncstorage
+      spanner-emulator:
+        image: gcr.io/cloud-spanner-emulator/emulator:1.4.0
+        # expose the emulator port used in your scripts (adjust if your scripts expect other ports)
         ports:
-          - 3306:3306
+          - 9020:9020
         options: >-
-          --health-cmd="mysqladmin ping"
+          --health-cmd="nc -z 127.0.0.1 9020 || exit 1"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=5
+          --health-retries=10
 
     env:
-      SYNC_SYNCSTORAGE__DATABASE_URL: mysql://test:test@127.0.0.1/syncstorage
-      SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@127.0.0.1/tokenserver
+      # The code expects a spanner URL like:
+      SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+      SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9020
       RUST_BACKTRACE: 1
       RUST_TEST_THREADS: 1
 
@@ -51,14 +48,6 @@ jobs:
         with:
           workspace-path: workflow/test-results
 
-      - name: Install MySQL client
-        run: sudo apt-get update && sudo apt-get install -y default-mysql-client
-
-      - name: Create Tokenserver database
-        run: |
-          mysql -u root -ppassword -h 127.0.0.1 -e 'CREATE DATABASE tokenserver;'
-          mysql -u root -ppassword -h 127.0.0.1 -e "GRANT ALL ON tokenserver.* to 'test'@'%';"
-
       - name: Create version.json
         run: |
           printf '{"commit":"%s","version":"%s","source":"https://github.com/%s/%s","build":"%s"}\n' \
@@ -72,19 +61,46 @@ jobs:
       - name: Install test dependencies
         run: cargo install --locked cargo-nextest cargo-llvm-cov
 
-      - name: Run unit tests with coverage
-        run: make test_with_coverage
+      - name: Build workspace (spanner feature)
+        run: |
+          # Build with the spanner feature so any compile-time issues surface early
+          cargo build --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier
 
-      - name: Run unit tests with coverage (quota enforced)
-        run: make test_with_coverage
+      - name: Wait for Spanner emulator to be ready
+        run: |
+          for i in {1..20}; do
+            if nc -z 127.0.0.1 9020; then
+              echo "Spanner emulator reachable on 127.0.0.1:9020"
+              break
+            fi
+            echo "Waiting for Spanner emulator..."
+            sleep 2
+          done
+          if ! nc -z 127.0.0.1 9020; then
+            echo "ERROR: Cannot connect to Spanner emulator at 127.0.0.1:9020. Terminating."
+            exit 1
+          fi
+
+      - name: Setup Spanner schema & instance (prepare-spanner.sh)
         env:
-          SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
+          SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+          SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9020
+        run: |
+          # your repo has scripts/prepare-spanner.sh in CircleCI — re-use it here
+          scripts/prepare-spanner.sh
+
+      - name: Run Spanner unit tests with coverage
+        env:
+          SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+          SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9020
+          RUST_TEST_THREADS: 1
+        run: make spanner_test_with_coverage
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: mysql-test-results
+          name: spanner-test-results
           path: workflow/test-results/
 
       # Upload to GCS on master
@@ -120,9 +136,9 @@ jobs:
           parent: false
           process_gcloudignore: false
 
-  build-mysql-image:
+  build-spanner-image:
     runs-on: ubuntu-latest
-    needs: build-and-test-mysql
+    needs: build-and-test-spanner
 
     steps:
       - uses: actions/checkout@v6
@@ -140,29 +156,29 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build MySQL Docker image
+      - name: Build Spanner Docker image (local artifact)
         uses: docker/build-push-action@v6
         with:
           context: .
           push: false
           tags: app:build
           build-args: |
-            SYNCSTORAGE_DATABASE_BACKEND=mysql
-            TOKENSERVER_DATABASE_BACKEND=mysql
-          outputs: type=docker,dest=/tmp/mysql-image.tar
+            SYNCSTORAGE_DATABASE_BACKEND=spanner
+            MYSQLCLIENT_PKG=libmysqlclient-dev
+          outputs: type=docker,dest=/tmp/spanner-image.tar
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Upload Docker image artifact
         uses: actions/upload-artifact@v6
         with:
-          name: mysql-docker-image
-          path: /tmp/mysql-image.tar
+          name: spanner-docker-image
+          path: /tmp/spanner-image.tar
           retention-days: 1
 
-  mysql-e2e-tests:
+  spanner-e2e-tests:
     runs-on: ubuntu-latest
-    needs: build-mysql-image
+    needs: build-spanner-image
 
     steps:
       - uses: actions/checkout@v6
@@ -170,17 +186,17 @@ jobs:
       - name: Download Docker image
         uses: actions/download-artifact@v6
         with:
-          name: mysql-docker-image
+          name: spanner-docker-image
           path: /tmp
 
       - name: Load Docker image
-        run: docker load --input /tmp/mysql-image.tar
+        run: docker load --input /tmp/spanner-image.tar
 
       - name: Create test results directory
         run: mkdir -p workflow/test-results
 
-      - name: Run MySQL e2e tests
-        run: make docker_run_mysql_e2e_tests
+      - name: Run Spanner e2e tests
+        run: make docker_run_spanner_e2e_tests
         env:
           SYNCSTORAGE_RS_IMAGE: app:build
 
@@ -188,7 +204,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: mysql-e2e-test-results
+          name: spanner-e2e-test-results
           path: workflow/test-results/
 
       # Upload to GCS on master

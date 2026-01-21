@@ -5,7 +5,7 @@ inputs:
   python-version:
     description: "Python version to use"
     required: false
-    default: "3.12" # PYTHON_VER
+    default: "3.12" # PY_VER
   workspace-path:
     description: "The directory path to store test results"
     required: false
