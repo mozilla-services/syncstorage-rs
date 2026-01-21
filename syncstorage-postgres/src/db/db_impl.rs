@@ -3,13 +3,12 @@ use chrono::{offset::Utc, DateTime, TimeDelta};
 use diesel::{
     delete,
     dsl::{count, max, now, sql},
-    sql_types::{BigInt, Nullable, Timestamptz},
+    sql_types::{Array, BigInt, Integer, Nullable, Timestamptz},
     upsert::excluded,
     ExpressionMethods, IntoSql, OptionalExtension, QueryDsl, SelectableHelper,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use futures::TryStreamExt;
-use std::collections::HashMap;
 use syncstorage_db_common::{
     error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting, DEFAULT_BSO_TTL,
 };
@@ -18,7 +17,7 @@ use super::{PgDb, TOMBSTONE};
 use crate::{
     bsos_query,
     db::{CollectionLock, PRETOUCH_DT},
-    orm_models::BsoChangeset,
+    orm_models::{sql_types::PostBso, BsoChangeset},
     pool::Conn,
     schema::{bsos, collections, user_collections},
     DbError, DbResult,
@@ -73,6 +72,7 @@ impl Db for PgDb {
         &mut self,
         params: params::LockCollection,
     ) -> DbResult<results::LockCollection> {
+        let user_id = params.user_id.legacy_id as i64;
         let collection_id = self
             .get_collection_id(&params.collection)
             .await
@@ -86,7 +86,6 @@ impl Db for PgDb {
                 }
             })?;
 
-        let user_id = params.user_id.legacy_id as i64;
         let key = (params.user_id, collection_id);
         // If we already have a read or write lock then it's safe to
         // use it as-is.
@@ -117,8 +116,8 @@ impl Db for PgDb {
     }
 
     async fn lock_for_write(&mut self, params: params::LockCollection) -> DbResult<()> {
-        let collection_id = self.get_or_create_collection_id(&params.collection).await?;
         let user_id = params.user_id.legacy_id as i64;
+        let collection_id = self.get_or_create_collection_id(&params.collection).await?;
         let key = (params.user_id, collection_id);
 
         if let Some(CollectionLock::Read) = self.session.coll_locks.get(&key) {
@@ -353,38 +352,11 @@ impl Db for PgDb {
         Ok(results::GetBsoIds { items, offset })
     }
 
-    async fn post_bsos(&mut self, params: params::PostBsos) -> DbResult<results::PostBsos> {
-        let collection_id = self.get_or_create_collection_id(&params.collection).await?;
-        let modified = self.checked_timestamp()?;
-
-        self.ensure_user_collection(params.user_id.legacy_id as i64, collection_id)
-            .await?;
-        for pbso in params.bsos {
-            self.put_bso(params::PutBso {
-                user_id: params.user_id.clone(),
-                collection: params.collection.clone(),
-                id: pbso.id.clone(),
-                payload: pbso.payload,
-                sortindex: pbso.sortindex,
-                ttl: pbso.ttl,
-            })
-            .await?;
-        }
-        self.update_collection(params::UpdateCollection {
-            user_id: params.user_id,
-            collection_id,
-            collection: params.collection,
-        })
-        .await?;
-
-        Ok(modified)
-    }
-
     async fn delete_bso(&mut self, params: params::DeleteBso) -> DbResult<results::DeleteBso> {
-        let user_id = params.user_id.legacy_id;
+        let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection).await?;
         let affected_rows = delete(bsos::table)
-            .filter(bsos::user_id.eq(user_id as i64))
+            .filter(bsos::user_id.eq(user_id))
             .filter(bsos::collection_id.eq(&collection_id))
             .filter(bsos::bso_id.eq(params.id))
             .filter(bsos::expiry.gt(now))
@@ -437,65 +409,31 @@ impl Db for PgDb {
     }
 
     async fn put_bso(&mut self, bso: params::PutBso) -> DbResult<results::PutBso> {
+        let user_id = bso.user_id.legacy_id as i64;
         let collection_id = self.get_or_create_collection_id(&bso.collection).await?;
-        let user_id: u64 = bso.user_id.legacy_id;
-        if self.quota.enabled {
-            let usage = self
-                .get_quota_usage(params::GetQuotaUsage {
-                    user_id: bso.user_id.clone(),
-                    collection: bso.collection.clone(),
-                    collection_id,
-                })
-                .await?;
-            if usage.total_bytes >= self.quota.size {
-                let mut tags = HashMap::default();
-                tags.insert("collection".to_owned(), bso.collection.clone());
-                self.metrics.incr_with_tags("storage.quota.at_limit", tags);
-                if self.quota.enforced {
-                    return Err(DbError::quota());
-                } else {
-                    warn!("Quota at limit for user's collection ({} bytes)", usage.total_bytes; "collection"=>bso.collection.clone());
-                }
-            }
-        }
+
+        self.check_quota(&bso.user_id, &bso.collection, collection_id)
+            .await?;
 
         let payload = bso.payload.as_deref().unwrap_or_default();
         let sortindex = bso.sortindex;
-        let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
+        let ttl = bso.ttl.unwrap_or(DEFAULT_BSO_TTL);
 
         let modified = self.checked_timestamp()?.as_datetime()?;
         // Expiry originally required millisecond conversion
         let expiry = modified + TimeDelta::seconds(ttl as i64);
-
         // The changeset utilizes Diesel's `AsChangeset` trait.
         // This allows selective updates of fields if and only if they are `Some(<T>)`
         let changeset = BsoChangeset {
-            sortindex: if bso.sortindex.is_some() {
-                sortindex // sortindex is already an Option of type `Option<i32>`
-            } else {
-                None
-            },
-            payload: if bso.payload.is_some() {
-                Some(payload)
-            } else {
-                None
-            },
-            expiry: if bso.ttl.is_some() {
-                Some(expiry)
-            } else {
-                None
-            },
-            modified: if bso.payload.is_some() || bso.sortindex.is_some() {
-                Some(modified)
-            } else {
-                None
-            },
+            sortindex: bso.sortindex,
+            payload: bso.payload.as_deref(),
+            modified: (bso.payload.is_some() || bso.sortindex.is_some()).then_some(modified),
+            expiry: bso.ttl.map(|_| expiry),
         };
-        self.ensure_user_collection(user_id as i64, collection_id)
-            .await?;
+        self.ensure_user_collection(user_id, collection_id).await?;
         diesel::insert_into(bsos::table)
             .values((
-                bsos::user_id.eq(user_id as i64),
+                bsos::user_id.eq(user_id),
                 bsos::collection_id.eq(&collection_id),
                 bsos::bso_id.eq(&bso.id),
                 bsos::sortindex.eq(sortindex),
@@ -513,6 +451,35 @@ impl Db for PgDb {
             user_id: bso.user_id,
             collection_id,
             collection: bso.collection,
+        })
+        .await
+    }
+
+    async fn post_bsos(&mut self, params: params::PostBsos) -> DbResult<results::PostBsos> {
+        let user_id = params.user_id.legacy_id as i64;
+        let collection_id = self.get_or_create_collection_id(&params.collection).await?;
+        self.check_quota(&params.user_id, &params.collection, collection_id)
+            .await?;
+        self.ensure_user_collection(user_id, collection_id).await?;
+
+        // Rendering a VALUES statement for MERGE INTO here is painful so we
+        // pass the bsos in a single bind param as an Array of a named
+        // composite type (post_bso[]). The composite type must be explicitly
+        // named/declared as postgres disallows unnamed/anonymous composite
+        // types to be used as bind parameters
+        diesel::sql_query(include_str!("post_bsos.sql"))
+            .bind::<BigInt, _>(user_id)
+            .bind::<Integer, _>(collection_id)
+            .bind::<Array<PostBso>, _>(params.bsos)
+            .bind::<Timestamptz, _>(self.checked_timestamp()?.as_datetime()?)
+            .bind::<BigInt, _>(DEFAULT_BSO_TTL as i64)
+            .execute(&mut self.conn)
+            .await?;
+
+        self.update_collection(params::UpdateCollection {
+            user_id: params.user_id,
+            collection_id,
+            collection: params.collection,
         })
         .await
     }
@@ -548,9 +515,9 @@ impl Db for PgDb {
         &mut self,
         params: params::UpdateCollection,
     ) -> DbResult<SyncTimestamp> {
+        let user_id = params.user_id.legacy_id as i64;
         let quota = if self.quota.enabled {
-            self.calc_quota_usage(params.user_id.legacy_id as i64, params.collection_id)
-                .await?
+            self.calc_quota_usage(user_id, params.collection_id).await?
         } else {
             results::GetQuotaUsage {
                 count: 0,
@@ -562,7 +529,7 @@ impl Db for PgDb {
 
         diesel::insert_into(user_collections::table)
             .values((
-                user_collections::user_id.eq(params.user_id.legacy_id as i64),
+                user_collections::user_id.eq(user_id),
                 user_collections::collection_id.eq(params.collection_id),
                 user_collections::modified.eq(modified.as_datetime()?),
                 user_collections::count.eq(quota.count as i64),

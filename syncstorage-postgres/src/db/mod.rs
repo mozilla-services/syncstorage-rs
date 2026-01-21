@@ -9,8 +9,9 @@ use diesel_async::RunQueryDsl;
 use std::{collections::HashMap, fmt, sync::Arc};
 
 use syncserver_common::Metrics;
-use syncstorage_db_common::diesel::DbError;
-use syncstorage_db_common::{results, util::SyncTimestamp, UserIdentifier};
+use syncstorage_db_common::{
+    diesel::DbError, params, results, util::SyncTimestamp, Db, UserIdentifier,
+};
 use syncstorage_settings::Quota;
 
 use super::schema::{bsos, collections, user_collections};
@@ -203,6 +204,36 @@ impl PgDb {
             .execute(&mut self.conn)
             .await?;
         Ok(())
+    }
+
+    async fn check_quota(
+        &mut self,
+        user_id: &UserIdentifier,
+        collection: &str,
+        collection_id: i32,
+    ) -> DbResult<Option<usize>> {
+        if !self.quota.enabled {
+            return Ok(None);
+        }
+        let usage = self
+            .get_quota_usage(params::GetQuotaUsage {
+                user_id: user_id.clone(),
+                collection: collection.to_owned(),
+                collection_id,
+            })
+            .await?;
+        if usage.total_bytes >= self.quota.size {
+            let mut tags = HashMap::default();
+            tags.insert("collection".to_owned(), collection.to_owned());
+            self.metrics.incr_with_tags("storage.quota.at_limit", tags);
+            if self.quota.enforced {
+                return Err(DbError::quota());
+            } else {
+                warn!("Quota at limit for user's collection: ({} bytes)", usage.total_bytes;
+                      "collection" => collection);
+            }
+        }
+        Ok(Some(usage.total_bytes))
     }
 
     // perform a heavier weight quota calculation
