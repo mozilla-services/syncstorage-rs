@@ -18,6 +18,13 @@ jobs:
   build-and-test-spanner:
     runs-on: ubuntu-latest
 
+    services:
+      spanner-emulator:
+        image: gcr.io/cloud-spanner-emulator/emulator:1.4.0
+        ports:
+          - 9010:9010
+          - 9020:9020
+
     env:
       # The code expects a spanner URL like:
       SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
@@ -26,9 +33,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-
-      - name: Setup Spanner Emulator
-        uses: cloudspannerecosystem/setup-spanner-emulator@v0.2.0
 
       - uses: ./.github/actions/setup-rust
         with:
@@ -55,6 +59,24 @@ jobs:
         run: |
           # Build with the spanner feature so any compile-time issues surface early
           cargo build --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier
+
+      - name: Wait for Spanner Emulator to be ready
+        run: |
+          echo "Waiting for Spanner emulator to be ready..."
+          for i in {1..30}; do
+            if curl -s http://localhost:9020/ > /dev/null 2>&1; then
+              echo "Spanner emulator is ready (REST port 9020 responding)"
+              break
+            fi
+            echo "Attempt $i/30: Spanner emulator not ready yet, waiting..."
+            sleep 2
+          done
+          # Verify both ports are accessible
+          if ! curl -s http://localhost:9020/ > /dev/null 2>&1; then
+            echo "ERROR: Cannot connect to Spanner emulator REST API at localhost:9020"
+            exit 1
+          fi
+          echo "Spanner emulator is fully ready"
 
       - name: Setup Spanner schema & instance (prepare-spanner.sh)
         env:
