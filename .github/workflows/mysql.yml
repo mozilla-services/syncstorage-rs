@@ -7,7 +7,7 @@ on:
     branches:
       - master
     tags:
-      - '**'
+      - "**"
   workflow_dispatch: {}
 
 env:
@@ -212,7 +212,7 @@ jobs:
           parent: false
           process_gcloudignore: false
 
-  deploy-mysql:
+  deploy-mysql-dockerhub:
     runs-on: ubuntu-latest
     needs: mysql-e2e-tests
     if: |
