@@ -18,27 +18,17 @@ jobs:
   build-and-test-spanner:
     runs-on: ubuntu-latest
 
-    services:
-      spanner-emulator:
-        image: gcr.io/cloud-spanner-emulator/emulator:1.4.0
-        # expose the emulator port used in your scripts (adjust if your scripts expect other ports)
-        ports:
-          - 9020:9020
-        options: >-
-          --health-cmd="nc -z 127.0.0.1 9020 || exit 1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-
     env:
       # The code expects a spanner URL like:
       SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-      SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9020
       RUST_BACKTRACE: 1
       RUST_TEST_THREADS: 1
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Setup Spanner Emulator
+        uses: cloudspannerecosystem/setup-spanner-emulator@v0.2.0
 
       - uses: ./.github/actions/setup-rust
         with:
@@ -66,33 +56,18 @@ jobs:
           # Build with the spanner feature so any compile-time issues surface early
           cargo build --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier
 
-      - name: Wait for Spanner emulator to be ready
-        run: |
-          for i in {1..20}; do
-            if nc -z 127.0.0.1 9020; then
-              echo "Spanner emulator reachable on 127.0.0.1:9020"
-              break
-            fi
-            echo "Waiting for Spanner emulator..."
-            sleep 2
-          done
-          if ! nc -z 127.0.0.1 9020; then
-            echo "ERROR: Cannot connect to Spanner emulator at 127.0.0.1:9020. Terminating."
-            exit 1
-          fi
-
       - name: Setup Spanner schema & instance (prepare-spanner.sh)
         env:
           SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-          SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9020
+          SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: http://localhost:9020
         run: |
-          # your repo has scripts/prepare-spanner.sh in CircleCI — re-use it here
+          # prepare-spanner.sh uses the REST API (port 9020)
           scripts/prepare-spanner.sh
 
       - name: Run Spanner unit tests with coverage
         env:
           SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-          SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9020
+          SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: localhost:9010
           RUST_TEST_THREADS: 1
         run: make spanner_test_with_coverage
 
