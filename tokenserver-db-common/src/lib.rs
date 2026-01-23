@@ -5,7 +5,10 @@ mod error;
 pub mod params;
 pub mod results;
 
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    cmp,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use async_trait::async_trait;
 use syncserver_common::Metrics;
@@ -127,8 +130,8 @@ pub trait Db {
                 old_client_states: vec![],
             })
         } else {
-            raw_users.sort_by_key(|raw_user| (raw_user.generation, raw_user.created_at));
-            raw_users.reverse();
+            raw_users
+                .sort_by_key(|raw_user| cmp::Reverse((raw_user.generation, raw_user.created_at)));
 
             // The user with the greatest `generation` and `created_at` is the current user
             let raw_user = raw_users[0].clone();
