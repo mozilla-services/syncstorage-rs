@@ -29,7 +29,7 @@
 [Mozilla Accounts Server - FxA](mozilla-accounts.md)
 
 - [How To Guides](how-to/index.md)
-    - [Run Your Own FxA Server](how-to/how-to-run-fxa.md)
+    - [Run Your Own Sync-1.5 Server with Docker](how-to/how-to-run-with-docker.md)
     - [Run Your Own Sync-1.5 Server (legacy)](how-to/how-to-run-sync-server.md)
     - [Configure Sync Server for TLS (legacy)](how-to/how-to-config-tls.md)
 
