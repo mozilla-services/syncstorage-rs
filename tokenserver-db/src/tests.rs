@@ -1193,7 +1193,7 @@ async fn test_correct_created_at_used_during_user_retrieval() -> DbResult<()> {
 }
 
 #[tokio::test]
-async fn test_disallow_reusing_old_client_state() -> DbResult<()> {
+async fn test_latest_created_at() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
