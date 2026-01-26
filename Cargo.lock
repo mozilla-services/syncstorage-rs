@@ -3895,6 +3895,7 @@ dependencies = [
  "pyo3",
  "serde 1.0.228",
  "syncserver-common",
+ "utoipa",
 ]
 
 [[package]]
