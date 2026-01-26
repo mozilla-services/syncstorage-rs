@@ -77,16 +77,16 @@ Ex. `poetry run python locustfile.py`
 
    ```sh
    # Should be set to the "n" component of the JWK
-   SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_N
+   SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__N
    # Should be set to the "e" component of the JWK (this value should almost always be "AQAB")
-   SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_E
-   SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_KTY=RSA
-   SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_USE=sig
-   SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_ALG=RS256
+   SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__E
+   SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KTY=RSA
+   SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__USE=sig
+   SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__ALG=RS256
 
    # These two environment variables don't affect the load tests, but they need to be set:
-   SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_KID=""
-   SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_FXA_CREATED_AT=0
+   SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KID=""
+   SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__FXA_CREATED_AT=0
    ```
 
    Note that, because these settings cache the JWK used to verify OAuth tokens, no verification requests will be made to FxA, so the value of `SYNC_TOKENSERVER__FXA_OAUTH_VERIFIER_URL` does not matter; however, Tokenserver expects it to be set, so setting it to something like `http://localhost` will suffice.

@@ -24,7 +24,7 @@ ONE_YEAR = 60 * 60 * 24 * 365
 TOKENSERVER_PATH = "/1.0/sync/1.5"
 
 # This is a private key used to "forge" valid tokens. The associated public
-# key must be set using the SYNC_TOKENSERVER__FXA_PRIMARY_JWK_* environment
+# key must be set using the SYNC_TOKENSERVER__FXA_PRIMARY_JWK__* environment
 # variables on Tokenserver.
 VALID_OAUTH_PRIVATE_KEY = private_key = serialization.load_pem_private_key(
     open(os.environ["OAUTH_PEM_FILE"], "rb").read(),
