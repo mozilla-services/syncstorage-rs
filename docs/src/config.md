@@ -42,4 +42,5 @@ The following configuration options are available.
 | limits.max_request_bytes | 2,101,248 | Largest ... |
 | limits.max_total_bytes | 209,715,200 | Largest ... |
 | limits.max_total_records | 100,000 | Largest ... |
+| fxa_oauth_request_proxy | _None_ | HTTP/HTTPs Proxy Server (Example: http://proxy.domain.com:8080) |
 

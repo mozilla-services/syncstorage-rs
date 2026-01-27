@@ -25,6 +25,8 @@ pub struct Settings {
     pub fxa_email_domain: String,
     /// The URL of the FxA server used for verifying OAuth tokens.
     pub fxa_oauth_server_url: String,
+    /// The URL of a HTTP/HTTPs Proxy Server. Example: http://proxy.domain.com:8080.
+    pub fxa_oauth_request_proxy: Option<String>,
     /// The timeout to be used when making requests to the FxA OAuth verification server.
     pub fxa_oauth_request_timeout: u64,
     /// The JWK to be used to verify OAuth tokens. Passing a JWK to the PyFxA Python library
@@ -68,6 +70,7 @@ impl Default for Settings {
             fxa_email_domain: "api-accounts.stage.mozaws.net".to_owned(),
             fxa_metrics_hash_secret: "secret".to_owned(),
             fxa_oauth_server_url: "https://oauth.stage.mozaws.net".to_owned(),
+			fxa_oauth_request_proxy: None,
             fxa_oauth_request_timeout: 10,
             fxa_oauth_primary_jwk: None,
             fxa_oauth_secondary_jwk: None,
