@@ -3,7 +3,7 @@
 ## What is Tokenserver?
 Tokenserver is responsible for allocating Firefox Sync users to Sync Storage nodes hosted in our Spanner GCP Backend.
 Tokenserver provides the "glue" between [Firefox Accounts](https://github.com/mozilla/fxa/) and the
-[SyncStorage API](https://mozilla-services.readthedocs.io/en/latest/storage/apis-1.5.html).
+[SyncStorage API](api/index.md).
 
 Broadly, Tokenserver is responsible for:
 

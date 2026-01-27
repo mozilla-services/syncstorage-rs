@@ -1,0 +1,91 @@
+# Documentation Notes and Comments
+
+mdBook is a command line tool to create books with Markdown. It is ideal for creating product or API documentation, tutorials, course materials or anything that requires a clean, easily navigable and customizable presentation. Source: [mdBook Documentation](https://rust-lang.github.io/mdBook/index.html).
+
+## mdBook
+
+To build the documentation, install mdBook:
+
+```bash
+cargo install mdbook
+```
+
+For mermaid diagram support, you also have to install [mdbook-mermaid](https://github.com/badboy/mdbook-mermaid).
+Then you need to run an install command to create two minified `js` files `["mermaid.min.js", "mermaid-init.js"]` to render mermaid diagrams:
+
+```bash
+cargo install mdbook-mermaid
+mdbook-mermaid install path/to/book
+```
+
+To have a live interactive instance when working with docs, you can use mdBook's `watch` feature.
+
+```bash
+mdbook watch path/to/book
+```
+
+Or use the Makefile utility `make doc-watch` from the root of syncstorage-rs.
+
+To build documentation locally, run:
+
+```bash
+mdbook build
+```
+
+This will generate the html files into the `./output` directory. You can also run:
+
+```bash
+mdbook serve
+```
+
+which will serve those files on `http://localhost:3000`. You can also add the `--open` flag to the end of
+`mdbook serve` which will open the docs in a browser window.
+
+TIP: We created the handy Makefile utility `doc-prev` which will clean, build, and open fresh
+docs for you in the browser. Just run `make doc-prev` in your command line.
+
+### Testing docs for validity
+
+It is highly recommended that any additions/changes to documentation are tested. This ensures there are no syntax issues or invalid links that will break the deployed documentation. MdBook has a useful `mdbook test` utility for this. We've created the Makefile command `make doc-test` ease, run from the root of the `syncstorage-rs` crate. 
+
+As Rust's documentation often serves as a method of testing itself, code blocks are evaluated in documentation. Only blocks annotated with `rust` are tested. To ignore, annotate as follows: `rust,ignore` at the open of a code block.
+
+
+### Integration with rustdoc
+
+`mdbook` does not cleanly integrate with `rustdoc` at this time. It's possible (via some fun github actions) to build the docs and include them in the deploy.
+
+## Building Pages using Github Actions
+
+### Running
+
+You specify triggers within the `.github/workflows` directory, in the `publish-docs.yml` file. 
+This invokes the `make_book.sh` shell script to build API, mdBook, and cargo docs.
+
+### Setup
+
+Github Actions allows for various CI-like steps to run. The [publish-docs.yaml](../../.github/workflows/publish-docs.yaml)
+has two "jobs": one to do the build, another to deploy the built artifact to Github pages.
+
+Under the repo settings, be sure to set the following settings like below:
+
+- Actions
+  - General
+    - _Actions permissions_:
+      - ☑ **Allow $USER, and select non-$USER, actions and reusable workflows**
+      - ☑ Allow actions created by GitHub
+      - ☑ Allow actions by Marketplace verified creators
+    - _Artifact and log retention_: 
+      - (can use default)
+    - _Fork pull request workflows from outside collaborators_
+      - **Require approval for first-time contributors**
+    - _Workflow permission_
+      -  Read and write permissions
+      - ☑ Allow GitHub Actions to create and approve pull requests
+    - _Runners_
+      - No settings needed
+
+  - Pages
+    -  _Build and deployment_:
+      - Source: GitHub Actions
+

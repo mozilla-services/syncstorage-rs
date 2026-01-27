@@ -191,9 +191,7 @@ class TestE2e(TestCase, unittest.TestCase):
         self.assertEqual(res.json["key"], expected_secret)
         # Check to make sure the remainder of the fields are valid
         self.assertEqual(res.json["uid"], user["uid"])
-        self.assertEqual(
-            res.json["api_endpoint"], f"{self.NODE_URL}/1.5/{user['uid']}"
-        )
+        self.assertEqual(res.json["api_endpoint"], f"{self.NODE_URL}/1.5/{user['uid']}")
         self.assertEqual(res.json["duration"], DEFAULT_TOKEN_DURATION)
         self.assertEqual(res.json["hashalg"], "sha256")
         self.assertEqual(

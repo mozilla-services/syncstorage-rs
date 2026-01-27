@@ -34,6 +34,12 @@ commands:
             rustup component add rustfmt
             cargo install --locked cargo-audit
             rustup component add clippy
+  setup-docs-check:
+    steps:
+      - run:
+          name: Setup documentation checks
+          command: |
+            make doc-install-deps
   setup-python:
     steps:
       - run:
@@ -54,6 +60,12 @@ commands:
           command: |
             cargo fmt -- --check
             cargo audit
+  docs-check:
+    steps:
+      - run:
+          name: Documentation checks
+          command: |
+            make doc-test
   python-check:
     steps:
       - run:
@@ -289,6 +301,8 @@ jobs:
       - display-versions
       - setup-rust-check
       - rust-check
+      - setup-docs-check
+      - docs-check
       - rust-clippy-spanner
       - rust-clippy-mysql
       - rust-clippy-postgres
@@ -539,114 +553,6 @@ jobs:
           key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
           paths:
             - /home/circleci/cache
-
-  # Auth to GCR, tag and push image
-  deploy-spanner-to-gar:
-    executor: gcp-gcr/default
-    parameters:
-      image:
-        type: string
-        default: syncstorage-rs
-      registry-url:
-        type: string
-        default: us-docker.pkg.dev
-      gar-repo:
-        type: string
-        default: sync-prod
-    steps:
-      # Auth to GCR
-      # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-gcr-auth
-      - gcp-gcr/gcr-auth:
-          registry-url: <<parameters.registry-url>>
-          use_oidc: true
-      - restore_cache:
-          key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
-      - run:
-          name: Restore Docker image cache
-          command: docker load -i /home/circleci/cache/docker.tar
-      - run:
-          name: Tag image
-          command: |
-            if [ "${CIRCLE_BRANCH}" == "master" ]; then
-              GAR_TAG="${CIRCLE_SHA1}"
-            fi
-
-            if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
-              GAR_TAG="${CIRCLE_BRANCH}"
-            fi
-
-            if [ -n "${CIRCLE_TAG}" ]; then
-              GAR_TAG="$CIRCLE_TAG"
-            fi
-
-            if [ -n "${GAR_TAG}" ]; then
-              echo "export GAR_TAG=${GAR_TAG}" >> $BASH_ENV
-              echo "export GAR_IMAGE=\"<<parameters.registry-url>>/${GOOGLE_PROJECT_ID}/<<parameters.gar-repo>>/<<parameters.image>>\"" >> $BASH_ENV
-              source $BASH_ENV
-              docker tag app:build ${GAR_IMAGE}:${GAR_TAG}
-            else
-              echo "Not pushing to gar for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
-            fi
-      # Push image
-      # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-push-image
-      - gcp-gcr/push-image:
-          image: <<parameters.gar-repo>>/<<parameters.image>>
-          registry-url: <<parameters.registry-url>>
-          tag: $GAR_TAG
-
-  # Auth to GCR, tag and push image
-  deploy-postgres-to-gar:
-    executor: gcp-gcr/default
-    parameters:
-      image:
-        type: string
-        default: syncstorage-rs-postgres
-      registry-url:
-        type: string
-        default: us-docker.pkg.dev
-      gar-repo:
-        type: string
-        default: sync-prod
-    steps:
-      # Auth to GCR
-      # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-gcr-auth
-      - gcp-gcr/gcr-auth:
-          registry-url: <<parameters.registry-url>>
-          use_oidc: true
-      - restore_cache:
-          key: postgres-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
-      - run:
-          name: Restore Docker image cache
-          command: docker load -i /home/circleci/cache/docker.tar
-      - run:
-          name: Tag image
-          command: |
-            if [ "${CIRCLE_BRANCH}" == "master" ]; then
-              GAR_TAG="${CIRCLE_SHA1}"
-            fi
-
-            if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
-              GAR_TAG="${CIRCLE_BRANCH}"
-            fi
-
-            if [ -n "${CIRCLE_TAG}" ]; then
-              GAR_TAG="$CIRCLE_TAG"
-            fi
-
-            if [ -n "${GAR_TAG}" ]; then
-              echo "export GAR_TAG=${GAR_TAG}" >> $BASH_ENV
-              echo "export GAR_IMAGE=\"<<parameters.registry-url>>/${GOOGLE_PROJECT_ID}/<<parameters.gar-repo>>/<<parameters.image>>\"" >> $BASH_ENV
-              source $BASH_ENV
-              docker tag app:build ${GAR_IMAGE}:${GAR_TAG}
-            else
-              echo "Not pushing to gar for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
-            fi
-      # Push image
-      # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-push-image
-      - gcp-gcr/push-image:
-          image: <<parameters.gar-repo>>/<<parameters.image>>
-          registry-url: <<parameters.registry-url>>
-          tag: $GAR_TAG
 
   mysql-e2e-tests:
     docker:
@@ -918,32 +824,6 @@ workflows:
             branches:
               only: master
       - deploy-postgres:
-          requires:
-            - mysql-e2e-tests
-            - postgres-e2e-tests
-            - spanner-e2e-tests
-          filters:
-            tags:
-              only: /.*/
-            branches:
-              only: master
-      - deploy-spanner-to-gar:
-          registry-url: us-docker.pkg.dev
-          gar-repo: sync-prod
-          image: syncstorage-rs
-          requires:
-            - mysql-e2e-tests
-            - postgres-e2e-tests
-            - spanner-e2e-tests
-          filters:
-            tags:
-              only: /.*/
-            branches:
-              only: master
-      - deploy-postgres-to-gar:
-          registry-url: us-docker.pkg.dev
-          gar-repo: sync-prod
-          image: syncstorage-rs-postgres
           requires:
             - mysql-e2e-tests
             - postgres-e2e-tests

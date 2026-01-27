@@ -646,9 +646,8 @@ fn hash_device_id(fxa_uid: &str, hmac_key: &[u8]) -> String {
     let mut to_hash = String::from(fxa_uid);
     // TODO: This value originally was the deviceID from BrowserID.
     // When support was dropped for BrowserID, the device string
-    // defaulted to "none". Append it here for now as a hard coded
-    // value until we can figure out if it's something we need to
-    // preserve for the UA or not.
+    // defaulted to "none". Append it here for now until resolving
+    // https://github.com/mozilla-services/syncstorage-rs/issues/1663
     to_hash.push_str("none");
     let fxa_metrics_hash = fxa_metrics_hash(&to_hash, hmac_key);
 

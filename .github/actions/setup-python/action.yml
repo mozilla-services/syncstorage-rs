@@ -1,0 +1,42 @@
+name: Setup Python Environment
+description: Sets up Python with Poetry dependencies
+
+inputs:
+  python-version:
+    description: "Python version to use"
+    required: false
+    default: "3.12" # PY_VER
+  workspace-path:
+    description: "The directory path to store test results"
+    required: false
+    default: "workflow"
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up Python
+      uses: actions/setup-python@v6 # <https://github.com/actions/setup-python>
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Poetry
+      shell: bash
+      run: pip install poetry
+
+    - name: Install Python dependencies with Poetry
+      shell: bash
+      run: |
+        poetry install --with tokenserver-unit-tests,dev --no-interaction --no-ansi
+
+    - name: Create workspace directory
+      shell: bash
+      run: mkdir -p ${{ inputs.workspace-path }}
+
+    - name: Display Version Info
+      shell: bash
+      run: |
+        if [ "$(which python)" != "" ]; then python --version; fi
+        uname -a
+        cat /etc/os-release

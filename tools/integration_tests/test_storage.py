@@ -93,7 +93,7 @@ class TestStorage(StorageFunctionalTestCase):
     @contextlib.contextmanager
     def _switch_user(self):
         """Allows for temporary switch url to another user id.
-        Context manager yields for duration of test and then 
+        Context manager yields for duration of test and then
         returns to original user, regardless of test result.
         If unsuccessful, root url is retained.
         """
@@ -101,6 +101,11 @@ class TestStorage(StorageFunctionalTestCase):
         try:
             with super(TestStorage, self)._switch_user():
                 self.root = "/1.5/%d" % (self.user_id,)
+                # Potentially slow: it's possible this is a user from
+                # a previous test w/ left over data. Clearing instead
+                # in a tearDown is more involved because at least one
+                # test calls _switch_user+writes many times
+                self.retry_delete(self.root)
                 yield
         finally:
             self.root = orig_root
@@ -120,11 +125,11 @@ class TestStorage(StorageFunctionalTestCase):
     def _retry_send(self, func, *args, **kwargs):
         try:
             # Try to call underlying webtest method with args.
-            return func(*args, **kwargs) # Generic callable
+            return func(*args, **kwargs)  # Generic callable
         except webtest.AppError as ex:
-            # If non-200 resp, we want to retry as may be transient 
+            # If non-200 resp, we want to retry as may be transient
             # status. If 409 (conflict) or 503 (Service Unavailable)
-            #  are not present, err non-transient and we re-raise, 
+            #  are not present, err non-transient and we re-raise,
             # no retry.
             if "409 " not in ex.args[0] and "503 " not in ex.args[0]:
                 raise ex
@@ -1795,38 +1800,45 @@ class TestStorage(StorageFunctionalTestCase):
         except KeyError:
             # This can't be run against a live server because we
             # have to forge an auth token to test things properly.
-                if self.distant:
-                    pytest.skip("Test cannot be run against a live server.")
-                raise
-        
+            if self.distant:
+                pytest.skip("Test cannot be run against a live server.")
+            raise
+
         max_total_records = limit
         self.assertTrue("max_total_records" in conf_limits)
         self.assertTrue(max_total_records == 1664)
 
         # We can only enforce it if the client tells us this via the
         # 'X-Weave-Total-Records' header.
-        self.retry_post_json(endpoint_batch, [], headers={
-            'X-Weave-Total-Records': str(conf_limits['max_total_records'])
-        })
-        res = self.retry_post_json(endpoint_batch, [], headers={
-            'X-Weave-Total-Records': str(conf_limits['max_total_records'] + 1)
-        }, status=400)
+        self.retry_post_json(
+            endpoint_batch,
+            [],
+            headers={"X-Weave-Total-Records": str(conf_limits["max_total_records"])},
+        )
+        res = self.retry_post_json(
+            endpoint_batch,
+            [],
+            headers={
+                "X-Weave-Total-Records": str(conf_limits["max_total_records"] + 1)
+            },
+            status=400,
+        )
         self.assertEqual(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
 
         # Success case within limit
-        bsos = [{'id': str(i), 'payload': 'X'} for i in range(max_total_records)]
+        bsos = [{"id": str(i), "payload": "X"} for i in range(max_total_records)]
         resp = self.retry_post_json(endpoint_batch, bsos)
         batch = resp.json["batch"]
         resp = self.retry_post_json(f"{endpoint}?batch={batch}&commit=true", [])
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json['modified'], max_total_records)
+        self.assertEqual(resp.json["modified"], max_total_records)
 
         # Fail case above limit (+1)
-        bsos = [{'id': str(i), 'payload': 'X'} for i in range(max_total_records + 1)]
+        bsos = [{"id": str(i), "payload": "X"} for i in range(max_total_records + 1)]
         resp = self.retry_post_json(endpoint_batch, bsos)
         batch = resp.json["batch"]
         resp = self.retry_post_json(f"{endpoint}?batch={batch}&commit=true", [])
-        self.assertIn('error', resp.json)
+        self.assertIn("error", resp.json)
         self.assertEqual(resp.status_code, 400)
 
     def test_batch_partial_update(self):

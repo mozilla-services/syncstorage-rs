@@ -1,7 +1,7 @@
 # Token Server API v1.0
 
-Unless stated otherwise, all APIs are using application/json for the requests
-and responses content types.
+> Unless stated otherwise, all APIs are using `application/json` for the requests
+> and responses content types.
 
 
 **GET** **/1.0/<app_name>/<app_version>**
@@ -20,10 +20,10 @@ The first /1.0/ in the URL defines the version of the authentication
 token itself.
 
 Example for Mozilla Account OAuth 2.0::
-```
-    GET /1.0/sync/1.5
-    Host: token.services.mozilla.com
-    Authorization: bearer <assertion>
+```json
+  GET /1.0/sync/1.5
+  Host: token.services.mozilla.com
+  Authorization: bearer <assertion>
 ```
 
 This API returns several values in a json mapping:
@@ -36,7 +36,7 @@ This API returns several values in a json mapping:
 - **duration** -- the validity duration of the issued token, in seconds.
 
 Example::
-```
+```json
 HTTP/1.1 200 OK
 Content-Type: application/json
 
@@ -68,7 +68,7 @@ A change in the value of this header may cause the user's node
 allocation to be reset, keeping in mind Sync currently has a single node.
 Clients should include any client-side state
 that is necessary for accessing the selected app.  For example, clients
-accessing :ref:`server_syncstorage_api_15` would include a hex-encoded
+accessing the Sync-1.5 API would include a hex-encoded
 hash of the encryption key in this header, since a change in the encryption
 key will make any existing data unreadable.
 
@@ -113,12 +113,9 @@ assertions.
 
 
 ## Error Responses
-===============
 
 All errors are also returned, wherever possible, as json responses following the
-structure `described in Cornice
-<https://cornice.readthedocs.io/en/latest/validation.html#dealing-with-errors>`_.
-
+structure described in [Cornice](https://cornice.readthedocs.io/en/latest/validation.html#dealing-with-errors>).
 In cases where generating such a response is not possible (e.g. when a request
 if so malformed as to be unparsable) then the resulting error response will
 have a *Content-Type* that is not **application/json**.

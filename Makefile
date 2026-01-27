@@ -218,9 +218,34 @@ ruff-lint: $(INSTALL_STAMP)  ##  Lint check for utilities.
 	$(POETRY) run ruff check $(TOOLS_DIR)
 
 .PHONY: ruff-fmt-chk
-ruff-fmt: $(INSTALL_STAMP)  ##  Format check with change summary.
+ruff-fmt-chk: $(INSTALL_STAMP)  ##  Format check with change summary.
 	$(POETRY) run ruff format --diff  $(TOOLS_DIR)
 
 .PHONY: ruff-format
 ruff-format: $(INSTALL_STAMP)  ##  Formats files in directory.
 	$(POETRY) run ruff format $(TOOLS_DIR)
+
+# Documentation utilities
+.PHONY: doc-install-deps
+doc-install-deps:  ## Install the dependencies for doc generation
+	cargo install mdbook && cargo install mdbook-mermaid && mdbook-mermaid install docs/
+
+.PHONY: doc-test
+doc-test:  ##  Tests documentation for errors.
+	mdbook test docs/
+
+.PHONY: doc-clean
+doc-clean:  ##  Erases output/ contents and clears mdBook output.
+	mdbook clean docs/
+
+.PHONY: doc-watch
+doc-watch:  ##  Generate live preview of docs and open in browser and watch. No build artifacts.
+	mdbook clean docs/
+	mdbook watch docs/ --open
+
+.PHONY: doc-prev
+doc-prev:  ##  Generate live preview of docs and open in browser.
+	mdbook-mermaid install docs/
+	mdbook clean docs/
+	mdbook build docs/
+	mdbook serve docs/ --open

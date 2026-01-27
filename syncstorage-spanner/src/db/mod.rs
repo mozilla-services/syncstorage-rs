@@ -19,7 +19,7 @@ use protobuf::{
 use syncserver_common::{Metrics, MAX_SPANNER_LOAD_SIZE};
 use syncstorage_db_common::{
     error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting, UserIdentifier,
-    DEFAULT_BSO_TTL,
+    DEFAULT_BSO_TTL, FIRST_CUSTOM_COLLECTION_ID,
 };
 use syncstorage_settings::Quota;
 
@@ -113,9 +113,49 @@ impl SpannerDb {
 
     async fn get_or_create_collection_id(&mut self, name: &str) -> DbResult<i32> {
         match self.get_collection_id(name).await {
-            Err(err) if err.is_collection_not_found() => self.create_collection(name).await,
+            Err(err) if err.is_collection_not_found() => self._create_collection(name).await,
             result => result,
         }
+    }
+
+    async fn _create_collection(&mut self, name: &str) -> DbResult<i32> {
+        // This should always run within a r/w transaction, so that: "If a
+        // transaction successfully commits, then no other writer modified the
+        // data that was read in the transaction after it was read."
+        if !cfg!(debug_assertions) && !self.in_write_transaction() {
+            return Err(DbError::internal(
+                "Can't escalate read-lock to write-lock".to_owned(),
+            ));
+        }
+        let result = self
+            .sql(
+                "SELECT COALESCE(MAX(collection_id), 1)
+                   FROM collections",
+            )
+            .await?
+            .execute(&self.conn)?
+            .one()
+            .await?;
+        let max = result[0]
+            .get_string_value()
+            .parse::<i32>()
+            .map_err(|e| DbError::integrity(e.to_string()))?;
+        let id = FIRST_CUSTOM_COLLECTION_ID.max(max + 1);
+        let (sqlparams, sqlparam_types) = params! {
+            "name" => name.to_string(),
+            "collection_id" => id,
+        };
+
+        self.sql(
+            "INSERT INTO collections (collection_id, name)
+             VALUES (@collection_id, @name)",
+        )
+        .await?
+        .params(sqlparams)
+        .param_types(sqlparam_types)
+        .execute_dml(&self.conn)
+        .await?;
+        Ok(id)
     }
 
     /// Return the current transaction metadata (TransactionSelector) if one is active.

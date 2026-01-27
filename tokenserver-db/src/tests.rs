@@ -14,11 +14,9 @@ async fn test_update_generation() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -88,11 +86,9 @@ async fn test_update_keys_changed_at() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -170,11 +166,9 @@ async fn replace_users() -> DbResult<()> {
         .as_millis() as i64;
     let an_hour_ago = now - MILLISECONDS_IN_AN_HOUR;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -346,11 +340,9 @@ async fn post_user() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -412,11 +404,9 @@ async fn get_node_id() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -459,11 +449,9 @@ async fn test_node_allocation() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -506,11 +494,9 @@ async fn test_allocation_to_least_loaded_node() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -571,11 +557,9 @@ async fn test_allocation_is_not_allowed_to_downed_nodes() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -614,11 +598,9 @@ async fn test_allocation_is_not_allowed_to_backoff_nodes() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -657,11 +639,9 @@ async fn test_node_reassignment_when_records_are_replaced() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -731,11 +711,9 @@ async fn test_node_reassignment_not_done_for_retired_users() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -787,11 +765,9 @@ async fn test_node_reassignment_and_removal() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -938,11 +914,9 @@ async fn test_gradual_release_of_node_capacity() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -1104,11 +1078,9 @@ async fn test_correct_created_at_used_during_node_reassignment() -> DbResult<()>
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -1168,11 +1140,9 @@ async fn test_correct_created_at_used_during_user_retrieval() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -1223,15 +1193,87 @@ async fn test_correct_created_at_used_during_user_retrieval() -> DbResult<()> {
 }
 
 #[tokio::test]
+async fn test_latest_created_at() -> DbResult<()> {
+    let pool = db_pool().await?;
+    let mut db = pool.get().await?;
+
+    let service_id = db
+        .get_service_id(params::GetServiceId {
+            service: "sync-1.5".to_owned(),
+        })
+        .await?
+        .id;
+
+    // Add a node
+    let node_id = db
+        .post_node(params::PostNode {
+            service_id,
+            node: "https://node1".to_owned(),
+            current_load: 0,
+            capacity: 100,
+            available: 100,
+            ..Default::default()
+        })
+        .await?
+        .id;
+
+    let email = "test_user";
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+
+    // Add a user marked as replaced
+    let post_user = params::PostUser {
+        service_id,
+        email: email.to_owned(),
+        node_id,
+        client_state: "aaaa".to_owned(),
+        generation: 1234,
+        keys_changed_at: Some(1234),
+        created_at: now,
+    };
+    let uid1 = db.post_user(post_user.clone()).await?.uid;
+    db.replace_user(params::ReplaceUser {
+        uid: uid1,
+        service_id,
+        replaced_at: now,
+    })
+    .await?;
+
+    // User's latest record w/ a new client_state, otherwise identical to the
+    // replaced record (even created_at)
+    let uid2 = db
+        .post_user(params::PostUser {
+            client_state: "bbbb".to_owned(),
+            ..post_user
+        })
+        .await?
+        .uid;
+    assert_ne!(uid1, uid2);
+
+    // Should return the latest record even with the identical created_at
+    let user = db
+        .get_or_create_user(params::GetOrCreateUser {
+            service_id,
+            email: email.to_owned(),
+            ..Default::default()
+        })
+        .await?;
+    assert_eq!(user.uid, uid2);
+    assert_eq!(user.client_state, "bbbb");
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_get_spanner_node() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
 
-    // Add a service
     let service_id = db
-        .post_service(params::PostService {
+        .get_service_id(params::GetServiceId {
             service: "sync-1.5".to_owned(),
-            pattern: "{node}/1.5/{uid}".to_owned(),
         })
         .await?
         .id;
@@ -1309,5 +1351,29 @@ async fn db_pool() -> DbResult<Box<dyn DbPool>> {
         use_test_transactions,
     )?;
     pool.init().await?;
+
+    if settings.tokenserver.database_url.starts_with("mysql://") {
+        // Ensure the "sync-1.5" service
+        // TODO: tokenserver-mysql's migration should add this service
+        // entry for us (if possible)
+        let mut db = pool.get().await?;
+        let service = "sync-1.5".to_owned();
+        let result = db
+            .get_service_id(params::GetServiceId {
+                service: service.clone(),
+            })
+            .await;
+        if let Err(e) = result {
+            if !e.is_diesel_not_found() {
+                return Err(e);
+            }
+            db.post_service(params::PostService {
+                service,
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?;
+        }
+    }
+
     Ok(pool)
 }
