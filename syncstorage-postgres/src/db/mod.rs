@@ -10,7 +10,8 @@ use std::{collections::HashMap, fmt, sync::Arc};
 
 use syncserver_common::Metrics;
 use syncstorage_db_common::{
-    diesel::DbError, params, results, util::SyncTimestamp, Db, UserIdentifier,
+    diesel::DbError, error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db,
+    UserIdentifier, FIRST_CUSTOM_COLLECTION_ID,
 };
 use syncstorage_settings::Quota;
 
@@ -98,30 +99,31 @@ impl PgDb {
     /// Gets the provided collection by name and creates it if not present.
     /// Checks collection cache first to see if matching collection stored.
     /// Uses logic to not make change sif there is a conflict during insert.
-    pub(super) async fn get_or_create_collection_id(&mut self, name: &str) -> DbResult<i32> {
-        if let Some(id) = self.coll_cache.get_id(name)? {
-            return Ok(id);
+    async fn get_or_create_collection_id(&mut self, name: &str) -> DbResult<i32> {
+        match self.get_collection_id(name).await {
+            Err(e) if e.is_collection_not_found() => self._create_collection(name).await,
+            result => result,
         }
+    }
 
-        // Postgres specific ON CONFLICT DO NOTHING statement.
-        // https://docs.diesel.rs/2.0.x/diesel/query_builder/struct.InsertStatement.html#method.on_conflict_do_nothing
-        diesel::insert_into(collections::table)
+    async fn _create_collection(&mut self, name: &str) -> DbResult<i32> {
+        if !cfg!(debug_assertions) && !self.session.in_write_transaction {
+            return Err(DbError::internal(
+                "Can't escalate read-lock to write-lock".to_owned(),
+            ));
+        }
+        let collection_id = diesel::insert_into(collections::table)
             .values(collections::name.eq(name))
-            .on_conflict_do_nothing()
-            .execute(&mut self.conn)
+            .returning(collections::collection_id)
+            .get_result(&mut self.conn)
             .await?;
-
-        let id = collections::table
-            .select(collections::collection_id)
-            .filter(collections::name.eq(name))
-            .first(&mut self.conn)
-            .await?;
-
-        if !self.session.in_write_transaction {
-            self.coll_cache.put(id, name.to_owned())?;
+        if collection_id < FIRST_CUSTOM_COLLECTION_ID {
+            // DDL ensures this should never occur
+            return Err(DbError::internal(
+                "create_collection < {FIRST_CUSTOM_COLLECTION_ID}".to_owned(),
+            ));
         }
-
-        Ok(id)
+        Ok(collection_id)
     }
 
     /// Given a set of collection_ids, return a HashMap of collection_id's

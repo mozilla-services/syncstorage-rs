@@ -69,3 +69,8 @@ allow_tables_to_appear_in_same_query!(
     collections,
     user_collections,
 );
+
+define_sql_function! {
+    /// MySQL's LAST_INSERT_ID()
+    fn last_insert_id() -> Unsigned<BigInt>
+}
