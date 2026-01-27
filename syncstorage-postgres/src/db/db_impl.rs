@@ -549,7 +549,7 @@ impl Db for PgDb {
 
     #[cfg(debug_assertions)]
     async fn create_collection(&mut self, name: &str) -> DbResult<i32> {
-        self.get_or_create_collection_id(name).await
+        self._create_collection(name).await
     }
 
     #[cfg(debug_assertions)]

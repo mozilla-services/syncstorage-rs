@@ -754,7 +754,7 @@ impl Db for MysqlDb {
 
     #[cfg(debug_assertions)]
     async fn create_collection(&mut self, name: &str) -> Result<i32, Self::Error> {
-        self.get_or_create_collection_id(name).await
+        self._create_collection(name).await
     }
 
     #[cfg(debug_assertions)]
