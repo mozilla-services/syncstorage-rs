@@ -25,7 +25,7 @@ pub struct Settings {
     pub fxa_email_domain: String,
     /// The URL of the FxA server used for verifying OAuth tokens.
     pub fxa_oauth_server_url: String,
-    /// The URL of a HTTP/HTTPs Prxoy Server. Example: http://proxy.domain.com:8080.
+    /// The URL of a HTTP/HTTPs Proxy Server. Example: http://proxy.domain.com:8080.
     pub fxa_oauth_request_proxy: Option<String>,
     /// The timeout to be used when making requests to the FxA OAuth verification server.
     pub fxa_oauth_request_timeout: u64,
