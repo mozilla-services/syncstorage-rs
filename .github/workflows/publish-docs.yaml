@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false # Skip any intermediate builds but finish deploying
 
 jobs:
-  build:
+  build-mdbook:
     runs-on: ubuntu-latest
     env:
       MDBOOK_ENV: 0.5.2 # Current `mdbook` version. See `https://crates.io/crates/mdbook`.
@@ -26,7 +26,7 @@ jobs:
             ~/.cargo/registry/
             ~/.cargo/git/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-mdbook-${{ hashFiles('**/Cargo.lock') }}
       - name: Install mdBook
         run: |
           export PATH=$PATH:$DEST_DIR
@@ -44,19 +44,90 @@ jobs:
           mkdir -p output/api
           cargo doc --no-deps
           cp -r ../target/doc/* output/api
+      - name: Upload mdBook artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdbook-output
+          path: ./docs/output
+          retention-days: 1
+
+  build-openapi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/
+            ~/.cargo/git/
+            target/
+          key: ${{ runner.os }}-cargo-openapi-${{ hashFiles('**/Cargo.lock') }}
+      - name: Generate OpenAPI spec and setup Swagger UI
+        run: |
+          echo "🔧 Generating OpenAPI specification..."
+          cargo run --example generate_openapi_spec > openapi.json
+
+          echo "Downloading Swagger UI..."
+          SWAGGER_VERSION="5.10.0"
+          wget -q "https://github.com/swagger-api/swagger-ui/archive/v${SWAGGER_VERSION}.tar.gz"
+          tar -xzf "v${SWAGGER_VERSION}.tar.gz"
+
+          echo "Setting up Swagger UI for deployment..."
+          mkdir -p swagger-ui-dist
+          cp -r "swagger-ui-${SWAGGER_VERSION}/dist/"* swagger-ui-dist/
+
+          echo "Copying OpenAPI spec..."
+          cp openapi.json swagger-ui-dist/openapi.json
+
+          echo "Configuring Swagger UI to use our OpenAPI spec (replacing Petstore URL)..."
+          sed -i 's|https://petstore.swagger.io/v2/swagger.json|./openapi.json|g' swagger-ui-dist/swagger-initializer.js
+
+          echo "Updating page title..."
+          sed -i 's|<title>Swagger UI</title>|<title>Syncstorage-rs API Documentation</title>|g' swagger-ui-dist/index.html
+
+          echo "Swagger UI setup complete!"
+      - name: Upload Swagger UI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: swagger-ui-output
+          path: ./swagger-ui-dist
+          retention-days: 1
+
+  combine-and-prepare:
+    needs: [build-mdbook, build-openapi]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download mdBook artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mdbook-output
+          path: ./output
+      - name: Download Swagger UI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: swagger-ui-output
+          path: ./output/swagger-ui
       - name: Debug output directory
         run: |
-          echo "Checking docs/output:"
+          echo "Checking combined output structure:"
           ls -lah output || true
-          echo "Listing output root files:"
-          find output -maxdepth 2 -type f -name "index.html" -print || true
-      - name: Upload artifact
+          echo ""
+          echo "Checking Rust API docs (output/api):"
+          ls -lah output/api || true
+          echo ""
+          echo "Checking Swagger UI (output/swagger-ui):"
+          ls -lah output/swagger-ui || true
+          echo ""
+          echo "Checking index.html files:"
+          find output -maxdepth 3 -type f -name "index.html" -print || true
+      - name: Upload combined artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: ./docs/output
+          path: ./output
 
   deploy:
-    needs: build
+    needs: combine-and-prepare
     permissions:
       pages: write
       id-token: write
@@ -70,4 +141,7 @@ jobs:
         uses: actions/deploy-pages@v4
       - name: Print deployed docs URL
         run: |
-          echo "Docs deployed to: ${{ steps.deployment.outputs.page_url }}"
+          echo "Documentation deployed successfully."
+          echo "Main Documentation: ${{ steps.deployment.outputs.page_url }}"
+          echo "Rust API Docs: ${{ steps.deployment.outputs.page_url }}api/"
+          echo "OpenAPI/Swagger UI: ${{ steps.deployment.outputs.page_url }}swagger-ui/"
