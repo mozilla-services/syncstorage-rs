@@ -3,11 +3,8 @@ run-name: ${{ github.actor }} is publishing docs
 on:
   workflow_dispatch: # Allow manual triggering
   push:
-    tags:
-      - "*"
-  pull_request:
-    branches:
-      - "**"
+    branches: [master, main]
+    # paths: ['docs/**.md']  # API docs need building always
 
 concurrency:
   group: github-pages
