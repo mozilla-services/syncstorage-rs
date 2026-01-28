@@ -86,21 +86,40 @@ pub fn cfg_path(path: &str) -> String {
         version = env!("CARGO_PKG_VERSION"),
         description = "OpenAPI documentation for Syncstorage and Tokenserver endpoints."
     ),
-    // Add handler fns here as you annotate them with #[utoipa::path]
-    // paths(
-    //     crate::web::handlers::get_collections,
-    //     crate::web::handlers::get_collection_counts,
-    //     crate::web::handlers::get_collection_usage,
-    //     crate::web::handlers::get_configuration,
-    //     crate::web::handlers::get_quota,
-    //     crate::web::handlers::heartbeat,
-    //     crate::tokenserver::handlers::get_tokenserver_result,
-    // ),
-    // components(schemas(...))  // optional; add as you define request/response structs
+    servers(
+        (url = "https://sync-1-us-west1-g.sync.services.mozilla.com", description = "US West Production"),
+    ),
+    paths(
+        // Syncstorage general info endpoints.
+        // APIs in this section provide high-level interactions with the user’s data store as a whole.
+        crate::web::handlers::get_collections,
+        crate::web::handlers::get_collection_counts,
+        crate::web::handlers::get_collection_usage,
+        crate::web::handlers::get_configuration,
+        crate::web::handlers::get_quota,
+        crate::web::handlers::delete_all,
+        // Syncstorage storage endpoints.
+        // APIs in this section provide a mechanism for interacting with a single collection.
+        crate::web::handlers::get_collection,
+        crate::web::handlers::post_collection,
+        crate::web::handlers::delete_collection,
+        crate::web::handlers::get_bso,
+        crate::web::handlers::put_bso,
+        crate::web::handlers::delete_bso,
+        // Dockerflow endpoints
+        crate::web::handlers::heartbeat,
+        crate::web::handlers::lbheartbeat,
+        // Tokenserver endpoints
+        crate::tokenserver::handlers::get_tokenserver_result,
+        crate::tokenserver::handlers::heartbeat,
+    ),
+    components(
+        schemas(crate::tokenserver::handlers::TokenserverResult)
+    ),
     tags(
-        (name = "syncstorage", description = "Syncstorage endpoints"),
-        (name = "tokenserver", description = "Tokenserver endpoints"),
-        (name = "dockerflow", description = "Service health/version endpoints")
+        (name = "syncstorage", description = "Syncstorage endpoints for Firefox Sync data storage"),
+        (name = "tokenserver", description = "Tokenserver endpoints for Sync node allocation and authentication"),
+        (name = "dockerflow", description = "Service health and version endpoints")
     )
 )]
 pub struct ApiDoc;
