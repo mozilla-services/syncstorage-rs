@@ -8,6 +8,7 @@
 - [Introduction](introduction.md)
 - [Application Configuration](config.md)
 - [Application Architecture](architecture.md)
+- [OpenAPI Documentation](open-api-docs.md)
 - [Syncstorage API](syncstorage/api.md)
     - [API v1.5](syncstorage/api-1.5.md)
     - [API v1.1 (Obsolete)](syncstorage/api-1.1.md)
@@ -33,7 +34,7 @@
     - [Run Your Own Sync-1.5 Server (legacy)](how-to/how-to-run-sync-server.md)
     - [Configure Sync Server for TLS (legacy)](how-to/how-to-config-tls.md)
 
-[Documentation and MdBook Notes](doc-notes.md)
+[Documentation and MdBook Notes](mdbook-doc-notes.md)
 [Glossary of Terms](glossary.md)
 [Response Codes](response-codes.md)
 [Terms of Service](terms-of-service.md)
