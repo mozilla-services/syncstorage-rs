@@ -22,7 +22,6 @@ default-members = ["syncserver"]
 [workspace.package]
 version = "0.21.1"
 authors = [
-  "Ben Bangert <ben@groovie.org>",
   "Phil Jenvey <pjenvey@underboss.org>",
   "Mozilla Services Engineering <services-engineering+code@mozilla.com>",
 ]
