@@ -249,3 +249,43 @@ doc-prev:  ##  Generate live preview of docs and open in browser.
 	mdbook clean docs/
 	mdbook build docs/
 	mdbook serve docs/ --open
+
+
+SWAGGER_IMG := swaggerapi/swagger-ui
+SWAGGER_NAME := swagger-ui-preview
+OPENAPI_FILE := openapi.json
+
+.PHONY: api-prev
+api-prev: ## Generate live preview of OpenAPI Swagger Docs and open in browser (port 8080).
+	@set -e; \
+	echo "Generating OpenAPI spec..."; \
+	cargo run --example generate_openapi_spec > $(OPENAPI_FILE); \
+	echo "Starting Swagger UI..."; \
+	cid="$$(docker ps -q -f name=^/$(SWAGGER_NAME)$$)"; \
+	if [ -n "$$cid" ]; then \
+	  echo "Restarting existing container $$cid"; \
+	  docker restart "$$cid" >/dev/null; \
+	else \
+	  old="$$(docker ps -aq -f name=^/$(SWAGGER_NAME)$$)"; \
+	  if [ -n "$$old" ]; then \
+	    echo "Removing stale container $$old"; \
+	    docker rm -f "$$old" >/dev/null || true; \
+	  fi; \
+	  cid="$$(docker run -d --rm \
+	    --name $(SWAGGER_NAME) \
+	    -p 8080:8080 \
+	    -e SWAGGER_JSON=/openapi.json \
+	    -v $$(pwd)/$(OPENAPI_FILE):/openapi.json:ro \
+	    $(SWAGGER_IMG))"; \
+	  echo "Started container $$cid"; \
+	fi; \
+	if command -v open >/dev/null 2>&1; then \
+	  open http://localhost:8080; \
+	elif command -v xdg-open >/dev/null 2>&1; then \
+	  xdg-open http://localhost:8080; \
+	else \
+	  echo "Open http://localhost:8080 manually"; \
+	fi; \
+	trap 'echo ""; echo "Stopping Swagger UI..."; docker stop "$$cid" >/dev/null || true' INT TERM EXIT; \
+	echo "Swagger UI running (Ctrl-C to stop)"; \
+	wait
