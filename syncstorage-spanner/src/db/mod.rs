@@ -113,7 +113,7 @@ impl SpannerDb {
 
     async fn get_or_create_collection_id(&mut self, name: &str) -> DbResult<i32> {
         match self.get_collection_id(name).await {
-            Err(err) if err.is_collection_not_found() => self._create_collection(name).await,
+            Err(e) if e.is_collection_not_found() => self._create_collection(name).await,
             result => result,
         }
     }

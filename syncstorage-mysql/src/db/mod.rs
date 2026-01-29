@@ -8,14 +8,17 @@ use diesel::{
 };
 use diesel_async::RunQueryDsl;
 use syncserver_common::Metrics;
-use syncstorage_db_common::{results, util::SyncTimestamp, UserIdentifier};
+use syncstorage_db_common::{
+    error::DbErrorIntrospect, results, util::SyncTimestamp, Db, UserIdentifier,
+    FIRST_CUSTOM_COLLECTION_ID,
+};
 use syncstorage_settings::Quota;
 
 use crate::{
     pool::{CollectionCache, Conn},
     DbError, DbResult,
 };
-use schema::{bso, collections};
+use schema::{bso, collections, last_insert_id};
 
 mod batch_impl;
 mod db_impl;
@@ -110,45 +113,36 @@ impl MysqlDb {
     }
 
     pub(super) async fn get_or_create_collection_id(&mut self, name: &str) -> DbResult<i32> {
-        if let Some(id) = self.coll_cache.get_id(name)? {
-            return Ok(id);
+        match self.get_collection_id(name).await {
+            Err(e) if e.is_collection_not_found() => self._create_collection(name).await,
+            result => result,
         }
+    }
 
-        diesel::insert_or_ignore_into(collections::table)
+    async fn _create_collection(&mut self, name: &str) -> DbResult<i32> {
+        if !cfg!(debug_assertions) && !self.session.in_write_transaction {
+            return Err(DbError::internal(
+                "Can't escalate read-lock to write-lock".to_owned(),
+            ));
+        }
+        diesel::insert_into(collections::table)
             .values(collections::name.eq(name))
             .execute(&mut self.conn)
             .await?;
-
-        let id = collections::table
-            .select(collections::id)
-            .filter(collections::name.eq(name))
-            .first(&mut self.conn)
-            .await?;
-
-        if !self.session.in_write_transaction {
-            self.coll_cache.put(id, name.to_owned())?;
+        let collection_id = diesel::select(last_insert_id())
+            .first::<u64>(&mut self.conn)
+            .await?
+            .try_into()
+            .map_err(|e| {
+                DbError::internal(format!("Couldn't convert last_insert_id() to i32: {e}"))
+            })?;
+        if collection_id < FIRST_CUSTOM_COLLECTION_ID {
+            // DDL ensures this should never occur
+            return Err(DbError::internal(
+                "create_collection < {FIRST_CUSTOM_COLLECTION_ID}".to_owned(),
+            ));
         }
-
-        Ok(id)
-    }
-
-    async fn _get_collection_name(&mut self, id: i32) -> DbResult<String> {
-        let name = if let Some(name) = self.coll_cache.get_name(id)? {
-            name
-        } else {
-            sql_query(
-                "SELECT name
-                   FROM collections
-                  WHERE id = ?",
-            )
-            .bind::<Integer, _>(&id)
-            .get_result::<NameResult>(&mut self.conn)
-            .await
-            .optional()?
-            .ok_or_else(DbError::collection_not_found)?
-            .name
-        };
-        Ok(name)
+        Ok(collection_id)
     }
 
     async fn map_collection_names<T>(
