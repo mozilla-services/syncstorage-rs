@@ -232,6 +232,7 @@ jobs:
     needs: spanner-e2e-tests
     if: |
       github.ref == 'refs/heads/master' ||
+      github.ref == 'chore/ignore-dockerhub-deploy' ||
       startsWith(github.ref, 'refs/tags/') ||
       startsWith(github.ref, 'refs/heads/feature.')
 
