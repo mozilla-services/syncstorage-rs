@@ -72,6 +72,7 @@ impl Db for PgDb {
         &mut self,
         params: params::LockCollection,
     ) -> DbResult<results::LockCollection> {
+        self.begin(false).await?;
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self
             .get_collection_id(&params.collection)
@@ -95,8 +96,6 @@ impl Db for PgDb {
 
         // `FOR SHARE`
         // Obtains shared lock, allowing multiple transactions to read rows simultaneously.
-        self.begin(false).await?;
-
         let modified = user_collections::table
             .select(user_collections::modified)
             .filter(user_collections::user_id.eq(user_id))
@@ -116,6 +115,7 @@ impl Db for PgDb {
     }
 
     async fn lock_for_write(&mut self, params: params::LockCollection) -> DbResult<()> {
+        self.begin(true).await?;
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
         let key = (params.user_id, collection_id);
@@ -130,7 +130,6 @@ impl Db for PgDb {
         // Acquires exclusive lock on select rows, prohibits other transactions from modifying
         // until complete.
         let nowtz = now.into_sql::<Timestamptz>();
-        self.begin(true).await?;
         let row = user_collections::table
             .select((user_collections::modified, nowtz))
             .filter(user_collections::user_id.eq(user_id))
