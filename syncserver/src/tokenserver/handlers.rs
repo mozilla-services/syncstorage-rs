@@ -49,7 +49,7 @@ pub struct TokenserverResult {
         (status = 401, description = "Unauthorized - Authentication failed. Possible status strings: invalid-credentials, invalid-timestamp, invalid-generation, invalid-client-state, new-users-disabled"),
         (status = 404, description = "Not Found - Unknown URL or unsupported application"),
         (status = 405, description = "Method Not Allowed - Unsupported HTTP method"),
-        (status = 406, description = "Not Acceptable - Client requested an Accept type that is not supported"),
+        (status = 406, description = "Unacceptable - Client requested an Accept type that is not supported"),
         (status = 503, description = "Service Unavailable - Server is undergoing maintenance or backends (LDAP/storage nodes) are down"),
     )
 )]
