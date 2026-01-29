@@ -22,8 +22,7 @@ default-members = ["syncserver"]
 [workspace.package]
 version = "0.21.1"
 authors = [
-  "Phil Jenvey <pjenvey@underboss.org>",
-  "Mozilla Services Engineering <services-engineering+code@mozilla.com>",
+  "Mozilla Sync Backend Engineering <sync-backend@mozilla.com",
 ]
 edition = "2021"
 rust-version = "1.89"
