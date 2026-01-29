@@ -53,6 +53,13 @@ Service health and monitoring endpoints:
 - `GET /__lbheartbeat__` - Load balancer health check
 - `GET /__version__` - Service version information
 
+### Exploring the Sync API
+To aid in exploring your own Sync API with Swagger, you may want to acquire your UID and other details about your Sync account. The easiest way to do so is to use the About Sync Extension. Note that this extension only works on Desktop. 
+
+[Firefox Extensions Page for About Sync](https://addons.mozilla.org/en-US/firefox/addon/about-sync/)
+[GitHub Repository for About Sync](https://github.com/mozilla-extensions/aboutsync)
+
+
 ### Maintenance
 
 When adding new endpoints:
@@ -62,6 +69,9 @@ When adding new endpoints:
 4. Run `cargo run --example generate_openapi_spec` to verify the spec generates correctly. Follow instructions below.
 
 ### Generating the OpenAPI Spec Locally
+
+#### Use `make api-prev`
+We created a handy Makefile command called `make api-prev` that automatically generates the specification file, runs Swagger in Docker and opens your browser to `localhost:8080`. See the steps below to understand this process. Note this attempts to be platform agnostic, but might require some adaptation depending on your operating system.
 
 You can generate the OpenAPI specification without running the server:
 
