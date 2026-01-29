@@ -214,6 +214,7 @@ jobs:
 
   deploy-mysql-dockerhub:
     runs-on: ubuntu-latest
+    continue-on-error: true
     needs: mysql-e2e-tests
     if: |
       github.ref == 'refs/heads/master' ||

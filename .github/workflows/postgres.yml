@@ -220,6 +220,7 @@ jobs:
 
   deploy-postgres-dockerhub:
     runs-on: ubuntu-latest
+    continue-on-error: true
     needs: postgres-e2e-tests
     if: |
       github.ref == 'refs/heads/master' ||

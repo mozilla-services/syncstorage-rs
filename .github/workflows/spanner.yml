@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - master
+      - chore/ignore-dockerhub-deploy
     tags:
       - "**"
   workflow_dispatch: {}
@@ -227,6 +228,7 @@ jobs:
 
   deploy-spanner-dockerhub:
     runs-on: ubuntu-latest
+    continue-on-error: true
     needs: spanner-e2e-tests
     if: |
       github.ref == 'refs/heads/master' ||
