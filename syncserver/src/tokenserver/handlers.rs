@@ -39,10 +39,18 @@ pub struct TokenserverResult {
     tag = "tokenserver",
     summary = "Get sync token",
     description = "Allocates a sync storage node and returns authentication credentials for accessing it. This is the main Tokenserver endpoint used by Firefox Sync clients.",
+    params(
+        ("application" = String, Path, description = "Application name (e.g., 'sync')"),
+        ("version" = String, Path, description = "API version (e.g., '1.0')")
+    ),
     responses(
         (status = 200, description = "Token generated successfully", body = TokenserverResult, content_type = "application/json"),
-        (status = 401, description = "Unauthorized - Invalid authentication"),
-        (status = 503, description = "Service unavailable - No nodes available"),
+        (status = 400, description = "Bad Request - Malformed request, missing option, bad values or malformed JSON"),
+        (status = 401, description = "Unauthorized - Authentication failed. Possible status strings: invalid-credentials, invalid-timestamp, invalid-generation, invalid-client-state, new-users-disabled"),
+        (status = 404, description = "Not Found - Unknown URL or unsupported application"),
+        (status = 405, description = "Method Not Allowed - Unsupported HTTP method"),
+        (status = 406, description = "Not Acceptable - Client requested an Accept type that is not supported"),
+        (status = 503, description = "Service Unavailable - Server is undergoing maintenance or backends (LDAP/storage nodes) are down"),
     )
 )]
 pub async fn get_tokenserver_result(
