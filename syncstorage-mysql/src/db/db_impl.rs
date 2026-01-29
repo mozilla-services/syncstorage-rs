@@ -39,6 +39,8 @@ impl Db for MysqlDb {
     /// than explicit locking, but our ops team have expressed concerns about
     /// the efficiency of that approach at scale.
     async fn lock_for_read(&mut self, params: params::LockCollection) -> DbResult<()> {
+        // Lock the db
+        self.begin(false).await?;
         let collection_id = self
             .get_collection_id(&params.collection)
             .await
@@ -60,8 +62,6 @@ impl Db for MysqlDb {
             return Ok(());
         }
 
-        // Lock the db
-        self.begin(false).await?;
         let modified = user_collections::table
             .select(user_collections::modified)
             .filter(user_collections::user_id.eq(user_id))
@@ -82,6 +82,8 @@ impl Db for MysqlDb {
     }
 
     async fn lock_for_write(&mut self, params: params::LockCollection) -> DbResult<()> {
+        // Lock the db
+        self.begin(true).await?;
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
         let user_id = params.user_id.legacy_id as i64;
         let key = (params.user_id, collection_id);
@@ -92,8 +94,6 @@ impl Db for MysqlDb {
             ));
         }
 
-        // Lock the db
-        self.begin(true).await?;
         let modified = user_collections::table
             .select(user_collections::modified)
             .filter(user_collections::user_id.eq(user_id))
@@ -754,7 +754,7 @@ impl Db for MysqlDb {
 
     #[cfg(debug_assertions)]
     async fn create_collection(&mut self, name: &str) -> Result<i32, Self::Error> {
-        self.get_or_create_collection_id(name).await
+        self._create_collection(name).await
     }
 
     #[cfg(debug_assertions)]
