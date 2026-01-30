@@ -1,3 +1,8 @@
+# Mozilla Deploy Actions url: <https://github.com/mozilla-it/deploy-actions>
+# Note: even though Mozilla maintains the above actions, it is still suggested
+# when upgrading to use the full commit SHA and comment with version.
+# See <https://docs.github.com/en/actions/reference/security/secure-use#using-third-party-actions>
+# Ex. `mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2`
 name: Build, Tag and Push Container Images to GAR Repository
 
 on:
@@ -13,7 +18,17 @@ on:
   workflow_dispatch: {}
 
 jobs:
+  generate-timestamp:
+    runs-on: ubuntu-latest
+    outputs:
+      timestamp: ${{ steps.timestamp.outputs.timestamp }}
+    steps:
+      - name: Generate timestamp
+        id: timestamp
+        run: echo "timestamp=$(date -u +%Y%m%dT%H%M%S)" >> $GITHUB_OUTPUT
+
   build-and-push-syncstorage-rs:
+    needs: generate-timestamp
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -29,7 +44,7 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@1b87069d293273436a84dff04954a8950d3ff9ca # v6.1.0
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
     with:
       image_name: syncstorage-rs
       gar_name: sync-prod
@@ -38,8 +53,10 @@ jobs:
         SYNCSTORAGE_DATABASE_BACKEND=spanner
         MYSQLCLIENT_PKG=libmysqlclient-dev
       should_tag_ghcr: true
+      image_tag_metadata: ${{ needs.generate-timestamp.outputs.timestamp }}
 
   build-and-push-syncstorage-rs-postgres:
+    needs: generate-timestamp
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -55,7 +72,7 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@1b87069d293273436a84dff04954a8950d3ff9ca # v6.1.0
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
     with:
       image_name: syncstorage-rs-postgres
       gar_name: sync-prod
@@ -64,58 +81,10 @@ jobs:
         SYNCSTORAGE_DATABASE_BACKEND=postgres
         TOKENSERVER_DATABASE_BACKEND=postgres
       should_tag_ghcr: true
+      image_tag_metadata: ${{ needs.generate-timestamp.outputs.timestamp }}
 
   build-and-push-syncstorage-rs-spanner-python-utils:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event_name == 'push' &&
-        startsWith(github.ref, 'refs/tags/')
-      ) ||
-      (
-        github.event_name == 'pull_request' &&
-        contains(github.event.pull_request.labels.*.name, 'preview') &&
-        github.event.pull_request.head.repo.full_name == github.repository
-      )
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@1b87069d293273436a84dff04954a8950d3ff9ca # v6.1.0
-    with:
-      image_name: syncstorage-rs-spanner-python-utils
-      gar_name: sync-prod
-      project_id: moz-fx-sync-prod
-      dockerfile_path: tools/spanner/Dockerfile
-      image_build_context: tools/spanner
-      should_tag_ghcr: true
-
-  build-and-push-syncstorage-rs-postgres-python-utils:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event_name == 'push' &&
-        startsWith(github.ref, 'refs/tags/')
-      ) ||
-      (
-        github.event_name == 'pull_request' &&
-        contains(github.event.pull_request.labels.*.name, 'preview') &&
-        github.event.pull_request.head.repo.full_name == github.repository
-      )
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@1b87069d293273436a84dff04954a8950d3ff9ca # v6.1.0
-    with:
-      image_name: syncstorage-rs-postgres-python-utils
-      gar_name: sync-prod
-      project_id: moz-fx-sync-prod
-      dockerfile_path: tools/postgres/Dockerfile
-      image_build_context: tools/postgres
-      should_tag_ghcr: true
-
-  build-and-push-syncstorage-rs-mysql:
+    needs: generate-timestamp
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -131,7 +100,61 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@1b87069d293273436a84dff04954a8950d3ff9ca # v6.1.0
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
+    with:
+      image_name: syncstorage-rs-spanner-python-utils
+      gar_name: sync-prod
+      project_id: moz-fx-sync-prod
+      dockerfile_path: tools/spanner/Dockerfile
+      image_build_context: tools/spanner
+      should_tag_ghcr: true
+      image_tag_metadata: ${{ needs.generate-timestamp.outputs.timestamp }}
+
+  build-and-push-syncstorage-rs-postgres-python-utils:
+    needs: generate-timestamp
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'push' &&
+        (github.ref_name == 'master' || startsWith(github.ref, 'refs/tags/'))
+      ) ||
+      (
+        github.event_name == 'pull_request' &&
+        contains(github.event.pull_request.labels.*.name, 'preview') &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
+    with:
+      image_name: syncstorage-rs-postgres-python-utils
+      gar_name: sync-prod
+      project_id: moz-fx-sync-prod
+      dockerfile_path: tools/postgres/Dockerfile
+      image_build_context: tools/postgres
+      should_tag_ghcr: true
+      image_tag_metadata: ${{ needs.generate-timestamp.outputs.timestamp }}
+
+  build-and-push-syncstorage-rs-mysql:
+    needs: generate-timestamp
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'push' &&
+        (github.ref_name == 'master' || startsWith(github.ref, 'refs/tags/'))
+      ) ||
+      (
+        github.event_name == 'pull_request' &&
+        contains(github.event.pull_request.labels.*.name, 'preview') &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
     with:
       image_name: syncstorage-rs-mysql
       gar_name: sync-prod
@@ -140,3 +163,4 @@ jobs:
         SYNCSTORAGE_DATABASE_BACKEND=mysql
         TOKENSERVER_DATABASE_BACKEND=mysql
       should_tag_ghcr: true
+      image_tag_metadata: ${{ needs.generate-timestamp.outputs.timestamp }}
