@@ -14,13 +14,14 @@ use tokenserver_db::{
     Db,
 };
 use tokio::time::timeout;
+use utoipa::ToSchema;
 
 use super::{
     extractors::{DbWrapper, TokenserverRequest},
     TokenserverMetrics,
 };
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct TokenserverResult {
     id: String,
     key: String,
@@ -32,6 +33,26 @@ pub struct TokenserverResult {
     node_type: NodeType,
 }
 
+#[utoipa::path(
+    get,
+    path = "/1.0/{application}/{version}",
+    tag = "tokenserver",
+    summary = "Get sync token",
+    description = "Allocates a sync storage node and returns authentication credentials for accessing it. This is the main Tokenserver endpoint used by Firefox Sync clients.",
+    params(
+        ("application" = String, Path, description = "Application name (e.g., 'sync')"),
+        ("version" = String, Path, description = "API version (e.g., '1.0')")
+    ),
+    responses(
+        (status = 200, description = "Token generated successfully", body = TokenserverResult, content_type = "application/json"),
+        (status = 400, description = "Bad Request - Malformed request, missing option, bad values or malformed JSON"),
+        (status = 401, description = "Unauthorized - Authentication failed. Possible status strings: invalid-credentials, invalid-timestamp, invalid-generation, invalid-client-state, new-users-disabled"),
+        (status = 404, description = "Not Found - Unknown URL or unsupported application"),
+        (status = 405, description = "Method Not Allowed - Unsupported HTTP method"),
+        (status = 406, description = "Unacceptable - Client requested an Accept type that is not supported"),
+        (status = 503, description = "Service Unavailable - Server is undergoing maintenance or backends (LDAP/storage nodes) are down"),
+    )
+)]
 pub async fn get_tokenserver_result(
     req: TokenserverRequest,
     DbWrapper(db): DbWrapper,
@@ -269,6 +290,17 @@ async fn update_user(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/__heartbeat__",
+    tag = "tokenserver",
+    summary = "Tokenserver health check",
+    description = "Returns health status of the Tokenserver including database connectivity.",
+    responses(
+        (status = 200, description = "Service is healthy", content_type = "application/json"),
+        (status = 503, description = "Service is unhealthy", content_type = "application/json"),
+    )
+)]
 pub async fn heartbeat(DbWrapper(mut db): DbWrapper) -> Result<HttpResponse, Error> {
     let mut checklist = HashMap::new();
     checklist.insert(

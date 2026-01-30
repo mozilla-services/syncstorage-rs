@@ -17,6 +17,7 @@ use syncstorage_db::{
     results::{CreateBatch, Paginated},
     Db, DbError, DbErrorIntrospect,
 };
+use utoipa;
 
 use crate::{
     error::{ApiError, ApiErrorKind},
@@ -34,6 +35,20 @@ use glean::server_events::{EventsPing, RequestInfo, SyncstorageGetCollectionsEve
 
 pub const ONE_KB: f64 = 1024.0;
 
+#[utoipa::path(
+    get,
+    path = "/1.5/{uid}/info/collections",
+    tag = "syncstorage",
+    summary = "Get collection timestamps",
+    description = "Returns an object mapping collection names associated with the account to the last-modified time for each collection.",
+    params(
+        ("uid" = String, Path, description = "User ID")
+    ),
+    responses(
+        (status = 200, description = "Collection timestamps retrieved successfully", content_type = "application/json"),
+        (status = 401, description = "Unauthorized"),
+    )
+)]
 pub async fn get_collections(
     meta: MetaRequest,
     db_pool: DbTransactionPool,
@@ -76,6 +91,20 @@ pub async fn get_collections(
         .await
 }
 
+#[utoipa::path(
+    get,
+    path = "/1.5/{uid}/info/collection_counts",
+    tag = "syncstorage",
+    summary = "Get collection counts",
+    description = "Returns an object mapping collection names associated with the account to the total number of items (BSOs) in each collection.",
+    params(
+        ("uid" = String, Path, description = "User ID")
+    ),
+    responses(
+        (status = 200, description = "Collection counts retrieved successfully", content_type = "application/json"),
+        (status = 401, description = "Unauthorized"),
+    )
+)]
 pub async fn get_collection_counts(
     meta: MetaRequest,
     db_pool: DbTransactionPool,
@@ -93,6 +122,20 @@ pub async fn get_collection_counts(
         .await
 }
 
+#[utoipa::path(
+    get,
+    path = "/1.5/{uid}/info/collection_usage",
+    tag = "syncstorage",
+    summary = "Get collection usage",
+    description = "Returns an object mapping collection names associated with the account to the data volume used for each collection (in KB).",
+    params(
+        ("uid" = String, Path, description = "User ID")
+    ),
+    responses(
+        (status = 200, description = "Collection usage retrieved successfully", content_type = "application/json"),
+        (status = 401, description = "Unauthorized"),
+    )
+)]
 pub async fn get_collection_usage(
     meta: MetaRequest,
     db_pool: DbTransactionPool,
@@ -115,6 +158,20 @@ pub async fn get_collection_usage(
         .await
 }
 
+#[utoipa::path(
+    get,
+    path = "/1.5/{uid}/info/quota",
+    tag = "syncstorage",
+    summary = "Get quota information",
+    description = "Returns a two-item list giving the user's current storage usage and quota (in KB). The second item will be null if the server does not enforce quotas.",
+    params(
+        ("uid" = String, Path, description = "User ID")
+    ),
+    responses(
+        (status = 200, description = "Quota information retrieved successfully", content_type = "application/json"),
+        (status = 401, description = "Unauthorized"),
+    )
+)]
 pub async fn get_quota(
     meta: MetaRequest,
     db_pool: DbTransactionPool,
@@ -129,6 +186,20 @@ pub async fn get_quota(
         .await
 }
 
+#[utoipa::path(
+    delete,
+    path = "/1.5/{uid}/storage",
+    tag = "syncstorage",
+    summary = "Delete all user data",
+    description = "Deletes all data for the user. Returns the timestamp of when deletion occurred.  This URL is provided for backwards compatibility; new clients should use DELETE https://<endpoint-url>",
+    params(
+        ("uid" = String, Path, description = "User ID")
+    ),
+    responses(
+        (status = 200, description = "All data deleted successfully", content_type = "application/json"),
+        (status = 401, description = "Unauthorized"),
+    )
+)]
 pub async fn delete_all(
     meta: MetaRequest,
     db_pool: DbTransactionPool,
@@ -142,6 +213,22 @@ pub async fn delete_all(
         .await
 }
 
+#[utoipa::path(
+    delete,
+    path = "/1.5/{uid}/storage/{collection}",
+    tag = "syncstorage",
+    summary = "Delete a collection or BSO(s) within collection",
+    description = "Deletes an entire collection or specific BSOs within a collection if IDs are specified.",
+    params(
+        ("uid" = String, Path, description = "User ID"),
+        ("collection" = String, Path, description = "Collection name"),
+        ("ids" = String, Query, description = "BSO ID(s). A comma-separated list of ids to delete (max 100)"),
+    ),
+    responses(
+        (status = 200, description = "Collection or BSOs deleted successfully", content_type = "application/json"),
+        (status = 401, description = "Unauthorized"),
+    )
+)]
 pub async fn delete_collection(
     coll: CollectionRequest,
     db_pool: DbTransactionPool,
@@ -187,6 +274,29 @@ pub async fn delete_collection(
         .await
 }
 
+#[utoipa::path(
+    get,
+    path = "/1.5/{uid}/storage/{collection}",
+    tag = "syncstorage",
+    summary = "Get BSOs from a collection",
+    description = "Returns a list of BSO objects from the specified collection. Supports filtering, sorting, and pagination via query parameters.",
+    params(
+        ("uid" = String, Path, description = "User ID"),
+        ("collection" = String, Path, description = "Collection name"),
+        ("ids" = Option<String>, Query, description = "Comma-separated list of BSO IDs to return (max 100)"),
+        ("newer" = Option<f64>, Query, description = "Return only items with modified time strictly greater than this timestamp (ms since epoch)"),
+        ("older" = Option<f64>, Query, description = "Return only items with modified time strictly smaller than this timestamp (ms since epoch)"),
+        ("full" = Option<bool>, Query, description = "If present, return full BSO objects rather than just IDs"),
+        ("limit" = Option<i64>, Query, description = "Return at most this many objects. If more match, returns X-Weave-Next-Offset header"),
+        ("offset" = Option<String>, Query, description = "String token from a previous X-Weave-Next-Offset header for pagination"),
+        ("sort" = Option<String>, Query, description = "Sort order: 'newest' (by last-modified, largest first), 'oldest' (by last-modified, smallest first), or 'index' (by sortindex, highest weight first)")
+    ),
+    responses(
+        (status = 200, description = "BSOs retrieved successfully", content_type = "application/json"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Collection not found"),
+    )
+)]
 pub async fn get_collection(
     coll: CollectionRequest,
     db_pool: DbTransactionPool,
@@ -269,6 +379,22 @@ where
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/1.5/{uid}/storage/{collection}",
+    tag = "syncstorage",
+    summary = "Add or update BSOs in a collection",
+    description = "Adds or updates multiple BSOs in a collection. Supports batch operations.",
+    params(
+        ("uid" = String, Path, description = "User ID"),
+        ("collection" = String, Path, description = "Collection name")
+    ),
+    responses(
+        (status = 200, description = "BSOs added/updated successfully", content_type = "application/json"),
+        (status = 401, description = "Unauthorized"),
+        (status = 413, description = "Payload too large"),
+    )
+)]
 pub async fn post_collection(
     coll: CollectionPostRequest,
     db_pool: DbTransactionPool,
@@ -491,6 +617,23 @@ pub async fn post_collection_batch(
         .json(resp))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/1.5/{uid}/storage/{collection}/{bso_id}",
+    tag = "syncstorage",
+    summary = "Delete a specific BSO",
+    description = "Deletes a single Basic Storage Object from the specified collection.",
+    params(
+        ("uid" = String, Path, description = "User ID"),
+        ("collection" = String, Path, description = "Collection name"),
+        ("bso_id" = String, Path, description = "BSO ID")
+    ),
+    responses(
+        (status = 200, description = "BSO deleted successfully", content_type = "application/json"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "BSO not found"),
+    )
+)]
 pub async fn delete_bso(
     bso_req: BsoRequest,
     db_pool: DbTransactionPool,
@@ -511,6 +654,23 @@ pub async fn delete_bso(
         .await
 }
 
+#[utoipa::path(
+    get,
+    path = "/1.5/{uid}/storage/{collection}/{bso_id}",
+    tag = "syncstorage",
+    summary = "Get a specific BSO",
+    description = "Retrieves a single Basic Storage Object from the specified collection.",
+    params(
+        ("uid" = String, Path, description = "User ID"),
+        ("collection" = String, Path, description = "Collection name"),
+        ("bso_id" = String, Path, description = "Basic Storage Object ID")
+    ),
+    responses(
+        (status = 200, description = "BSO retrieved successfully", content_type = "application/json"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "BSO not found"),
+    )
+)]
 pub async fn get_bso(
     bso_req: BsoRequest,
     db_pool: DbTransactionPool,
@@ -535,6 +695,23 @@ pub async fn get_bso(
         .await
 }
 
+#[utoipa::path(
+    put,
+    path = "/1.5/{uid}/storage/{collection}/{bso_id}",
+    tag = "syncstorage",
+    summary = "Create or update a specific BSO",
+    description = "Creates or updates a single BSO in the specified collection. The request body must be a JSON object containing new data for the BSO.",
+    params(
+        ("uid" = String, Path, description = "User ID"),
+        ("collection" = String, Path, description = "Collection name"),
+        ("bso_id" = String, Path, description = "BSO ID")
+    ),
+    responses(
+        (status = 200, description = "BSO created/updated successfully", content_type = "application/json"),
+        (status = 401, description = "Unauthorized"),
+        (status = 413, description = "Payload too large"),
+    )
+)]
 pub async fn put_bso(
     bso_req: BsoPutRequest,
     db_pool: DbTransactionPool,
@@ -561,6 +738,19 @@ pub async fn put_bso(
         .await
 }
 
+#[utoipa::path(
+    get,
+    path = "/1.5/{uid}/info/configuration",
+    tag = "syncstorage",
+    summary = "Get server configuration",
+    description = "Returns a JSON object with the server's enforced limits for storage requests.",
+    params(
+        ("uid" = String, Path, description = "User ID")
+    ),
+    responses(
+        (status = 200, description = "Configuration retrieved successfully", content_type = "application/json"),
+    )
+)]
 pub async fn get_configuration(state: Data<ServerState>) -> HttpResponse {
     // With no DbConnection (via a `transaction_http` call) needed here, we
     // miss out on a couple things it does:
@@ -577,6 +767,17 @@ pub async fn get_configuration(state: Data<ServerState>) -> HttpResponse {
 /** Returns a status message indicating the state of the current server
  *
  */
+#[utoipa::path(
+    get,
+    path = "/__heartbeat__",
+    tag = "dockerflow",
+    summary = "Service health check",
+    description = "Returns health status of the service including database connectivity and quota status.",
+    responses(
+        (status = 200, description = "Service is healthy", content_type = "application/json"),
+        (status = 503, description = "Service is unhealthy", content_type = "application/json"),
+    )
+)]
 pub async fn heartbeat(hb: HeartbeatRequest) -> Result<HttpResponse, ApiError> {
     let mut checklist = HashMap::new();
     checklist.insert(
@@ -612,6 +813,17 @@ pub async fn heartbeat(hb: HeartbeatRequest) -> Result<HttpResponse, ApiError> {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/__lbheartbeat__",
+    tag = "dockerflow",
+    summary = "Load balancer health check",
+    description = "Simplified health check endpoint for load balancers. Returns connection pool metrics.",
+    responses(
+        (status = 200, description = "Service is available", content_type = "application/json"),
+        (status = 500, description = "Service is unavailable", content_type = "application/json"),
+    )
+)]
 pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
     let mut resp: HashMap<String, Value> = HashMap::new();
 
