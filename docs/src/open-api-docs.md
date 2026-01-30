@@ -15,7 +15,14 @@ The project automatically publishes API documentation to GitHub Pages:
 - **OpenAPI/Swagger UI**: https://mozilla-services.github.io/syncstorage-rs/swagger-ui/
 
 #### When the service is running (live deployment):
+It is suggested to use the stage instance of Sync when playing with the API,
+though you may also interact with your data in the production instance.
 
+The Prod and Stage environments below will be available as a drop-down in the SwaggerUI:
+- **Stage**: `https://sync-us-west1-g.sync.services.allizom.org`.
+- **Prod**: `https://sync-1-us-west1-g.sync.services.mozilla.com`.
+
+URLs for Swagger and OpenAPI Spec:
 - **Swagger UI (Interactive)**: `https://<your-deployment-url>/swagger-ui/`
 - **OpenAPI Spec (JSON)**: `https://<your-deployment-url>/api-doc/openapi.json`
 
@@ -69,11 +76,12 @@ When adding new endpoints:
 4. Run `cargo run --example generate_openapi_spec` to verify the spec generates correctly. Follow instructions below.
 
 ### Generating the OpenAPI Spec Locally
+If you don't want to compile the Sync server on your machine to view the API docs, follow these instructions:
 
 #### Use `make api-prev`
 We created a handy Makefile command called `make api-prev` that automatically generates the specification file, runs Swagger in Docker and opens your browser to `localhost:8080`. See the steps below to understand this process. Note this attempts to be platform agnostic, but might require some adaptation depending on your operating system.
 
-You can generate the OpenAPI specification without running the server:
+Commands to generate the OpenAPI specification without running the server:
 
 ```bash
 # Generate the spec to stdout
@@ -83,29 +91,22 @@ cargo run --example generate_openapi_spec
 cargo run --example generate_openapi_spec > openapi.json
 ```
 
-### Viewing the Spec Locally (Without Running the Server)
-
-If you don't want to compile the server on your machine, you can still view the API documentation:
-
-1. **Use Docker** (simplest):
+Other options: 
+1. **Use Docker** (simplest - used in `make api-prev`):
 This option requires you to have run `cargo run --example generate_openapi_spec > openapi.json`.
+
    ```bash
    docker run -p 8080:8080 -e SWAGGER_JSON=/openapi.json -v $(pwd)/openapi.json:/openapi.json swaggerapi/swagger-ui
    ```
    Then open http://localhost:8080
 
-2. **Generate the spec on a compatible machine** (or use CI):
-   ```bash
-   cargo run --example generate_openapi_spec > openapi.json
-   ```
-
-3. **Use online Swagger Editor**:
+2. **Use online Swagger Editor**:
    - Go to https://editor.swagger.io/
    - Copy the contents of `openapi.json`
    - Paste into the editor
    - View the interactive documentation
 
-4. **Use VS Code extension**:
+3. **Use VS Code extension**:
    - Install "OpenAPI (Swagger) Editor" extension
    - Open `openapi.json` in VS Code
    - Click "Preview Swagger" to view interactive docs
