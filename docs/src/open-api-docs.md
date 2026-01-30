@@ -15,12 +15,14 @@ The project automatically publishes API documentation to GitHub Pages:
 - **OpenAPI/Swagger UI**: https://mozilla-services.github.io/syncstorage-rs/swagger-ui/
 
 #### When the service is running (live deployment):
-It is suggested to use the stage instance of Sync when playing with the API,
+It is suggested to use the stage instance of Sync and/or Tokenserver when playing with the API,
 though you may also interact with your data in the production instance.
 
 The Prod and Stage environments below will be available as a drop-down in the SwaggerUI:
-- **Stage**: `https://sync-us-west1-g.sync.services.allizom.org`.
-- **Prod**: `https://sync-1-us-west1-g.sync.services.mozilla.com`.
+- **Sync Stage**: `https://sync-us-west1-g.sync.services.allizom.org`.
+- **Sync Prod**: `https://sync-1-us-west1-g.sync.services.mozilla.com`.
+- **Tokenserver Stage**: `https://stage-tokenserver.sync.nonprod.webservices.mozgcp.net`.
+- **Tokenserver Prod**: `https://prod-tokenserver.sync.prod.webservices.mozgcp.net`.
 
 URLs for Swagger and OpenAPI Spec:
 - **Swagger UI (Interactive)**: `https://<your-deployment-url>/swagger-ui/`

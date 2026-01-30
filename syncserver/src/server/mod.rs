@@ -87,8 +87,10 @@ pub fn cfg_path(path: &str) -> String {
         description = "OpenAPI documentation for Syncstorage and Tokenserver endpoints."
     ),
     servers(
-        (url = "https://sync-us-west1-g.sync.services.allizom.org", description = "US West Stage"),
-        (url = "https://sync-1-us-west1-g.sync.services.mozilla.com", description = "US West Production"),
+        (url = "https://stage-tokenserver.sync.nonprod.webservices.mozgcp.net", description = "Tokenserver Stage"),
+        (url = "https://prod-tokenserver.sync.prod.webservices.mozgcp.net", description = "Tokenserver Production"),
+        (url = "https://sync-us-west1-g.sync.services.allizom.org", description = "Syncstorage - US West Stage"),
+        (url = "https://sync-1-us-west1-g.sync.services.mozilla.com", description = "Syncstorage - US West Prod"),
     ),
     paths(
         // Syncstorage general info endpoints.
