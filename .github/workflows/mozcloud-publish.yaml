@@ -1,3 +1,8 @@
+# Mozilla Deploy Actions url: <https://github.com/mozilla-it/deploy-actions>
+# Note: even though Mozilla maintains the above actions, it is still suggested
+# when upgrading to use the full commit SHA and comment with version.
+# See <https://docs.github.com/en/actions/reference/security/secure-use#using-third-party-actions>
+# Ex. `mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2`
 name: Build, Tag and Push Container Images to GAR Repository
 
 on:
@@ -9,7 +14,7 @@ on:
     branches:
       - master
     tags:
-      - "**"
+      - '**'
   workflow_dispatch: {}
 
 jobs:
@@ -39,7 +44,7 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@v6.2.2
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
     with:
       image_name: syncstorage-rs
       gar_name: sync-prod
@@ -67,7 +72,7 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@v6.2.2
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
     with:
       image_name: syncstorage-rs-postgres
       gar_name: sync-prod
@@ -95,7 +100,7 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@v6.2.2
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
     with:
       image_name: syncstorage-rs-spanner-python-utils
       gar_name: sync-prod
@@ -122,7 +127,7 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@v6.2.2
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
     with:
       image_name: syncstorage-rs-postgres-python-utils
       gar_name: sync-prod
@@ -149,7 +154,7 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@v6.2.2
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
     with:
       image_name: syncstorage-rs-mysql
       gar_name: sync-prod
