@@ -17,7 +17,8 @@ fail-fast = false
 
 [profile.ci.junit]
 path = "junit.xml"
-
 report-name = "syncstorage-unit-tests"
 store-success-output = false
 store-failure-output = true
+store-success-timing = true
+store-failure-timing = true
