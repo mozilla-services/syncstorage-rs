@@ -141,7 +141,34 @@ Note, that unlike MySQL, there is no automatic migrations facility. Currently, t
 
 #### Emulator
 
-Google supports an in-memory Spanner emulator, which can run on your local machine for development purposes. You can install the emulator via the gcloud CLI or Docker by following the instructions [here](https://cloud.google.com/spanner/docs/emulator#installing_and_running_the_emulator). Once the emulator is running, you'll need to create a new instance and a new database. To create an instance using the REST API (exposed via port 9020 on the emulator), we can use `curl`:
+Google supports an in-memory Spanner emulator, which can run on your local machine for development purposes. You can install the emulator via the gcloud CLI or Docker by following the instructions [here](https://cloud.google.com/spanner/docs/emulator#installing_and_running_the_emulator). Once the emulator is running, you'll need to create a new instance and a new database.
+
+##### Quick Setup Using prepare-spanner.sh
+
+The easiest way to set up a Spanner emulator database is to use the `prepare-spanner.sh` script:
+
+```sh
+SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST=localhost:9020 ./scripts/prepare-spanner.sh
+```
+
+This script will automatically:
+1. Create a test instance (`test-instance`) on a test project (`test-project`)
+2. Create a test database (`test-database`) with the schema from `schema.ddl`
+3. Apply all DDL statements to set up the database structure
+
+The script looks for `schema.ddl` in either the current directory or in `syncstorage-spanner/src/`. Make sure the `SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST` environment variable points to your emulator's REST API endpoint (typically `localhost:9020`).
+
+After running the script, make sure that the `database_url` config variable in your `local.toml` file reflects the created database (i.e. `spanner://projects/test-project/instances/test-instance/databases/test-database`).
+
+To run an application server that points to the local Spanner emulator:
+
+```sh
+SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST=localhost:9010 make run_spanner
+```
+
+##### Manual Setup Using curl
+
+If you prefer to manually create the instance and database, or need custom project/instance/database names, you can use the REST API directly. The Spanner emulator exposes a REST API on port 9020. To create an instance, use `curl`:
 
 ```sh
 curl --request POST \
@@ -151,7 +178,7 @@ curl --request POST \
   --data "{\"instance\":{\"config\":\"emulator-test-config\",\"nodeCount\":1,\"displayName\":\"Test Instance\"},\"instanceId\":\"$INSTANCE_ID\"}"
 ```
 
-Note that you may set `PROJECT_ID` and `INSTANCE_ID` to your liking. To create a new database on this instance, we'll use a similar HTTP request, but we'll need to include information about the database schema. Since we don't have migrations for Spanner, we keep an up-to-date schema in `src/db/spanner/schema.ddl`. The `jq` utility allows us to parse this file for use in the JSON body of an HTTP POST request:
+Note that you may set `PROJECT_ID` and `INSTANCE_ID` to your liking. To create a new database on this instance, you'll need to include information about the database schema. Since we don't have migrations for Spanner, we keep an up-to-date schema in `src/db/spanner/schema.ddl`. The `jq` utility allows us to parse this file for use in the JSON body of an HTTP POST request:
 
 ```sh
 DDL_STATEMENTS=$(
@@ -163,6 +190,13 @@ DDL_STATEMENTS=$(
 )
 ```
 
+This command:
+- Filters out SQL comments (lines starting with `--`)
+- Normalizes whitespace
+- Removes newlines to create a single line
+- Removes the trailing semicolon from the concatenated string
+- Splits the DDL statements back into an array using `jq`
+
 Finally, to create the database:
 
 ```sh
@@ -173,9 +207,9 @@ curl -sS --request POST \
   --data "{\"createStatement\":\"CREATE DATABASE \`$DATABASE_ID\`\",\"extraStatements\":$DDL_STATEMENTS}"
 ```
 
-Note that, again, you may set `DATABASE_ID` to your liking. Make sure that the `database_url` config variable reflects your choice of project name, instance name, and database name (i.e. it should be of the format `spanner://projects/<your project ID here>/instances/<your instance ID here>/databases/<your database ID here>`).
+Note that, again, you may set `DATABASE_ID` to your liking. Make sure that the `database_url` config variable in your `local.toml` file reflects your choice of project name, instance name, and database name (i.e. it should be of the format `spanner://projects/<your project ID here>/instances/<your instance ID here>/databases/<your database ID here>`).
 
-To run an application server that points to the local Spanner emulator:
+To run the application server that points to the local Spanner emulator:
 
 ```sh
 SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST=localhost:9010 make run_spanner
