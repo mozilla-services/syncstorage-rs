@@ -209,6 +209,12 @@ curl -sS --request POST \
 
 Note that, again, you may set `DATABASE_ID` to your liking. Make sure that the `database_url` config variable in your `local.toml` file reflects your choice of project name, instance name, and database name (i.e. it should be of the format `spanner://projects/<your project ID here>/instances/<your instance ID here>/databases/<your database ID here>`).
 
+To run the application server that points to the local Spanner emulator:
+
+```sh
+SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST=localhost:9010 make run_spanner
+```
+
 ### Running via Docker
 
 This requires access to [Google Cloud Rust (raw)](https://crates.io/crates/google-cloud-rust-raw/) crate. Please note that due to interdependencies, you will need to ensure that `grpcio` and `protobuf` match the version used by `google-cloud-rust-raw`.
