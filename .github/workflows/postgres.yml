@@ -65,7 +65,7 @@ jobs:
             "${{ github.repository_owner }}" \
             "${{ github.event.repository.name }}" \
             "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            > syncserver/version.json
+            > version.json
 
       - name: Install test dependencies
         run: cargo install --locked cargo-nextest cargo-llvm-cov
@@ -150,7 +150,7 @@ jobs:
             "${{ github.repository_owner }}" \
             "${{ github.event.repository.name }}" \
             "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            > syncserver/version.json
+            > version.json
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
