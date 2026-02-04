@@ -93,6 +93,15 @@ jobs:
           RUST_TEST_THREADS: 1
         run: make spanner_test_with_coverage
 
+      - name: Publish Test Report
+        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        if: always()
+        with:
+          name: Spanner Unit Tests
+          path: workflow/test-results/*.xml
+          reporter: java-junit
+          fail-on-error: false
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v6
@@ -196,6 +205,15 @@ jobs:
         run: make docker_run_spanner_e2e_tests
         env:
           SYNCSTORAGE_RS_IMAGE: app:build
+
+      - name: Publish E2E Test Report
+        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        if: always()
+        with:
+          name: Spanner E2E Tests
+          path: workflow/test-results/*.xml
+          reporter: java-junit
+          fail-on-error: false
 
       - name: Upload e2e test results
         if: always()
