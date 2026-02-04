@@ -180,7 +180,7 @@ macro_rules! build_app {
                     // and stored in the docker root
                     HttpResponse::Ok()
                         .content_type("application/json")
-                        .body(include_str!("../../version.json"))
+                        .body(include_str!("../../../version.json"))
                 })),
             )
             .service(web::resource("/__error__").route(web::get().to(handlers::test_error)))
@@ -240,7 +240,7 @@ macro_rules! build_app_without_syncstorage {
                     // and stored in the docker root
                     HttpResponse::Ok()
                         .content_type("application/json")
-                        .body(include_str!("../../version.json"))
+                        .body(include_str!("../../../version.json"))
                 })),
             )
             .service(
