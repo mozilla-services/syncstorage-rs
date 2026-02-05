@@ -53,11 +53,11 @@ tokenserver-db = { path = "../tokenserver-db" }
 tokenserver-settings = { path = "../tokenserver-settings" }
 tokio = { workspace = true, features = ["macros", "sync"] }
 urlencoding = "2.1"
+utoipa.workspace = true
+utoipa-swagger-ui.workspace = true
 validator = "0.20"
 validator_derive = "0.20"
 woothee = "0.13"
-utoipa = "5.4.0"
-utoipa-swagger-ui = { version = "9", features = ["actix-web"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 slog-journald = "2.2.0"
