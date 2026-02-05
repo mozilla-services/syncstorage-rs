@@ -171,9 +171,18 @@ impl Db for SpannerDb {
             .begin_transaction_async_opt(&req, spanner.session_opt()?)?
             .await?;
 
+        let transaction_id = transaction.take_id();
         let mut ts = TransactionSelector::new();
-        ts.set_id(transaction.take_id());
+        ts.set_id(transaction_id.clone());
         self.session.transaction = Some(ts);
+
+        // Save transaction id for rollback when dropping the session
+        #[cfg(debug_assertions)]
+        if spanner.settings.use_test_transactions {
+            let mut guard = spanner.pending_transaction_id.lock().await;
+            *guard = Some(transaction_id);
+        }
+
         Ok(())
     }
 
