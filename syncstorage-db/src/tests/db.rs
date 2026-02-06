@@ -22,6 +22,7 @@ lazy_static! {
 async fn bso_successfully_updates_single_values() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "clients";
@@ -56,6 +57,7 @@ async fn bso_successfully_updates_single_values() -> Result<(), DbError> {
     assert_eq!(bso.payload, payload);
     assert_eq!(bso.sortindex, Some(sortindex));
     assert_eq!(bso.expiry, db.timestamp().as_i64() + i64::from(ttl * 1000));
+    db.rollback().await?;
     Ok(())
 }
 
@@ -63,6 +65,7 @@ async fn bso_successfully_updates_single_values() -> Result<(), DbError> {
 async fn bso_modified_not_changed_on_ttl_touch() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "clients";
@@ -79,6 +82,7 @@ async fn bso_modified_not_changed_on_ttl_touch() -> Result<(), DbError> {
     assert_eq!(bso.expiry, timestamp + (15 * 1000));
     // modified has not changed
     assert_eq!(bso.modified.as_i64(), timestamp - 100);
+    db.rollback().await?;
     Ok(())
 }
 
@@ -86,6 +90,7 @@ async fn bso_modified_not_changed_on_ttl_touch() -> Result<(), DbError> {
 async fn put_bso_updates() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "clients";
@@ -102,6 +107,7 @@ async fn put_bso_updates() -> Result<(), DbError> {
     assert_eq!(Some(bso.payload), Some(payload.to_owned()));
     assert_eq!(bso.sortindex, Some(sortindex));
     assert_eq!(bso.modified, db.timestamp());
+    db.rollback().await?;
     Ok(())
 }
 
@@ -109,6 +115,7 @@ async fn put_bso_updates() -> Result<(), DbError> {
 async fn get_bsos_limit_offset() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "clients";
@@ -223,6 +230,7 @@ async fn get_bsos_limit_offset() -> Result<(), DbError> {
     assert_eq!(bsos3.offset, None);
     assert_eq!(bsos3.items[0].id, "1");
     assert_eq!(bsos3.items[1].id, "0");
+    db.rollback().await?;
     Ok(())
 }
 
@@ -230,6 +238,7 @@ async fn get_bsos_limit_offset() -> Result<(), DbError> {
 async fn get_bsos_newer() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "clients";
@@ -308,6 +317,7 @@ async fn get_bsos_newer() -> Result<(), DbError> {
         ))
         .await?;
     assert_eq!(bsos.items.len(), 0);
+    db.rollback().await?;
     Ok(())
 }
 
@@ -315,6 +325,7 @@ async fn get_bsos_newer() -> Result<(), DbError> {
 async fn get_bsos_sort() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "clients";
@@ -381,6 +392,7 @@ async fn get_bsos_sort() -> Result<(), DbError> {
     assert_eq!(bsos.items[0].id, "b2");
     assert_eq!(bsos.items[1].id, "b0");
     assert_eq!(bsos.items[2].id, "b1");
+    db.rollback().await?;
     Ok(())
 }
 
@@ -388,6 +400,7 @@ async fn get_bsos_sort() -> Result<(), DbError> {
 async fn delete_bsos_in_correct_collection() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let payload = "data";
@@ -398,6 +411,7 @@ async fn delete_bsos_in_correct_collection() -> Result<(), DbError> {
     db.delete_bsos(dbsos(uid, "clients", &["b1"])).await?;
     let bso = db.get_bso(gbso(uid, "crypto", "b1")).await?;
     assert!(bso.is_some());
+    db.rollback().await?;
     Ok(())
 }
 
@@ -405,6 +419,7 @@ async fn delete_bsos_in_correct_collection() -> Result<(), DbError> {
 async fn get_storage_timestamp() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     db.create_collection("NewCollection1").await?;
@@ -428,7 +443,9 @@ async fn get_storage_timestamp() -> Result<(), DbError> {
 async fn get_collection_id() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
     db.get_collection_id("bookmarks").await?;
+    db.rollback().await?;
     Ok(())
 }
 
@@ -436,12 +453,14 @@ async fn get_collection_id() -> Result<(), DbError> {
 async fn create_collection() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let name = "NewCollection";
     let cid = db.create_collection(name).await?;
     assert_ne!(cid, 0);
     let cid2 = db.get_collection_id(name).await?;
     assert_eq!(cid2, cid);
+    db.rollback().await?;
     Ok(())
 }
 
@@ -449,6 +468,7 @@ async fn create_collection() -> Result<(), DbError> {
 async fn update_collection() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
     let collection = "test".to_owned();
 
     let cid = db.create_collection(&collection).await?;
@@ -458,6 +478,7 @@ async fn update_collection() -> Result<(), DbError> {
         collection,
     })
     .await?;
+    db.rollback().await?;
     Ok(())
 }
 
@@ -465,6 +486,7 @@ async fn update_collection() -> Result<(), DbError> {
 async fn delete_collection() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "NewCollection";
@@ -494,6 +516,7 @@ async fn delete_collection() -> Result<(), DbError> {
         })
         .await;
     assert!(result.unwrap_err().is_collection_not_found());
+    db.rollback().await?;
     Ok(())
 }
 
@@ -501,6 +524,7 @@ async fn delete_collection() -> Result<(), DbError> {
 async fn delete_collection_tombstone() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "test";
@@ -554,6 +578,7 @@ async fn delete_collection_tombstone() -> Result<(), DbError> {
     // make sure coll BSOs were *not* deleted
     let result = db.get_bso(gbso(uid, coll, bid1)).await?;
     assert!(result.is_some());
+    db.rollback().await?;
     Ok(())
 }
 
@@ -561,6 +586,7 @@ async fn delete_collection_tombstone() -> Result<(), DbError> {
 async fn get_collection_timestamps() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "test";
@@ -582,6 +608,7 @@ async fn get_collection_timestamps() -> Result<(), DbError> {
         })
         .await?;
     assert_eq!(Some(&ts), cols.get(coll));
+    db.rollback().await?;
     Ok(())
 }
 
@@ -589,6 +616,7 @@ async fn get_collection_timestamps() -> Result<(), DbError> {
 async fn get_collection_timestamps_tombstone() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "test";
@@ -607,6 +635,7 @@ async fn get_collection_timestamps_tombstone() -> Result<(), DbError> {
     .await?;
     let cols = db.get_collection_timestamps(hid(uid)).await?;
     assert!(cols.is_empty());
+    db.rollback().await?;
     Ok(())
 }
 
@@ -614,6 +643,7 @@ async fn get_collection_timestamps_tombstone() -> Result<(), DbError> {
 async fn get_collection_usage() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let mut expected = HashMap::new();
@@ -659,6 +689,7 @@ async fn get_collection_usage() -> Result<(), DbError> {
         );
         assert_eq!(quota.count, 5); // 3 collections, 5 records
     }
+    db.rollback().await?;
     Ok(())
 }
 
@@ -673,6 +704,7 @@ async fn test_quota() -> Result<(), DbError> {
 
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "bookmarks";
@@ -701,6 +733,7 @@ async fn test_quota() -> Result<(), DbError> {
         .put_bso(pbso(uid, coll, "103", Some(&payload), None, None))
         .await;
     assert!(result.is_err());
+    db.rollback().await?;
     Ok(())
 }
 
@@ -708,6 +741,7 @@ async fn test_quota() -> Result<(), DbError> {
 async fn get_collection_counts() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let mut expected = HashMap::new();
@@ -724,6 +758,7 @@ async fn get_collection_counts() -> Result<(), DbError> {
 
     let counts = db.get_collection_counts(hid(uid)).await?;
     assert_eq!(counts, expected);
+    db.rollback().await?;
     Ok(())
 }
 
@@ -731,6 +766,7 @@ async fn get_collection_counts() -> Result<(), DbError> {
 async fn put_bso() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "NewCollection";
@@ -771,6 +807,7 @@ async fn put_bso() -> Result<(), DbError> {
 async fn post_bsos() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "NewCollection";
@@ -822,6 +859,7 @@ async fn post_bsos() -> Result<(), DbError> {
         })
         .await?;
     assert_eq!(result2, ts);
+    db.rollback().await?;
     Ok(())
 }
 
@@ -829,6 +867,7 @@ async fn post_bsos() -> Result<(), DbError> {
 async fn get_bso() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "clients";
@@ -843,6 +882,7 @@ async fn get_bso() -> Result<(), DbError> {
 
     let result = db.get_bso(gbso(uid, coll, "nope")).await?;
     assert!(result.is_none());
+    db.rollback().await?;
     Ok(())
 }
 
@@ -850,6 +890,7 @@ async fn get_bso() -> Result<(), DbError> {
 async fn get_bsos() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "clients";
@@ -914,6 +955,7 @@ async fn get_bsos() -> Result<(), DbError> {
     assert_eq!(bsos.offset, Some("2".to_string()));
     assert_eq!(bsos.items[0].id, "b2");
     assert_eq!(bsos.items[1].id, "b1");
+    db.rollback().await?;
     Ok(())
 }
 
@@ -921,6 +963,7 @@ async fn get_bsos() -> Result<(), DbError> {
 async fn get_bso_timestamp() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "clients";
@@ -935,6 +978,7 @@ async fn get_bso_timestamp() -> Result<(), DbError> {
         })
         .await?;
     assert_eq!(ts, db.timestamp());
+    db.rollback().await?;
     Ok(())
 }
 
@@ -942,6 +986,7 @@ async fn get_bso_timestamp() -> Result<(), DbError> {
 async fn delete_bso() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "clients";
@@ -951,6 +996,7 @@ async fn delete_bso() -> Result<(), DbError> {
     db.delete_bso(dbso(uid, coll, bid)).await?;
     let bso = db.get_bso(gbso(uid, coll, bid)).await?;
     assert!(bso.is_none());
+    db.rollback().await?;
     Ok(())
 }
 
@@ -958,6 +1004,7 @@ async fn delete_bso() -> Result<(), DbError> {
 async fn delete_bsos() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "clients";
@@ -986,6 +1033,7 @@ async fn delete_bsos() -> Result<(), DbError> {
         let bso = db.get_bso(gbso(uid, coll, &bid)).await?;
         assert!(bso.is_none());
     }
+    db.rollback().await?;
     Ok(())
 }
 
@@ -1016,6 +1064,7 @@ async fn optimize() -> Result<(), DbError> {
 async fn delete_storage() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let bid = "test";
@@ -1035,6 +1084,7 @@ async fn delete_storage() -> Result<(), DbError> {
     let collections = db.get_collection_counts(hid(uid)).await?;
     assert!(collections == HashMap::<String, i64>::new());
 
+    db.rollback().await?;
     Ok(())
 }
 
@@ -1042,6 +1092,7 @@ async fn delete_storage() -> Result<(), DbError> {
 async fn collection_cache() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "test";
@@ -1056,6 +1107,7 @@ async fn collection_cache() -> Result<(), DbError> {
     db.clear_coll_cache().await?;
     let cols = db.get_collection_timestamps(hid(uid)).await?;
     assert!(cols.contains_key(coll));
+    db.rollback().await?;
     Ok(())
 }
 
@@ -1063,6 +1115,7 @@ async fn collection_cache() -> Result<(), DbError> {
 async fn lock_for_read() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "clients";
@@ -1073,7 +1126,6 @@ async fn lock_for_read() -> Result<(), DbError> {
     .await?;
     let result = db.get_collection_id("NewCollection").await;
     assert!(result.unwrap_err().is_collection_not_found());
-    db.commit().await?;
     Ok(())
 }
 
@@ -1081,6 +1133,7 @@ async fn lock_for_read() -> Result<(), DbError> {
 async fn lock_for_write() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = *UID;
     let coll = "clients";
@@ -1091,7 +1144,7 @@ async fn lock_for_write() -> Result<(), DbError> {
     .await?;
     db.put_bso(pbso(uid, coll, "1", Some("foo"), None, None))
         .await?;
-    db.commit().await?;
+    db.rollback().await?;
     Ok(())
 }
 
@@ -1099,7 +1152,9 @@ async fn lock_for_write() -> Result<(), DbError> {
 async fn heartbeat() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     assert!(db.check().await?);
+    db.rollback().await?;
     Ok(())
 }

@@ -49,6 +49,7 @@ fn gb(user_id: u32, coll: &str, id: String) -> params::GetBatch {
 async fn create_delete() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -65,6 +66,8 @@ async fn create_delete() -> Result<(), DbError> {
     })
     .await?;
     assert!(!db.validate_batch(vb(uid, coll, new_batch.id)).await?);
+
+    db.rollback().await?;
     Ok(())
 }
 
@@ -72,6 +75,7 @@ async fn create_delete() -> Result<(), DbError> {
 async fn expiry() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -89,6 +93,7 @@ async fn expiry() -> Result<(), DbError> {
     let result = db.append_to_batch(ab(uid, coll, new_batch, bsos)).await;
     let is_batch_not_found = result.unwrap_err().is_batch_not_found();
     assert!(is_batch_not_found, "Expected BatchNotFound");
+    db.rollback().await?;
     Ok(())
 }
 
@@ -96,6 +101,7 @@ async fn expiry() -> Result<(), DbError> {
 async fn update() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -114,6 +120,7 @@ async fn update() -> Result<(), DbError> {
         .await?;
 
     assert!(db.get_batch(gb(uid, coll, new_batch.id)).await?.is_some());
+    db.rollback().await?;
     Ok(())
 }
 
@@ -121,6 +128,7 @@ async fn update() -> Result<(), DbError> {
 async fn append_commit() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -157,6 +165,7 @@ async fn append_commit() -> Result<(), DbError> {
     let bso = db.get_bso(gbso(uid, coll, "b1")).await?.unwrap();
     assert_eq!(bso.sortindex, Some(1_000_000_000));
     assert_eq!(bso.payload, "payload 1");
+    db.rollback().await?;
     Ok(())
 }
 
@@ -174,6 +183,7 @@ async fn quota_test_create_batch() -> Result<(), DbError> {
 
     let pool = db_pool(Some(settings.clone())).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -199,6 +209,7 @@ async fn quota_test_create_batch() -> Result<(), DbError> {
         assert!(result.is_ok());
     }
 
+    db.rollback().await?;
     Ok(())
 }
 
@@ -216,6 +227,7 @@ async fn quota_test_append_batch() -> Result<(), DbError> {
 
     let pool = db_pool(Some(settings.clone())).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -244,6 +256,7 @@ async fn quota_test_append_batch() -> Result<(), DbError> {
     } else {
         assert!(result.is_ok())
     }
+    db.rollback().await?;
     Ok(())
 }
 
@@ -252,6 +265,7 @@ async fn test_append_async_w_null() -> Result<(), DbError> {
     let settings = Settings::test_settings().syncstorage;
     let pool = db_pool(Some(settings)).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
     // Remember: TTL is seconds to live, not an expiry date
     let ttl_0 = 86_400;
     let ttl_1 = 86_400;
@@ -313,6 +327,7 @@ async fn test_append_async_w_null() -> Result<(), DbError> {
     assert!(bso_1.payload == payload_1);
     assert!(bso_1.sortindex == Some(20));
 
+    db.rollback().await?;
     Ok(())
 }
 
@@ -321,6 +336,7 @@ async fn test_append_async_w_empty_string() -> Result<(), DbError> {
     let settings = Settings::test_settings().syncstorage;
     let pool = db_pool(Some(settings)).await?;
     let mut db = test_db(pool).await?;
+    db.begin(true).await?;
 
     let ttl_0 = 86_400;
     let bid_0 = "b0";
@@ -363,5 +379,6 @@ async fn test_append_async_w_empty_string() -> Result<(), DbError> {
         "Updated payload should be empty string"
     );
 
+    db.rollback().await?;
     Ok(())
 }

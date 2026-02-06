@@ -160,10 +160,6 @@ impl SpannerDb {
 
     /// Return the current transaction metadata (TransactionSelector) if one is active.
     async fn get_transaction(&mut self) -> DbResult<Option<TransactionSelector>> {
-        if self.session.transaction.is_none() {
-            self.begin(true).await?;
-        }
-
         Ok(self.session.transaction.clone())
     }
 

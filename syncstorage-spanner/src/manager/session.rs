@@ -30,9 +30,8 @@ pub struct SpannerSession {
     /// Session has a similar `create_time` value that is managed by protobuf,
     /// but some clock skew issues are possible.
     pub(crate) create_time: i64,
-    /// ID of transaction that needs to be rolled back at the end of a test.
-    /// This is used to ensure test transactions are cleaned up; the Spanner
-    /// emulator supports only one transaction at a time per session.
+    /// ID of transaction that potentially needs to be rolled back after the
+    /// test failed to roll it back.
     #[cfg(debug_assertions)]
     pub(crate) pending_transaction_id: Arc<Mutex<Option<Vec<u8>>>>,
 }
@@ -57,8 +56,8 @@ impl SpannerSession {
 #[cfg(debug_assertions)]
 impl Drop for SpannerSession {
     fn drop(&mut self) {
-        // Rollback the transaction when the session is destroyed at the end of
-        // a test.
+        // Rollback the transaction when the session is destroyed if the test
+        // did not manage to rollback.
         if self.settings.use_test_transactions {
             if let Ok(mut guard) = self.pending_transaction_id.try_lock() {
                 if let Some(transaction_id) = guard.take() {
