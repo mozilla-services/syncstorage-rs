@@ -10,4 +10,4 @@ rand.workspace=true
 serde.workspace=true
 
 syncserver-common = { path = "../syncserver-common" }
-time = "^0.3"
+time.workspace = true

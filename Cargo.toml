@@ -91,6 +91,7 @@ slog-stdlog = "4.1"
 slog-term = "2.6"
 tokio = "1"
 thiserror = "1.0.26"
+time = "0.3.47"
 utoipa = "5.4.0"
 utoipa-swagger-ui = { version = "9", features = ["actix-web"] }
 uuid = { version = "1.11", features = ["serde", "v4"] }

@@ -46,7 +46,7 @@ syncserver-db-common = { path = "../syncserver-db-common" }
 syncserver-settings = { path = "../syncserver-settings" }
 syncstorage-db = { path = "../syncstorage-db" }
 syncstorage-settings = { path = "../syncstorage-settings" }
-time = "^0.3"
+time.workspace = true
 tokenserver-auth = { path = "../tokenserver-auth" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db = { path = "../tokenserver-db" }
