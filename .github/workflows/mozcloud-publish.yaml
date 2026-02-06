@@ -18,17 +18,7 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  generate-timestamp:
-    runs-on: ubuntu-latest
-    outputs:
-      timestamp: ${{ steps.timestamp.outputs.timestamp }}
-    steps:
-      - name: Generate timestamp
-        id: timestamp
-        run: echo "timestamp=$(date -u +%Y%m%dT%H%M%S)" >> $GITHUB_OUTPUT
-
   build-and-push-syncstorage-rs:
-    needs: generate-timestamp
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -53,10 +43,8 @@ jobs:
         SYNCSTORAGE_DATABASE_BACKEND=spanner
         MYSQLCLIENT_PKG=libmysqlclient-dev
       should_tag_ghcr: true
-      image_tag_metadata: ${{ needs.generate-timestamp.outputs.timestamp }}
 
   build-and-push-syncstorage-rs-postgres:
-    needs: generate-timestamp
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -81,10 +69,8 @@ jobs:
         SYNCSTORAGE_DATABASE_BACKEND=postgres
         TOKENSERVER_DATABASE_BACKEND=postgres
       should_tag_ghcr: true
-      image_tag_metadata: ${{ needs.generate-timestamp.outputs.timestamp }}
 
   build-and-push-syncstorage-rs-spanner-python-utils:
-    needs: generate-timestamp
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -108,10 +94,8 @@ jobs:
       dockerfile_path: tools/spanner/Dockerfile
       image_build_context: tools/spanner
       should_tag_ghcr: true
-      image_tag_metadata: ${{ needs.generate-timestamp.outputs.timestamp }}
 
   build-and-push-syncstorage-rs-postgres-python-utils:
-    needs: generate-timestamp
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -135,10 +119,8 @@ jobs:
       dockerfile_path: tools/postgres/Dockerfile
       image_build_context: tools/postgres
       should_tag_ghcr: true
-      image_tag_metadata: ${{ needs.generate-timestamp.outputs.timestamp }}
 
   build-and-push-syncstorage-rs-mysql:
-    needs: generate-timestamp
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -163,4 +145,3 @@ jobs:
         SYNCSTORAGE_DATABASE_BACKEND=mysql
         TOKENSERVER_DATABASE_BACKEND=mysql
       should_tag_ghcr: true
-      image_tag_metadata: ${{ needs.generate-timestamp.outputs.timestamp }}
