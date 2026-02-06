@@ -67,7 +67,7 @@ jobs:
             "${{ github.repository_owner }}" \
             "${{ github.event.repository.name }}" \
             "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            > syncserver/version.json
+            > version.json
 
       - name: Install test dependencies
         run: cargo install --locked cargo-nextest cargo-llvm-cov
@@ -79,6 +79,15 @@ jobs:
         run: make test_with_coverage
         env:
           SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
+
+      - name: Publish Test Report
+        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        if: always()
+        with:
+          name: MySQL Unit Tests
+          path: workflow/test-results/*.xml
+          reporter: java-junit
+          fail-on-error: false
 
       - name: Upload test results
         if: always()
@@ -135,7 +144,7 @@ jobs:
             "${{ github.repository_owner }}" \
             "${{ github.event.repository.name }}" \
             "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            > syncserver/version.json
+            > version.json
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -183,6 +192,15 @@ jobs:
         run: make docker_run_mysql_e2e_tests
         env:
           SYNCSTORAGE_RS_IMAGE: app:build
+
+      - name: Publish E2E Test Report
+        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        if: always()
+        with:
+          name: MySQL E2E Tests
+          path: workflow/test-results/*.xml
+          reporter: java-junit
+          fail-on-error: false
 
       - name: Upload e2e test results
         if: always()

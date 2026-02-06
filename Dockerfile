@@ -153,7 +153,7 @@ RUN pip3 install --break-system-packages --no-cache-dir --no-index --find-links=
     rm -rf /tmp/wheels /root/.cache/pip
 
 COPY --from=builder /app/bin /app/bin
-COPY --from=builder /app/syncserver/version.json /app
+COPY --from=builder /app/version.json /app
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
 COPY --from=builder --chmod=0755 /app/scripts/prepare-spanner.sh /app/scripts/prepare-spanner.sh
 COPY --from=builder --chmod=0755 /app/scripts/start_mock_fxa_server.sh /app/scripts/start_mock_fxa_server.sh
