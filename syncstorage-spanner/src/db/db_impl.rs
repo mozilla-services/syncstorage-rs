@@ -176,9 +176,9 @@ impl Db for SpannerDb {
         ts.set_id(transaction_id.clone());
         self.session.transaction = Some(ts);
 
-        // Save transaction id for rollback when dropping the session
+        // Save transaction id for potential rollback when dropping the session
         #[cfg(debug_assertions)]
-        if spanner.settings.use_test_transactions {
+        if for_write && spanner.settings.use_test_transactions {
             let mut guard = spanner.pending_transaction_id.lock().await;
             *guard = Some(transaction_id);
         }
@@ -192,13 +192,18 @@ impl Db for SpannerDb {
             return Ok(());
         }
 
-        if cfg!(debug_assertions) && self.conn.settings.use_test_transactions {
-            // don't commit test transactions
-            return Ok(());
-        }
-
         if let Some(transaction) = self.get_transaction().await? {
             let spanner = &self.conn;
+
+            // Clear the transaction id so the session Drop impl doesn't try to
+            // rollback.  Currently the tests don't commit but it's here if and
+            // when they do.
+            #[cfg(debug_assertions)]
+            if spanner.settings.use_test_transactions {
+                let mut guard = spanner.pending_transaction_id.lock().await;
+                *guard = None;
+            }
+
             let mut req = CommitRequest::new();
             req.set_session(spanner.session.get_name().to_owned());
             req.set_transaction_id(transaction.get_id().to_vec());
@@ -223,6 +228,15 @@ impl Db for SpannerDb {
 
         if let Some(transaction) = self.get_transaction().await? {
             let spanner = &self.conn;
+
+            // Clear the transaction id so the session Drop impl doesn't try to
+            // rollback.
+            #[cfg(debug_assertions)]
+            if spanner.settings.use_test_transactions {
+                let mut guard = spanner.pending_transaction_id.lock().await;
+                *guard = None;
+            }
+
             let mut req = RollbackRequest::new();
             req.set_session(spanner.session.get_name().to_owned());
             req.set_transaction_id(transaction.get_id().to_vec());
