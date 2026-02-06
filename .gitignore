@@ -51,3 +51,4 @@ book/
 mermaid-init.js
 mermaid.min.js
 docs/output
+openapi.json

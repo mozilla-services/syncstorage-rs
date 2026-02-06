@@ -2,6 +2,7 @@
 
 use std::{convert::Infallible, num::NonZeroUsize, sync::Arc, time::Duration};
 
+use crate::error::ApiError;
 use actix_cors::Cors;
 use actix_web::{
     dev::{self, Payload},
@@ -13,6 +14,7 @@ use actix_web::{
 };
 use cadence::{Gauged, StatsdClient};
 use futures::future::{self, Ready};
+use glean::server_events::GleanEventsLogger;
 use syncserver_common::{
     middleware::sentry::SentryWrapper, BlockingThreadpool, BlockingThreadpoolMetrics, Metrics,
     Taggable,
@@ -22,9 +24,8 @@ use syncserver_settings::Settings;
 use syncstorage_db::{DbError, DbPool, DbPoolImpl};
 use syncstorage_settings::{Deadman, ServerLimits};
 use tokio::{sync::RwLock, time};
-
-use crate::error::ApiError;
-use glean::server_events::GleanEventsLogger;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::tokenserver;
 use crate::web::{handlers, middleware};
@@ -78,6 +79,53 @@ pub fn cfg_path(path: &str) -> String {
     format!("/{}/{{uid:{}}}{}", SYNC_VERSION_PATH, MYSQL_UID_REGEX, path)
 }
 
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "Syncstorage-rs API",
+        version = env!("CARGO_PKG_VERSION"),
+        description = "OpenAPI documentation for Syncstorage and Tokenserver endpoints."
+    ),
+    servers(
+        (url = "https://stage-tokenserver.sync.nonprod.webservices.mozgcp.net", description = "Tokenserver Stage"),
+        (url = "https://prod-tokenserver.sync.prod.webservices.mozgcp.net", description = "Tokenserver Production"),
+        (url = "https://sync-us-west1-g.sync.services.allizom.org", description = "Syncstorage - US West Stage"),
+        (url = "https://sync-1-us-west1-g.sync.services.mozilla.com", description = "Syncstorage - US West Prod"),
+    ),
+    paths(
+        // Syncstorage general info endpoints.
+        // APIs in this section provide high-level interactions with the user’s data store as a whole.
+        crate::web::handlers::get_collections,
+        crate::web::handlers::get_collection_counts,
+        crate::web::handlers::get_collection_usage,
+        crate::web::handlers::get_configuration,
+        crate::web::handlers::get_quota,
+        crate::web::handlers::delete_all,
+        // Syncstorage storage endpoints.
+        // APIs in this section provide a mechanism for interacting with a single collection.
+        crate::web::handlers::get_collection,
+        crate::web::handlers::post_collection,
+        crate::web::handlers::delete_collection,
+        crate::web::handlers::get_bso,
+        crate::web::handlers::put_bso,
+        crate::web::handlers::delete_bso,
+        // Dockerflow endpoints
+        crate::web::handlers::heartbeat,
+        crate::web::handlers::lbheartbeat,
+        // Tokenserver endpoints
+        crate::tokenserver::handlers::get_tokenserver_result,
+        crate::tokenserver::handlers::heartbeat,
+    ),
+    components(
+        schemas(crate::tokenserver::handlers::TokenserverResult)
+    ),
+    tags(
+        (name = "syncstorage", description = "Syncstorage endpoints for Firefox Sync data storage"),
+        (name = "tokenserver", description = "Tokenserver endpoints for Sync node allocation and authentication"),
+        (name = "dockerflow", description = "Service health and version endpoints")
+    )
+)]
+pub struct ApiDoc;
 pub struct Server;
 
 #[macro_export]
@@ -191,6 +239,15 @@ macro_rules! build_app {
                         .finish()
                 })),
             )
+            // OpenAPI (utoipa) + Swagger UI (utoipa-swagger-ui)
+            .service(
+                web::resource("/api-doc/openapi.json")
+                    .route(web::get().to(|| async { HttpResponse::Ok().json(ApiDoc::openapi()) })),
+            )
+            .service(
+                SwaggerUi::new("/swagger-ui/{_:.*}")
+                    .url("/api-doc/openapi.json", ApiDoc::openapi()),
+            )
     };
 }
 
@@ -252,6 +309,15 @@ macro_rules! build_app_without_syncstorage {
                         .insert_header((LOCATION, TOKENSERVER_DOCS_URL))
                         .finish()
                 })),
+            )
+            // OpenAPI (utoipa) + Swagger UI (utoipa-swagger-ui)
+            .service(
+                web::resource("/api-doc/openapi.json")
+                    .route(web::get().to(|| async { HttpResponse::Ok().json(ApiDoc::openapi()) })),
+            )
+            .service(
+                SwaggerUi::new("/swagger-ui/{_:.*}")
+                    .url("/api-doc/openapi.json", ApiDoc::openapi()),
             )
     };
 }

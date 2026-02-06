@@ -46,13 +46,15 @@ syncserver-db-common = { path = "../syncserver-db-common" }
 syncserver-settings = { path = "../syncserver-settings" }
 syncstorage-db = { path = "../syncstorage-db" }
 syncstorage-settings = { path = "../syncstorage-settings" }
-time = "^0.3"
+time.workspace = true
 tokenserver-auth = { path = "../tokenserver-auth" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db = { path = "../tokenserver-db" }
 tokenserver-settings = { path = "../tokenserver-settings" }
 tokio = { workspace = true, features = ["macros", "sync"] }
 urlencoding = "2.1"
+utoipa.workspace = true
+utoipa-swagger-ui.workspace = true
 validator = "0.20"
 validator_derive = "0.20"
 woothee = "0.13"

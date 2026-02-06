@@ -2,6 +2,7 @@
 [![Build Status][circleci-badge]][circleci]
 [![docs][docs-badge]][docs]
 [![Connect to Matrix via the Riot webapp][matrix-badge]][matrix]
+[![Swagger OpenAPI Docs](https://img.shields.io/badge/API-Documentation-blue.svg)][swagger-ui]
 
 # Syncstorage-rs
 
@@ -16,3 +17,4 @@ For full documentation, please navigate to the service docs [here](https://mozil
 [docs]: https://mozilla-services.github.io/syncstorage-rs/
 [matrix-badge]: https://img.shields.io/badge/chat%20on%20[m]-%23services%3Amozilla.org-blue
 [matrix]: https://chat.mozilla.org/#/room/#services:mozilla.org
+[swagger-ui]: https://mozilla-services.github.io/syncstorage-rs/swagger-ui/
