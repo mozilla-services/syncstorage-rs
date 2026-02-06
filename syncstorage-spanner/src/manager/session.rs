@@ -1,10 +1,12 @@
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use google_cloud_rust_raw::spanner::v1::{
-    spanner::{CreateSessionRequest, GetSessionRequest, Session},
+    spanner::{CreateSessionRequest, GetSessionRequest, RollbackRequest, Session},
     spanner_grpc::SpannerClient,
 };
 use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, Environment};
+
 use syncserver_common::{BlockingThreadpool, Metrics};
 use syncstorage_settings::Settings;
 
@@ -28,6 +30,10 @@ pub struct SpannerSession {
     /// Session has a similar `create_time` value that is managed by protobuf,
     /// but some clock skew issues are possible.
     pub(crate) create_time: i64,
+    /// ID of transaction that potentially needs to be rolled back after the
+    /// test failed to roll it back.
+    #[cfg(debug_assertions)]
+    pub(crate) pending_transaction_id: Arc<Mutex<Option<Vec<u8>>>>,
 }
 
 impl SpannerSession {
@@ -44,6 +50,35 @@ impl SpannerSession {
             .routing_param("session", self.session.get_name())
             .build()?;
         Ok(CallOption::default().headers(meta))
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for SpannerSession {
+    fn drop(&mut self) {
+        // Rollback the transaction when the session is destroyed if the test
+        // did not manage to rollback.
+        if self.settings.use_test_transactions {
+            if let Ok(mut guard) = self.pending_transaction_id.try_lock() {
+                if let Some(transaction_id) = guard.take() {
+                    let mut req = RollbackRequest::new();
+                    req.set_session(self.session.get_name().to_owned());
+                    req.set_transaction_id(transaction_id);
+
+                    if let Ok(meta) = self
+                        .settings
+                        .metadata_builder()
+                        .routing_param("session", self.session.get_name())
+                        .build()
+                    {
+                        let opt = CallOption::default().headers(meta);
+                        if let Ok(fut) = self.client.rollback_async_opt(&req, opt) {
+                            let _ = futures::executor::block_on(fut);
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -154,6 +189,8 @@ pub async fn create_spanner_session(
         // where we could get Settings from (via Manager) instead of cloning
         settings: settings.clone(),
         create_time: crate::now(),
+        #[cfg(debug_assertions)]
+        pending_transaction_id: Arc::new(Mutex::new(None)),
     })
 }
 
