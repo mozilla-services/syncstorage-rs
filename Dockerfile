@@ -5,7 +5,8 @@ ARG MYSQLCLIENT_PKG=libmariadb-dev-compat
 
 # NOTE: Ensure builder's Rust version matches CI's in .circleci/config.yml
 # RUST_VER
-FROM docker.io/lukemathwalker/cargo-chef:0.1.72-rust-1.89-bookworm AS chef
+FROM dhi.io/rust:1.89-debian13 AS chef
+RUN cargo install cargo-chef --locked
 WORKDIR /app
 
 FROM chef AS planner
@@ -104,7 +105,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     rustc --version && \
     cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND $TOKENSERVER_FEATURES --features=py_verifier --locked --root /app
 
-FROM docker.io/library/debian:bookworm-slim
+FROM dhi.io/debian-base:13
 ARG SYNCSTORAGE_DATABASE_BACKEND
 ARG TOKENSERVER_DATABASE_BACKEND
 ARG MYSQLCLIENT_PKG
