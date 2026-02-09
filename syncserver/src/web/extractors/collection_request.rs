@@ -1,4 +1,4 @@
-use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
+use actix_web::{Error, FromRequest, HttpRequest, dev::Payload};
 use futures::future::{FutureExt, LocalBoxFuture};
 
 use syncserver_common::Metrics;
@@ -6,8 +6,8 @@ use syncstorage_db::UserIdentifier;
 use tokenserver_auth::TokenserverOrigin;
 
 use super::{
-    get_accepted, BsoQueryParams, CollectionParam, HawkIdentifier, RequestErrorLocation,
-    ACCEPTED_CONTENT_TYPES,
+    ACCEPTED_CONTENT_TYPES, BsoQueryParams, CollectionParam, HawkIdentifier, RequestErrorLocation,
+    get_accepted,
 };
 use crate::{server::MetricsWrapper, web::error::ValidationErrorKind};
 
@@ -79,8 +79,8 @@ mod tests {
     use std::sync::Arc;
 
     use actix_web::{
-        dev::ServiceResponse, http::Method, test::TestRequest, FromRequest, HttpMessage,
-        HttpResponse,
+        FromRequest, HttpMessage, HttpResponse, dev::ServiceResponse, http::Method,
+        test::TestRequest,
     };
     use futures::executor::block_on;
 
@@ -88,8 +88,8 @@ mod tests {
     use crate::web::{
         auth::HawkPayload,
         extractors::test_utils::{
-            create_valid_hawk_header, extract_body_as_str, make_db, make_state,
             INVALID_COLLECTION_NAME, SECRETS, TEST_HOST, TEST_PORT, USER_ID, USER_ID_STR,
+            create_valid_hawk_header, extract_body_as_str, make_db, make_state,
         },
     };
 

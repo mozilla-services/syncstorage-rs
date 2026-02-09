@@ -1,6 +1,6 @@
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
-use jsonwebtoken::{errors::ErrorKind, jwk::Jwk, Algorithm, DecodingKey, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, errors::ErrorKind, jwk::Jwk};
 use ring::rand::{SecureRandom, SystemRandom};
 use serde::de::DeserializeOwned;
 use sha2::Sha256;

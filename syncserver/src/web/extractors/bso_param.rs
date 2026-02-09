@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
 use actix_web::{
+    Error, FromRequest, HttpMessage, HttpRequest,
     dev::{Extensions, Payload, RequestHead},
     http::Uri,
-    Error, FromRequest, HttpMessage, HttpRequest,
 };
 use futures::future::{self, Ready};
 use lazy_static::lazy_static;
@@ -11,7 +11,7 @@ use regex::Regex;
 use serde::Deserialize;
 use validator::Validate;
 
-use super::{urldecode, RequestErrorLocation};
+use super::{RequestErrorLocation, urldecode};
 use crate::{server::BSO_ID_REGEX, web::error::ValidationErrorKind};
 
 lazy_static! {

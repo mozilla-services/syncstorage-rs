@@ -280,22 +280,27 @@ impl<'d> Deserialize<'d> for Secrets {
 
 #[cfg(test)]
 mod test {
-    use std::env;
-
     use super::*;
 
     #[test]
     fn test_environment_variable_prefix() {
         // Setting an environment variable with the correct prefix correctly sets the setting
         // (note that the default value for the settings.tokenserver.enabled setting is false)
-        env::set_var("SYNC_TOKENSERVER__ENABLED", "true");
-        let settings = Settings::with_env_and_config_file(None).unwrap();
-        assert!(settings.tokenserver.enabled);
+        temp_env::with_var("SYNC_TOKENSERVER__ENABLED", Some("true"), || {
+            let settings = Settings::with_env_and_config_file(None).unwrap();
+            assert!(settings.tokenserver.enabled);
+        });
 
         // Setting an environment variable with the incorrect prefix does not set the setting
-        env::remove_var("SYNC_TOKENSERVER__ENABLED");
-        env::set_var("SYNC__TOKENSERVER__ENABLED", "true");
-        let settings = Settings::with_env_and_config_file(None).unwrap();
-        assert!(!settings.tokenserver.enabled);
+        temp_env::with_vars(
+            [
+                ("SYNC_TOKENSERVER__ENABLED", None),
+                ("SYNC__TOKENSERVER__ENABLED", Some("true")),
+            ],
+            || {
+                let settings = Settings::with_env_and_config_file(None).unwrap();
+                assert!(!settings.tokenserver.enabled);
+            },
+        );
     }
 }

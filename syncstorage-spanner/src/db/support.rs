@@ -6,15 +6,15 @@ use google_cloud_rust_raw::spanner::v1::{
 };
 
 use protobuf::{
-    well_known_types::{ListValue, NullValue, Struct, Value},
     RepeatedField,
+    well_known_types::{ListValue, NullValue, Struct, Value},
 };
 use syncstorage_db_common::{
-    params, results, util::to_rfc3339, util::SyncTimestamp, UserIdentifier, DEFAULT_BSO_TTL,
+    DEFAULT_BSO_TTL, UserIdentifier, params, results, util::SyncTimestamp, util::to_rfc3339,
 };
 
 pub use super::stream::StreamedResultSetAsync;
-use crate::{error::DbError, pool::Conn, DbResult};
+use crate::{DbResult, error::DbError, pool::Conn};
 
 pub trait IntoSpannerValue {
     const TYPE_CODE: TypeCode;

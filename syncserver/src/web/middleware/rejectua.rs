@@ -1,10 +1,10 @@
 #![allow(clippy::type_complexity)]
 
 use actix_web::{
+    FromRequest, HttpResponse,
     body::EitherBody,
     dev::{Service, ServiceRequest, ServiceResponse},
     http::header::USER_AGENT,
-    FromRequest, HttpResponse,
 };
 use futures::future::LocalBoxFuture;
 use lazy_static::lazy_static;
@@ -33,8 +33,9 @@ $
 
 pub fn reject_user_agent<B>(
     request: ServiceRequest,
-    service: &(impl Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>
-          + 'static),
+    service: &(
+         impl Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error> + 'static
+     ),
 ) -> LocalBoxFuture<'static, Result<ServiceResponse<EitherBody<B>>, actix_web::Error>> {
     match request.headers().get(USER_AGENT).cloned() {
         Some(header) if header.to_str().is_ok_and(should_reject) => Box::pin(async move {

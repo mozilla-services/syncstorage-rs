@@ -2,10 +2,10 @@
 use std::collections::HashMap;
 
 use lazy_static::lazy_static;
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use rand::{Rng, distributions::Alphanumeric, thread_rng};
 use syncserver_settings::Settings;
 use syncstorage_db_common::{
-    error::DbErrorIntrospect, params, util::SyncTimestamp, Sorting, DEFAULT_BSO_TTL,
+    DEFAULT_BSO_TTL, Sorting, error::DbErrorIntrospect, params, util::SyncTimestamp,
 };
 
 use super::support::{db_pool, dbso, dbsos, gbso, gbsos, hid, pbso, postbso, test_db};
@@ -177,10 +177,10 @@ async fn get_bsos_limit_offset() -> Result<(), DbError> {
         ))
         .await?;
     assert_eq!(bsos.items.len(), 5);
-    if let Some(ref offset) = bsos.offset {
-        if !offset.chars().any(|c| c == ':') {
-            assert_eq!(offset, &"5".to_string());
-        }
+    if let Some(ref offset) = bsos.offset
+        && !offset.chars().any(|c| c == ':')
+    {
+        assert_eq!(offset, &"5".to_string());
     }
 
     assert_eq!(bsos.items[0].id, "11");
@@ -199,10 +199,10 @@ async fn get_bsos_limit_offset() -> Result<(), DbError> {
         ))
         .await?;
     assert_eq!(bsos2.items.len(), 5);
-    if let Some(ref offset) = bsos2.offset {
-        if !offset.chars().any(|c| c == ':') {
-            assert_eq!(offset, &"10".to_owned());
-        }
+    if let Some(ref offset) = bsos2.offset
+        && !offset.chars().any(|c| c == ':')
+    {
+        assert_eq!(offset, &"10".to_owned());
     }
     assert_eq!(bsos2.items[0].id, "6");
     assert_eq!(bsos2.items[4].id, "2");
@@ -975,11 +975,12 @@ async fn delete_bsos() -> Result<(), DbError> {
     }
     db.delete_bso(dbso(uid, coll, "b0")).await?;
     // deleting non existant bid errors
-    assert!(db
-        .delete_bso(dbso(uid, coll, "bxi0"))
-        .await
-        .unwrap_err()
-        .is_bso_not_found());
+    assert!(
+        db.delete_bso(dbso(uid, coll, "bxi0"))
+            .await
+            .unwrap_err()
+            .is_bso_not_found()
+    );
     db.delete_bsos(dbsos(uid, coll, &["b1", "b2"])).await?;
     for bid in bids {
         let bso = db.get_bso(gbso(uid, coll, &bid)).await?;

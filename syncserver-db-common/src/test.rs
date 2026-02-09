@@ -1,5 +1,5 @@
 use deadpool::managed::{HookError, HookResult};
-use diesel_async::{pooled_connection::PoolError, AsyncConnection};
+use diesel_async::{AsyncConnection, pooled_connection::PoolError};
 
 pub async fn test_transaction_hook<T>(conn: &mut T) -> HookResult<PoolError>
 where

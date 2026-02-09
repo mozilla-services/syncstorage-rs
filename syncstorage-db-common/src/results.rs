@@ -2,8 +2,8 @@
 use std::collections::HashMap;
 
 use diesel::{
-    sql_types::{BigInt, Integer, Nullable, Text},
     Queryable, QueryableByName,
+    sql_types::{BigInt, Integer, Nullable, Text},
 };
 use serde::{Deserialize, Serialize};
 

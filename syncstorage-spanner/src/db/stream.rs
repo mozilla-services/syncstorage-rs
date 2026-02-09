@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, mem};
 
-use futures::{stream::StreamFuture, Stream, StreamExt};
+use futures::{Stream, StreamExt, stream::StreamFuture};
 use google_cloud_rust_raw::spanner::v1::{
     result_set::{PartialResultSet, ResultSetMetadata, ResultSetStats},
     type_pb::{StructType_Field, Type, TypeCode},
@@ -9,7 +9,7 @@ use grpcio::ClientSStreamReceiver;
 use protobuf::well_known_types::Value;
 
 use super::support::IntoSpannerValue;
-use crate::{error::DbError, DbResult};
+use crate::{DbResult, error::DbError};
 
 pub struct StreamedResultSetAsync<T = ClientSStreamReceiver<PartialResultSet>> {
     /// Stream from execute_streaming_sql

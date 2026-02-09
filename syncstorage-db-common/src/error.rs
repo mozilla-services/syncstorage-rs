@@ -2,7 +2,7 @@ use std::{error::Error, fmt};
 
 use backtrace::Backtrace;
 use http::StatusCode;
-use syncserver_common::{impl_fmt_display, ReportableError};
+use syncserver_common::{ReportableError, impl_fmt_display};
 
 /// Errors common to all supported syncstorage database backends. These errors can be thought of
 /// as being related more to the syncstorage application logic as opposed to a particular

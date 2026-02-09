@@ -1,19 +1,19 @@
 use std::collections::{HashMap, HashSet};
 
 use actix_web::{
+    Error, FromRequest, HttpRequest,
     dev::Payload,
     http::header::{ContentType, Header},
     web::Data,
-    Error, FromRequest, HttpRequest,
 };
 use futures::{
-    future::{self, LocalBoxFuture},
     TryFutureExt,
+    future::{self, LocalBoxFuture},
 };
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::{BatchBsoBody, RequestErrorLocation, ACCEPTED_CONTENT_TYPES};
+use super::{ACCEPTED_CONTENT_TYPES, BatchBsoBody, RequestErrorLocation};
 use crate::{server::ServerState, web::error::ValidationErrorKind};
 
 #[derive(Default, Deserialize)]
@@ -48,7 +48,7 @@ impl FromRequest for BsoBodies {
                         Some("request.error.invalid_content_type"),
                     )
                     .into(),
-                ))
+                ));
             }
         };
         let content_type = format!("{}/{}", ctype.type_(), ctype.subtype());

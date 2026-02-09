@@ -1,7 +1,7 @@
 use super::VerifyOutput;
+use crate::VerifyToken;
 pub use crate::crypto::JWTVerifier;
 use crate::crypto::OAuthVerifyError;
-use crate::VerifyToken;
 use async_trait::async_trait;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};

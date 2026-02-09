@@ -2,7 +2,7 @@ use std::fmt;
 
 use backtrace::Backtrace;
 use http::StatusCode;
-use syncserver_common::{from_error, impl_fmt_display, ReportableError};
+use syncserver_common::{ReportableError, from_error, impl_fmt_display};
 use thiserror::Error;
 
 /// Error specific to any SQL database backend. These errors are not related to the syncstorage

@@ -1,16 +1,16 @@
 use std::{num::ParseIntError, str::FromStr};
 
-use actix_web::{dev::Payload, web::Query, Error, FromRequest, HttpRequest};
+use actix_web::{Error, FromRequest, HttpRequest, dev::Payload, web::Query};
 use futures::future::{LocalBoxFuture, TryFutureExt};
 use serde::{
-    de::{Deserializer, Error as SerdeError},
     Deserialize,
+    de::{Deserializer, Error as SerdeError},
 };
 use validator::{Validate, ValidationError};
 
-use syncstorage_db::{params, Sorting, SyncTimestamp};
+use syncstorage_db::{Sorting, SyncTimestamp, params};
 
-use super::{request_error, RequestErrorLocation, BATCH_MAX_IDS, VALID_ID_REGEX};
+use super::{BATCH_MAX_IDS, RequestErrorLocation, VALID_ID_REGEX, request_error};
 use crate::web::error::ValidationErrorKind;
 
 #[derive(Debug, Default, Clone, Copy, Deserialize, Eq, PartialEq, Validate)]
@@ -240,10 +240,10 @@ impl FromRequest for BsoQueryParams {
 mod tests {
     use std::str::FromStr;
 
-    use actix_web::{dev::ServiceResponse, test::TestRequest, FromRequest, HttpResponse};
+    use actix_web::{FromRequest, HttpResponse, dev::ServiceResponse, test::TestRequest};
     use futures::executor::block_on;
 
-    use syncstorage_db::{params, Sorting, SyncTimestamp};
+    use syncstorage_db::{Sorting, SyncTimestamp, params};
 
     use super::{BsoQueryParams, Offset};
     use crate::web::extractors::test_utils::{extract_body_as_str, make_state};

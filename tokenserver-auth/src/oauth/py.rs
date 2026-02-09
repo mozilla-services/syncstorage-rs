@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use jsonwebtoken::jwk::{AlgorithmParameters, Jwk, PublicKeyUse, RSAKeyParameters};
 use pyo3::{
+    Bound,
     ffi::c_str,
     prelude::{Py, PyAny, PyErr, PyModule, Python},
     types::{IntoPyDict, PyAnyMethods, PyString},
-    Bound,
 };
 use serde_json;
 use std::ffi::CStr;

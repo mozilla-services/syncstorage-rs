@@ -4,8 +4,8 @@ use actix_web::{HttpResponse, ResponseError};
 use backtrace::Backtrace;
 use http::StatusCode;
 use serde::{
-    ser::{SerializeMap, Serializer},
     Serialize,
+    ser::{SerializeMap, Serializer},
 };
 use syncserver_common::{InternalError, ReportableError};
 

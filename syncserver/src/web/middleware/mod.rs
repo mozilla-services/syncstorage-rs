@@ -9,9 +9,9 @@ use std::collections::HashMap;
 use std::future::Future;
 
 use actix_web::{
+    HttpMessage,
     dev::{Service, ServiceRequest, ServiceResponse},
     web::Data,
-    HttpMessage,
 };
 use syncserver_common::Metrics;
 use tokenserver_auth::TokenserverOrigin;
@@ -19,10 +19,13 @@ use tokenserver_auth::TokenserverOrigin;
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::ServerState;
 
-pub fn emit_http_status_with_tokenserver_origin<B>(
+pub fn emit_http_status_with_tokenserver_origin<B, S>(
     req: ServiceRequest,
-    srv: &impl Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>,
-) -> impl Future<Output = Result<ServiceResponse<B>, actix_web::Error>> {
+    srv: &S,
+) -> impl Future<Output = Result<ServiceResponse<B>, actix_web::Error>> + use<B, S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>,
+{
     let fut = srv.call(req);
 
     async move {

@@ -7,8 +7,8 @@ mod tags;
 
 use std::{
     fmt,
-    sync::atomic::{AtomicU64, Ordering},
     sync::Arc,
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 use actix_web::web;
@@ -17,7 +17,7 @@ use hkdf::Hkdf;
 use serde_json::Value;
 use sha2::Sha256;
 
-pub use metrics::{metrics_from_opts, MetricError, Metrics};
+pub use metrics::{MetricError, Metrics, metrics_from_opts};
 pub use tags::Taggable;
 
 // header statics must be lower case, numbers and symbols per the RFC spec. This reduces chance of error.

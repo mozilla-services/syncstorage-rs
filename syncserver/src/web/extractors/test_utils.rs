@@ -2,19 +2,19 @@ use std::sync::Arc;
 
 use actix_http::h1;
 use actix_web::{
+    Error, FromRequest, HttpMessage,
     dev::ServiceResponse,
     http::Method,
     test::{self, TestRequest},
     web::Bytes,
-    Error, FromRequest, HttpMessage,
 };
-use base64::{engine, Engine};
+use base64::{Engine, engine};
 use futures::executor::block_on;
 use glean::server_events::GleanEventsLogger;
 use hawk::{Credentials, Key, RequestBuilder};
 use hmac::{Hmac, Mac};
 use lazy_static::lazy_static;
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
 use sha2::Sha256;
 use tokio::sync::RwLock;
 

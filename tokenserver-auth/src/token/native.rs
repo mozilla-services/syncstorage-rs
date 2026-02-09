@@ -1,6 +1,6 @@
 use crate::{
-    crypto::{Crypto, CryptoImpl},
     MakeTokenPlaintext,
+    crypto::{Crypto, CryptoImpl},
 };
 use base64::Engine;
 use serde::{Deserialize, Serialize};
@@ -58,7 +58,7 @@ impl Tokenlib {
 
 #[cfg(test)]
 mod tests {
-    use crate::{crypto::SHA256_OUTPUT_LEN, TokenserverOrigin};
+    use crate::{TokenserverOrigin, crypto::SHA256_OUTPUT_LEN};
 
     use super::*;
 

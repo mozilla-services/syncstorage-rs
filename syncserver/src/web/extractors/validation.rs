@@ -1,7 +1,7 @@
 use validator::ValidationError;
 
 use super::{
-    RequestErrorLocation, BSO_MAX_SORTINDEX_VALUE, BSO_MAX_TTL, BSO_MIN_SORTINDEX_VALUE,
+    BSO_MAX_SORTINDEX_VALUE, BSO_MAX_TTL, BSO_MIN_SORTINDEX_VALUE, RequestErrorLocation,
     VALID_ID_REGEX,
 };
 
@@ -41,7 +41,7 @@ pub fn validate_body_bso_ttl(ttl: u32) -> Result<(), ValidationError> {
 mod tests {
     use serde_json::json;
 
-    use crate::web::extractors::test_utils::{post_collection, USER_ID};
+    use crate::web::extractors::test_utils::{USER_ID, post_collection};
 
     #[actix_rt::test]
     async fn test_max_ttl() {

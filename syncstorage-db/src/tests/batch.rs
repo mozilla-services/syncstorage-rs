@@ -1,7 +1,7 @@
 use log::debug;
 use syncserver_settings::Settings;
 use syncstorage_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, BATCH_LIFETIME,
+    BATCH_LIFETIME, error::DbErrorIntrospect, params, results, util::SyncTimestamp,
 };
 
 use super::support::{db_pool, gbso, hid, pbso, postbso, test_db};
@@ -100,10 +100,11 @@ async fn update() -> Result<(), DbError> {
     let uid = 1;
     let coll = "clients";
     let new_batch = db.create_batch(cb(uid, coll, vec![])).await?;
-    assert!(db
-        .get_batch(gb(uid, coll, new_batch.id.clone()))
-        .await?
-        .is_some());
+    assert!(
+        db.get_batch(gb(uid, coll, new_batch.id.clone()))
+            .await?
+            .is_some()
+    );
 
     let bsos = vec![
         postbso("b0", Some("payload 0"), Some(10), None),

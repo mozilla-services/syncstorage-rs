@@ -92,7 +92,7 @@ mod tests {
     use std::{collections::HashMap, str};
 
     use super::{
-        MetadataBuilder, LEADER_AWARE_KEY, METRICS_KEY, PREFIX_KEY, ROUTING_KEY, USER_AGENT,
+        LEADER_AWARE_KEY, METRICS_KEY, MetadataBuilder, PREFIX_KEY, ROUTING_KEY, USER_AGENT,
     };
 
     // Resource paths should not start with a "/"

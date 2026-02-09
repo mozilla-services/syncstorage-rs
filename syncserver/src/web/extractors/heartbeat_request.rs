@@ -1,5 +1,5 @@
 use actix_web::{
-    dev::Payload, http::header::HeaderMap, web::Data, Error, FromRequest, HttpRequest,
+    Error, FromRequest, HttpRequest, dev::Payload, http::header::HeaderMap, web::Data,
 };
 use futures::future::{FutureExt, LocalBoxFuture};
 use serde::Serialize;

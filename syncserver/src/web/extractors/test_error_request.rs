@@ -1,4 +1,4 @@
-use actix_web::{dev::Payload, http::header::HeaderMap, Error, FromRequest, HttpRequest};
+use actix_web::{Error, FromRequest, HttpRequest, dev::Payload, http::header::HeaderMap};
 use futures::future::{self, LocalBoxFuture};
 
 #[derive(Debug)]

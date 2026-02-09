@@ -9,16 +9,16 @@ use std::convert::From;
 use std::fmt;
 
 use actix_web::{
-    dev::ServiceResponse, error::ResponseError, middleware::ErrorHandlerResponse, HttpResponse,
-    HttpResponseBuilder, Result,
+    HttpResponse, HttpResponseBuilder, Result, dev::ServiceResponse, error::ResponseError,
+    middleware::ErrorHandlerResponse,
 };
 use http::StatusCode;
 use serde::{
-    ser::{SerializeMap, SerializeSeq, Serializer},
     Serialize,
+    ser::{SerializeMap, SerializeSeq, Serializer},
 };
 
-use syncserver_common::{from_error, impl_fmt_display, MetricError, ReportableError};
+use syncserver_common::{MetricError, ReportableError, from_error, impl_fmt_display};
 use syncstorage_db::{DbError, DbErrorIntrospect};
 
 use thiserror::Error;

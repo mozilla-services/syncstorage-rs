@@ -3,7 +3,7 @@ use std::fmt;
 use backtrace::Backtrace;
 use deadpool::managed::PoolError;
 use http::StatusCode;
-use syncserver_common::{from_error, impl_fmt_display, InternalError, ReportableError};
+use syncserver_common::{InternalError, ReportableError, from_error, impl_fmt_display};
 use syncserver_db_common::error::SqlError;
 use thiserror::Error;
 use tokenserver_common::TokenserverError;

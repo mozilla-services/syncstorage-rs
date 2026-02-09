@@ -1,15 +1,18 @@
 use actix_web::{
-    dev::{Service, ServiceRequest, ServiceResponse},
     HttpMessage,
+    dev::{Service, ServiceRequest, ServiceResponse},
 };
 use futures::future::Future;
 
 use super::LogItems;
 
-pub fn handle_request_log_line<B>(
+pub fn handle_request_log_line<B, S>(
     request: ServiceRequest,
-    service: &impl Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>,
-) -> impl Future<Output = Result<ServiceResponse<B>, actix_web::Error>> {
+    service: &S,
+) -> impl Future<Output = Result<ServiceResponse<B>, actix_web::Error>> + use<B, S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>,
+{
     let items = LogItems::from(request.head());
     request.extensions_mut().insert(items);
     let fut = service.call(request);

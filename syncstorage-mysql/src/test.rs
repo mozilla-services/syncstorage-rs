@@ -13,9 +13,9 @@ use syncstorage_settings::Settings as SyncstorageSettings;
 use url::Url;
 
 use crate::{
-    db::{schema::collections, MysqlDb},
-    pool::MysqlDbPool,
     DbResult,
+    db::{MysqlDb, schema::collections},
+    pool::MysqlDbPool,
 };
 
 async fn db(settings: &SyncstorageSettings) -> DbResult<MysqlDb> {

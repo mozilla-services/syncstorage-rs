@@ -6,8 +6,8 @@ mod db;
 mod pool;
 
 pub use db::{
-    orm_models::{Node, Service, User},
     TokenserverPgDb,
+    orm_models::{Node, Service, User},
 };
 pub use pool::TokenserverPgPool;
-pub use tokenserver_db_common::{params, results, Db, DbPool};
+pub use tokenserver_db_common::{Db, DbPool, params, results};

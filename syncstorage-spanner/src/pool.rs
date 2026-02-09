@@ -9,7 +9,7 @@ use syncstorage_settings::{Quota, Settings};
 use tokio::sync::RwLock;
 
 pub(super) use super::manager::Conn;
-use super::{db::SpannerDb, error::DbError, manager::SpannerSessionManager, DbResult};
+use super::{DbResult, db::SpannerDb, error::DbError, manager::SpannerSessionManager};
 
 #[derive(Clone)]
 pub struct SpannerDbPool {

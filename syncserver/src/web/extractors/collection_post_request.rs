@@ -1,4 +1,4 @@
-use actix_web::{dev::Payload, web::Data, Error, FromRequest, HttpRequest};
+use actix_web::{Error, FromRequest, HttpRequest, dev::Payload, web::Data};
 use futures::future::LocalBoxFuture;
 
 use syncserver_common::Metrics;
@@ -7,7 +7,7 @@ use tokenserver_auth::TokenserverOrigin;
 
 use super::{
     BatchRequest, BatchRequestOpt, BsoBodies, BsoQueryParams, CollectionParam, HawkIdentifier,
-    RequestErrorLocation, KNOWN_BAD_PAYLOAD_REGEX,
+    KNOWN_BAD_PAYLOAD_REGEX, RequestErrorLocation,
 };
 use crate::{
     server::{MetricsWrapper, ServerState},
@@ -71,16 +71,16 @@ impl FromRequest for CollectionPostRequest {
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
                 for bso in &bsos.valid {
-                    if let Some(ref data) = bso.payload {
-                        if KNOWN_BAD_PAYLOAD_REGEX.is_match(data) {
-                            return Err(ValidationErrorKind::FromDetails(
-                                "Known-bad BSO payload".to_owned(),
-                                RequestErrorLocation::Body,
-                                Some("bsos".to_owned()),
-                                Some("request.process.known_bad_bso"),
-                            )
-                            .into());
-                        }
+                    if let Some(ref data) = bso.payload
+                        && KNOWN_BAD_PAYLOAD_REGEX.is_match(data)
+                    {
+                        return Err(ValidationErrorKind::FromDetails(
+                            "Known-bad BSO payload".to_owned(),
+                            RequestErrorLocation::Body,
+                            Some("bsos".to_owned()),
+                            Some("request.process.known_bad_bso"),
+                        )
+                        .into());
                     }
                 }
             }
@@ -113,11 +113,11 @@ impl FromRequest for CollectionPostRequest {
 
 #[cfg(test)]
 mod tests {
-    use actix_web::{dev::ServiceResponse, http::Method, test::TestRequest, HttpResponse};
+    use actix_web::{HttpResponse, dev::ServiceResponse, http::Method, test::TestRequest};
     use serde_json::json;
 
     use crate::web::extractors::test_utils::{
-        extract_body_as_str, make_state, post_collection, USER_ID,
+        USER_ID, extract_body_as_str, make_state, post_collection,
     };
 
     #[actix_rt::test]

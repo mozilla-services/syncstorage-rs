@@ -1,26 +1,24 @@
 use async_trait::async_trait;
-use chrono::{offset::Utc, DateTime, TimeDelta};
+use chrono::{DateTime, TimeDelta, offset::Utc};
 use diesel::{
-    delete,
+    ExpressionMethods, IntoSql, OptionalExtension, QueryDsl, SelectableHelper, delete,
     dsl::{count, max, now, sql},
     sql_types::{Array, BigInt, Integer, Nullable, Timestamptz},
     upsert::excluded,
-    ExpressionMethods, IntoSql, OptionalExtension, QueryDsl, SelectableHelper,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use futures::TryStreamExt;
 use syncstorage_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting, DEFAULT_BSO_TTL,
+    DEFAULT_BSO_TTL, Db, Sorting, error::DbErrorIntrospect, params, results, util::SyncTimestamp,
 };
 
 use super::{PgDb, TOMBSTONE};
 use crate::{
-    bsos_query,
+    DbError, DbResult, bsos_query,
     db::{CollectionLock, PRETOUCH_DT},
-    orm_models::{sql_types::PostBso, BsoChangeset},
+    orm_models::{BsoChangeset, sql_types::PostBso},
     pool::Conn,
     schema::{bsos, collections, user_collections},
-    DbError, DbResult,
 };
 
 #[async_trait(?Send)]

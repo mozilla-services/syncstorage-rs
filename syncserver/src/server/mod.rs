@@ -5,19 +5,19 @@ use std::{convert::Infallible, num::NonZeroUsize, sync::Arc, time::Duration};
 use crate::error::ApiError;
 use actix_cors::Cors;
 use actix_web::{
+    App, FromRequest, HttpRequest, HttpResponse, HttpServer,
     dev::{self, Payload},
     http::StatusCode,
-    http::{header::LOCATION, Method},
+    http::{Method, header::LOCATION},
     middleware::ErrorHandlers,
     web::{self, Data},
-    App, FromRequest, HttpRequest, HttpResponse, HttpServer,
 };
 use cadence::{Gauged, StatsdClient};
 use futures::future::{self, Ready};
 use glean::server_events::GleanEventsLogger;
 use syncserver_common::{
-    middleware::sentry::SentryWrapper, BlockingThreadpool, BlockingThreadpoolMetrics, Metrics,
-    Taggable,
+    BlockingThreadpool, BlockingThreadpoolMetrics, Metrics, Taggable,
+    middleware::sentry::SentryWrapper,
 };
 use syncserver_db_common::{GetPoolState, PoolState};
 use syncserver_settings::Settings;

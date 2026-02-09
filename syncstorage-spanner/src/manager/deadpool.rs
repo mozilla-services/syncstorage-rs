@@ -6,7 +6,7 @@ use syncserver_common::{BlockingThreadpool, Metrics};
 use syncstorage_settings::Settings;
 
 use super::session::{
-    create_spanner_session, recycle_spanner_session, SpannerSession, SpannerSessionSettings,
+    SpannerSession, SpannerSessionSettings, create_spanner_session, recycle_spanner_session,
 };
 use crate::error::DbError;
 

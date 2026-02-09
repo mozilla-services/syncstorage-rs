@@ -1,16 +1,16 @@
 use actix_web::{
+    Error, FromRequest, HttpRequest,
     dev::Payload,
     http::header::{ContentType, Header},
     web::Data,
-    Error, FromRequest, HttpRequest,
 };
 use futures::future::LocalBoxFuture;
-use serde::{de::IgnoredAny, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::IgnoredAny};
 use validator::Validate;
 
 use super::{
-    validate_body_bso_id, validate_body_bso_sortindex, validate_body_bso_ttl, RequestErrorLocation,
-    ACCEPTED_CONTENT_TYPES,
+    ACCEPTED_CONTENT_TYPES, RequestErrorLocation, validate_body_bso_id,
+    validate_body_bso_sortindex, validate_body_bso_ttl,
 };
 use crate::{server::ServerState, web::error::ValidationErrorKind};
 
@@ -54,7 +54,7 @@ impl FromRequest for BsoBody {
                         Some("Content-Type".to_owned()),
                         Some("request.error.invalid_content_type"),
                     )
-                    .into())
+                    .into());
                 }
             };
 

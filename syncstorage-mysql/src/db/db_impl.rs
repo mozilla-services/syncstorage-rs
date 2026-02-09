@@ -2,27 +2,26 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use diesel::{
-    delete,
+    ExpressionMethods, OptionalExtension, QueryDsl, delete,
     dsl::max,
     dsl::sql,
     sql_query,
     sql_types::{BigInt, Integer, Nullable, Text},
-    ExpressionMethods, OptionalExtension, QueryDsl,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use syncstorage_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting, UserIdentifier,
-    DEFAULT_BSO_TTL,
+    DEFAULT_BSO_TTL, Db, Sorting, UserIdentifier, error::DbErrorIntrospect, params, results,
+    util::SyncTimestamp,
 };
 use syncstorage_settings::DEFAULT_MAX_TOTAL_RECORDS;
 
 use super::{
+    COLLECTION_ID, COUNT, CollectionLock, EXPIRY, LAST_MODIFIED, MODIFIED, MysqlDb, TOMBSTONE,
+    TOTAL_BYTES, USER_ID,
     diesel_ext::LockInShareModeDsl,
     schema::{bso, user_collections},
-    CollectionLock, MysqlDb, COLLECTION_ID, COUNT, EXPIRY, LAST_MODIFIED, MODIFIED, TOMBSTONE,
-    TOTAL_BYTES, USER_ID,
 };
-use crate::{pool::Conn, DbError, DbResult};
+use crate::{DbError, DbResult, pool::Conn};
 
 // this is the max number of records we will return.
 static DEFAULT_LIMIT: u32 = DEFAULT_MAX_TOTAL_RECORDS;

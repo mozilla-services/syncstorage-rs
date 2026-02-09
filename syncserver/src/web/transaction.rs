@@ -1,13 +1,13 @@
-use actix_http::{header::HeaderValue, BoxedPayloadStream, Error, HttpMessage, Method, StatusCode};
+use actix_http::{BoxedPayloadStream, Error, HttpMessage, Method, StatusCode, header::HeaderValue};
 use actix_web::dev::Payload;
 use actix_web::http::header;
 use actix_web::web::Data;
 use actix_web::{FromRequest, HttpRequest, HttpResponse};
-use futures::future::LocalBoxFuture;
 use futures::FutureExt;
+use futures::future::LocalBoxFuture;
 
 use syncserver_common::{Taggable, X_LAST_MODIFIED};
-use syncstorage_db::{params, results::ConnectionInfo, Db, DbError, DbPool, UserIdentifier};
+use syncstorage_db::{Db, DbError, DbPool, UserIdentifier, params, results::ConnectionInfo};
 
 use super::extractors::{
     BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt,

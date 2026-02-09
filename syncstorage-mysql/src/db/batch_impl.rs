@@ -3,20 +3,19 @@ use std::collections::HashSet;
 
 use async_trait::async_trait;
 use diesel::{
-    self,
+    self, ExpressionMethods, OptionalExtension, QueryDsl,
     dsl::sql,
     insert_into,
     result::{DatabaseErrorKind::UniqueViolation, Error as DieselError},
     sql_query,
     sql_types::{BigInt, Integer},
-    ExpressionMethods, OptionalExtension, QueryDsl,
 };
 use diesel_async::RunQueryDsl;
-use syncstorage_db_common::{params, results, BatchDb, Db, UserIdentifier, BATCH_LIFETIME};
+use syncstorage_db_common::{BATCH_LIFETIME, BatchDb, Db, UserIdentifier, params, results};
 
 use super::{
-    schema::{batch_upload_items, batch_uploads},
     MysqlDb,
+    schema::{batch_upload_items, batch_uploads},
 };
 use crate::{DbError, DbResult};
 

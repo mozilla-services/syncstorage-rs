@@ -3,22 +3,22 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use actix_web::{http::StatusCode, Error, HttpResponse};
-use base64::{engine, Engine};
+use actix_web::{Error, HttpResponse, http::StatusCode};
+use base64::{Engine, engine};
 use serde::Serialize;
 use serde_json::Value;
 use tokenserver_auth::{MakeTokenPlaintext, Tokenlib, TokenserverOrigin};
 use tokenserver_common::{NodeType, TokenserverError};
 use tokenserver_db::{
-    params::{GetNodeId, PostUser, PutUser, ReplaceUsers},
     Db,
+    params::{GetNodeId, PostUser, PutUser, ReplaceUsers},
 };
 use tokio::time::timeout;
 use utoipa::ToSchema;
 
 use super::{
-    extractors::{DbWrapper, TokenserverRequest},
     TokenserverMetrics,
+    extractors::{DbWrapper, TokenserverRequest},
 };
 
 #[derive(Debug, Serialize, ToSchema)]

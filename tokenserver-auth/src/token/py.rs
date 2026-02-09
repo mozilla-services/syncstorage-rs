@@ -1,8 +1,8 @@
 use crate::{MakeTokenPlaintext, TokenserverError};
 use pyo3::{
+    Bound,
     prelude::{IntoPyObject, PyErr, PyModule, Python},
     types::{IntoPyDict, PyAnyMethods, PyDict},
-    Bound,
 };
 
 pub struct PyTokenlib {}

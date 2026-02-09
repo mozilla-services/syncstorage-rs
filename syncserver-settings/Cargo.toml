@@ -15,3 +15,6 @@ syncserver-common = { path = "../syncserver-common" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 tokenserver-settings = { path = "../tokenserver-settings" }
 url = "2.1"
+
+[dev-dependencies]
+temp-env = "0.3"

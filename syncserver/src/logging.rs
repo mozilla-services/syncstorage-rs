@@ -8,7 +8,7 @@ use std::os::linux::fs::MetadataExt;
 
 use crate::error::ApiResult;
 
-use slog::{self, slog_o, Drain};
+use slog::{self, Drain, slog_o};
 use slog_mozlog_json::MozLogJson;
 
 #[cfg(target_os = "linux")]

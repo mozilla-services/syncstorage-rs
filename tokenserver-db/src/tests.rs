@@ -5,7 +5,7 @@ use std::{
 
 use syncserver_common::Metrics;
 use syncserver_settings::Settings;
-use tokenserver_db_common::{params, results, DbError, DbPool, DbResult, MAX_GENERATION};
+use tokenserver_db_common::{DbError, DbPool, DbResult, MAX_GENERATION, params, results};
 
 use crate::pool_from_settings;
 

@@ -10,22 +10,21 @@ use actix_web::{
     test,
     web::Bytes,
 };
-use base64::{engine, Engine};
+use base64::{Engine, engine};
 use chrono::offset::Utc;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hmac::{Hmac, Mac};
 use http::StatusCode;
 use lazy_static::lazy_static;
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
 use serde::de::DeserializeOwned;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha2::Sha256;
 use syncserver_common::{self, X_LAST_MODIFIED};
 use syncserver_settings::{Secrets, Settings};
 use syncstorage_db::{
-    params,
+    DbPoolImpl, SyncTimestamp, params,
     results::{DeleteBso, GetBso, PutBso},
-    DbPoolImpl, SyncTimestamp,
 };
 use syncstorage_settings::ServerLimits;
 

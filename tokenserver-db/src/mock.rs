@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 use async_trait::async_trait;
 use syncserver_common::Metrics;
 use syncserver_db_common::{GetPoolState, PoolState};
-use tokenserver_db_common::{params, results, Db, DbError, DbPool};
+use tokenserver_db_common::{Db, DbError, DbPool, params, results};
 
 #[derive(Clone, Debug)]
 pub struct MockDbPool;
