@@ -20,7 +20,7 @@ jobs:
 
     services:
       mysql:
-        image: mysql:8.0
+        image: dhi.io/mysql:8.0-debian13
         env:
           MYSQL_ROOT_PASSWORD: password
           MYSQL_USER: test

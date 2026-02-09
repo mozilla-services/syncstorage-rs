@@ -20,7 +20,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:18.0
+        image: dhi.io/postgres:17-debian13
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test

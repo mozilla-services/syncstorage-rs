@@ -1,4 +1,4 @@
-FROM python:3.13-bookworm
+FROM dhi.io/python:3.13-debian13
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
