@@ -173,15 +173,8 @@ impl Db for SpannerDb {
 
         let transaction_id = transaction.take_id();
         let mut ts = TransactionSelector::new();
-        ts.set_id(transaction_id.clone());
+        ts.set_id(transaction_id);
         self.session.transaction = Some(ts);
-
-        // Save transaction id for potential rollback when dropping the session
-        #[cfg(debug_assertions)]
-        if for_write && spanner.settings.use_test_transactions {
-            let mut guard = spanner.pending_transaction_id.lock().await;
-            *guard = Some(transaction_id);
-        }
 
         Ok(())
     }
@@ -194,15 +187,6 @@ impl Db for SpannerDb {
 
         if let Some(transaction) = self.get_transaction().await? {
             let spanner = &self.conn;
-
-            // Clear the transaction id so the session Drop impl doesn't try to
-            // rollback.  Currently the tests don't commit but it's here if and
-            // when they do.
-            #[cfg(debug_assertions)]
-            if spanner.settings.use_test_transactions {
-                let mut guard = spanner.pending_transaction_id.lock().await;
-                *guard = None;
-            }
 
             let mut req = CommitRequest::new();
             req.set_session(spanner.session.get_name().to_owned());
@@ -228,14 +212,6 @@ impl Db for SpannerDb {
 
         if let Some(transaction) = self.get_transaction().await? {
             let spanner = &self.conn;
-
-            // Clear the transaction id so the session Drop impl doesn't try to
-            // rollback.
-            #[cfg(debug_assertions)]
-            if spanner.settings.use_test_transactions {
-                let mut guard = spanner.pending_transaction_id.lock().await;
-                *guard = None;
-            }
 
             let mut req = RollbackRequest::new();
             req.set_session(spanner.session.get_name().to_owned());
