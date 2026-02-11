@@ -1,23 +1,23 @@
-import os
+import base64
+import hashlib
 import hmac
+import json
+import os
 import random
 import string
 import time
-from urllib.parse import urlparse, urlunparse, urlencode
-import base64
-import hashlib
-import json
 from pathlib import Path
+from urllib.parse import urlencode, urlparse, urlunparse
 
-from tokenlib import make_token, get_derived_secret as derive
-from molotov import json_request
+import jwt
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
 from fxa.core import Client
 from fxa.oauth import Client as OAuthClient
 from fxa.tests.utils import TestEmailAccount
-import jwt
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.backends import default_backend
-
+from molotov import json_request
+from tokenlib import get_derived_secret as derive
+from tokenlib import make_token
 
 # Client ID for Firefox Desktop
 CLIENT_ID = "5882386c6d801776"
@@ -36,7 +36,7 @@ OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER", "http://mock-fxa-server:6000")
 OAUTH_JWT_ALGORITHM = os.environ.get("OAUTH_JWT_ALGORITHM", "RS256")
 
 _DEFAULT = os.environ.get("SERVER_URL", "https://token.stage.mozaws.net")
-_ACCT_TRACKING_FILE = Path(__file__).parent.parent / '.accounts_tracking.json'
+_ACCT_TRACKING_FILE = Path(__file__).parent.parent / ".accounts_tracking.json"
 
 
 def b64encode(data):
@@ -50,24 +50,26 @@ def _generate_password():
 def _track_account_creation(email, password, fxa_uid):
     try:
         if _ACCT_TRACKING_FILE.exists():
-            with open(_ACCT_TRACKING_FILE, 'r') as f:
+            with open(_ACCT_TRACKING_FILE, "r") as f:
                 accounts = json.load(f)
         else:
             accounts = []
 
         for acc in accounts:
             # already tracked
-            if acc['email'] == email:
-                return 
+            if acc["email"] == email:
+                return
 
-        accounts.append({
-            'email': email,
-            'password': password,
-            'fxa_uid': fxa_uid,
-            'created_at': int(time.time())
-        })
+        accounts.append(
+            {
+                "email": email,
+                "password": password,
+                "fxa_uid": fxa_uid,
+                "created_at": int(time.time()),
+            }
+        )
 
-        with open(_ACCT_TRACKING_FILE, 'w') as f:
+        with open(_ACCT_TRACKING_FILE, "w") as f:
             json.dump(accounts, f, indent=2)
 
     except Exception:
@@ -80,15 +82,15 @@ def _remove_account_from_tracking(email):
         if not _ACCT_TRACKING_FILE.exists():
             return
 
-        with open(_ACCT_TRACKING_FILE, 'r') as f:
+        with open(_ACCT_TRACKING_FILE, "r") as f:
             accounts = json.load(f)
 
-        accounts = [acc for acc in accounts if acc['email'] != email]
+        accounts = [acc for acc in accounts if acc["email"] != email]
 
         if not accounts:
             _ACCT_TRACKING_FILE.unlink()
         else:
-            with open(_ACCT_TRACKING_FILE, 'w') as f:
+            with open(_ACCT_TRACKING_FILE, "w") as f:
                 json.dump(accounts, f, indent=2)
 
     except Exception:
@@ -111,11 +113,9 @@ def _create_self_signed_jwt(email, client_id=CLIENT_ID):
     if not OAUTH_PRIVATE_KEY_FILE:
         raise ValueError("OAUTH_PRIVATE_KEY_FILE must be set")
 
-    with open(OAUTH_PRIVATE_KEY_FILE, 'rb') as f:
+    with open(OAUTH_PRIVATE_KEY_FILE, "rb") as f:
         private_key = serialization.load_pem_private_key(
-            f.read(),
-            password=None,
-            backend=default_backend()
+            f.read(), password=None, backend=default_backend()
         )
 
     # fake fxa uid
@@ -124,17 +124,22 @@ def _create_self_signed_jwt(email, client_id=CLIENT_ID):
     # JWT payload
     now = int(time.time())
     payload = {
-        'sub': fxa_uid,
-        'scope': OAUTH_SCOPE,
-        'fxa-generation': 0,
-        'client_id': client_id,
-        'iat': now,
-        'exp': now + (12 * 3600),
-        'iss': OAUTH_ISSUER,
+        "sub": fxa_uid,
+        "scope": OAUTH_SCOPE,
+        "fxa-generation": 0,
+        "client_id": client_id,
+        "iat": now,
+        "exp": now + (12 * 3600),
+        "iss": OAUTH_ISSUER,
     }
 
     # sign JWT
-    oauth_token = jwt.encode(payload, private_key, algorithm=OAUTH_JWT_ALGORITHM, headers={"typ": "application/at+jwt"})
+    oauth_token = jwt.encode(
+        payload,
+        private_key,
+        algorithm=OAUTH_JWT_ALGORITHM,
+        headers={"typ": "application/at+jwt"},
+    )
 
     key_id = "1234-qqo"
 
@@ -154,7 +159,7 @@ def _is_oauth_token_expired(oauth_token, buffer_seconds=300):
     """
     try:
         decoded = jwt.decode(oauth_token, options={"verify_signature": False})
-        exp = decoded.get('exp')
+        exp = decoded.get("exp")
 
         if exp is None:
             return False
@@ -220,15 +225,23 @@ def _create_fxa_account():
     oauth_token = oauth_client.authorize_token(session, OAUTH_SCOPE)
     key_id = "1234-qqo"
     cleanup_info = {
-        'client': client,
-        'acct': acct,
-        'email': acct.email,
-        'password': fxa_password
+        "client": client,
+        "acct": acct,
+        "email": acct.email,
+        "password": fxa_password,
     }
 
     _track_account_creation(acct.email, fxa_password, session.uid)
 
-    return oauth_token, acct.email, session.uid, key_id, session, oauth_client, cleanup_info
+    return (
+        oauth_token,
+        acct.email,
+        session.uid,
+        key_id,
+        session,
+        oauth_client,
+        cleanup_info,
+    )
 
 
 class StorageClient(object):
@@ -255,7 +268,7 @@ class StorageClient(object):
     def _get_url(self, path, params=None):
         url = self.endpoint_url + path
         if params is not None:
-            url += '?' + urlencode(params)
+            url += "?" + urlencode(params)
         return url
 
     def __repr__(self):
@@ -272,7 +285,15 @@ class StorageClient(object):
             self.uid = random.randint(1, 1000000)
         else:
             if self.fxa_oauth_token is None:
-                oauth_token, acct_email, fxa_uid, key_id, fxa_session, oauth_client, cleanup_info = _create_fxa_account()
+                (
+                    oauth_token,
+                    acct_email,
+                    fxa_uid,
+                    key_id,
+                    fxa_session,
+                    oauth_client,
+                    cleanup_info,
+                ) = _create_fxa_account()
                 self.fxa_oauth_token = oauth_token
                 self.fxa_uid = fxa_uid
                 self.fxa_key_id = key_id
@@ -303,9 +324,15 @@ class StorageClient(object):
             # with everything derived from the mock uid for consistency..
             data = {
                 "uid": uid,
-                "fxa_uid": hashlib.sha256("{}:fxa_uid".format(uid).encode("ascii")).hexdigest(),
-                "fxa_kid": hashlib.sha256("{}:fxa_kid".format(uid).encode("ascii")).hexdigest()[:32],
-                "hashed_fxa_uid": hashlib.sha256("{}:hashed_fxa_uid".format(uid).encode("ascii")).hexdigest(),
+                "fxa_uid": hashlib.sha256(
+                    "{}:fxa_uid".format(uid).encode("ascii")
+                ).hexdigest(),
+                "fxa_kid": hashlib.sha256(
+                    "{}:fxa_kid".format(uid).encode("ascii")
+                ).hexdigest()[:32],
+                "hashed_fxa_uid": hashlib.sha256(
+                    "{}:hashed_fxa_uid".format(uid).encode("ascii")
+                ).hexdigest(),
                 "node": urlunparse(url._replace(path="", fragment="")),
                 "expires": time.time() + token_duration,
             }
@@ -318,7 +345,9 @@ class StorageClient(object):
 
             if _is_oauth_token_expired(self.fxa_oauth_token):
                 if os.environ.get("DEBUG_OAUTH"):
-                    print(f"DEBUG: OAuth token expired, fetching another for account: {self.fxa_uid}")
+                    print(
+                        f"DEBUG: OAuth token expired, fetching another for account: {self.fxa_uid}"
+                    )
 
                 # handle self-signed but really should just set a longer TTL?
                 if OAUTH_PRIVATE_KEY_FILE:
@@ -327,8 +356,7 @@ class StorageClient(object):
                     self.fxa_oauth_token = new_oauth_token
                 else:
                     new_oauth_token = self.fxa_oauth_client.authorize_token(
-                        self.fxa_session,
-                        OAUTH_SCOPE
+                        self.fxa_session, OAUTH_SCOPE
                     )
                     self.fxa_oauth_token = new_oauth_token
 
@@ -342,33 +370,35 @@ class StorageClient(object):
             if os.environ.get("DEBUG_OAUTH"):
                 print(f"DEBUG: Using existing OAuth token for account: {fxa_uid}")
 
-            response = json_request(token_url, headers={
-                "Authorization": "Bearer {}".format(oauth_token),
-                "X-KeyID": key_id,
-            })
+            response = json_request(
+                token_url,
+                headers={
+                    "Authorization": "Bearer {}".format(oauth_token),
+                    "X-KeyID": key_id,
+                },
+            )
 
             if response is None:
                 raise ValueError(
                     "Failed to get response from token server at {}".format(token_url)
                 )
 
-            if response.get('status') > 299:
+            if response.get("status") > 299:
                 error_msg = "Request with OAuth token failed with status {}: {}".format(
-                    response.get('status'),
-                    response
+                    response.get("status"), response
                 )
                 raise ValueError(error_msg)
 
-            credentials = response.get('content')
+            credentials = response.get("content")
             if credentials is None:
                 raise ValueError(
                     "Token response missing content. Response: {}".format(response)
                 )
 
-            self.auth_token = credentials["id"].encode('ascii')
-            self.auth_secret = credentials["key"].encode('ascii')
+            self.auth_token = credentials["id"].encode("ascii")
+            self.auth_secret = credentials["key"].encode("ascii")
             self.endpoint_url = credentials["api_endpoint"]
-            token_duration = credentials['duration']
+            token_duration = credentials["duration"]
 
         # Regenerate tokens when they're close to expiring
         # but before they actually expire, to avoid spurious 401s.
@@ -379,7 +409,7 @@ class StorageClient(object):
         self.endpoint_scheme = url.scheme
         self.endpoint_path = url.path
         self.host_header = url.netloc
-        if ':' in url.netloc:
+        if ":" in url.netloc:
             self.endpoint_host, self.endpoint_port = url.netloc.rsplit(":", 1)
         else:
             self.endpoint_host = url.netloc
@@ -396,7 +426,7 @@ class StorageClient(object):
         bits.append(meth)
         url = urlparse(url)
         if url.query:
-            path_qs = url.path + '?' + url.query
+            path_qs = url.path + "?" + url.query
         else:
             path_qs = url.path
         bits.append(path_qs)
@@ -404,7 +434,7 @@ class StorageClient(object):
         bits.append(self.endpoint_port)
         bits.append(params.get("hash", ""))
         bits.append(params.get("ext", ""))
-        bits.append("")     # to get the trailing newline
+        bits.append("")  # to get the trailing newline
         return "\n".join(bits)
 
     def _sign(self, params, url, meth):
@@ -427,64 +457,59 @@ class StorageClient(object):
                 finally:
                     self.auth_regeneration_flag = False
         params = {}
-        params["id"] = self.auth_token.decode('ascii')
+        params["id"] = self.auth_token.decode("ascii")
         params["ts"] = str(int(ts) + self.timeskew)
         params["nonce"] = b64encode(os.urandom(5))
         params["mac"] = self._sign(params, url, meth)
-        res = ', '.join(['%s="%s"' % (k, v) for k, v in params.items()])
-        return 'Hawk ' + res
+        res = ", ".join(['%s="%s"' % (k, v) for k, v in params.items()])
+        return "Hawk " + res
 
     async def _retry(self, meth, path_qs, params, data, statuses=None):
         url = self._get_url(path_qs, params)
-        headers = {'Authorization': self._auth(meth, url),
-                   'Host': self.host_header,
-                   'Content-Type': 'application/json',
-                   'X-Confirm-Delete': '1'}
+        headers = {
+            "Authorization": self._auth(meth, url),
+            "Host": self.host_header,
+            "Content-Type": "application/json",
+            "X-Confirm-Delete": "1",
+        }
 
         call = getattr(self.session, meth.lower())
-        options = {'headers': headers}
-        if meth.lower() in ('post', 'put'):
-            options['data'] = data
+        options = {"headers": headers}
+        if meth.lower() in ("post", "put"):
+            options["data"] = data
 
         async with call(url, **options) as resp:
             if resp.status == 401:
                 server_time = int(float(resp.headers["X-Weave-Timestamp"]))
                 self.timeskew = server_time - int(time.time())
-                options['headers']['Authorization'] = self._auth(meth, url)
+                options["headers"]["Authorization"] = self._auth(meth, url)
                 async with call(url, **options) as resp:
                     if statuses is not None:
                         assert resp.status in statuses, (
-                            "Reauth Response {} not in {}".format(
-                                resp.status,
-                                statuses)
+                            "Reauth Response {} not in {}".format(resp.status, statuses)
                         )
                     body = await resp.json()
                     return resp, body
             else:
                 if statuses is not None:
-                    assert resp.status in statuses,  (
-                            "Response {} not in {}".format(
-                                resp.status,
-                                statuses)
-                        )
+                    assert resp.status in statuses, "Response {} not in {}".format(
+                        resp.status, statuses
+                    )
 
                 body = await resp.json()
                 return resp, body
 
-    async def post(self, path_qs, data=None, statuses=None,
-                   params=None):
-        return await self._retry('POST', path_qs, params, data, statuses)
+    async def post(self, path_qs, data=None, statuses=None, params=None):
+        return await self._retry("POST", path_qs, params, data, statuses)
 
-    async def put(self, path_qs, data=None, statuses=None,
-                   params=None):
-        return await self._retry('PUT', path_qs, params, data, statuses)
+    async def put(self, path_qs, data=None, statuses=None, params=None):
+        return await self._retry("PUT", path_qs, params, data, statuses)
 
     async def get(self, path_qs, statuses=None, params=None):
-        return await self._retry('GET', path_qs, params, data=None,
-                                 statuses=statuses)
+        return await self._retry("GET", path_qs, params, data=None, statuses=statuses)
 
     async def delete(self, path_qs, data=None, statuses=None, params=None):
-        return await self._retry('DELETE', path_qs, params, data, statuses)
+        return await self._retry("DELETE", path_qs, params, data, statuses)
 
     def cleanup(self):
         """
@@ -494,11 +519,11 @@ class StorageClient(object):
             return
 
         try:
-            self.fxa_cleanup_info['acct'].clear()
+            self.fxa_cleanup_info["acct"].clear()
 
-            client = self.fxa_cleanup_info['client']
-            email = self.fxa_cleanup_info['email']
-            password = self.fxa_cleanup_info['password']
+            client = self.fxa_cleanup_info["client"]
+            email = self.fxa_cleanup_info["email"]
+            password = self.fxa_cleanup_info["password"]
 
             client.destroy_account(email, password)
             _remove_account_from_tracking(email)
@@ -507,4 +532,6 @@ class StorageClient(object):
                 print(f"DEBUG: Deleted FxA account: {email} / {self.fxa_uid}")
 
         except Exception as ex:
-            print(f"Warning: Encountered error when deleting FxA account {email} / {self.fxa_uid}: {ex}")
+            print(
+                f"Warning: Encountered error when deleting FxA account {email} / {self.fxa_uid}: {ex}"
+            )
