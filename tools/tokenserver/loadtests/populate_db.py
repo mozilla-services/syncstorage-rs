@@ -1,36 +1,43 @@
 #! /usr/bin/env python
 # script to populate the database with records
-import time
 import random
+import time
+
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text as sqltext
 
-_CREATE_USER_RECORD = sqltext("""\
+_CREATE_USER_RECORD = sqltext(
+    """\
 insert into
     users
     (service, email, nodeid, generation, client_state,
      created_at, replaced_at)
 values
     (:service, :email, :nodeid, 0, "", :timestamp, NULL)
-""")
+"""
+)
 
-_GET_SERVICE_ID = sqltext("""\
+_GET_SERVICE_ID = sqltext(
+    """\
 select
     id
 from
     services
 where
     service = :service
-""")
+"""
+)
 
-_GET_NODE_ID = sqltext("""\
+_GET_NODE_ID = sqltext(
+    """\
 select
     id
 from
     nodes
 where
     service=:service and node=:node
-""")
+"""
+)
 
 _SERVICE_NAME = "sync-1.5"
 
