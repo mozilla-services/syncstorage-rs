@@ -17,6 +17,12 @@ FXA_API_HOST = os.environ.get("FXA_API_HOST", "https://api-accounts.stage.mozaws
 
 
 def load_tracked_accounts():
+    """Load tracked FxA accounts from the tracking file.
+
+    Returns:
+        list: List of account dictionaries with email and password.
+
+    """
     if not os.path.exists(ACCT_TRACKING_FILE):
         return []
 
@@ -29,6 +35,15 @@ def load_tracked_accounts():
 
 
 def save_tracked_accounts(accounts):
+    """Save tracked FxA accounts to the tracking file.
+
+    Args:
+        accounts: List of account dictionaries to save.
+
+    Raises:
+        IOError: If the file cannot be written.
+
+    """
     try:
         if not accounts:
             if os.path.exists(ACCT_TRACKING_FILE):
@@ -42,12 +57,28 @@ def save_tracked_accounts(accounts):
 
 
 def remove_account_from_tracking(email):
+    """Remove an account from the tracking file by email.
+
+    Args:
+        email: The email address of the account to remove.
+
+    """
     accounts = load_tracked_accounts()
     accounts = [acc for acc in accounts if acc["email"] != email]
     save_tracked_accounts(accounts)
 
 
 def cleanup_account(client, account):
+    """Delete a single FxA account.
+
+    Args:
+        client: The FxA client instance.
+        account: Dictionary containing email and password.
+
+    Returns:
+        bool: True if deletion was successful, False otherwise.
+
+    """
     email = account["email"]
     password = account["password"]
 
@@ -64,6 +95,12 @@ def cleanup_account(client, account):
 
 
 def cleanup_all_accounts():
+    """Delete all tracked FxA accounts.
+
+    Returns:
+        tuple: A tuple of (successful_count, failed_count).
+
+    """
     accounts = load_tracked_accounts()
 
     if not accounts:
@@ -90,6 +127,7 @@ def cleanup_all_accounts():
 
 
 def main():
+    """Run the account cleanup process."""
     cleanup_all_accounts()
 
 
