@@ -8,6 +8,7 @@ Usage:
 
 import json
 import os
+from typing import Any
 
 from fxa.core import Client
 from fxa.errors import ClientError, ServerError
@@ -16,7 +17,7 @@ ACCT_TRACKING_FILE = os.path.join(os.path.dirname(__file__), ".accounts_tracking
 FXA_API_HOST = os.environ.get("FXA_API_HOST", "https://api-accounts.stage.mozaws.net")
 
 
-def load_tracked_accounts():
+def load_tracked_accounts() -> list[dict[str, Any]]:
     """Load tracked FxA accounts from the tracking file.
 
     Returns:
@@ -34,7 +35,7 @@ def load_tracked_accounts():
         return []
 
 
-def save_tracked_accounts(accounts):
+def save_tracked_accounts(accounts: list[dict[str, Any]]) -> None:
     """Save tracked FxA accounts to the tracking file.
 
     Args:
@@ -56,7 +57,7 @@ def save_tracked_accounts(accounts):
         raise
 
 
-def remove_account_from_tracking(email):
+def remove_account_from_tracking(email: str) -> None:
     """Remove an account from the tracking file by email.
 
     Args:
@@ -68,7 +69,7 @@ def remove_account_from_tracking(email):
     save_tracked_accounts(accounts)
 
 
-def cleanup_account(client, account):
+def cleanup_account(client: Client, account: dict[str, Any]) -> bool:
     """Delete a single FxA account.
 
     Args:
@@ -94,7 +95,7 @@ def cleanup_account(client, account):
         return False
 
 
-def cleanup_all_accounts():
+def cleanup_all_accounts() -> tuple[int, int]:
     """Delete all tracked FxA accounts.
 
     Returns:
@@ -126,7 +127,7 @@ def cleanup_all_accounts():
     return successful, failed
 
 
-def main():
+def main() -> None:
     """Run the account cleanup process."""
     cleanup_all_accounts()
 

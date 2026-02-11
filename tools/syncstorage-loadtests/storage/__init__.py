@@ -9,6 +9,7 @@ import random
 import string
 import time
 from pathlib import Path
+from typing import Any, Optional
 from urllib.parse import urlencode, urlparse, urlunparse
 
 import jwt
@@ -41,7 +42,7 @@ _DEFAULT = os.environ.get("SERVER_URL", "https://token.stage.mozaws.net")
 _ACCT_TRACKING_FILE = Path(__file__).parent.parent / ".accounts_tracking.json"
 
 
-def b64encode(data):
+def b64encode(data: bytes) -> str:
     """Encode bytes to base64 ASCII string.
 
     Args:
@@ -54,11 +55,11 @@ def b64encode(data):
     return base64.b64encode(data).decode("ascii")
 
 
-def _generate_password():
+def _generate_password() -> str:
     return "".join(random.choice(string.printable) for i in range(PASSWORD_LENGTH))
 
 
-def _track_account_creation(email, password, fxa_uid):
+def _track_account_creation(email: str, password: str, fxa_uid: str) -> None:
     try:
         if _ACCT_TRACKING_FILE.exists():
             with open(_ACCT_TRACKING_FILE, "r") as f:
@@ -88,7 +89,7 @@ def _track_account_creation(email, password, fxa_uid):
         pass
 
 
-def _remove_account_from_tracking(email):
+def _remove_account_from_tracking(email: str) -> None:
     try:
         if not _ACCT_TRACKING_FILE.exists():
             return
@@ -108,18 +109,27 @@ def _remove_account_from_tracking(email):
         pass
 
 
-def _create_self_signed_jwt(email, client_id=CLIENT_ID):
-    """
-    Create a self-signed OAuth JWT.  Requires OAUTH_PRIVATE_KEY_FILE env var.
+def _create_self_signed_jwt(
+    email: str, client_id: str = CLIENT_ID
+) -> tuple[str, str, str, str, None, None, None]:
+    """Create a self-signed OAuth JWT.
 
-    Returns tuple of:
-        - oauth_token: Self-signed JWT
-        - email: Email address
-        - fxa_uid: Generated FxA uid
-        - key_id: Key id
-        - None: FxA session not needed
-        - None: OAuth client not needed
-        - None: cleanup info not needed
+    Requires OAUTH_PRIVATE_KEY_FILE env var.
+
+    Args:
+        email: Email address for the JWT.
+        client_id: OAuth client ID (default: CLIENT_ID constant).
+
+    Returns:
+        tuple: A tuple containing:
+            - oauth_token: Self-signed JWT
+            - email: Email address
+            - fxa_uid: Generated FxA uid
+            - key_id: Key id
+            - None: FxA session not needed
+            - None: OAuth client not needed
+            - None: cleanup info not needed
+
     """
     if not OAUTH_PRIVATE_KEY_FILE:
         raise ValueError("OAUTH_PRIVATE_KEY_FILE must be set")
@@ -160,13 +170,16 @@ def _create_self_signed_jwt(email, client_id=CLIENT_ID):
     return oauth_token, email, fxa_uid, key_id, None, None, None
 
 
-def _is_oauth_token_expired(oauth_token, buffer_seconds=300):
-    """
-    Check if an OAuth token is expired or will expire soon.
+def _is_oauth_token_expired(oauth_token: str, buffer_seconds: int = 300) -> bool:
+    """Check if an OAuth token is expired or will expire soon.
 
-    :param oauth_token: JWT
-    :param buffer_seconds: Consider token expired if it expires within this many seconds
-    :returns: True if token is expired or will expire soon, False otherwise
+    Args:
+        oauth_token: JWT token to check.
+        buffer_seconds: Consider token expired if it expires within this many seconds.
+
+    Returns:
+        bool: True if token is expired or will expire soon, False otherwise.
+
     """
     try:
         decoded = jwt.decode(oauth_token, options={"verify_signature": False})
@@ -182,7 +195,9 @@ def _is_oauth_token_expired(oauth_token, buffer_seconds=300):
         return True
 
 
-def _create_fxa_account():
+def _create_fxa_account() -> tuple[
+    str, str, str, str, Optional[Any], Optional[OAuthClient], Optional[dict[str, Any]]
+]:
     """Create account credentials.
 
     If OAUTH_PRIVATE_KEY_FILE is provided, creates self-signed JWT. Otherwise,
@@ -290,7 +305,7 @@ class StorageClient(object):
         self.fxa_cleanup_info = None  # For account deletion
         self.generate()
 
-    def _get_url(self, path, params=None):
+    def _get_url(self, path: str, params: Optional[dict[str, str]] = None) -> str:
         url = self.endpoint_url + path
         if params is not None:
             url += "?" + urlencode(params)
@@ -305,7 +320,7 @@ class StorageClient(object):
         """
         return str(self.auth_token)
 
-    def generate(self):
+    def generate(self) -> None:
         """Pick an identity, log in and generate the auth token.
 
         For OAuth: Creates FxA account once and caches credentials.
@@ -337,7 +352,7 @@ class StorageClient(object):
 
         self.regenerate()
 
-    def regenerate(self):
+    def regenerate(self) -> None:
         """Generate an auth token for the selected identity."""
         # If the server_url has a hash fragment, it's a storage node and
         # that's the secret.  Otherwise it's a token server url.
@@ -450,17 +465,17 @@ class StorageClient(object):
             else:
                 self.endpoint_port = "443"
 
-    def _normalize(self, params, url, meth):
+    def _normalize(self, params: dict[str, str], url: str, meth: str) -> str:
         bits = []
         bits.append("hawk.1.header")
         bits.append(params["ts"])
         bits.append(params["nonce"])
         bits.append(meth)
-        url = urlparse(url)
-        if url.query:
-            path_qs = url.path + "?" + url.query
+        parsed_url = urlparse(url)
+        if parsed_url.query:
+            path_qs = parsed_url.path + "?" + parsed_url.query
         else:
-            path_qs = url.path
+            path_qs = parsed_url.path
         bits.append(path_qs)
         bits.append(self.endpoint_host.lower())
         bits.append(self.endpoint_port)
@@ -469,14 +484,14 @@ class StorageClient(object):
         bits.append("")  # to get the trailing newline
         return "\n".join(bits)
 
-    def _sign(self, params, url, meth):
+    def _sign(self, params: dict[str, str], url: str, meth: str) -> str:
         sigstr = self._normalize(params, url, meth)
-        sigstr = sigstr.encode("ascii")
+        sigstr_bytes = sigstr.encode("ascii")
         key = self.auth_secret
         hashmod = hashlib.sha256
-        return b64encode(hmac.new(key, sigstr, hashmod).digest())
+        return b64encode(hmac.new(key, sigstr_bytes, hashmod).digest())
 
-    def _auth(self, meth, url):
+    def _auth(self, meth: str, url: str) -> str:
         ts = time.time()
         if ts >= self.auth_expires_at:
             # Try to exclude multiple co-routines from regenerating
@@ -488,7 +503,7 @@ class StorageClient(object):
                     self.regenerate()
                 finally:
                     self.auth_regeneration_flag = False
-        params = {}
+        params: dict[str, str] = {}
         params["id"] = self.auth_token.decode("ascii")
         params["ts"] = str(int(ts) + self.timeskew)
         params["nonce"] = b64encode(os.urandom(5))
@@ -496,7 +511,14 @@ class StorageClient(object):
         res = ", ".join(['%s="%s"' % (k, v) for k, v in params.items()])
         return "Hawk " + res
 
-    async def _retry(self, meth, path_qs, params, data, statuses=None):
+    async def _retry(
+        self,
+        meth: str,
+        path_qs: str,
+        params: Optional[dict[str, str]],
+        data: Optional[str],
+        statuses: Optional[tuple[int, ...]] = None,
+    ) -> tuple[Any, Any]:
         url = self._get_url(path_qs, params)
         headers = {
             "Authorization": self._auth(meth, url),
@@ -506,7 +528,7 @@ class StorageClient(object):
         }
 
         call = getattr(self.session, meth.lower())
-        options = {"headers": headers}
+        options: dict[str, Any] = {"headers": headers}
         if meth.lower() in ("post", "put"):
             options["data"] = data
 
@@ -531,7 +553,13 @@ class StorageClient(object):
                 body = await resp.json()
                 return resp, body
 
-    async def post(self, path_qs, data=None, statuses=None, params=None):
+    async def post(
+        self,
+        path_qs: str,
+        data: Optional[str] = None,
+        statuses: Optional[tuple[int, ...]] = None,
+        params: Optional[dict[str, str]] = None,
+    ) -> tuple[Any, Any]:
         """Send a POST request to the storage server.
 
         Args:
@@ -546,7 +574,13 @@ class StorageClient(object):
         """
         return await self._retry("POST", path_qs, params, data, statuses)
 
-    async def put(self, path_qs, data=None, statuses=None, params=None):
+    async def put(
+        self,
+        path_qs: str,
+        data: Optional[str] = None,
+        statuses: Optional[tuple[int, ...]] = None,
+        params: Optional[dict[str, str]] = None,
+    ) -> tuple[Any, Any]:
         """Send a PUT request to the storage server.
 
         Args:
@@ -561,7 +595,12 @@ class StorageClient(object):
         """
         return await self._retry("PUT", path_qs, params, data, statuses)
 
-    async def get(self, path_qs, statuses=None, params=None):
+    async def get(
+        self,
+        path_qs: str,
+        statuses: Optional[tuple[int, ...]] = None,
+        params: Optional[dict[str, str]] = None,
+    ) -> tuple[Any, Any]:
         """Send a GET request to the storage server.
 
         Args:
@@ -575,7 +614,13 @@ class StorageClient(object):
         """
         return await self._retry("GET", path_qs, params, data=None, statuses=statuses)
 
-    async def delete(self, path_qs, data=None, statuses=None, params=None):
+    async def delete(
+        self,
+        path_qs: str,
+        data: Optional[str] = None,
+        statuses: Optional[tuple[int, ...]] = None,
+        params: Optional[dict[str, str]] = None,
+    ) -> tuple[Any, Any]:
         """Send a DELETE request to the storage server.
 
         Args:
@@ -590,7 +635,7 @@ class StorageClient(object):
         """
         return await self._retry("DELETE", path_qs, params, data, statuses)
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Clean up the FxA account created for this test session."""
         if self.fxa_cleanup_info is None:
             return
