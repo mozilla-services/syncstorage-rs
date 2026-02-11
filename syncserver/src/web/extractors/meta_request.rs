@@ -1,4 +1,4 @@
-use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
+use actix_web::{Error, FromRequest, HttpRequest, dev::Payload};
 use futures::future::{FutureExt, LocalBoxFuture};
 
 use syncserver_common::Metrics;

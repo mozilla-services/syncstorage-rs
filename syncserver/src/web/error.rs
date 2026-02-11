@@ -2,16 +2,16 @@
 #![allow(clippy::single_match)]
 use std::fmt;
 
-use actix_web::http::header::ToStrError;
 use actix_web::Error as ActixError;
+use actix_web::http::header::ToStrError;
 use base64::DecodeError;
 
 use hawk::Error as ParseError;
 use hmac::digest::{InvalidLength, MacError};
 use http::StatusCode;
 use serde::{
-    ser::{SerializeSeq, Serializer},
     Serialize,
+    ser::{SerializeSeq, Serializer},
 };
 use serde_json::{Error as JsonError, Value};
 use syncserver_common::{from_error, impl_fmt_display};
@@ -111,12 +111,7 @@ impl ValidationError {
 
     pub fn weave_error_code(&self) -> WeaveError {
         match &self.kind {
-            ValidationErrorKind::FromDetails(
-                ref description,
-                ref location,
-                name,
-                ref _metric_label,
-            ) => {
+            ValidationErrorKind::FromDetails(description, location, name, _metric_label) => {
                 match description.as_ref() {
                     "over-quota" => return WeaveError::OverQuota,
                     "size-limit-exceeded" => return WeaveError::SizeLimitExceeded,
@@ -130,7 +125,7 @@ impl ValidationError {
                 }
                 WeaveError::UnknownError
             }
-            ValidationErrorKind::FromValidationErrors(ref _err, ref location, _metric_label) => {
+            ValidationErrorKind::FromValidationErrors(_err, location, _metric_label) => {
                 if *location == RequestErrorLocation::Body {
                     WeaveError::InvalidWbo
                 } else {

@@ -22,8 +22,8 @@ fn test_params_macro() {
     use crate::db::support::IntoSpannerValue;
     use google_cloud_rust_raw::spanner::v1::type_pb::{Type, TypeCode};
     use protobuf::{
-        well_known_types::{ListValue, Value},
         RepeatedField,
+        well_known_types::{ListValue, Value},
     };
     use std::collections::HashMap;
 

@@ -4,18 +4,18 @@ pub mod extractors;
 pub mod handlers;
 pub mod logging;
 
-use actix_web::{dev::RequestHead, http::header::USER_AGENT, HttpMessage, HttpRequest};
+use actix_web::{HttpMessage, HttpRequest, dev::RequestHead, http::header::USER_AGENT};
 use cadence::StatsdClient;
 use serde::{
-    ser::{SerializeMap, Serializer},
     Serialize,
+    ser::{SerializeMap, Serializer},
 };
 use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(not(feature = "py_verifier"))]
 use tokenserver_auth::JWTVerifierImpl;
-use tokenserver_auth::{oauth, VerifyToken};
+use tokenserver_auth::{VerifyToken, oauth};
 use tokenserver_common::NodeType;
-use tokenserver_db::{pool_from_settings, DbPool};
+use tokenserver_db::{DbPool, pool_from_settings};
 use tokenserver_settings::Settings;
 
 use crate::{error::ApiError, server::user_agent};
@@ -119,16 +119,16 @@ impl LogItems {
 impl From<&RequestHead> for LogItems {
     fn from(req_head: &RequestHead) -> Self {
         let mut items = Self::new();
-        if let Some(ua) = req_head.headers().get(USER_AGENT) {
-            if let Ok(uas) = ua.to_str() {
-                let (ua_result, metrics_os, metrics_browser) = user_agent::parse_user_agent(uas);
-                items.insert_if_not_empty("ua.os.family", metrics_os);
-                items.insert_if_not_empty("ua.browser.family", metrics_browser);
-                items.insert_if_not_empty("ua.name", ua_result.name);
-                items.insert_if_not_empty("ua.os.ver", &ua_result.os_version);
-                items.insert_if_not_empty("ua.browser.ver", ua_result.version);
-                items.insert_if_not_empty("ua", ua_result.version);
-            }
+        if let Some(ua) = req_head.headers().get(USER_AGENT)
+            && let Ok(uas) = ua.to_str()
+        {
+            let (ua_result, metrics_os, metrics_browser) = user_agent::parse_user_agent(uas);
+            items.insert_if_not_empty("ua.os.family", metrics_os);
+            items.insert_if_not_empty("ua.browser.family", metrics_browser);
+            items.insert_if_not_empty("ua.name", ua_result.name);
+            items.insert_if_not_empty("ua.os.ver", &ua_result.os_version);
+            items.insert_if_not_empty("ua.browser.ver", ua_result.version);
+            items.insert_if_not_empty("ua", ua_result.version);
         }
         items.insert("uri.method".to_owned(), req_head.method.to_string());
         items.insert("uri.path".to_owned(), req_head.uri.to_string());

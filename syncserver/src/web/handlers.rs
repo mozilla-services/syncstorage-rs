@@ -3,19 +3,18 @@ use std::collections::HashMap;
 use std::convert::Into;
 use std::time::{Duration, Instant};
 
-use crate::server::user_agent::{get_device_info, DeviceInfo};
+use crate::server::user_agent::{DeviceInfo, get_device_info};
 use actix_web::{
-    http::{header, StatusCode},
-    web::Data,
     HttpRequest, HttpResponse, HttpResponseBuilder,
+    http::{StatusCode, header},
+    web::Data,
 };
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
 use syncstorage_db::{
-    params,
+    Db, DbError, DbErrorIntrospect, params,
     results::{CreateBatch, Paginated},
-    Db, DbError, DbErrorIntrospect,
 };
 use utoipa;
 
@@ -848,7 +847,7 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
         use std::str::FromStr;
         use syncstorage_db::PoolState;
 
-        let test_pool = PoolState {
+        PoolState {
             connections: u32::from_str(
                 req.headers()
                     .get("TEST_CONNECTIONS")
@@ -865,8 +864,7 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
                     .unwrap_or("0"),
             )
             .unwrap_or_default(),
-        };
-        test_pool
+        }
     } else {
         state.db_pool.clone().state()
     };

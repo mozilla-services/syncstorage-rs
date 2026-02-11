@@ -6,19 +6,19 @@ use std::{
 use async_trait::async_trait;
 use google_cloud_rust_raw::spanner::v1::type_pb::{StructType, Type, TypeCode};
 use protobuf::{
-    well_known_types::{ListValue, Value},
     RepeatedField,
+    well_known_types::{ListValue, Value},
 };
 use syncstorage_db_common::{
-    params, results, util::to_rfc3339, BatchDb, Db, UserIdentifier, BATCH_LIFETIME, DEFAULT_BSO_TTL,
+    BATCH_LIFETIME, BatchDb, DEFAULT_BSO_TTL, Db, UserIdentifier, params, results, util::to_rfc3339,
 };
 use uuid::Uuid;
 
 use crate::error::DbError;
 
 use super::{
-    support::{as_type, null_value, struct_type_field, IntoSpannerValue},
-    SpannerDb, PRETOUCH_TS,
+    PRETOUCH_TS, SpannerDb,
+    support::{IntoSpannerValue, as_type, null_value, struct_type_field},
 };
 use crate::DbResult;
 
@@ -396,15 +396,14 @@ pub async fn do_append(
         };
     }
 
-    if db.quota.enabled {
-        if let Some(size) = batch.size {
-            if size + running_size >= db.quota.size {
-                if db.quota.enforced {
-                    return Err(db.quota_error(collection));
-                } else {
-                    warn!("Quota at limit for user's collection ({} bytes)", size + running_size; "collection"=>collection);
-                }
-            }
+    if db.quota.enabled
+        && let Some(size) = batch.size
+        && size + running_size >= db.quota.size
+    {
+        if db.quota.enforced {
+            return Err(db.quota_error(collection));
+        } else {
+            warn!("Quota at limit for user's collection ({} bytes)", size + running_size; "collection"=>collection);
         }
     }
 

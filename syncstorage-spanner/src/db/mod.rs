@@ -13,24 +13,24 @@ use google_cloud_rust_raw::spanner::v1::{
 };
 #[allow(unused_imports)]
 use protobuf::{
-    well_known_types::{ListValue, Value},
     Message, RepeatedField,
+    well_known_types::{ListValue, Value},
 };
-use syncserver_common::{Metrics, MAX_SPANNER_LOAD_SIZE};
+use syncserver_common::{MAX_SPANNER_LOAD_SIZE, Metrics};
 use syncstorage_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting, UserIdentifier,
-    DEFAULT_BSO_TTL, FIRST_CUSTOM_COLLECTION_ID,
+    DEFAULT_BSO_TTL, Db, FIRST_CUSTOM_COLLECTION_ID, Sorting, UserIdentifier,
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp,
 };
 use syncstorage_settings::Quota;
 
 use crate::{
+    DbResult,
     error::DbError,
     pool::{CollectionCache, Conn},
-    DbResult,
 };
 use support::{
-    as_type, bso_to_insert_row, bso_to_update_row, ExecuteSqlRequestBuilder, IntoSpannerValue,
-    StreamedResultSetAsync,
+    ExecuteSqlRequestBuilder, IntoSpannerValue, StreamedResultSetAsync, as_type, bso_to_insert_row,
+    bso_to_update_row,
 };
 
 mod batch_impl;

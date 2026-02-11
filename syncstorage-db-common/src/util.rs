@@ -1,18 +1,18 @@
 use std::convert::TryInto;
 
 use chrono::{
-    offset::{TimeZone, Utc},
     DateTime, SecondsFormat,
+    offset::{TimeZone, Utc},
 };
 #[cfg(feature = "postgres")]
 use diesel::sql_types::Timestamptz;
 use diesel::{
+    FromSqlRow,
     backend::Backend,
     deserialize::{self, FromSql},
     sql_types::BigInt,
-    FromSqlRow,
 };
-use serde::{ser, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, ser};
 
 use super::error::SyncstorageDbError;
 
@@ -219,7 +219,7 @@ pub fn to_rfc3339(val: i64) -> Result<String, SyncstorageDbError> {
 mod tests {
     use std::error::Error;
 
-    use chrono::{offset::Utc, DateTime};
+    use chrono::{DateTime, offset::Utc};
 
     use super::SyncTimestamp;
 

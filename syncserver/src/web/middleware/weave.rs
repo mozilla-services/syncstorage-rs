@@ -13,10 +13,13 @@ use crate::error::{ApiError, ApiErrorKind};
 use crate::web::DOCKER_FLOW_ENDPOINTS;
 
 /// Middleware to set the X-Weave-Timestamp header on all responses.
-pub fn set_weave_timestamp<B>(
+pub fn set_weave_timestamp<B, S>(
     request: ServiceRequest,
-    service: &impl Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>,
-) -> impl Future<Output = Result<ServiceResponse<B>, actix_web::Error>> {
+    service: &S,
+) -> impl Future<Output = Result<ServiceResponse<B>, actix_web::Error>> + use<B, S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>,
+{
     let request_path = request.uri().path().to_lowercase();
     let ts = SyncTimestamp::default().as_seconds();
     let fut = service.call(request);
@@ -48,11 +51,7 @@ fn insert_weave_timestamp_into_headers(headers: &mut HeaderMap, ts: f64) -> Resu
             .map_err(invalid_xlm)?
             .parse::<f64>()
             .map_err(invalid_xlm)?;
-        if resp_ts > ts {
-            resp_ts
-        } else {
-            ts
-        }
+        if resp_ts > ts { resp_ts } else { ts }
     } else {
         ts
     };
@@ -66,7 +65,7 @@ fn insert_weave_timestamp_into_headers(headers: &mut HeaderMap, ts: f64) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::{http, HttpResponse};
+    use actix_web::{HttpResponse, http};
     use chrono::Utc;
 
     #[test]

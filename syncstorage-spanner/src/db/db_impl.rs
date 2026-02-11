@@ -11,16 +11,16 @@ use google_cloud_rust_raw::spanner::v1::{
 };
 #[allow(unused_imports)]
 use protobuf::{
-    well_known_types::{ListValue, Value},
     Message, RepeatedField,
+    well_known_types::{ListValue, Value},
 };
-use syncstorage_db_common::{error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db};
+use syncstorage_db_common::{Db, error::DbErrorIntrospect, params, results, util::SyncTimestamp};
 
 use super::{
-    support::{as_type, bso_from_row, IntoSpannerValue},
     CollectionLock, SpannerDb, TOMBSTONE,
+    support::{IntoSpannerValue, as_type, bso_from_row},
 };
-use crate::{error::DbError, DbResult};
+use crate::{DbResult, error::DbError};
 
 pub(super) const PRETOUCH_TS: &str = "0001-01-01T00:00:00.00Z";
 

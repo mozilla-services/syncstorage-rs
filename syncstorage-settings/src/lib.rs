@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
 use serde::{Deserialize, Serialize};
 use syncserver_common::{self, MAX_SPANNER_LOAD_SIZE};
 

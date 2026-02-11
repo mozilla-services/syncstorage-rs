@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use syncserver_db_common::{GetPoolState, PoolState};
 #[cfg(debug_assertions)]
 use syncstorage_db_common::util::SyncTimestamp;
-use syncstorage_db_common::{params, results, BatchDb, Db, DbPool};
+use syncstorage_db_common::{BatchDb, Db, DbPool, params, results};
 
 use crate::DbError;
 

@@ -1,22 +1,21 @@
 use async_trait::async_trait;
 use diesel::{
-    self, delete,
+    self, ExpressionMethods, OptionalExtension, QueryDsl, delete,
     dsl::{now, sql},
     insert_into, sql_query,
     sql_types::{BigInt, Integer, Nullable, Text, Timestamptz, Uuid as SqlUuid},
-    ExpressionMethods, OptionalExtension, QueryDsl,
 };
 use diesel_async::RunQueryDsl;
 use uuid::Uuid;
 
 use syncstorage_db_common::{
-    params, results, BatchDb, Db, UserIdentifier, BATCH_LIFETIME, DEFAULT_BSO_TTL,
+    BATCH_LIFETIME, BatchDb, DEFAULT_BSO_TTL, Db, UserIdentifier, params, results,
 };
 
 use super::PgDb;
 use crate::{
-    schema::{batch_bsos, batches},
     DbError, DbResult,
+    schema::{batch_bsos, batches},
 };
 
 #[async_trait(?Send)]

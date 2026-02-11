@@ -1,4 +1,4 @@
-use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
+use actix_web::{Error, FromRequest, HttpRequest, dev::Payload};
 use futures::future::{FutureExt, LocalBoxFuture};
 
 use syncserver_common::Metrics;
@@ -6,8 +6,8 @@ use syncstorage_db::UserIdentifier;
 use tokenserver_auth::TokenserverOrigin;
 
 use super::{
-    BsoBody, BsoParam, BsoQueryParams, CollectionParam, HawkIdentifier, RequestErrorLocation,
-    KNOWN_BAD_PAYLOAD_REGEX,
+    BsoBody, BsoParam, BsoQueryParams, CollectionParam, HawkIdentifier, KNOWN_BAD_PAYLOAD_REGEX,
+    RequestErrorLocation,
 };
 use crate::{server::MetricsWrapper, web::error::ValidationErrorKind};
 
@@ -47,16 +47,16 @@ impl FromRequest for BsoPutRequest {
             let collection = collection.collection;
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
-                if let Some(ref data) = body.payload {
-                    if KNOWN_BAD_PAYLOAD_REGEX.is_match(data) {
-                        return Err(ValidationErrorKind::FromDetails(
-                            "Known-bad BSO payload".to_owned(),
-                            RequestErrorLocation::Body,
-                            Some("bsos".to_owned()),
-                            Some("request.process.known_bad_bso"),
-                        )
-                        .into());
-                    }
+                if let Some(ref data) = body.payload
+                    && KNOWN_BAD_PAYLOAD_REGEX.is_match(data)
+                {
+                    return Err(ValidationErrorKind::FromDetails(
+                        "Known-bad BSO payload".to_owned(),
+                        RequestErrorLocation::Body,
+                        Some("bsos".to_owned()),
+                        Some("request.process.known_bad_bso"),
+                    )
+                    .into());
                 }
             }
             Ok(BsoPutRequest {
@@ -79,8 +79,8 @@ mod tests {
 
     use actix_http::h1;
     use actix_web::{
-        dev::ServiceResponse, http::Method, test::TestRequest, web::Bytes, FromRequest,
-        HttpMessage, HttpResponse,
+        FromRequest, HttpMessage, HttpResponse, dev::ServiceResponse, http::Method,
+        test::TestRequest, web::Bytes,
     };
     use futures::executor::block_on;
     use serde_json::json;
@@ -88,8 +88,8 @@ mod tests {
     use crate::web::{
         auth::HawkPayload,
         extractors::test_utils::{
-            create_valid_hawk_header, extract_body_as_str, make_db, make_state, SECRETS, TEST_HOST,
-            TEST_PORT, USER_ID, USER_ID_STR,
+            SECRETS, TEST_HOST, TEST_PORT, USER_ID, USER_ID_STR, create_valid_hawk_header,
+            extract_body_as_str, make_db, make_state,
         },
     };
 

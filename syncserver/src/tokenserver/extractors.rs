@@ -8,11 +8,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use actix_web::{
+    FromRequest, HttpRequest,
     dev::Payload,
     web::{Data, Query},
-    FromRequest, HttpRequest,
 };
-use base64::{engine, Engine};
+use base64::{Engine, engine};
 use futures::future::LocalBoxFuture;
 use hex;
 use hmac::{Hmac, Mac};
@@ -24,7 +24,7 @@ use sha2::Sha256;
 use syncserver_common::Taggable;
 use syncserver_settings::Secrets;
 use tokenserver_common::{ErrorLocation, NodeType, TokenserverError};
-use tokenserver_db::{params, results, Db, DbPool};
+use tokenserver_db::{Db, DbPool, params, results};
 
 use super::{LogItemsMutator, ServerState, TokenserverMetrics};
 use crate::server::MetricsWrapper;
@@ -488,18 +488,18 @@ impl FromRequest for XClientStateHeader {
                 .and_then(|header| header.to_str().ok());
 
             // If there's a client state value in the X-Client-State header, make sure it is valid
-            if let Some(x_client_state) = maybe_x_client_state {
-                if !CLIENT_STATE_REGEX.is_match(x_client_state) {
-                    return Err(TokenserverError {
-                        status: "error",
-                        location: ErrorLocation::Header,
-                        description: "Invalid client state value".to_owned(),
-                        name: "X-Client-State".to_owned(),
-                        http_status: StatusCode::BAD_REQUEST,
-                        context: "Invalid client state value".to_owned(),
-                        ..Default::default()
-                    });
-                }
+            if let Some(x_client_state) = maybe_x_client_state
+                && !CLIENT_STATE_REGEX.is_match(x_client_state)
+            {
+                return Err(TokenserverError {
+                    status: "error",
+                    location: ErrorLocation::Header,
+                    description: "Invalid client state value".to_owned(),
+                    name: "X-Client-State".to_owned(),
+                    http_status: StatusCode::BAD_REQUEST,
+                    context: "Invalid client state value".to_owned(),
+                    ..Default::default()
+                });
             }
 
             Ok(Self(maybe_x_client_state.map(ToOwned::to_owned)))
@@ -566,15 +566,15 @@ impl FromRequest for KeyId {
 
                 // If there's a client state value in the X-Client-State header, verify that it matches
                 // the value in X-KeyID.
-                if let Some(x_client_state) = x_client_state {
-                    if x_client_state != client_state_hex {
-                        return Err(TokenserverError {
-                            status: "invalid-client-state",
-                            location: ErrorLocation::Body,
-                            context: "Client state mismatch in X-Client-State header".to_owned(),
-                            ..TokenserverError::default()
-                        });
-                    }
+                if let Some(x_client_state) = x_client_state
+                    && x_client_state != client_state_hex
+                {
+                    return Err(TokenserverError {
+                        status: "invalid-client-state",
+                        location: ErrorLocation::Body,
+                        context: "Client state mismatch in X-Client-State header".to_owned(),
+                        ..TokenserverError::default()
+                    });
                 }
 
                 client_state_hex
@@ -659,17 +659,17 @@ mod tests {
     use super::*;
 
     use actix_web::{
+        HttpResponse,
         dev::ServiceResponse,
         http::{Method, StatusCode},
         test::{self, TestRequest},
-        HttpResponse,
     };
     use futures::executor::block_on;
     use lazy_static::lazy_static;
     use serde_json;
     use syncserver_settings::Settings as GlobalSettings;
     use syncstorage_settings::ServerLimits;
-    use tokenserver_auth::{oauth, MockVerifier};
+    use tokenserver_auth::{MockVerifier, oauth};
     use tokenserver_db::mock::MockDbPool as MockTokenserverPool;
     use tokenserver_settings::Settings as TokenserverSettings;
 

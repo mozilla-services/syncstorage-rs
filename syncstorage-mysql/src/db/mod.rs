@@ -1,22 +1,22 @@
 use std::{collections::HashMap, fmt, sync::Arc};
 
 use diesel::{
+    ExpressionMethods, OptionalExtension, QueryDsl,
     dsl::sql,
     sql_query,
     sql_types::{BigInt, Integer, Text},
-    ExpressionMethods, OptionalExtension, QueryDsl,
 };
 use diesel_async::RunQueryDsl;
 use syncserver_common::Metrics;
 use syncstorage_db_common::{
-    error::DbErrorIntrospect, results, util::SyncTimestamp, Db, UserIdentifier,
-    FIRST_CUSTOM_COLLECTION_ID,
+    Db, FIRST_CUSTOM_COLLECTION_ID, UserIdentifier, error::DbErrorIntrospect, results,
+    util::SyncTimestamp,
 };
 use syncstorage_settings::Quota;
 
 use crate::{
-    pool::{CollectionCache, Conn},
     DbError, DbResult,
+    pool::{CollectionCache, Conn},
 };
 use schema::{bso, collections, last_insert_id};
 

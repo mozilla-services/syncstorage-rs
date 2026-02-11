@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use actix_web::{
-    http::header::{Accept, Header, QualityItem},
     HttpRequest,
+    http::header::{Accept, Header, QualityItem},
 };
 use mime::STAR_STAR;
 use serde::{Deserialize, Serialize};
@@ -72,7 +72,7 @@ pub fn get_accepted(req: &HttpRequest, accepted: &[&str], default: &'static str)
 #[cfg(test)]
 mod tests {
     use actix_web::{
-        http::header::{HeaderValue, ACCEPT},
+        http::header::{ACCEPT, HeaderValue},
         test::TestRequest,
     };
 

@@ -1,6 +1,6 @@
 use diesel::{
-    sql_types::{Bigint, Integer, Nullable, Text},
     QueryableByName,
+    sql_types::{Bigint, Integer, Nullable, Text},
 };
 use serde::{Deserialize, Serialize};
 

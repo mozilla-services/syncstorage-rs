@@ -1,13 +1,13 @@
 use std::{cell::RefCell, collections::BTreeMap, marker::PhantomData, rc::Rc, sync::Arc};
 
 use actix_web::{
-    dev::{Service, ServiceRequest, ServiceResponse, Transform},
     Error,
+    dev::{Service, ServiceRequest, ServiceResponse, Transform},
 };
 use cadence::{CountedExt, StatsdClient};
-use futures::{future::LocalBoxFuture, FutureExt};
-use futures_util::future::{ok, Ready};
-use sentry::{protocol::Event, Hub};
+use futures::{FutureExt, future::LocalBoxFuture};
+use futures_util::future::{Ready, ok};
+use sentry::{Hub, protocol::Event};
 
 use crate::{ReportableError, Taggable};
 
@@ -110,12 +110,12 @@ where
             };
             // Check for errors inside the response
             if let Some(error) = response.response().error() {
-                if let Some(reportable_err) = error.as_error::<E>() {
-                    if !reportable_err.is_sentry_event() {
-                        maybe_emit_metrics(&metrics, reportable_err);
-                        debug!("Not reporting error (service error): {:?}", error);
-                        return Ok(response);
-                    }
+                if let Some(reportable_err) = error.as_error::<E>()
+                    && !reportable_err.is_sentry_event()
+                {
+                    maybe_emit_metrics(&metrics, reportable_err);
+                    debug!("Not reporting error (service error): {:?}", error);
+                    return Ok(response);
                 }
                 debug!("Reporting error to Sentry (response error): {}", error);
                 let event = event_from_actix_error::<E>(error);

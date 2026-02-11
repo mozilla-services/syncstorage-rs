@@ -24,7 +24,7 @@ version = "0.21.1"
 authors = [
   "Mozilla Sync Backend Engineering <sync-backend@mozilla.com",
 ]
-edition = "2021"
+edition = "2024"
 rust-version = "1.89"
 license = "MPL-2.0"
 

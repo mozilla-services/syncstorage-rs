@@ -33,9 +33,8 @@ pub use syncserver_db_common::{GetPoolState, PoolState};
 pub use syncstorage_db_common::error::DbErrorIntrospect;
 
 pub use syncstorage_db_common::{
-    params, results,
-    util::{to_rfc3339, SyncTimestamp},
-    Db, DbPool, Sorting, UserIdentifier,
+    Db, DbPool, Sorting, UserIdentifier, params, results,
+    util::{SyncTimestamp, to_rfc3339},
 };
 
 #[cfg(all(feature = "mysql", feature = "spanner"))]

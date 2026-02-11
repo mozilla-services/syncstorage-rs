@@ -52,7 +52,7 @@ pub trait Db {
 
     /// Mark the user with the given uid and service ID as being replaced.
     async fn replace_user(&mut self, params: params::ReplaceUser)
-        -> DbResult<results::ReplaceUser>;
+    -> DbResult<results::ReplaceUser>;
 
     /// Mark users matching the given email and service ID as replaced.
     async fn replace_users(
@@ -309,7 +309,7 @@ pub trait Db {
     #[cfg(debug_assertions)]
     /// Creates new service and returns new service_id.
     async fn post_service(&mut self, params: params::PostService)
-        -> DbResult<results::PostService>;
+    -> DbResult<results::PostService>;
 
     #[cfg(debug_assertions)]
     fn set_spanner_node_id(&mut self, params: params::SpannerNodeId);

@@ -9,7 +9,7 @@ use std::{
 use diesel::Queryable;
 use serde::{Deserialize, Serialize};
 
-use crate::{results, util::SyncTimestamp, Sorting, UserIdentifier};
+use crate::{Sorting, UserIdentifier, results, util::SyncTimestamp};
 
 macro_rules! data {
     ($name:ident {$($property:ident: $type:ty,)*}) => {

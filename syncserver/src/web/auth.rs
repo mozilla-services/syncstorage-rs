@@ -8,7 +8,7 @@
 
 use std::convert::TryInto;
 
-use base64::{engine, Engine};
+use base64::{Engine, engine};
 use chrono::offset::Utc;
 use hawk::{self, Header as HawkHeader, Key, RequestBuilder};
 use hmac::{Hmac, Mac};
@@ -497,12 +497,7 @@ mod tests {
                     "h1Ch4vo=",
                     1_569_608_439,
                 ),
-                request: Request::new(
-                    "GET",
-                    "/storage/1.5/1/storage/col2",
-                    "localhost",
-                    5000,
-                ),
+                request: Request::new("GET", "/storage/1.5/1/storage/col2", "localhost", 5000),
                 master_secret: Secrets::new("Ted Koppel is a robot").unwrap(),
                 expected: HawkPayload {
                     expires: 1_884_968_439.0,
@@ -511,8 +506,12 @@ mod tests {
                     user_id: 1,
                     fxa_uid: "319b98f9961ff1dbdd07313cd6ba925a".to_owned(),
                     fxa_kid: "de697ad66d845b2873c9d7e13b8971af".to_owned(),
-                    hashed_fxa_uid: "0e8df5d41398a389913bd8402435649518af46493da1d4a437a46dc1784c501a".to_owned(),
-                    hashed_device_id: "2bcb92f4d4698c3d7b083a3c698a16ccd78bc2a8d20a96e4bb128ddceaf4e0b6".to_owned(),
+                    hashed_fxa_uid:
+                        "0e8df5d41398a389913bd8402435649518af46493da1d4a437a46dc1784c501a"
+                            .to_owned(),
+                    hashed_device_id:
+                        "2bcb92f4d4698c3d7b083a3c698a16ccd78bc2a8d20a96e4bb128ddceaf4e0b6"
+                            .to_owned(),
                     tokenserver_origin: Default::default(),
                 },
             }

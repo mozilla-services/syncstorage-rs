@@ -1,4 +1,4 @@
-use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
+use actix_web::{Error, FromRequest, HttpRequest, dev::Payload};
 use futures::future::LocalBoxFuture;
 
 use syncserver_common::Metrics;
@@ -54,8 +54,8 @@ mod tests {
     use std::sync::Arc;
 
     use actix_web::{
-        dev::ServiceResponse, http::Method, test::TestRequest, FromRequest, HttpMessage,
-        HttpResponse,
+        FromRequest, HttpMessage, HttpResponse, dev::ServiceResponse, http::Method,
+        test::TestRequest,
     };
     use futures::executor::block_on;
 
@@ -63,8 +63,8 @@ mod tests {
     use crate::web::{
         auth::HawkPayload,
         extractors::test_utils::{
-            create_valid_hawk_header, extract_body_as_str, make_db, make_state, INVALID_BSO_NAME,
-            SECRETS, TEST_HOST, TEST_PORT, USER_ID, USER_ID_STR,
+            INVALID_BSO_NAME, SECRETS, TEST_HOST, TEST_PORT, USER_ID, USER_ID_STR,
+            create_valid_hawk_header, extract_body_as_str, make_db, make_state,
         },
     };
 

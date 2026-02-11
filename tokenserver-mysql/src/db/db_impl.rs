@@ -4,13 +4,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use diesel::{
-    sql_types::{Bigint, Float, Integer, Nullable, Text},
     OptionalExtension,
+    sql_types::{Bigint, Float, Integer, Nullable, Text},
 };
 use diesel_async::RunQueryDsl;
 use http::StatusCode;
 use syncserver_common::Metrics;
-use tokenserver_db_common::{params, results, Db, DbError, DbResult};
+use tokenserver_db_common::{Db, DbError, DbResult, params, results};
 
 use super::TokenserverDb;
 

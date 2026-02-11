@@ -1,7 +1,7 @@
 use actix_web::{
+    Error, FromRequest, HttpRequest,
     dev::Payload,
     web::{Data, Query},
-    Error, FromRequest, HttpRequest,
 };
 use futures::future::{LocalBoxFuture, TryFutureExt};
 use serde::Deserialize;
@@ -9,7 +9,7 @@ use validator::{Validate, ValidationError};
 
 use syncserver_common::X_WEAVE_RECORDS;
 
-use super::{request_error, RequestErrorLocation, TRUE_REGEX};
+use super::{RequestErrorLocation, TRUE_REGEX, request_error};
 use crate::{
     error::ApiError,
     server::ServerState,

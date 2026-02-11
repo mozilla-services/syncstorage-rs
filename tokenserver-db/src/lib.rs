@@ -5,7 +5,7 @@ mod tests;
 use url::Url;
 
 use syncserver_common::Metrics;
-pub use tokenserver_db_common::{params, results, Db, DbError, DbPool};
+pub use tokenserver_db_common::{Db, DbError, DbPool, params, results};
 use tokenserver_settings::Settings;
 
 pub fn pool_from_settings(
@@ -31,7 +31,7 @@ pub fn pool_from_settings(
         invalid_scheme => {
             return Err(DbError::internal(format!(
                 "Invalid SYNC_TOKENSERVER__DATABASE_URL scheme: {invalid_scheme}://"
-            )))
+            )));
         }
     })
 }

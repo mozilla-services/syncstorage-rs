@@ -2,7 +2,7 @@ use std::{str::FromStr, sync::Arc};
 
 use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_settings::Settings as SyncserverSettings;
-use syncstorage_db_common::{params, util::SyncTimestamp, Db, DbPool, Sorting, UserIdentifier};
+use syncstorage_db_common::{Db, DbPool, Sorting, UserIdentifier, params, util::SyncTimestamp};
 use syncstorage_settings::Settings as SyncstorageSettings;
 
 use crate::{DbError, DbPoolImpl};

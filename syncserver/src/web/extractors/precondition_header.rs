@@ -1,4 +1,4 @@
-use actix_web::{dev::Payload, http::header::HeaderMap, Error, FromRequest, HttpRequest};
+use actix_web::{Error, FromRequest, HttpRequest, dev::Payload, http::header::HeaderMap};
 use futures::future::LocalBoxFuture;
 
 use syncstorage_db::SyncTimestamp;
@@ -108,7 +108,7 @@ impl FromRequest for PreConditionHeaderOpt {
 
 #[cfg(test)]
 mod tests {
-    use actix_web::{dev::ServiceResponse, test::TestRequest, HttpResponse};
+    use actix_web::{HttpResponse, dev::ServiceResponse, test::TestRequest};
 
     use syncstorage_db::SyncTimestamp;
 

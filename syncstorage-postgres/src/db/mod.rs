@@ -1,24 +1,24 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use diesel::{
+    ExpressionMethods, OptionalExtension, QueryDsl,
     dsl::{now, sql},
     sql_types::BigInt,
     upsert::excluded,
-    ExpressionMethods, OptionalExtension, QueryDsl,
 };
 use diesel_async::RunQueryDsl;
 use std::{collections::HashMap, fmt, sync::Arc};
 
 use syncserver_common::Metrics;
 use syncstorage_db_common::{
-    diesel::DbError, error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db,
-    UserIdentifier, FIRST_CUSTOM_COLLECTION_ID,
+    Db, FIRST_CUSTOM_COLLECTION_ID, UserIdentifier, diesel::DbError, error::DbErrorIntrospect,
+    params, results, util::SyncTimestamp,
 };
 use syncstorage_settings::Quota;
 
 use super::schema::{bsos, collections, user_collections};
 use super::{
-    pool::{CollectionCache, Conn},
     DbResult,
+    pool::{CollectionCache, Conn},
 };
 
 mod batch_impl;

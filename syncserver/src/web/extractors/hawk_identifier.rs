@@ -1,10 +1,10 @@
 use std::{str::FromStr, sync::Arc};
 
 use actix_web::{
+    Error, FromRequest, HttpMessage, HttpRequest,
     dev::{ConnectionInfo, Extensions, Payload},
     http::Uri,
     web::Data,
-    Error, FromRequest, HttpMessage, HttpRequest,
 };
 use futures::future::{self, Ready};
 use serde::{Deserialize, Serialize};
@@ -14,13 +14,13 @@ use syncserver_settings::Secrets;
 use syncstorage_db::UserIdentifier;
 use tokenserver_auth::TokenserverOrigin;
 
-use super::{urldecode, RequestErrorLocation};
+use super::{RequestErrorLocation, urldecode};
 use crate::{
     error::{ApiError, ApiErrorKind},
     web::{
+        DOCKER_FLOW_ENDPOINTS,
         auth::HawkPayload,
         error::{HawkErrorKind, ValidationErrorKind},
-        DOCKER_FLOW_ENDPOINTS,
     },
 };
 
@@ -215,10 +215,10 @@ mod tests {
     use std::sync::Arc;
 
     use actix_web::{
+        FromRequest, HttpResponse,
         dev::{Payload, ServiceResponse},
         http::Method,
         test::TestRequest,
-        FromRequest, HttpResponse,
     };
     use futures::executor::block_on;
 
@@ -226,8 +226,8 @@ mod tests {
     use crate::web::{
         auth::HawkPayload,
         extractors::test_utils::{
-            create_valid_hawk_header, extract_body_as_str, make_state, SECRETS, TEST_HOST,
-            TEST_PORT, USER_ID, USER_ID_STR,
+            SECRETS, TEST_HOST, TEST_PORT, USER_ID, USER_ID_STR, create_valid_hawk_header,
+            extract_body_as_str, make_state,
         },
     };
 

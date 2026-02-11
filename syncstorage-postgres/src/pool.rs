@@ -9,18 +9,18 @@ use std::{
 
 use deadpool::managed::PoolError;
 use diesel_async::{
-    pooled_connection::{
-        deadpool::{Object, Pool},
-        AsyncDieselConnectionManager,
-    },
     AsyncPgConnection,
+    pooled_connection::{
+        AsyncDieselConnectionManager,
+        deadpool::{Object, Pool},
+    },
 };
-use diesel_migrations::{embed_migrations, EmbeddedMigrations};
+use diesel_migrations::{EmbeddedMigrations, embed_migrations};
 use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::test_transaction_hook;
 use syncserver_db_common::{
-    manager_config_with_logging, run_embedded_migrations, GetPoolState, PoolState,
+    GetPoolState, PoolState, manager_config_with_logging, run_embedded_migrations,
 };
 use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};

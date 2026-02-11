@@ -5,10 +5,10 @@ use std::{error::Error, fmt::Debug};
 
 #[cfg(debug_assertions)]
 use diesel::connection::InstrumentationEvent;
-use diesel::{result::ConnectionResult, Connection};
+use diesel::{Connection, result::ConnectionResult};
 use diesel_async::{
-    async_connection_wrapper::AsyncConnectionWrapper, pooled_connection::ManagerConfig,
-    AsyncConnection, AsyncMigrationHarness,
+    AsyncConnection, AsyncMigrationHarness, async_connection_wrapper::AsyncConnectionWrapper,
+    pooled_connection::ManagerConfig,
 };
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness};
 use tokio::task::spawn_blocking;
