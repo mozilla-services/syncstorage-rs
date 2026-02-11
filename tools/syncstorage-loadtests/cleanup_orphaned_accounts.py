@@ -6,12 +6,13 @@ Usage:
     python cleanup_orphaned_accounts.py
 """
 
-import os
 import json
+import os
+
 from fxa.core import Client
 from fxa.errors import ClientError, ServerError
 
-ACCT_TRACKING_FILE = os.path.join(os.path.dirname(__file__), '.accounts_tracking.json')
+ACCT_TRACKING_FILE = os.path.join(os.path.dirname(__file__), ".accounts_tracking.json")
 FXA_API_HOST = os.environ.get("FXA_API_HOST", "https://api-accounts.stage.mozaws.net")
 
 
@@ -20,7 +21,7 @@ def load_tracked_accounts():
         return []
 
     try:
-        with open(ACCT_TRACKING_FILE, 'r') as f:
+        with open(ACCT_TRACKING_FILE, "r") as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError) as e:
         print(f"Warning: Could not load tracking file: {e}")
@@ -33,21 +34,22 @@ def save_tracked_accounts(accounts):
             if os.path.exists(ACCT_TRACKING_FILE):
                 os.remove(ACCT_TRACKING_FILE)
         else:
-            with open(ACCT_TRACKING_FILE, 'w') as f:
+            with open(ACCT_TRACKING_FILE, "w") as f:
                 json.dump(accounts, f, indent=2)
     except IOError as e:
         print(f"Warning: Could not save tracking file: {e}")
         raise
 
+
 def remove_account_from_tracking(email):
     accounts = load_tracked_accounts()
-    accounts = [acc for acc in accounts if acc['email'] != email]
+    accounts = [acc for acc in accounts if acc["email"] != email]
     save_tracked_accounts(accounts)
 
 
 def cleanup_account(client, account):
-    email = account['email']
-    password = account['password']
+    email = account["email"]
+    password = account["password"]
 
     try:
         client.destroy_account(email, password)
@@ -78,7 +80,7 @@ def cleanup_all_accounts():
     for account in accounts:
         if cleanup_account(client, account):
             successful += 1
-            remove_account_from_tracking(account['email'])
+            remove_account_from_tracking(account["email"])
         else:
             failed += 1
 
