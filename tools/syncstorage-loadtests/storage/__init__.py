@@ -1,3 +1,5 @@
+"""Storage client for SyncStorage load testing with FxA authentication."""
+
 import base64
 import hashlib
 import hmac
@@ -40,6 +42,15 @@ _ACCT_TRACKING_FILE = Path(__file__).parent.parent / ".accounts_tracking.json"
 
 
 def b64encode(data):
+    """Encode bytes to base64 ASCII string.
+
+    Args:
+        data: Bytes to encode.
+
+    Returns:
+        str: Base64-encoded ASCII string.
+
+    """
     return base64.b64encode(data).decode("ascii")
 
 
@@ -172,23 +183,23 @@ def _is_oauth_token_expired(oauth_token, buffer_seconds=300):
 
 
 def _create_fxa_account():
-    """
-    Create account credentials.
+    """Create account credentials.
 
     If OAUTH_PRIVATE_KEY_FILE is provided, creates self-signed JWT. Otherwise,
     creates real, testing account via FxA API.  The account is deleted at the
     end of the test.
 
-    Returns tuple of:
-        - oauth_token: OAuth access token
-        - acct_email: Account email address
-        - fxa_uid: FxA uid
-        - key_id: Key id
-        - fxa_session: FxA session, or None for self-signed
-        - oauth_client: OAuthClient instance, or None for self-signed
-        - cleanup_info: Dict with cleanup info, or None for self-signed
-    """
+    Returns:
+        tuple: A tuple containing:
+            - oauth_token: OAuth access token
+            - acct_email: Account email address
+            - fxa_uid: FxA uid
+            - key_id: Key id
+            - fxa_session: FxA session, or None for self-signed
+            - oauth_client: OAuthClient instance, or None for self-signed
+            - cleanup_info: Dict with cleanup info, or None for self-signed
 
+    """
     if OAUTH_PRIVATE_KEY_FILE:
         email = f"molotov-{int(time.time())}-{random.randint(1000, 9999)}@example.com"
         return _create_self_signed_jwt(email)
@@ -245,7 +256,21 @@ def _create_fxa_account():
 
 
 class StorageClient(object):
+    """Client for interacting with SyncStorage API with FxA authentication.
+
+    Manages OAuth tokens, Hawk authentication, and HTTP requests to the
+    SyncStorage service. Handles token expiration and renewal automatically.
+
+    """
+
     def __init__(self, session, server_url=_DEFAULT):
+        """Initialize the StorageClient.
+
+        Args:
+            session: The aiohttp session to use for requests.
+            server_url: The server URL to connect to (default: from SERVER_URL env).
+
+        """
         self.session = session
         self.timeskew = 0
         self.server_url = server_url
@@ -272,12 +297,19 @@ class StorageClient(object):
         return url
 
     def __repr__(self):
+        """Return string representation of the client.
+
+        Returns:
+            str: The authentication token as a string.
+
+        """
         return str(self.auth_token)
 
     def generate(self):
-        """
-        Pick an identity, log in and generate the auth token.
+        """Pick an identity, log in and generate the auth token.
+
         For OAuth: Creates FxA account once and caches credentials.
+
         """
         url = urlparse(self.server_url)
 
@@ -500,21 +532,66 @@ class StorageClient(object):
                 return resp, body
 
     async def post(self, path_qs, data=None, statuses=None, params=None):
+        """Send a POST request to the storage server.
+
+        Args:
+            path_qs: The path for the request.
+            data: Optional data payload to send.
+            statuses: Optional tuple of acceptable HTTP status codes.
+            params: Optional query parameters.
+
+        Returns:
+            tuple: Response object and parsed JSON body.
+
+        """
         return await self._retry("POST", path_qs, params, data, statuses)
 
     async def put(self, path_qs, data=None, statuses=None, params=None):
+        """Send a PUT request to the storage server.
+
+        Args:
+            path_qs: The path for the request.
+            data: Optional data payload to send.
+            statuses: Optional tuple of acceptable HTTP status codes.
+            params: Optional query parameters.
+
+        Returns:
+            tuple: Response object and parsed JSON body.
+
+        """
         return await self._retry("PUT", path_qs, params, data, statuses)
 
     async def get(self, path_qs, statuses=None, params=None):
+        """Send a GET request to the storage server.
+
+        Args:
+            path_qs: The path for the request.
+            statuses: Optional tuple of acceptable HTTP status codes.
+            params: Optional query parameters.
+
+        Returns:
+            tuple: Response object and parsed JSON body.
+
+        """
         return await self._retry("GET", path_qs, params, data=None, statuses=statuses)
 
     async def delete(self, path_qs, data=None, statuses=None, params=None):
+        """Send a DELETE request to the storage server.
+
+        Args:
+            path_qs: The path for the request.
+            data: Optional data payload to send.
+            statuses: Optional tuple of acceptable HTTP status codes.
+            params: Optional query parameters.
+
+        Returns:
+            tuple: Response object and parsed JSON body.
+
+        """
         return await self._retry("DELETE", path_qs, params, data, statuses)
 
     def cleanup(self):
-        """
-        Clean up the FxA account created for this test session.
-        """
+        """Clean up the FxA account created for this test session."""
         if self.fxa_cleanup_info is None:
             return
 

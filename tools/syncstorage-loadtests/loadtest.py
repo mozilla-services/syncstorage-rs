@@ -1,3 +1,5 @@
+"""Load testing scenarios for SyncStorage using Molotov."""
+
 import sys
 
 sys.path.append(".")  # NOQA
@@ -31,10 +33,28 @@ _DISABLE_DELETES = os.environ.get("DISABLE_DELETES", "false").lower() in ("true"
 
 
 def should_do(name):
+    """Determine if an action should be performed based on probability.
+
+    Args:
+        name: The name of the action to check.
+
+    Returns:
+        bool: True if the action should be performed, False otherwise.
+
+    """
     return random.random() <= _PROBS[name]
 
 
 def get_num_requests(name):
+    """Get the number of requests to make based on weighted distribution.
+
+    Args:
+        name: The name of the request type to get count for.
+
+    Returns:
+        int: The number of requests to make.
+
+    """
     weights = _WEIGHTS[name]
     i = random.randint(1, sum(weights))
     count = 0
@@ -76,6 +96,12 @@ async def _teardown_session(worker_num, session):
 
 @scenario(1)
 async def test(session):
+    """Main load test scenario for SyncStorage.
+
+    Args:
+        session: The Molotov session object.
+
+    """
     storage = session.storage
 
     # Respect the server limits.
