@@ -18,6 +18,9 @@ on:
   workflow_dispatch: {}
 
 jobs:
+  # Note: we are moving towards renaming all images `syncserver`, the union of sync and tokenserver.
+  # This presently remains for the time being to simplify deploys by maintaining `image_name: syncstorage-rs`.
+  # Historical context: <https://github.com/mozilla-services/syncstorage-rs/pull/1306>
   build-and-push-syncstorage-rs:
     if: >
       github.event_name == 'workflow_dispatch' ||
@@ -70,6 +73,9 @@ jobs:
         TOKENSERVER_DATABASE_BACKEND=postgres
       should_tag_ghcr: true
 
+  # Note: we are moving towards renaming all images `syncserver`, the union of sync and tokenserver.
+  # This presently remains for the time being to simplify deploys by maintaining `image_name: syncstorage-rs-spanner-python-utils`.
+  # Historical context: <https://github.com/mozilla-services/syncstorage-rs/pull/1306>
   build-and-push-syncstorage-rs-spanner-python-utils:
     if: >
       github.event_name == 'workflow_dispatch' ||
