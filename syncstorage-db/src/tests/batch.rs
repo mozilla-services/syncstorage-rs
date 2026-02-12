@@ -4,7 +4,7 @@ use syncstorage_db_common::{
     BATCH_LIFETIME, error::DbErrorIntrospect, params, results, util::SyncTimestamp,
 };
 
-use super::support::{gbso, hid, pbso, postbso, with_transaction};
+use super::support::{gbso, hid, pbso, postbso, with_test_transaction};
 use crate::{Db, DbError};
 
 fn cb(user_id: u32, coll: &str, bsos: Vec<params::PostCollectionBso>) -> params::CreateBatch {
@@ -47,7 +47,7 @@ fn gb(user_id: u32, coll: &str, id: String) -> params::GetBatch {
 
 #[tokio::test]
 async fn create_delete() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = 1;
         let coll = "clients";
         let new_batch = db.create_batch(cb(uid, coll, vec![])).await?;
@@ -70,7 +70,7 @@ async fn create_delete() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn expiry() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = 1;
         let coll = "clients";
         let new_batch = with_delta!(db, -(BATCH_LIFETIME + 11), {
@@ -94,7 +94,7 @@ async fn expiry() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn update() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = 1;
         let coll = "clients";
         let new_batch = db.create_batch(cb(uid, coll, vec![])).await?;
@@ -119,7 +119,7 @@ async fn update() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn append_commit() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = 1;
         let coll = "clients";
         let bsos1 = vec![
@@ -172,8 +172,8 @@ async fn quota_test_create_batch() -> Result<(), DbError> {
     let limit = 300;
     settings.limits.max_quota_limit = limit;
 
-    with_transaction(
-        Some(settings.clone()),
+    with_test_transaction(
+        settings.clone(),
         async |db: &mut dyn Db<Error = DbError>| {
             let uid = 1;
             let coll = "clients";
@@ -217,8 +217,8 @@ async fn quota_test_append_batch() -> Result<(), DbError> {
     let limit = 300;
     settings.limits.max_quota_limit = limit;
 
-    with_transaction(
-        Some(settings.clone()),
+    with_test_transaction(
+        settings.clone(),
         async |db: &mut dyn Db<Error = DbError>| {
             let uid = 1;
             let coll = "clients";
@@ -257,7 +257,7 @@ async fn quota_test_append_batch() -> Result<(), DbError> {
 async fn test_append_async_w_null() -> Result<(), DbError> {
     let settings = Settings::test_settings().syncstorage;
 
-    with_transaction(Some(settings), async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(settings, async |db: &mut dyn Db<Error = DbError>| {
         // Remember: TTL is seconds to live, not an expiry date
         let ttl_0 = 86_400;
         let ttl_1 = 86_400;
@@ -328,7 +328,7 @@ async fn test_append_async_w_null() -> Result<(), DbError> {
 async fn test_append_async_w_empty_string() -> Result<(), DbError> {
     let settings = Settings::test_settings().syncstorage;
 
-    with_transaction(Some(settings), async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(settings, async |db: &mut dyn Db<Error = DbError>| {
         let ttl_0 = 86_400;
         let bid_0 = "b0";
         let bid_1 = "b1";

@@ -38,30 +38,23 @@ pub async fn test_db(pool: DbPoolImpl) -> Result<Box<dyn Db<Error = DbError>>, D
 
 /// Wrap a test in a DB transaction that will be rolled back.  Read-only tests
 /// do not need this.
-pub async fn with_transaction<T>(
-    settings: Option<SyncstorageSettings>,
-    test: T,
-) -> Result<(), DbError>
+pub async fn with_test_transaction<S, T>(settings: S, test: T) -> Result<(), DbError>
 where
+    S: Into<Option<SyncstorageSettings>>,
     T: AsyncFnOnce(&mut dyn Db<Error = DbError>) -> Result<(), DbError>,
 {
-    let pool = db_pool(settings).await?;
+    let pool = db_pool(settings.into()).await?;
     let mut db = test_db(pool).await?;
 
     db.begin(true).await?;
     let result = test(&mut *db).await;
     let rollback_result = db.rollback().await;
 
-    // the rollback itself might fail
-    match (result, rollback_result) {
-        (Ok(()), rollback) => rollback,
     if result.is_err() {
         result
     } else {
         // the rollback itself might fail
         rollback_result
-    }
-
     }
 }
 

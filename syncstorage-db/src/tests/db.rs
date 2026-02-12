@@ -8,7 +8,9 @@ use syncstorage_db_common::{
     DEFAULT_BSO_TTL, Sorting, error::DbErrorIntrospect, params, util::SyncTimestamp,
 };
 
-use super::support::{db_pool, dbso, dbsos, gbso, gbsos, hid, pbso, postbso, with_transaction};
+use super::support::{
+    db_pool, dbso, dbsos, gbso, gbsos, hid, pbso, postbso, with_test_transaction,
+};
 use crate::{Db, DbError, tests::support::test_db};
 
 // distant future (year 2099) timestamp for tests
@@ -20,7 +22,7 @@ lazy_static! {
 
 #[tokio::test]
 async fn bso_successfully_updates_single_values() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "clients";
         let bid = "testBSO";
@@ -62,7 +64,7 @@ async fn bso_successfully_updates_single_values() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn bso_modified_not_changed_on_ttl_touch() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "clients";
         let bid = "testBSO";
@@ -85,7 +87,7 @@ async fn bso_modified_not_changed_on_ttl_touch() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn put_bso_updates() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "clients";
         let bid = "1";
@@ -108,7 +110,7 @@ async fn put_bso_updates() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn get_bsos_limit_offset() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "clients";
         let size = 12;
@@ -229,7 +231,7 @@ async fn get_bsos_limit_offset() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn get_bsos_newer() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "clients";
         let timestamp = db.timestamp().as_i64();
@@ -314,7 +316,7 @@ async fn get_bsos_newer() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn get_bsos_sort() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "clients";
 
@@ -387,7 +389,7 @@ async fn get_bsos_sort() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn delete_bsos_in_correct_collection() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let payload = "data";
         db.put_bso(pbso(uid, "clients", "b1", Some(payload), None, None))
@@ -404,7 +406,7 @@ async fn delete_bsos_in_correct_collection() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn get_storage_timestamp() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         db.create_collection("NewCollection1").await?;
         let col2 = db.create_collection("NewCollection2").await?;
@@ -427,7 +429,7 @@ async fn get_storage_timestamp() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn get_collection_id() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         db.get_collection_id("bookmarks").await?;
         Ok(())
     })
@@ -436,7 +438,7 @@ async fn get_collection_id() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn create_collection() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let name = "NewCollection";
         let cid = db.create_collection(name).await?;
         assert_ne!(cid, 0);
@@ -449,7 +451,7 @@ async fn create_collection() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn update_collection() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let collection = "test".to_owned();
 
         let cid = db.create_collection(&collection).await?;
@@ -466,7 +468,7 @@ async fn update_collection() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn delete_collection() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "NewCollection";
         for bid in 1u8..=3 {
@@ -502,7 +504,7 @@ async fn delete_collection() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn delete_collection_tombstone() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "test";
         let bid1 = "b0";
@@ -562,7 +564,7 @@ async fn delete_collection_tombstone() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn get_collection_timestamps() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "test";
         let cid = db.create_collection(coll).await?;
@@ -590,7 +592,7 @@ async fn get_collection_timestamps() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn get_collection_timestamps_tombstone() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "test";
         let cid = db.create_collection(coll).await?;
@@ -615,7 +617,7 @@ async fn get_collection_timestamps_tombstone() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn get_collection_usage() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let mut expected = HashMap::new();
 
@@ -674,7 +676,7 @@ async fn test_quota() -> Result<(), DbError> {
         return Ok(());
     }
 
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "bookmarks";
 
@@ -709,7 +711,7 @@ async fn test_quota() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn get_collection_counts() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let mut expected = HashMap::new();
         let mut rng = thread_rng();
@@ -732,7 +734,7 @@ async fn get_collection_counts() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn put_bso() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "NewCollection";
         let bid = "b0";
@@ -772,7 +774,7 @@ async fn put_bso() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn post_bsos() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "NewCollection";
         let result = db
@@ -830,7 +832,7 @@ async fn post_bsos() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn get_bso() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "clients";
         let bid = "b0";
@@ -851,7 +853,7 @@ async fn get_bso() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn get_bsos() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "clients";
         let sortindexes = [1, 3, 4, 2, 0];
@@ -922,7 +924,7 @@ async fn get_bsos() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn get_bso_timestamp() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "clients";
         let bid = "b0";
@@ -943,7 +945,7 @@ async fn get_bso_timestamp() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn delete_bso() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "clients";
         let bid = "b0";
@@ -959,7 +961,7 @@ async fn delete_bso() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn delete_bsos() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "clients";
         let bids = (0..=2).map(|i| format!("b{}", i));
@@ -1017,7 +1019,7 @@ async fn optimize() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn delete_storage() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let bid = "test";
         let coll = "my_collection";
@@ -1042,7 +1044,7 @@ async fn delete_storage() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn collection_cache() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "test";
         let cid = db.create_collection(coll).await?;
@@ -1081,7 +1083,7 @@ async fn lock_for_read() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn lock_for_write() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "clients";
         db.lock_for_write(params::LockCollection {
@@ -1098,7 +1100,7 @@ async fn lock_for_write() -> Result<(), DbError> {
 
 #[tokio::test]
 async fn heartbeat() -> Result<(), DbError> {
-    with_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         assert!(db.check().await?);
         Ok(())
     })
