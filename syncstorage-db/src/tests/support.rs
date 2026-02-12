@@ -55,8 +55,13 @@ where
     // the rollback itself might fail
     match (result, rollback_result) {
         (Ok(()), rollback) => rollback,
-        (Err(test_err), Ok(())) => Err(test_err),
-        (Err(test_err), Err(_rollback_err)) => Err(test_err),
+    if result.is_err() {
+        result
+    } else {
+        // the rollback itself might fail
+        rollback_result
+    }
+
     }
 }
 
