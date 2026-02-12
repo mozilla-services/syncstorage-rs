@@ -18,7 +18,7 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  build-and-push-syncserver:
+  build-and-push-syncstorage-rs:
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -36,7 +36,7 @@ jobs:
       packages: write
     uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
     with:
-      image_name: syncserver
+      image_name: syncstorage-rs
       gar_name: sync-prod
       project_id: moz-fx-sync-prod
       docker_build_args: |
@@ -70,7 +70,7 @@ jobs:
         TOKENSERVER_DATABASE_BACKEND=postgres
       should_tag_ghcr: true
 
-  build-and-push-syncserver-spanner-python-utils:
+  build-and-push-syncstorage-rs-spanner-python-utils:
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -88,7 +88,7 @@ jobs:
       packages: write
     uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
     with:
-      image_name: syncserver-spanner-python-utils
+      image_name: syncstorage-rs-spanner-python-utils
       gar_name: sync-prod
       project_id: moz-fx-sync-prod
       dockerfile_path: tools/spanner/Dockerfile
