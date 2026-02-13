@@ -5,6 +5,7 @@ use google_cloud_rust_raw::spanner::v1::{
     spanner_grpc::SpannerClient,
 };
 use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, Environment};
+
 use syncserver_common::{BlockingThreadpool, Metrics};
 use syncstorage_settings::Settings;
 
@@ -65,8 +66,6 @@ pub struct SpannerSessionSettings {
     /// Max idle time of a Session
     pub max_idle: Option<u32>,
 
-    /// For tests: disables transactions from committing
-    pub(crate) use_test_transactions: bool,
     /// Spanner emulator hostname when set to Spanner emulator mode
     pub emulator_host: Option<String>,
 }
@@ -81,12 +80,9 @@ impl SpannerSessionSettings {
             .to_owned();
 
         #[cfg(not(debug_assertions))]
-        let (use_test_transactions, use_mutations) = (false, true);
+        let use_mutations = true;
         #[cfg(debug_assertions)]
-        let (use_test_transactions, use_mutations) = (
-            settings.database_use_test_transactions,
-            settings.database_spanner_use_mutations,
-        );
+        let use_mutations = settings.database_spanner_use_mutations;
 
         Ok(Self {
             database,
@@ -94,7 +90,6 @@ impl SpannerSessionSettings {
             route_to_leader: settings.database_spanner_route_to_leader,
             max_lifespan: settings.database_pool_connection_lifespan,
             max_idle: settings.database_pool_connection_max_idle,
-            use_test_transactions,
             emulator_host: settings.spanner_emulator_host.clone(),
         })
     }

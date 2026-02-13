@@ -201,6 +201,7 @@ commands:
           environment:
             SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
             SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9010
+            SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@127.0.0.1/tokenserver
             RUST_TEST_THREADS: 1
           command: make spanner_test_with_coverage
 
@@ -411,11 +412,22 @@ jobs:
           # XXX: begin_test_transaction doesn't play nice over threaded tests
           RUST_TEST_THREADS: 1
       - image: gcr.io/cloud-spanner-emulator/emulator
+      - image: cimg/mysql:8.0
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+        environment:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+          MYSQL_DATABASE: syncstorage
     resource_class: xlarge
     steps:
       - checkout
       - display-versions
       - setup-python
+      - setup-mysql
+      - create-tokenserver-database-mysql
       # XXX: currently the time needed to setup-sccache negates its savings
       # - setup-sccache
       # - restore-sccache-cache
