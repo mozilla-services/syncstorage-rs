@@ -14,7 +14,7 @@ num_cpus = "1"
 syncserver-common = { path = "../syncserver-common" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 tokenserver-settings = { path = "../tokenserver-settings" }
-url = "2.1"
+url = "2.5"
 
 [dev-dependencies]
 temp-env = "0.3"
