@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9.2"
 
 [tool.poetry]
-package-mode = false 
+package-mode = false
 
 [tool.poetry.dependencies]
 cryptography = "^44.0.2"
