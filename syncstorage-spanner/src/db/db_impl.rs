@@ -171,9 +171,11 @@ impl Db for SpannerDb {
             .begin_transaction_async_opt(&req, spanner.session_opt()?)?
             .await?;
 
+        let transaction_id = transaction.take_id();
         let mut ts = TransactionSelector::new();
-        ts.set_id(transaction.take_id());
+        ts.set_id(transaction_id);
         self.session.transaction = Some(ts);
+
         Ok(())
     }
 
@@ -183,13 +185,9 @@ impl Db for SpannerDb {
             return Ok(());
         }
 
-        if cfg!(debug_assertions) && self.conn.settings.use_test_transactions {
-            // don't commit test transactions
-            return Ok(());
-        }
-
         if let Some(transaction) = self.get_transaction().await? {
             let spanner = &self.conn;
+
             let mut req = CommitRequest::new();
             req.set_session(spanner.session.get_name().to_owned());
             req.set_transaction_id(transaction.get_id().to_vec());
@@ -214,6 +212,7 @@ impl Db for SpannerDb {
 
         if let Some(transaction) = self.get_transaction().await? {
             let spanner = &self.conn;
+
             let mut req = RollbackRequest::new();
             req.set_session(spanner.session.get_name().to_owned());
             req.set_transaction_id(transaction.get_id().to_vec());

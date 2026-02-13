@@ -25,6 +25,21 @@ jobs:
           - 9010:9010
           - 9020:9020
 
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+          MYSQL_DATABASE: syncstorage
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
     env:
       # The code expects a spanner URL like:
       SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
@@ -86,10 +101,16 @@ jobs:
           # prepare-spanner.sh uses the REST API (port 9020)
           scripts/prepare-spanner.sh
 
+      - name: Create Tokenserver database
+        run: |
+          mysql -u root -ppassword -h 127.0.0.1 -e 'CREATE DATABASE tokenserver;'
+          mysql -u root -ppassword -h 127.0.0.1 -e "GRANT ALL ON tokenserver.* to 'test'@'%';"
+
       - name: Run Spanner unit tests with coverage
         env:
           SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
           SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: localhost:9010
+          SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@127.0.0.1/tokenserver
           RUST_TEST_THREADS: 1
         run: make spanner_test_with_coverage
 
