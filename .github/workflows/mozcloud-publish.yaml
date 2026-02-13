@@ -18,6 +18,9 @@ on:
   workflow_dispatch: {}
 
 jobs:
+  # Note: we are moving towards renaming all images `syncserver`, the union of sync and tokenserver.
+  # This presently remains for the time being to simplify deploys by maintaining `image_name: syncstorage-rs`.
+  # Historical context: <https://github.com/mozilla-services/syncstorage-rs/pull/1306>
   build-and-push-syncstorage-rs:
     if: >
       github.event_name == 'workflow_dispatch' ||
@@ -44,7 +47,7 @@ jobs:
         MYSQLCLIENT_PKG=libmysqlclient-dev
       should_tag_ghcr: true
 
-  build-and-push-syncstorage-rs-postgres:
+  build-and-push-syncserver-postgres:
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -62,7 +65,7 @@ jobs:
       packages: write
     uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
     with:
-      image_name: syncstorage-rs-postgres
+      image_name: syncserver-postgres
       gar_name: sync-prod
       project_id: moz-fx-sync-prod
       docker_build_args: |
@@ -70,6 +73,9 @@ jobs:
         TOKENSERVER_DATABASE_BACKEND=postgres
       should_tag_ghcr: true
 
+  # Note: we are moving towards renaming all images `syncserver`, the union of sync and tokenserver.
+  # This presently remains for the time being to simplify deploys by maintaining `image_name: syncstorage-rs-spanner-python-utils`.
+  # Historical context: <https://github.com/mozilla-services/syncstorage-rs/pull/1306>
   build-and-push-syncstorage-rs-spanner-python-utils:
     if: >
       github.event_name == 'workflow_dispatch' ||
@@ -95,7 +101,7 @@ jobs:
       image_build_context: tools/spanner
       should_tag_ghcr: true
 
-  build-and-push-syncstorage-rs-postgres-python-utils:
+  build-and-push-syncserver-postgres-python-utils:
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -113,14 +119,14 @@ jobs:
       packages: write
     uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
     with:
-      image_name: syncstorage-rs-postgres-python-utils
+      image_name: syncserver-postgres-python-utils
       gar_name: sync-prod
       project_id: moz-fx-sync-prod
       dockerfile_path: tools/postgres/Dockerfile
       image_build_context: tools/postgres
       should_tag_ghcr: true
 
-  build-and-push-syncstorage-rs-mysql:
+  build-and-push-syncserver-mysql:
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -138,7 +144,7 @@ jobs:
       packages: write
     uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
     with:
-      image_name: syncstorage-rs-mysql
+      image_name: syncserver-mysql
       gar_name: sync-prod
       project_id: moz-fx-sync-prod
       docker_build_args: |
