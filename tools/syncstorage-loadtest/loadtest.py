@@ -1,15 +1,17 @@
+"""Load testing scenarios for SyncStorage using Molotov."""
+
 import sys
 
 sys.path.append(".")  # NOQA
-import os
 import base64
-import time
-import random
 import json
+import os
+import random
+import time
+from typing import Any
 
+from molotov import scenario, setup_session, teardown_session
 from storage import StorageClient
-from molotov import setup_session, teardown_session, scenario
-
 
 _PAYLOAD = """\
 This is the metaglobal payload which contains
@@ -31,11 +33,29 @@ _BATCH_MAX_COUNT = 100
 _DISABLE_DELETES = os.environ.get("DISABLE_DELETES", "false").lower() in ("true", "1")
 
 
-def should_do(name):
+def should_do(name: str) -> bool:
+    """Determine if an action should be performed based on probability.
+
+    Args:
+        name: The name of the action to check.
+
+    Returns:
+        bool: True if the action should be performed, False otherwise.
+
+    """
     return random.random() <= _PROBS[name]
 
 
-def get_num_requests(name):
+def get_num_requests(name: str) -> int:
+    """Get the number of requests to make based on weighted distribution.
+
+    Args:
+        name: The name of the request type to get count for.
+
+    Returns:
+        int: The number of requests to make.
+
+    """
     weights = _WEIGHTS[name]
     i = random.randint(1, sum(weights))
     count = 0
@@ -49,7 +69,7 @@ def get_num_requests(name):
 
 
 @setup_session()
-async def _session(worker_num, session):
+async def _session(worker_num: int, session: Any) -> None:
     exc = []
 
     def _run():
@@ -70,13 +90,19 @@ async def _session(worker_num, session):
 
 
 @teardown_session()
-async def _teardown_session(worker_num, session):
+async def _teardown_session(worker_num: int, session: Any) -> None:
     if hasattr(session, "storage") and session.storage:
         session.storage.cleanup()
 
 
 @scenario(1)
-async def test(session):
+async def test(session: Any) -> None:
+    """Main load test scenario for SyncStorage.
+
+    Args:
+        session: The Molotov session object.
+
+    """
     storage = session.storage
 
     # Respect the server limits.
@@ -143,14 +169,14 @@ async def test(session):
 
     for x in range(num_requests):
         url = "/storage/" + cols[x]
-        data = []
+        wbo_list: list[dict[str, str]] = []
         # Random batch size, skewed slightly towards the upper limit.
         items_per_batch = min(random.randint(20, batch_max_count + 80), batch_max_count)
         for _i in range(items_per_batch):
             randomness = os.urandom(10)
-            id = base64.urlsafe_b64encode(randomness).rstrip(b"=")
-            id = id.decode("utf8")
-            id += str(int((time.time() % 100) * 100000))
+            id_bytes = base64.urlsafe_b64encode(randomness).rstrip(b"=")
+            id_str = id_bytes.decode("utf8")
+            id_str += str(int((time.time() % 100) * 100000))
             # Random payload length.  They can be big, but skew small.
             # This gives min=300, mean=450, max=config.max_record_payload_bytes
             payload_length = min(
@@ -162,10 +188,10 @@ async def test(session):
             token = storage.auth_token.decode("utf8")
             payload_chunks = int((payload_length / len(token)) + 1)
             payload = (token * payload_chunks)[:payload_length]
-            wbo = {"id": id, "payload": payload}
-            data.append(wbo)
+            wbo = {"id": id_str, "payload": payload}
+            wbo_list.append(wbo)
 
-        data = json.dumps(data)
+        data = json.dumps(wbo_list)
         status = 200
         if transact:
             # Batch uploads only return a 200 on commit.  An Accepted(202)
