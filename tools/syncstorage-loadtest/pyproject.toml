@@ -32,6 +32,20 @@ dev = [
     "isort>=6.0.1",
 ]
 
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = [
+    "fxa.*",
+    "molotov.*",
+    "tokenlib.*"
+]
+
 [build-system]
 requires = ["poetry-core>=2.0.0"]
 build-backend = "poetry.core.masonry.api"
