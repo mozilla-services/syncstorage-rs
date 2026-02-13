@@ -14,7 +14,7 @@ tokenserver-mysql = { path = "../tokenserver-mysql", optional = true }
 tokenserver-postgres = { path = "../tokenserver-postgres", optional = true }
 tokenserver-settings = { path = "../tokenserver-settings" }
 tokio = { workspace = true, features = ["macros", "sync"] }
-url = "2.1"
+url = "2.5"
 
 [dev-dependencies]
 env_logger.workspace = true
