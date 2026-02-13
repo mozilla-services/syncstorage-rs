@@ -98,6 +98,7 @@ impl Db for PgDb {
             .select(user_collections::modified)
             .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
+            .filter(user_collections::modified.gt(PRETOUCH_DT))
             .for_share()
             .first(&mut self.conn)
             .await
@@ -235,6 +236,7 @@ impl Db for PgDb {
         let modified = user_collections::table
             .select(max(user_collections::modified))
             .filter(user_collections::user_id.eq(params.legacy_id as i64))
+            .filter(user_collections::modified.gt(PRETOUCH_DT))
             .first::<Option<_>>(&mut self.conn)
             .await?
             .unwrap_or_else(SyncTimestamp::zero);
