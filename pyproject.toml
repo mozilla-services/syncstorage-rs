@@ -13,12 +13,12 @@ requires-python = ">=3.9.2"
 package-mode = false
 
 [tool.poetry.dependencies]
-cryptography = "^44.0.2"
+cryptography = "^46.0.5"
 pyfxa = "^0.8.1"
 tokenlib = "^2.0.0"
 
 [tool.poetry.group.tokenserver-unit-tests.dependencies]
-cryptography = "44.0.2"
+cryptography = "46.0.5"
 hawkauthlib = "^2.0.0"
 konfig = "^1.1"
 mysqlclient = "^2.2.7"
