@@ -15,7 +15,7 @@ package-mode = false
 
 [tool.poetry.dependencies]
 authlib = "^1.6.6"
-cryptography = "^45.0.4"
+cryptography = "^46.0.5"
 locust = "^2.37.10"
 pyjwt = "^2.10.1"
 sqlalchemy = "1.4.46"
