@@ -19,17 +19,17 @@ dependencies = [
     "aiodogstatsd>=0.16.0,<0.17.0",
     "PyFxA>=0.7.0",
     "PyJWT>=2.0.0",
-    "cryptography>=40.0.0",
+    "cryptography>=46.0.5",
 ]
 
 [project.optional-dependencies]
 dev = [
     "mypy>=1.16.0",
     "pydocstyle>=6.3.0",
-    "ruff>=0.12.7",
-    "black>=25.1.0",
+    "ruff>=0.15.1",
+    "black>=26.1.0",
     "bandit>=1.8.3",
-    "isort>=6.0.1",
+    "isort>=7.0.0",
 ]
 
 [tool.mypy]

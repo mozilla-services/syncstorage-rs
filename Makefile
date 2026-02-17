@@ -225,6 +225,14 @@ ruff-fmt-chk: $(INSTALL_STAMP)  ##  Format check with change summary.
 ruff-format: $(INSTALL_STAMP)  ##  Formats files in directory.
 	$(POETRY) run ruff format $(TOOLS_DIR)
 
+.PHONY: py-deps-latest
+py-deps-latest: $(INSTALL_STAMP)  ##  Checks latest versions in PyPI
+	$(POETRY) show --latest --top-level $(TOOLS_DIR)
+
+.PHONY: py-deps-outdated
+py-deps-outdated: $(INSTALL_STAMP)  ##  Checks for outdated Python packages
+	$(POETRY) show --outdated $(TOOLS_DIR)
+
 # Documentation utilities
 .PHONY: doc-install-deps
 doc-install-deps:  ## Install the dependencies for doc generation
