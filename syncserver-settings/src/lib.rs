@@ -55,11 +55,11 @@ pub struct Settings {
 impl Settings {
     /// Load the settings from the config file if supplied, then the environment.
     pub fn with_env_and_config_file(filename: Option<&str>) -> Result<Self, ConfigError> {
-        let mut s = Config::default();
+        let mut builder = Config::builder();
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
-            s.merge(File::with_name(config_filename))?;
+            builder = builder.add_source(File::with_name(config_filename));
         }
 
         // Merge the environment overrides
@@ -68,25 +68,28 @@ impl Settings {
         // Environment ever change their policy about case insensitivity.
         // This will accept environment variables specified as
         // `SYNC_FOO__BAR_VALUE="gorp"` as `foo.bar_value = "gorp"`
-        s.merge(Environment::with_prefix(&PREFIX.to_uppercase()).separator("__"))?;
+        builder =
+            builder.add_source(Environment::with_prefix(&PREFIX.to_uppercase()).separator("__"));
+        let settings: Config = builder.build()?;
 
-        match s.try_into::<Self>() {
-            Ok(mut s) => {
-                s.syncstorage.normalize();
-                if s.worker_max_blocking_threads == 0 {
+        match settings.try_deserialize::<Self>() {
+            Ok(mut settings) => {
+                settings.syncstorage.normalize();
+                if settings.worker_max_blocking_threads == 0 {
                     // Db backends w/ blocking calls block via
                     // actix-threadpool: grow its size to accommodate the
                     // full number of connections
                     let total_db_pool_size = {
-                        let syncstorage_pool_max_size =
-                            if s.syncstorage.uses_spanner() || !s.syncstorage.enabled {
-                                0
-                            } else {
-                                s.syncstorage.database_pool_max_size
-                            };
+                        let syncstorage_pool_max_size = if settings.syncstorage.uses_spanner()
+                            || !settings.syncstorage.enabled
+                        {
+                            0
+                        } else {
+                            settings.syncstorage.database_pool_max_size
+                        };
 
-                        let tokenserver_pool_max_size = if s.tokenserver.enabled {
-                            s.tokenserver.database_pool_max_size
+                        let tokenserver_pool_max_size = if settings.tokenserver.enabled {
+                            settings.tokenserver.database_pool_max_size
                         } else {
                             0
                         };
@@ -94,11 +97,11 @@ impl Settings {
                         syncstorage_pool_max_size + tokenserver_pool_max_size
                     };
 
-                    let fxa_threads = if s.tokenserver.enabled
-                        && s.tokenserver.fxa_oauth_primary_jwk.is_none()
-                        && s.tokenserver.fxa_oauth_secondary_jwk.is_none()
+                    let fxa_threads = if settings.tokenserver.enabled
+                        && settings.tokenserver.fxa_oauth_primary_jwk.is_none()
+                        && settings.tokenserver.fxa_oauth_secondary_jwk.is_none()
                     {
-                        s.tokenserver
+                        settings.tokenserver
                             .additional_blocking_threads_for_fxa_requests
                             .ok_or_else(|| {
                                 println!(
@@ -113,10 +116,10 @@ impl Settings {
                     } else {
                         0
                     };
-                    s.worker_max_blocking_threads =
+                    settings.worker_max_blocking_threads =
                         (total_db_pool_size + fxa_threads).max(num_cpus::get() as u32 * 5) as usize;
                 }
-                Ok(s)
+                Ok(settings)
             }
             // Configuration errors are not very sysop friendly, Try to make them
             // a bit more 3AM useful.
