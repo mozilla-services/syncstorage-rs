@@ -21,6 +21,7 @@ INTEGRATION_TEST_DIR_TOKENSERVER := $(TOOLS_DIR)/integration_tests/tokenserver
 SPANNER_DIR := $(TOOLS_DIR)/spanner
 TOKENSERVER_UTIL_DIR := $(TOOLS_DIR)/tokenserver
 LOAD_TEST_DIR := $(TOOLS_DIR)/tokenserver/loadtests
+SYNCSTORAGE_LOAD_TEST_DIR := $(TOOLS_DIR)/syncstorage-loadtest
 RUST_LOG ?= debug
 
 # In order to be consumed by the ETE Test Metric Pipeline, files need to follow a strict naming
@@ -211,6 +212,57 @@ tokenserver-load:
 	# install dependencies for tokenserver load tests.
 	$(POETRY) -V
 	$(POETRY) install --directory=$(LOAD_TEST_DIR) --no-root
+
+## Syncstorage Load Tests
+syncstorage-loadtest:
+	# install dependencies for syncstorage load tests.
+	@echo "Installing syncstorage load test dependencies with Python 3.10+"
+	@cd $(SYNCSTORAGE_LOAD_TEST_DIR) && \
+		eval "$$(pyenv init -)" && \
+		eval "$$(pyenv virtualenv-init -)" && \
+		python --version && \
+		$(POETRY) env use python && \
+		$(POETRY) install --no-root
+
+.PHONY: loadtest-install
+loadtest-install: syncstorage-loadtest  ##  Install dependencies for syncstorage load tests.
+
+.PHONY: loadtest-direct
+loadtest-direct: syncstorage-loadtest  ##  Run load tests with direct access mode (requires SERVER_URL with secret).
+	@echo "Running syncstorage load tests in direct access mode..."
+	@echo "Usage: make loadtest-direct SERVER_URL='http://localhost:8000#secretValue' [MOLOTOV_ARGS='--max-runs 5']"
+	cd $(SYNCSTORAGE_LOAD_TEST_DIR) && \
+	SERVER_URL=$(or $(SERVER_URL),"http://localhost:8000#changeme") \
+	$(POETRY) run molotov $(or $(MOLOTOV_ARGS),--max-runs 5 -cxv) loadtest.py
+
+.PHONY: loadtest-fxa
+loadtest-fxa: syncstorage-loadtest  ##  Run load tests with FxA OAuth mode (Stage environment).
+	@echo "Running syncstorage load tests with FxA OAuth..."
+	@echo "Usage: make loadtest-fxa [SERVER_URL=...] [MOLOTOV_ARGS='--workers 3 --duration 60']"
+	cd $(SYNCSTORAGE_LOAD_TEST_DIR) && \
+	SERVER_URL=$(or $(SERVER_URL),"https://token.stage.mozaws.net") \
+	FXA_API_HOST=$(or $(FXA_API_HOST),"https://api-accounts.stage.mozaws.net") \
+	FXA_OAUTH_HOST=$(or $(FXA_OAUTH_HOST),"https://oauth.stage.mozaws.net") \
+	$(POETRY) run molotov $(or $(MOLOTOV_ARGS),--workers 3 --duration 60 -v) loadtest.py
+
+.PHONY: loadtest-jwt
+loadtest-jwt: syncstorage-loadtest  ##  Run load tests with self-signed JWT mode (requires OAUTH_PRIVATE_KEY_FILE).
+	@echo "Running syncstorage load tests with self-signed JWTs..."
+	@echo "Usage: make loadtest-jwt OAUTH_PRIVATE_KEY_FILE=/path/to/key.pem [SERVER_URL=...] [MOLOTOV_ARGS='--workers 100 --duration 300']"
+	@if [ -z "$(OAUTH_PRIVATE_KEY_FILE)" ]; then \
+		echo "Error: OAUTH_PRIVATE_KEY_FILE is required"; \
+		echo "Example: make loadtest-jwt OAUTH_PRIVATE_KEY_FILE=/path/to/load_test.pem"; \
+		exit 1; \
+	fi
+	cd $(SYNCSTORAGE_LOAD_TEST_DIR) && \
+	SERVER_URL=$(or $(SERVER_URL),"http://localhost:8000") \
+	OAUTH_PRIVATE_KEY_FILE=$(OAUTH_PRIVATE_KEY_FILE) \
+	$(POETRY) run molotov $(or $(MOLOTOV_ARGS),--workers 100 --duration 300 -v) loadtest.py
+
+.PHONY: loadtest-docker
+loadtest-docker:  ##  Run load tests in Docker container.
+	@echo "Running syncstorage load tests in Docker..."
+	docker run -e TEST_REPO=https://github.com/mozilla-services/syncstorage-loadtest -e TEST_NAME=test tarekziade/molotov:latest
 
 ## Python Utilities
 .PHONY: ruff-lint
