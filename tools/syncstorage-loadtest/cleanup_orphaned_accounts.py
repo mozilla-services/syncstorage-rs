@@ -6,8 +6,10 @@ Usage:
     python cleanup_orphaned_accounts.py
 """
 
-import os
 import json
+import os
+from typing import Any
+
 from fxa.core import Client
 from fxa.errors import ClientError, ServerError
 
@@ -15,7 +17,13 @@ ACCT_TRACKING_FILE = os.path.join(os.path.dirname(__file__), ".accounts_tracking
 FXA_API_HOST = os.environ.get("FXA_API_HOST", "https://api-accounts.stage.mozaws.net")
 
 
-def load_tracked_accounts():
+def load_tracked_accounts() -> list[dict[str, Any]]:
+    """Load tracked FxA accounts from the tracking file.
+
+    Returns:
+        list: List of account dictionaries with email and password.
+
+    """
     if not os.path.exists(ACCT_TRACKING_FILE):
         return []
 
@@ -27,7 +35,16 @@ def load_tracked_accounts():
         return []
 
 
-def save_tracked_accounts(accounts):
+def save_tracked_accounts(accounts: list[dict[str, Any]]) -> None:
+    """Save tracked FxA accounts to the tracking file.
+
+    Args:
+        accounts: List of account dictionaries to save.
+
+    Raises:
+        IOError: If the file cannot be written.
+
+    """
     try:
         if not accounts:
             if os.path.exists(ACCT_TRACKING_FILE):
@@ -40,13 +57,29 @@ def save_tracked_accounts(accounts):
         raise
 
 
-def remove_account_from_tracking(email):
+def remove_account_from_tracking(email: str) -> None:
+    """Remove an account from the tracking file by email.
+
+    Args:
+        email: The email address of the account to remove.
+
+    """
     accounts = load_tracked_accounts()
     accounts = [acc for acc in accounts if acc["email"] != email]
     save_tracked_accounts(accounts)
 
 
-def cleanup_account(client, account):
+def cleanup_account(client: Client, account: dict[str, Any]) -> bool:
+    """Delete a single FxA account.
+
+    Args:
+        client: The FxA client instance.
+        account: Dictionary containing email and password.
+
+    Returns:
+        bool: True if deletion was successful, False otherwise.
+
+    """
     email = account["email"]
     password = account["password"]
 
@@ -62,7 +95,13 @@ def cleanup_account(client, account):
         return False
 
 
-def cleanup_all_accounts():
+def cleanup_all_accounts() -> tuple[int, int]:
+    """Delete all tracked FxA accounts.
+
+    Returns:
+        tuple: A tuple of (successful_count, failed_count).
+
+    """
     accounts = load_tracked_accounts()
 
     if not accounts:
@@ -88,7 +127,8 @@ def cleanup_all_accounts():
     return successful, failed
 
 
-def main():
+def main() -> None:
+    """Run the account cleanup process."""
     cleanup_all_accounts()
 
 
