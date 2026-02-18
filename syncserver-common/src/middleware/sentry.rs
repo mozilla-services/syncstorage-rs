@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::BTreeMap, marker::PhantomData, rc::Rc, sync::Arc};
+use std::{cell::RefCell, collections::BTreeMap, env, marker::PhantomData, rc::Rc, sync::Arc};
 
 use actix_web::{
     Error,
@@ -15,13 +15,17 @@ use crate::{ReportableError, Taggable};
 pub struct SentryWrapper<E> {
     metrics: Arc<StatsdClient>,
     phantom: PhantomData<E>,
+    sentry_enabled: bool,
 }
 
 impl<E> SentryWrapper<E> {
     pub fn new(metrics: Arc<StatsdClient>) -> Self {
+        let sentry_enabled = env::var("SENTRY_DSN").is_ok_and(|dsn| !dsn.is_empty());
+
         Self {
             metrics,
             phantom: PhantomData,
+            sentry_enabled,
         }
     }
 }
@@ -43,6 +47,7 @@ where
             service: Rc::new(RefCell::new(service)),
             metrics: self.metrics.clone(),
             phantom: PhantomData,
+            sentry_enabled: self.sentry_enabled,
         })
     }
 }
@@ -52,6 +57,7 @@ pub struct SentryWrapperMiddleware<S, E> {
     service: Rc<RefCell<S>>,
     metrics: Arc<StatsdClient>,
     phantom: PhantomData<E>,
+    sentry_enabled: bool,
 }
 
 impl<S, B, E> Service<ServiceRequest> for SentryWrapperMiddleware<S, E>
@@ -77,6 +83,7 @@ where
 
         // get the tag information
         let metrics = self.metrics.clone();
+        let sentry_enabled = self.sentry_enabled;
         let tags = sreq.get_tags();
         let extras = sreq.get_extras();
 
@@ -99,12 +106,19 @@ where
                         }
                     };
                     debug!("Reporting error to Sentry (service error): {}", error);
+
                     let mut event = event_from_actix_error::<E>(&error);
                     // Add in the tags from the request
                     event.tags.extend(tags);
                     event.extra.extend(extras);
-                    let event_id = hub.capture_event(event);
-                    trace!("event_id = {}", event_id);
+
+                    if sentry_enabled {
+                        let event_id = hub.capture_event(event);
+                        trace!("event_id = {}", event_id);
+                    } else {
+                        // log if Sentry is not configured
+                        log_event(&event);
+                    }
                     return Err(error);
                 }
             };
@@ -118,9 +132,16 @@ where
                     return Ok(response);
                 }
                 debug!("Reporting error to Sentry (response error): {}", error);
+
                 let event = event_from_actix_error::<E>(error);
-                let event_id = hub.capture_event(event);
-                trace!("event_id = {}", event_id);
+
+                if sentry_enabled {
+                    let event_id = hub.capture_event(event);
+                    trace!("event_id = {}", event_id);
+                } else {
+                    // log if Sentry is not configured
+                    log_event(&event);
+                }
             }
             Ok(response)
         }
@@ -265,4 +286,26 @@ pub fn exception_from_reportable_error(err: &dyn ReportableError) -> sentry::pro
             .unwrap_or_default(),
         ..Default::default()
     }
+}
+
+/// Log the error event instead when Sentry is not configured.
+fn log_event(event: &sentry::protocol::Event<'static>) {
+    let first_exception = event.exception.first();
+    let error_type = first_exception.map_or("UnknownError", |e| e.ty.as_str());
+    let error_value = first_exception
+        .and_then(|e| e.value.as_deref())
+        .unwrap_or("No error message");
+    error!(
+        "{}", error_value;
+        "error_type" => error_type,
+        "tags" => ?event.tags,
+        "extra" => ?event.extra,
+        "url" => event.request.as_ref()
+            .and_then(|r| r.url.as_ref())
+            .map(|u| u.to_string())
+            .unwrap_or_default(),
+        "method" => event.request.as_ref()
+            .and_then(|r| r.method.as_deref())
+            .unwrap_or(""),
+    );
 }
