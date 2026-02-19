@@ -24,6 +24,7 @@ services:
       SYNC_SYNCSTORAGE__DATABASE_URL: postgres://test:test@sync-db:5432/syncstorage
       SYNC_TOKENSERVER__DATABASE_URL: postgres://test:test@tokenserver-db:5432/tokenserver
       SYNC_TOKENSERVER__ENABLED: "true"
+      SYNC_TOKENSERVER__NODE_TYPE: postgres
       SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: api-accounts.stage.mozaws.net
       SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: secret0
       SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
