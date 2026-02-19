@@ -20,7 +20,7 @@ sha2.workspace = true
 thiserror.workspace = true
 slog-scope.workspace = true
 
-dyn-clone = "1.0.4"
+dyn-clone = "1.0.20"
 reqwest = { workspace = true, features = ["json"] }
 ring = "0.17"
 syncserver-common = { path = "../syncserver-common" }
@@ -32,7 +32,7 @@ pyo3 = { version = "0.24", features = ["auto-initialize"], optional = true }
 
 [dev-dependencies]
 # mockito = "0.30"
-mockito = "1.4.0"
+mockito = "1.7.2"
 tokio = { workspace = true, features = ["macros"] }
 
 [features]

@@ -374,3 +374,20 @@ async fn test_append_async_w_empty_string() -> Result<(), DbError> {
     })
     .await
 }
+
+#[tokio::test]
+async fn pretouch() -> Result<(), DbError> {
+    let settings = Settings::test_settings().syncstorage;
+    with_test_transaction(settings, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = 1;
+        let coll = "clients";
+        db.delete_storage(hid(uid)).await?;
+        let _batch = db.create_batch(cb(uid, coll, vec![])).await?;
+        // client with no timestamp (or PRETOUCH on some backends) should act as if
+        // no timestamp exists
+        let ts = db.get_storage_timestamp(hid(uid)).await?;
+        assert_eq!(ts, SyncTimestamp::zero());
+        Ok(())
+    })
+    .await
+}

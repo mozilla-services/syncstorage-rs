@@ -1,11 +1,11 @@
-from base64 import urlsafe_b64encode as b64encode
 import binascii
-import jwt
 import os
+from base64 import urlsafe_b64encode as b64encode
 
+import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from locust import HttpUser, task, between
+from locust import HttpUser, between, task
 
 DEFAULT_OAUTH_SCOPE = "https://identity.mozilla.com/apps/oldsync"
 

@@ -1,4 +1,5 @@
 import sys
+
 from authlib.jose import JsonWebKey
 
 raw_public_key = open(sys.argv[1], "rb").read()

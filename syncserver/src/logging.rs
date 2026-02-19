@@ -8,7 +8,7 @@ use std::os::linux::fs::MetadataExt;
 
 use crate::error::ApiResult;
 
-use slog::{self, Drain, slog_o};
+use slog::{self, Drain};
 use slog_mozlog_json::MozLogJson;
 
 #[cfg(target_os = "linux")]
@@ -44,7 +44,7 @@ pub fn init_logging(json: bool) -> ApiResult<()> {
             .fuse();
         let drain = slog_envlogger::new(drain);
         let drain = slog_async::Async::new(drain).build().fuse();
-        slog::Logger::root(drain, slog_o!())
+        slog::Logger::root(drain, slog::o!())
     } else {
         let drain = if connected_to_journal() {
             #[cfg(target_os = "linux")]
@@ -59,7 +59,7 @@ pub fn init_logging(json: bool) -> ApiResult<()> {
             let drain = slog_envlogger::new(drain);
             slog_async::Async::new(drain).build().fuse()
         };
-        slog::Logger::root(drain, slog_o!())
+        slog::Logger::root(drain, slog::o!())
     };
     // XXX: cancel slog_scope's NoGlobalLoggerSet for now, it's difficult to
     // prevent it from potentially panicing during tests. reset_logging resets
@@ -71,6 +71,6 @@ pub fn init_logging(json: bool) -> ApiResult<()> {
 }
 
 pub fn reset_logging() {
-    let logger = slog::Logger::root(slog::Discard, slog_o!());
+    let logger = slog::Logger::root(slog::Discard, slog::o!());
     slog_scope::set_global_logger(logger).cancel_reset();
 }
