@@ -52,3 +52,34 @@ mermaid-init.js
 mermaid.min.js
 docs/output
 openapi.json
+
+# vim
+*.sw[op]
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+loads.json
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# PyBuilder
+target/
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*,cover
+
+# Other
+*.BAK
+run
+tmp
