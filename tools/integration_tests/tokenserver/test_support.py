@@ -37,6 +37,16 @@ class TestCase:
         engine = create_engine(db_url)
         self.database = engine.execution_options(isolation_level="AUTOCOMMIT").connect()
         self.db_mode = os.environ["SYNC_TOKENSERVER__DATABASE_URL"].split(":")[0]
+        # Extract the expected node_type from the syncstorage database URL
+        # This matches the storage backend type (mysql, postgres, spanner)
+        syncstorage_url = os.environ.get("SYNC_SYNCSTORAGE__DATABASE_URL", "spanner://")
+        self.expected_node_type = syncstorage_url.split(":")[0]
+        # Normalize database URL schemes to match node_type values
+        if self.expected_node_type == "postgresql":
+            self.expected_node_type = "postgres"
+        # MySQL URLs might use "mysql" or other variants - normalize to "mysql"
+        if self.expected_node_type.startswith("mysql"):
+            self.expected_node_type = "mysql"
         host_url = urlparse.urlparse(self.TOKENSERVER_HOST)
         self.app = TestApp(
             self.TOKENSERVER_HOST,
