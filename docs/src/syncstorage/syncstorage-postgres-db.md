@@ -22,7 +22,7 @@ Stores per-user, per-collection metadata.
 
 Supports last-modified time tracking at the collection level.
 
-Enables `/info/collections`, `/info/collection_counts`, and `/info/collection_usage endpoints`.
+Enables `/info/collections`, `/info/collection_counts`, and `/info/collection_usage` endpoints.
 
 ## BSOS Table
 Stores actual records being synced — Basic Storage Objects.
@@ -54,7 +54,53 @@ Maps internal numeric IDs to collection names.
 
 Used to reference collections efficiently via ID.
 
-Collections can include bookmarks, tabs, passwords, etc.
+### Standard Collections
+The following 13 standard collections are expected to exist by clients and have fixed IDs. These IDs are reserved and should not be modified.
+
+| Collection ID | Name          | Description                                                    |
+|---------------|---------------|----------------------------------------------------------------|
+| 1             | `clients`     | Information about connected devices/clients                    |
+| 2             | `crypto`      | Encryption-related metadata                                    |
+| 3             | `forms`       | Form data and autocomplete information                         |
+| 4             | `history`     | Browser history entries                                        |
+| 5             | `keys`        | Encryption keys for sync                                       |
+| 6             | `meta`        | Metadata about sync state                                      |
+| 7             | `bookmarks`   | Browser bookmarks and folders                                  |
+| 8             | `prefs`       | Browser preferences and settings                               |
+| 9             | `tabs`        | Open tabs across devices                                       |
+| 10            | `passwords`   | Saved login credentials                                        |
+| 11            | `addons`      | Browser extensions and add-ons                                 |
+| 12            | `addresses`   | Saved addresses for autofill                                   |
+| 13            | `creditcards` | Saved payment methods (encrypted)                              |
+
+### Collection ID Ranges
+- **Collection IDs < 100**: Reserved for standard collections. These are the core sync collections used by most clients (see above).
+- **Collection IDs >= 100**: Custom collections added by add-ons using the Sync Storage API, known integrations, or load tests (usually prefixed with "xxx").
+
+#### Migration SQL
+The standard collections are inserted during database migration:
+
+```sql
+-- These are the 13 standard collections that are expected to exist by clients.
+-- The IDs are fixed.
+-- Reserved spaces for additions to the standard collections begin after 100.
+INSERT INTO collections (collection_id, name) VALUES
+    ( 1, 'clients'),
+    ( 2, 'crypto'),
+    ( 3, 'forms'),
+    ( 4, 'history'),
+    ( 5, 'keys'),
+    ( 6, 'meta'),
+    ( 7, 'bookmarks'),
+    ( 8, 'prefs'),
+    ( 9, 'tabs'),
+    (10, 'passwords'),
+    (11, 'addons'),
+    (12, 'addresses'),
+    (13, 'creditcards');
+```
+
+
 
 ## Batches Table
 Temporary table for staging batch uploads before final commit.
