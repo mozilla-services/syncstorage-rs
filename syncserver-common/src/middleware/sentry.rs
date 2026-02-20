@@ -290,7 +290,7 @@ pub fn exception_from_reportable_error(err: &dyn ReportableError) -> sentry::pro
 
 /// Log the error event instead when Sentry is not configured.
 fn log_event(event: &sentry::protocol::Event<'static>) {
-    let first_exception = event.exception.first();
+    let first_exception = event.exception.last();
     let error_type = first_exception.map_or("UnknownError", |e| e.ty.as_str());
     let error_value = first_exception
         .and_then(|e| e.value.as_deref())
