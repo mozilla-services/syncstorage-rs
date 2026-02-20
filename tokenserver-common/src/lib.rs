@@ -11,11 +11,17 @@ pub enum NodeType {
     MySql,
     #[serde(rename = "spanner")]
     Spanner,
+    #[serde(rename = "postgres")]
+    Postgres,
 }
 
 impl NodeType {
     pub fn spanner() -> Self {
         Self::Spanner
+    }
+
+    pub fn postgres() -> Self {
+        Self::Postgres
     }
 }
 
