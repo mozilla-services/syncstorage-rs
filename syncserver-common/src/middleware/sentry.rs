@@ -16,16 +16,19 @@ pub struct SentryWrapper<E> {
     metrics: Arc<StatsdClient>,
     phantom: PhantomData<E>,
     sentry_enabled: bool,
+    backtrace_enabled: bool,
 }
 
 impl<E> SentryWrapper<E> {
     pub fn new(metrics: Arc<StatsdClient>) -> Self {
         let sentry_enabled = env::var("SENTRY_DSN").is_ok_and(|dsn| !dsn.is_empty());
+        let backtrace_enabled = env::var("RUST_BACKTRACE").is_ok_and(|v| v == "1" || v == "full");
 
         Self {
             metrics,
             phantom: PhantomData,
             sentry_enabled,
+            backtrace_enabled,
         }
     }
 }
@@ -48,6 +51,7 @@ where
             metrics: self.metrics.clone(),
             phantom: PhantomData,
             sentry_enabled: self.sentry_enabled,
+            backtrace_enabled: self.backtrace_enabled,
         })
     }
 }
@@ -58,6 +62,7 @@ pub struct SentryWrapperMiddleware<S, E> {
     metrics: Arc<StatsdClient>,
     phantom: PhantomData<E>,
     sentry_enabled: bool,
+    backtrace_enabled: bool,
 }
 
 impl<S, B, E> Service<ServiceRequest> for SentryWrapperMiddleware<S, E>
@@ -84,6 +89,7 @@ where
         // get the tag information
         let metrics = self.metrics.clone();
         let sentry_enabled = self.sentry_enabled;
+        let backtrace_enabled = self.backtrace_enabled;
         let tags = sreq.get_tags();
         let extras = sreq.get_extras();
 
@@ -117,7 +123,7 @@ where
                         trace!("event_id = {}", event_id);
                     } else {
                         // log if Sentry is not configured
-                        log_event(&event);
+                        log_event::<E>(&event, &error, backtrace_enabled);
                     }
                     return Err(error);
                 }
@@ -140,7 +146,7 @@ where
                     trace!("event_id = {}", event_id);
                 } else {
                     // log if Sentry is not configured
-                    log_event(&event);
+                    log_event::<E>(&event, error, backtrace_enabled);
                 }
             }
             Ok(response)
@@ -289,14 +295,31 @@ pub fn exception_from_reportable_error(err: &dyn ReportableError) -> sentry::pro
 }
 
 /// Log the error event instead when Sentry is not configured.
-fn log_event(event: &sentry::protocol::Event<'static>) {
+fn log_event<E>(
+    event: &sentry::protocol::Event<'static>,
+    error: &actix_web::Error,
+    backtrace_enabled: bool,
+) where
+    E: ReportableError + actix_web::ResponseError + 'static,
+{
     let first_exception = event.exception.last();
     let error_type = first_exception.map_or("UnknownError", |e| e.ty.as_str());
     let error_value = first_exception
         .and_then(|e| e.value.as_deref())
         .unwrap_or("No error message");
-    error!(
-        "{}", error_value;
+
+    let backtrace = if backtrace_enabled {
+        error
+            .as_error::<E>()
+            .and_then(|e| e.backtrace())
+            .map(|bt| format!("\n{bt:?}"))
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+
+    warn!(
+        "{}{}", error_value, backtrace;
         "error_type" => error_type,
         "tags" => ?event.tags,
         "extra" => ?event.extra,
