@@ -55,7 +55,7 @@ hostname = "0.4"
 hkdf = "0.12"
 hmac = "0.12"
 http = "1.4"
-jsonwebtoken = { version = "9.3", default-features = false }
+jsonwebtoken = { version = "10.3", default-features = false }
 lazy_static = "1.5"
 log = { version = "0.4", features = [
     "max_level_debug",
