@@ -318,7 +318,7 @@ fn log_event<E>(
         String::new()
     };
 
-    warn!(
+    error!(
         "{}{}", error_value, backtrace;
         "error_type" => error_type,
         "tags" => ?event.tags,
