@@ -2,48 +2,20 @@
 
 # Syncstorage-rs
 
+Mozilla's Sync provides a secure method for users to synchronize their data across Mozilla applications (like Firefox) using a Mozilla account. This project encapsulates the backend of the Sync service. It can be run using either a Postgres, Spanner, or MySQL database backend.
+
+Sync operates by storing a combined version of your data on a remote server, which then synchronizes with the local Firefox copy across all your signed-in instances (referred to as connected devices, linked through a Mozilla account). 
+
+## Get up and Running
+
+To get up and running quickly, see [Run Your Own Sync with Docker](how-to/how-to-run-with-docker.md) for instructions on deploying with Docker.
+
+For a complete list of available configuration options you'll need to consider, see the [Configuration](config.md) reference.
+
+Below are detailed instructions for other setup configurations, including using the Google Spanner Emulator and MySQL.
+
 Mozilla Sync Storage built with [Rust](https://rust-lang.org). Our documentation is generated using [mdBook](https://rust-lang.github.io/mdBook/index.html) and published to GitHub Pages.
 
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-
-
-- [System Requirements](#system-requirements)
-- [Local Setup](#local-setup)
-  - [MySQL](#mysql)
-  - [Spanner](#spanner)
-  - [Running via Docker](#running-via-docker)
-  - [Connecting to Firefox](#connecting-to-firefox)
-- [Logging](#logging)
-  - [Sentry:](#sentry)
-  - [RUST_LOG](#rust_log)
-- [Tests](#tests)
-  - [Unit tests](#unit-tests)
-  - [End-to-End tests](#end-to-end-tests)
-- [Creating Releases](#creating-releases)
-- [Troubleshooting](#troubleshooting)
-- [Related Documentation](#related-documentation)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
-## System Requirements
-
-- cmake (>= 3.5 and < 3.30)
-- gcc
-- [golang](https://golang.org/doc/install)
-- libcurl4-openssl-dev
-- libssl-dev
-- make
-- pkg-config
-- [Rust stable](https://rustup.rs)
-- python 3.9+
-- MySQL 8.0 (or compatible)
-  * libmysqlclient (`brew install mysql` on macOS, `apt install libmysqlclient-dev` on Ubuntu, `apt install libmariadb-dev-compat` on Debian)
-
-Depending on your OS, you may also need to install `libgrpcdev`,
-and `protobuf-compiler-grpc`. *Note*: if the code complies cleanly,
-but generates a Segmentation Fault within Sentry init, you probably
-are missing `libcurl4-openssl-dev`.
 
 ## Local Setup
 
@@ -354,11 +326,42 @@ If you see a problem related to `libssl` you may need to specify the `cargo` opt
 
 - If you're having trouble working with Sentry to create releases, try authenticating using their self hosted server option that's outlined [here](https://docs.sentry.io/product/cli/configuration/) Ie, `sentry-cli --url https://selfhosted.url.com/ login`. It's also recommended to create a `.sentryclirc` config file. See [this example](https://github.com/mozilla-services/syncstorage-rs/blob/master/.sentryclirc.example) for the config values you'll need.
 
-## Related Documentation
+- [System Requirements](#system-requirements)
+- [Local Setup](#local-setup)
+  - [MySQL](#mysql)
+  - [Spanner](#spanner)
+  - [Running via Docker](#running-via-docker)
+  - [Connecting to Firefox](#connecting-to-firefox)
+- [Logging](#logging)
+  - [Sentry:](#sentry)
+  - [RUST_LOG](#rust_log)
+- [Tests](#tests)
+  - [Unit tests](#unit-tests)
+  - [End-to-End tests](#end-to-end-tests)
+- [Creating Releases](#creating-releases)
+- [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
 
-- [API docs](https://mozilla-services.readthedocs.io/en/latest/storage/apis-1.5.html)
 
-- [Code docs](https://github.com/mozilla-services/syncstorage-rs/tree/master/docs)
+## System Requirements
+
+- cmake (>= 3.5 and < 3.30)
+- gcc
+- [golang](https://golang.org/doc/install)
+- libcurl4-openssl-dev
+- libssl-dev
+- make
+- pkg-config
+- [Rust stable](https://rustup.rs)
+- python 3.9+
+- MySQL 8.0 (or compatible)
+  * libmysqlclient (`brew install mysql` on macOS, `apt install libmysqlclient-dev` on Ubuntu, `apt install libmariadb-dev-compat` on Debian)
+
+Depending on your OS, you may also need to install `libgrpcdev`,
+and `protobuf-compiler-grpc`. *Note*: if the code complies cleanly,
+but generates a Segmentation Fault within Sentry init, you probably
+are missing `libcurl4-openssl-dev`.
+
 
 [mpl-svg]: https://img.shields.io/badge/License-MPL%202.0-blue.svg
 [mpl]: https://opensource.org/licenses/MPL-2.0
