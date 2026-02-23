@@ -3522,6 +3522,7 @@ dependencies = [
  "syncserver-settings",
  "syncstorage-db",
  "syncstorage-settings",
+ "temp-env",
  "thiserror 1.0.69",
  "time",
  "tokenserver-auth",
@@ -3730,6 +3731,7 @@ version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96374855068f47402c3121c6eed88d29cb1de8f3ab27090e273e420bdabcf050"
 dependencies = [
+ "futures 0.3.31",
  "parking_lot",
 ]
 
