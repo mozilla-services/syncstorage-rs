@@ -5,22 +5,17 @@ use utoipa::ToSchema;
 
 pub use error::{ErrorLocation, TokenserverError};
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, ToSchema)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize, ToSchema)]
 pub enum NodeType {
     #[serde(rename = "mysql")]
     MySql,
     #[serde(rename = "spanner")]
+    #[default]
     Spanner,
 }
 
 impl NodeType {
     pub fn spanner() -> Self {
-        Self::Spanner
-    }
-}
-
-impl Default for NodeType {
-    fn default() -> Self {
         Self::Spanner
     }
 }

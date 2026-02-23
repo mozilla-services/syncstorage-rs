@@ -180,18 +180,13 @@ impl TokenserverError {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ErrorLocation {
+    #[default]
     Header,
     Url,
     Body,
     Internal,
-}
-
-impl Default for ErrorLocation {
-    fn default() -> Self {
-        Self::Header
-    }
 }
 
 impl fmt::Display for ErrorLocation {
