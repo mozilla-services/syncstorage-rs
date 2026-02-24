@@ -12,10 +12,6 @@ pub enum NodeType {
     #[serde(rename = "spanner")]
     #[default]
     Spanner,
-}
-
-impl NodeType {
-    pub fn spanner() -> Self {
-        Self::Spanner
-    }
+    #[serde(rename = "postgres")]
+    Postgres,
 }

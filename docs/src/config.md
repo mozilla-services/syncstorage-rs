@@ -97,6 +97,7 @@ The following configuration options are available.
 | --- | --- | --- |
 | <span id="SYNC_TOKENSERVER__ENABLED"></span>SYNC_TOKENSERVER__ENABLED | false | Enable tokenserver service |
 | <span id="SYNC_TOKENSERVER__RUN_MIGRATIONS"></span>SYNC_TOKENSERVER__RUN_MIGRATIONS | false | Run DB migrations on startup |
+| <span id="SYNC_TOKENSERVER__NODE_TYPE"></span>SYNC_TOKENSERVER__NODE_TYPE | spanner | Storage backend type reported in token response for telemetry. Valid values: "mysql", "postgres", "spanner" |
 | <span id="SYNC_TOKENSERVER__TOKEN_DURATION"></span>SYNC_TOKENSERVER__TOKEN_DURATION | 3600 | Token TTL (1 hour) |
 
 ### Tokenserver+FxA Integration

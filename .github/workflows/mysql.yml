@@ -37,6 +37,7 @@ jobs:
     env:
       SYNC_SYNCSTORAGE__DATABASE_URL: mysql://test:test@127.0.0.1/syncstorage
       SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@127.0.0.1/tokenserver
+      SYNC_TOKENSERVER__NODE_TYPE: spanner
       RUST_BACKTRACE: 1
       RUST_TEST_THREADS: 1
 
@@ -232,4 +233,3 @@ jobs:
           glob: "*.xml"
           parent: false
           process_gcloudignore: false
-
