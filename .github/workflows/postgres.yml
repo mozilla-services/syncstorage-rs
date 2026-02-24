@@ -11,7 +11,7 @@ on:
   workflow_dispatch: {}
 
 env:
-  RUST_VERSION: "1.89"
+  RUST_VERSION: "1.91"
   PYTHON_VERSION: "3.12"
 
 jobs:
