@@ -879,15 +879,15 @@ async fn error_endpoint_logging_check() {
             assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
 
             let log_msg = String::from_utf8(buffer.lock().unwrap().clone()).unwrap();
-            println!("{}", log_msg);
 
             assert!(
                 log_msg.contains("Oh Noes!"),
                 "Unexpected error message: {log_msg}",
             );
+            // Look for the fn name in the backtrace.
             assert!(
                 log_msg.contains("test_error"),
-                "Unexpected backtrace in error message: {log_msg}"
+                "Unexpected error message: {log_msg}",
             );
         },
     )
