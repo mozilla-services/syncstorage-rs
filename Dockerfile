@@ -81,7 +81,7 @@ RUN poetry export --no-interaction --without dev --output requirements.txt --wit
     fi && \
     cd /app
 
-# Build wheels for all Python dependencies so 
+# Build wheels for all Python dependencies so
 RUN mkdir -p /app/wheels && \
     pip3 wheel --no-cache-dir -r /app/requirements.txt -w /app/wheels && \
     pip3 wheel --no-cache-dir -r /app/tools/integration_tests/requirements.txt -w /app/wheels && \
@@ -154,7 +154,9 @@ RUN pip3 install --break-system-packages --no-cache-dir --no-index --find-links=
 
 COPY --from=builder /app/bin /app/bin
 COPY --from=builder /app/version.json /app
+COPY --from=builder /app/tools/spanner /app/tools/spanner
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
+COPY --from=builder /app/tools/tokenserver /app/tools/tokenserver
 COPY --from=builder --chmod=0755 /app/scripts/prepare-spanner.sh /app/scripts/prepare-spanner.sh
 COPY --from=builder --chmod=0755 /app/scripts/start_mock_fxa_server.sh /app/scripts/start_mock_fxa_server.sh
 COPY --from=builder /app/syncstorage-spanner/src/schema.ddl /app/schema.ddl
