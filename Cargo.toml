@@ -25,7 +25,7 @@ authors = [
   "Mozilla Sync Backend Engineering <sync-backend@mozilla.com",
 ]
 edition = "2024"
-rust-version = "1.89"
+rust-version = "1.91" # RUST_VER
 license = "MPL-2.0"
 
 [workspace.dependencies]
