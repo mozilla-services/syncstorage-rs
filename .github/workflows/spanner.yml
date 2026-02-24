@@ -67,8 +67,11 @@ jobs:
             "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             > version.json
 
-      - name: Install test dependencies
-        run: cargo install --locked cargo-nextest cargo-llvm-cov
+      - name: Install cargo-nextest
+        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: Install cargo-llvm-cov
+        run: cargo install --locked cargo-llvm-cov
 
       - name: Build workspace (spanner feature)
         run: |
