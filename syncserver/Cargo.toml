@@ -59,6 +59,9 @@ validator = "0.20"
 validator_derive = "0.20"
 woothee = "0.13"
 
+[dev-dependencies]
+temp-env.workspace = true
+
 [target.'cfg(target_os = "linux")'.dependencies]
 slog-journald = "2.2.0"
 
