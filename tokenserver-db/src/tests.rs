@@ -400,6 +400,82 @@ async fn post_user() -> DbResult<()> {
 }
 
 #[tokio::test]
+async fn test_init_sync15_node() -> DbResult<()> {
+    temp_env::async_with_vars(
+        [
+            ("INIT_NODE_URL", Some("https://testo.example.gg")),
+            ("INIT_NODE_CAPACITY", Some("38383")),
+        ],
+        async {
+            let pool = db_pool().await?;
+            let mut db = pool.get().await?;
+
+            let service_id = db
+                .get_service_id(params::GetServiceId {
+                    service: params::Sync15Node::SERVICE_NAME.to_owned(),
+                })
+                .await?
+                .id;
+
+            let node_id = db
+                .get_node_id(params::GetNodeId {
+                    service_id,
+                    node: "https://testo.example.gg".to_owned(),
+                })
+                .await?
+                .id;
+
+            let node = db.get_node(params::GetNode { id: node_id }).await?;
+
+            assert_eq!(node.node, "https://testo.example.gg");
+            assert_eq!(node.capacity, 38383);
+            assert_eq!(node.available, 1);
+            assert_eq!(node.current_load, 0);
+
+            Ok(())
+        },
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_init_sync15_node_with_default_capacity() -> DbResult<()> {
+    temp_env::async_with_vars(
+        [
+            ("INIT_NODE_URL", Some("https://testo.example.gg")),
+            ("INIT_NODE_CAPACITY", None::<&str>),
+        ],
+        async {
+            let pool = db_pool().await?;
+            let mut db = pool.get().await?;
+
+            let service_id = db
+                .get_service_id(params::GetServiceId {
+                    service: params::Sync15Node::SERVICE_NAME.to_owned(),
+                })
+                .await?
+                .id;
+
+            let node_id = db
+                .get_node_id(params::GetNodeId {
+                    service_id,
+                    node: "https://testo.example.gg".to_owned(),
+                })
+                .await?
+                .id;
+
+            let node = db.get_node(params::GetNode { id: node_id }).await?;
+
+            assert_eq!(node.node, "https://testo.example.gg");
+            assert_eq!(node.capacity, 100000);
+
+            Ok(())
+        },
+    )
+    .await
+}
+
+#[tokio::test]
 async fn get_node_id() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;

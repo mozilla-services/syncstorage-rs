@@ -1,3 +1,4 @@
+use std::env;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -120,6 +121,19 @@ impl TokenserverPgPool {
         self.service_id = Some(service_id.id);
         Ok(())
     }
+
+    /// Bootstrap the initial Sync 1.5 node record if INIT_NODE_URL is set.
+    async fn init_sync15_node(&mut self, node_url: String, capacity: i32) -> Result<(), DbError> {
+        let _ = self
+            .get()
+            .await?
+            .upsert_sync15_node(params::Sync15Node {
+                node: node_url,
+                capacity,
+            })
+            .await;
+        Ok(())
+    }
 }
 
 #[async_trait(?Send)]
@@ -131,6 +145,16 @@ impl DbPool for TokenserverPgPool {
         // As long as the sync service "sync-1.5" service record is in the database, this query should not fail,
         // unless there is a network failure or unpredictable event.
         let _ = self.init_service_id().await;
+
+        // Init the Sync 1.5 node record if there is an INIT_NODE_URL env var
+        if let Ok(node_url) = env::var("INIT_NODE_URL") {
+            let capacity = env::var("INIT_NODE_CAPACITY")
+                .ok()
+                .and_then(|c| c.parse::<i32>().ok())
+                .unwrap_or(100000);
+            let _ = self.init_sync15_node(node_url, capacity).await;
+        }
+
         Ok(())
     }
 

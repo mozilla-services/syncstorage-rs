@@ -18,6 +18,7 @@ url = "2.5"
 
 [dev-dependencies]
 env_logger.workspace = true
+temp-env.workspace = true
 
 syncserver-settings = { path = "../syncserver-settings" }
 
