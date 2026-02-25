@@ -38,7 +38,7 @@ pub struct Settings {
     /// The rate at which capacity should be released from nodes that are at capacity.
     pub node_capacity_release_rate: Option<f32>,
     /// The type of the storage nodes used by this instance of Tokenserver.
-    #[serde(default = "NodeType::spanner")]
+    #[serde(default)]
     pub node_type: NodeType,
     /// The label to be used when reporting Metrics.
     pub statsd_label: String,

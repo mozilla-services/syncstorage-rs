@@ -114,6 +114,7 @@ jobs:
           SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
           SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: localhost:9010
           SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@127.0.0.1/tokenserver
+          SYNC_TOKENSERVER__NODE_TYPE: spanner
           RUST_TEST_THREADS: 1
         run: make spanner_test_with_coverage
 
