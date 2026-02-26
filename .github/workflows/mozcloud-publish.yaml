@@ -59,19 +59,67 @@ jobs:
         contains(github.event.pull_request.labels.*.name, 'preview') &&
         github.event.pull_request.head.repo.full_name == github.repository
       )
+
+    runs-on: ubuntu-latest
+
     permissions:
       contents: read
       id-token: write
       packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
-    with:
-      image_name: syncserver-postgres
-      gar_name: sync-prod
-      project_id: moz-fx-sync-prod
-      docker_build_args: |
-        SYNCSTORAGE_DATABASE_BACKEND=postgres
-        TOKENSERVER_DATABASE_BACKEND=postgres
-      should_tag_ghcr: true
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        with:
+          ref: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.sha) || github.ref }}
+          persist-credentials: false
+          fetch-tags: true
+
+      - name: Build and Tag Container Image
+        id: build
+        uses: mozilla-it/deploy-actions/docker-build@8d2c17a843ea376c58b4e88e55d1335bafd52bcb #v6.2.0
+        with:
+          image_name: syncserver-postgres
+          gar_name: sync-prod
+          project_id: moz-fx-sync-prod
+          docker_build_args: |
+            SYNCSTORAGE_DATABASE_BACKEND=postgres
+            TOKENSERVER_DATABASE_BACKEND=postgres
+          image_build_context: "./"
+          dockerfile_path: "./Dockerfile"
+#          image_tag_metadata: ${{ inputs.image_tag_metadata }}
+          should_tag_ghcr: true
+          should_tag_latest: false
+#          gar_location: "us"
+          enable_attestations: false
+
+      - name: Run post-build commands
+        shell: bash
+        if: ${{ inputs.postbuild_script != '' }}
+        env:
+          POSTBUILD_SCRIPT: ${{ inputs.postbuild_script }}
+        run: |
+          set -euo pipefail
+          TMP="$RUNNER_TEMP/postbuild.sh"
+
+          if [[ -f "$POSTBUILD_SCRIPT" ]]; then
+            chmod +x "$POSTBUILD_SCRIPT"
+            bash "$POSTBUILD_SCRIPT"
+          else
+            printf '%s\n' "$POSTBUILD_SCRIPT" > "$TMP"
+            chmod +x "$TMP"
+            bash "$TMP"
+          fi
+
+      - name: Push Container Image
+        uses: mozilla-it/deploy-actions/docker-push@8d2c17a843ea376c58b4e88e55d1335bafd52bcb #v6.2.0
+        with:
+#          image_tags: ${{ steps.build.outputs.image_tags }}
+          should_authenticate_to_ghcr: true
+          project_id: moz-fx-sync-prod
+#          gar_location: "us"
+          workload_identity_pool_project_number: ${{ vars.GCPV2_WORKLOAD_IDENTITY_POOL_PROJECT_NUMBER }}
+          service_account_name: "artifact-writer"
 
   # Note: we are moving towards renaming all images `syncserver`, the union of sync and tokenserver.
   # This presently remains for the time being to simplify deploys by maintaining `image_name: syncstorage-rs-spanner-python-utils`.
