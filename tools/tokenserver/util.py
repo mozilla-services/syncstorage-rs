@@ -76,7 +76,7 @@ class GCP_JSON_Formatter(logging.Formatter):
         return json.dumps(
             {
                 "severity": record.levelname,
-                "message": record.getMessage(),
+                "message": super().format(record),
                 "timestamp": datetime.fromtimestamp(record.created).strftime(
                     "%Y-%m-%dT%H:%M:%SZ"  # RFC3339
                 ),
