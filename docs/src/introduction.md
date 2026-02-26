@@ -16,6 +16,159 @@ Below are detailed instructions for other setup configurations, including using 
 
 Mozilla Sync Storage built with [Rust](https://rust-lang.org). Our documentation is generated using [mdBook](https://rust-lang.github.io/mdBook/index.html) and published to GitHub Pages.
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+
+- [System Requirements](#system-requirements)
+- [Local Setup](#local-setup)
+  - [MySQL](#mysql)
+  - [Spanner](#spanner)
+  - [Running via Docker](#running-via-docker)
+  - [Connecting to Firefox](#connecting-to-firefox)
+- [Logging](#logging)
+  - [Sentry:](#sentry)
+  - [RUST_LOG](#rust_log)
+- [Tests](#tests)
+  - [Unit tests](#unit-tests)
+  - [End-to-End tests](#end-to-end-tests)
+- [Creating Releases](#creating-releases)
+- [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+## Initial Setup - Bootstrapping
+
+### General PostgreSQL Setup
+
+Syncstorage-rs supports PostgreSQL as a database backend. The database connection is specified with a DSN like:
+
+`postgres://_user_:_password_@_host_/_database_`
+
+This DSN is then used for the `SYNC_TOKENSERVER__DATABASE_URL` & `SYNC_SYNCSTORAGE__DATABASE_URL` URLs.
+
+Use your preferred methods, however here are some general instructions on how to setup a fresh PostgreSQL database and user:
+
+1. First make sure you have a PostgreSQL server running. On most systems, you can start it with:
+   ```bash
+   # On macOS with Homebrew
+   brew services start postgresql
+
+   # On Ubuntu/Debian
+   sudo systemctl start postgresql
+   ```
+
+2. Create the databases using `createdb`:
+   ```bash
+   createdb -U postgres syncstorage
+   createdb -U postgres tokenserver
+   ```
+
+3. Connect to PostgreSQL to create a user and grant privileges:
+   ```bash
+   psql -U postgres -d syncstorage
+   ```
+
+4. Run the following SQL statements:
+   ```sql
+   CREATE USER sample_user WITH PASSWORD 'sample_password';
+   GRANT ALL PRIVILEGES ON DATABASE syncstorage TO sample_user;
+   GRANT ALL PRIVILEGES ON DATABASE tokenserver TO sample_user;
+   ```
+
+**Connection pattern:** The general pattern for connecting to a PostgreSQL database is:
+```bash
+psql -d database_name -U username
+```
+The `-d` flag is a shorter alternative for `--dbname` while `-U` is an alternative for `--username`.
+
+**Environment configuration:** You can optionally create a `.env` file with your database URL:
+```bash
+echo "DATABASE_URL=postgres://sample_user:sample_password@localhost/syncstorage" > .env
+```
+
+Or manually create the file:
+```bash
+touch .env
+```
+And add:
+`DATABASE_URL=postgres://sample_user:sample_password@localhost/syncstorage`
+### Bootstrapping Tokenserver (Postgres)
+
+Tokenserver includes migrations to initialize its database, but they do not run by default. These can be enabled via the setting:
+
+```bash
+SYNC_TOKENSERVER__RUN_MIGRATIONS=true
+```
+
+Once you have created and defined your database, copy the URL.
+
+```bash
+SYNC_TOKENSERVER__DATABASE_URL=postgres://<DB URL>
+```
+
+After migrations run, insert a node entry:
+```sql
+INSERT INTO nodes (id, service, node, available, current_load, capacity, downed, backoff)
+VALUES (1, 1, 'https://<SYNCSTORAGE URL HERE>', 100000, 0, 100000, 0, 0)
+ON CONFLICT DO NOTHING;
+```
+
+### Bootstrapping Syncstorage (Postgres)
+
+Syncstorage includes migrations to initialize its database. These run by default (unlike Tokenserver).
+
+Configure the database URL:
+```bash
+SYNC_SYNCSTORAGE__DATABASE_URL=postgres://<DB URL>
+```
+
+### Bootstrapping Tokenserver (MySQL)
+
+Tokenserver includes migrations to initialize its database, but they do not run by default. These can be enabled via the setting:
+
+```bash
+SYNC_TOKENSERVER__RUN_MIGRATIONS=true
+```
+
+**NOTE:** These migrations don't run with any locking (at least on MySQL), it's probably safest to limit the node count to 1 during the first run.
+
+After migrations run, insert service and node entries:
+```sql
+INSERT INTO services (id, service, pattern)
+VALUES (1, 'sync-1.5', '{node}/1.5/{uid}');
+
+INSERT IGNORE INTO nodes (id, service, node, available, current_load, capacity, downed, backoff)
+VALUES (1, 1, 'https://ent-dev.sync.nonprod.webservices.mozgcp.net', 100, 0, 100, 0, 0);
+```
+
+### Bootstrapping Syncstorage (Cloud Spanner)
+
+Syncstorage does not support initializing Cloud Spanner instances; this must be done manually. It does support initializing its MySQL backend and will support initializing the PostgreSQL backend in the future.
+
+The schema DDL is available here: [schema.ddl](https://github.com/mozilla-services/syncstorage-rs/blob/master/syncstorage-spanner/src/schema.ddl)
+
+We include a basic script to create an instance and initialize the schema via Spanner's REST API: [prepare-spanner.sh](https://github.com/mozilla-services/syncstorage-rs/blob/master/scripts/prepare-spanner.sh). This script is currently oriented to run against Cloud Spanner emulators, but it may be adapted to run against a real Spanner database.
+
+## System Requirements
+
+- cmake (>= 3.5 and < 3.30)
+- gcc
+- [golang](https://golang.org/doc/install)
+- libcurl4-openssl-dev
+- libssl-dev
+- make
+- pkg-config
+- [Rust stable](https://rustup.rs)
+- python 3.9+
+- MySQL 8.0 (or compatible)
+  * libmysqlclient (`brew install mysql` on macOS, `apt install libmysqlclient-dev` on Ubuntu, `apt install libmariadb-dev-compat` on Debian)
+
+Depending on your OS, you may also need to install `libgrpcdev`,
+and `protobuf-compiler-grpc`. *Note*: if the code complies cleanly,
+but generates a Segmentation Fault within Sentry init, you probably
+are missing `libcurl4-openssl-dev`.
 
 ## Local Setup
 
