@@ -1428,28 +1428,5 @@ async fn db_pool() -> DbResult<Box<dyn DbPool>> {
     )?;
     pool.init().await?;
 
-    if settings.tokenserver.database_url.starts_with("mysql://") {
-        // Ensure the "sync-1.5" service
-        // TODO: tokenserver-mysql's migration should add this service
-        // entry for us (if possible)
-        let mut db = pool.get().await?;
-        let service = "sync-1.5".to_owned();
-        let result = db
-            .get_service_id(params::GetServiceId {
-                service: service.clone(),
-            })
-            .await;
-        if let Err(e) = result {
-            if !e.is_diesel_not_found() {
-                return Err(e);
-            }
-            db.post_service(params::PostService {
-                service,
-                pattern: "{node}/1.5/{uid}".to_owned(),
-            })
-            .await?;
-        }
-    }
-
     Ok(pool)
 }
