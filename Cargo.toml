@@ -89,6 +89,7 @@ slog-mozlog-json = "0.1"
 slog-scope = "4.4"
 slog-stdlog = "4.1"
 slog-term = "2.9"
+temp-env = { version = "0.3", features = ["async_closure"] }
 tokio = "1"
 thiserror = "1.0.69"
 time = "0.3.47"

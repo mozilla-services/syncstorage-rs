@@ -17,4 +17,4 @@ tokenserver-settings = { path = "../tokenserver-settings" }
 url = "2.5"
 
 [dev-dependencies]
-temp-env = "0.3"
+temp-env.workspace = true

@@ -1,6 +1,7 @@
 //! API Handlers
 use std::collections::HashMap;
 use std::convert::Into;
+use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::server::user_agent::{DeviceInfo, get_device_info};
@@ -907,6 +908,10 @@ pub async fn test_error(
     // ApiError will call the middleware layer to auto-append the tags.
     error!("Test Error");
     let err = ApiError::from(ApiErrorKind::Internal("Oh Noes!".to_owned()));
+
+    thread::spawn(|| {
+        panic!("TestError");
+    });
 
     Err(err)
 }
