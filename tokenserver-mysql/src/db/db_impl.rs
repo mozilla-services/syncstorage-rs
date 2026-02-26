@@ -377,7 +377,7 @@ impl Db for TokenserverDb {
         Ok(result)
     }
 
-    async fn upsert_sync15_node(&mut self, params: params::Sync15Node) -> DbResult<()> {
+    async fn insert_sync15_node(&mut self, params: params::Sync15Node) -> DbResult<()> {
         let query = format!(
             r#"
             INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)

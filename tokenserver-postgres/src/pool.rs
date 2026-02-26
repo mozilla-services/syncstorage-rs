@@ -1,4 +1,3 @@
-use std::env;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -44,6 +43,10 @@ pub struct TokenserverPgPool {
     pub timeout: Option<Duration>,
     /// Config setting flag to determine if migrations should run.
     run_migrations: bool,
+    /// Storage node URL to insert on startup.
+    init_node_url: Option<String>,
+    /// Capacity for the init_node_url node.
+    init_node_capacity: i32,
 }
 
 impl TokenserverPgPool {
@@ -96,6 +99,8 @@ impl TokenserverPgPool {
             service_id: None,
             timeout,
             run_migrations: settings.run_migrations,
+            init_node_url: settings.init_node_url.clone(),
+            init_node_capacity: settings.init_node_capacity,
         })
     }
 
@@ -122,12 +127,12 @@ impl TokenserverPgPool {
         Ok(())
     }
 
-    /// Bootstrap the initial Sync 1.5 node record if INIT_NODE_URL is set.
+    /// Bootstrap the initial Sync 1.5 node record if init_node_url is set.
     async fn init_sync15_node(&mut self, node_url: String, capacity: i32) -> Result<(), DbError> {
         let _ = self
             .get()
             .await?
-            .upsert_sync15_node(params::Sync15Node {
+            .insert_sync15_node(params::Sync15Node {
                 node: node_url,
                 capacity,
             })
@@ -146,13 +151,11 @@ impl DbPool for TokenserverPgPool {
         // unless there is a network failure or unpredictable event.
         let _ = self.init_service_id().await;
 
-        // Init the Sync 1.5 node record if there is an INIT_NODE_URL env var
-        if let Ok(node_url) = env::var("INIT_NODE_URL") {
-            let capacity = env::var("INIT_NODE_CAPACITY")
-                .ok()
-                .and_then(|c| c.parse::<i32>().ok())
-                .unwrap_or(100000);
-            let _ = self.init_sync15_node(node_url, capacity).await;
+        // Init the Sync 1.5 node record if init_node_url is set
+        if let Some(node_url) = self.init_node_url.clone() {
+            let _ = self
+                .init_sync15_node(node_url, self.init_node_capacity)
+                .await;
         }
 
         Ok(())

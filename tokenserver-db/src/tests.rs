@@ -403,8 +403,11 @@ async fn post_user() -> DbResult<()> {
 async fn test_init_sync15_node() -> DbResult<()> {
     temp_env::async_with_vars(
         [
-            ("INIT_NODE_URL", Some("https://testo.example.gg")),
-            ("INIT_NODE_CAPACITY", Some("38383")),
+            (
+                "SYNC_TOKENSERVER__INIT_NODE_URL",
+                Some("https://testo.example.gg"),
+            ),
+            ("SYNC_TOKENSERVER__INIT_NODE_CAPACITY", Some("38383")),
         ],
         async {
             let pool = db_pool().await?;
@@ -442,8 +445,11 @@ async fn test_init_sync15_node() -> DbResult<()> {
 async fn test_init_sync15_node_with_default_capacity() -> DbResult<()> {
     temp_env::async_with_vars(
         [
-            ("INIT_NODE_URL", Some("https://testo.example.gg")),
-            ("INIT_NODE_CAPACITY", None::<&str>),
+            (
+                "SYNC_TOKENSERVER__INIT_NODE_URL",
+                Some("https://testo.example.gg"),
+            ),
+            ("SYNC_TOKENSERVER__INIT_NODE_CAPACITY", None::<&str>),
         ],
         async {
             let pool = db_pool().await?;

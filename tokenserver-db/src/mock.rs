@@ -113,7 +113,7 @@ impl Db for MockDb {
         Ok(results::GetServiceId::default())
     }
 
-    async fn upsert_sync15_node(&mut self, _params: params::Sync15Node) -> Result<(), DbError> {
+    async fn insert_sync15_node(&mut self, _params: params::Sync15Node) -> Result<(), DbError> {
         Ok(())
     }
 

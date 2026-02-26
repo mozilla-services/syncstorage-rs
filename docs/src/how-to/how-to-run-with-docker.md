@@ -46,7 +46,7 @@ services:
       SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
       SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: "api.accounts.firefox.com"
       SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: "https://oauth.accounts.firefox.com"
-      INIT_NODE_URL: "${INIT_NODE_URL:-http://localhost:8000}"
+      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:8000}"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/__heartbeat__"]
@@ -60,7 +60,7 @@ Note that multiple values will be read from the environment:
 - [`SYNC_MASTER_SECRET`](../config.md#SYNC_MASTER_SECRET): a secret used in cryptographic operations, a passphrase or random character string, e.g. `use_your_own_secret_4d3d3d3d`
 - [`SYNC_SYNCSTORAGE__DATABASE_URL`](../config.md#SYNC_SYNCSTORAGE__DATABASE_URL): database URL for syncstorage, e.g. `mysql://sync:test@example.io/syncstorage` or `postgres://testo:@localhost/syncdb`
 - [`SYNC_TOKENSERVER__DATABASE_URL`](../config.md#SYNC_TOKENSERVER__DATABASE_URL): database URL for tokenserver, e.g. `mysql://sync:test@example.io/tokenserver` or `postgres://testo:@localhost/syncdb`
-- [`INIT_NODE_URL`](../config.md#INIT_NODE_URL): the storage node URL (defaults to `http://localhost:8000`).  Replace with the actual URL where clients will access the sync server.
+- [`SYNC_TOKENSERVER__INIT_NODE_URL`](../config.md#SYNC_TOKENSERVER__INIT_NODE_URL): the storage node URL (defaults to `http://localhost:8000`).  Replace with the actual URL where clients will access the sync server.
 
 The values can be directly written into the yaml as well.
 
@@ -70,7 +70,7 @@ Next, start the service with `docker compose`:
 SYNC_MASTER_SECRET=use_your_own_secret_4d3d3d3d \
 SYNC_SYNCSTORAGE__DATABASE_URL="mysql://sync:test@example.io/syncstorage" \
 SYNC_TOKENSERVER__DATABASE_URL="mysql://sync:test@example.io/tokenserver" \
-INIT_NODE_URL="http://localhost:8000" \
+SYNC_TOKENSERVER__INIT_NODE_URL="http://localhost:8000" \
 docker compose -f docker-compose.yaml up -d
 ```
 
@@ -100,7 +100,7 @@ services:
       SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: "https://oauth.accounts.firefox.com"
       SYNC_HUMAN_LOGS: "${SYNC_HUMAN_LOGS:-false}"
       RUST_LOG: "${RUST_LOG:-info}"
-      INIT_NODE_URL: "${INIT_NODE_URL:-http://localhost:8000}"
+      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:8000}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -138,7 +138,7 @@ Next, start the service with `docker compose`:
 
 ```sh
 SYNC_MASTER_SECRET=use_your_own_secret_4d3d3d3d \
-INIT_NODE_URL=http://localhost:8000 \
+SYNC_TOKENSERVER__INIT_NODE_URL=http://localhost:8000 \
 docker compose -f docker-compose.one-shot.yaml up -d
 ```
 

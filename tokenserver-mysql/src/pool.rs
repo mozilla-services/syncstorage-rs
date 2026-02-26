@@ -1,4 +1,3 @@
-use std::env;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -38,6 +37,8 @@ pub struct TokenserverPool {
     pub timeout: Option<Duration>,
     run_migrations: bool,
     database_url: String,
+    init_node_url: Option<String>,
+    init_node_capacity: i32,
 }
 
 impl TokenserverPool {
@@ -91,6 +92,8 @@ impl TokenserverPool {
             timeout,
             run_migrations: settings.run_migrations,
             database_url: settings.database_url.clone(),
+            init_node_url: settings.init_node_url.clone(),
+            init_node_capacity: settings.init_node_capacity,
         })
     }
 
@@ -117,12 +120,12 @@ impl TokenserverPool {
         Ok(())
     }
 
-    /// Bootstrap the initial Sync 1.5 node record if INIT_NODE_URL is set.
+    /// Bootstrap the initial Sync 1.5 node record if init_node_url is set.
     async fn init_sync15_node(&mut self, node_url: String, capacity: i32) -> Result<(), DbError> {
         let _ = self
             .get()
             .await?
-            .upsert_sync15_node(params::Sync15Node {
+            .insert_sync15_node(params::Sync15Node {
                 node: node_url,
                 capacity,
             })
@@ -148,13 +151,11 @@ impl DbPool for TokenserverPool {
         // unlikely for this query to fail outside of network failures or other random errors
         let _ = self.init_service_id().await;
 
-        // Init the Sync 1.5 node record if there is an INIT_NODE_URL env var
-        if let Ok(node_url) = env::var("INIT_NODE_URL") {
-            let capacity = env::var("INIT_NODE_CAPACITY")
-                .ok()
-                .and_then(|c| c.parse::<i32>().ok())
-                .unwrap_or(100000);
-            let _ = self.init_sync15_node(node_url, capacity).await;
+        // Init the Sync 1.5 node record if init_node_url is set
+        if let Some(node_url) = self.init_node_url.clone() {
+            let _ = self
+                .init_sync15_node(node_url, self.init_node_capacity)
+                .await;
         }
 
         Ok(())
