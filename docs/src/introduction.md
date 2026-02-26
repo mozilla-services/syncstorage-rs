@@ -226,95 +226,6 @@ We use [env_logger](https://crates.io/crates/env_logger): set the `RUST_LOG` env
 
 The logging of non-Spanner SQL queries is supported in non-optimized builds via `RUST_LOG=syncserver=debug`.
 
-## Tests
-
-### Unit tests
-
-You'll need [`nextest`](https://nexte.st/docs/installation/from-source/) and [`llvm-cov`](https://github.com/taiki-e/cargo-llvm-cov?tab=readme-ov-file#installation) installed for full unittest and test coverage.
-
-```bash
-  $ cargo install cargo-nextest --locked
-  $ cargo install cargo-llvm-cov --locked
-```
-
-- `make test` - Runs all tests
-- `make test_with_coverage` - This will use `llvm-cov` to run tests and generate [source-based code coverage](https://clang.llvm.org/docs/SourceBasedCodeCoverage.html)
-
-If you need to override `SYNC_SYNCSTORAGE__DATABASE_URL` or `SYNC_TOKENSERVER__DATABASE_URL` variables, you can modify them in the `Makefile` or by setting them in your shell:
-```bash
-  $ echo 'export SYNC_SYNCSTORAGE__DATABASE_URL="mysql://sample_user:sample_password@localhost/syncstorage_rs"' >> ~/.zshrc
-  $ echo 'export SYNC_TOKENSERVER__DATABASE_URL="mysql://sample_user:sample_password@localhost/tokenserver?rs"' >> ~/.zshrc
-```
-
-#### Debugging unit test state
-
-In some cases, it is useful to inspect the mysql state of a failed test. By
-default, we use the diesel test_transaction functionality to ensure test data
-is not committed to the database. Therefore, there is an environment variable
-which can be used to turn off test_transaction.
-```bash
-  SYNC_SYNCSTORAGE__DATABASE_USE_TEST_TRANSACTIONS=false make test ARGS="[testname]"
-```
-
-Note that you will almost certainly want to pass a single test name. When running
-the entire test suite, data from previous tests will cause future tests to fail.
-
-To reset the database state between test runs, drop and recreate the database
-in the mysql client:
-
-  `drop database syncstorage_rs; create database syncstorage_rs; use syncstorage_rs;`
-
-### End-to-End tests
-
-Functional tests live in [server-syncstorage](https://github.com/mozilla-services/server-syncstorage/) and can be run against a local server, e.g.:
-
-1.  If you haven't already followed the instructions [here](https://mozilla-services.readthedocs.io/en/latest/howtos/run-sync-1.5.html) to get all the dependencies for the [server-syncstorage](https://github.com/mozilla-services/server-syncstorage/) repo, you should start there.
-
-2.  Install (Python) server-syncstorage:
-```bash
-  $ git clone https://github.com/mozilla-services/server-syncstorage/
-  $ cd server-syncstorage
-  $ make build
-```
-
-3.  Run an instance of syncstorage-rs (`cargo run` in this repo).
-
-4.  To run all tests:
-```bash
-  $ ./local/bin/python syncstorage/tests/functional/test_storage.py http://localhost:8000#<SOMESECRET>
-```
-
-5.  Individual tests can be specified via the `SYNC_TEST_PREFIX` env var:
-  ```bash
-  $ SYNC_TEST_PREFIX=test_get_collection \
-      ./local/bin/python syncstorage/tests/functional/test_storage.py http://localhost:8000#<SOMESECRET>
-  ```
-
-## Creating Releases
-
-1. Switch to master branch of syncstorage-rs
-1. `git pull` to ensure that the local copy is up-to-date.
-1. `git pull origin master` to make sure that you've incorporated any changes to the master branch.
-1. `git diff origin/master` to ensure that there are no local staged or uncommited changes.
-1. Bump the version number in [Cargo.toml](https://github.com/mozilla-services/syncstorage-rs/blob/master/Cargo.toml) (this new version number will be designated as `<version>` in this checklist)
-1. create a git branch for the new version `git checkout -b release/<version>`
-1. `cargo build --release` - Build with the release profile [release mode](https://doc.rust-lang.org/book/ch14-01-release-profiles.html).
-1. `clog -C CHANGELOG.md` - Generate release notes. We're using [clog](https://github.com/clog-tool/clog-cli) for release notes. Add a `-p`, `-m` or `-M` flag to denote major/minor/patch version, ie `clog -C CHANGELOG.md -p`.
-1. Review the `CHANGELOG.md` file and ensure all relevant changes since the last tag are included.
-1. Create a new [release in Sentry](https://docs.sentry.io/product/releases/#create-release): `VERSION={release-version-here} bash scripts/sentry-release.sh`. If you're doing this for the first time, checkout the [tips below](https://github.com/mozilla-services/syncstorage-rs#troubleshooting) for troubleshooting sentry cli access.
-1. `git commit -am "chore: tag <version>"` to commit the new version and changes
-1. `git tag -s -m "chore: tag <version>" <version>` to create a signed tag of the current HEAD commit for release.
-1. `git push origin release/<version>` to push the commits to a new origin release branch
-1. `git push --tags origin release/<version>` to push the tags to the release branch.
-1. Submit a Pull Request (PR) on github to merge the release branch to master.
-1. Go to the [GitHub release](https://github.com/mozilla-services/syncstorage-rs/releases), you should see the new tag with no release information.
-1. Click the `Draft a new release` button.
-1. Enter the \<version> number for `Tag version`.
-1. Copy and paste the most recent change set from `CHANGELOG.md` into the release description, omitting the top 2 lines (the name and version)
-1. Once your PR merges, click [Publish Release] on the [GitHub release](https://github.com/mozilla-services/syncstorage-rs/releases) page.
-
-Sync server is automatically deployed to STAGE, however QA may need to be notified if testing is required. Once QA signs off, then a bug should be filed to promote the server to PRODUCTION.
-
 ## Troubleshooting
 
 - `rm Cargo.lock; cargo clean;` - Try this if you're having problems compiling.
@@ -325,6 +236,77 @@ If you see a problem related to `libssl` you may need to specify the `cargo` opt
 ### Sentry
 
 - If you're having trouble working with Sentry to create releases, try authenticating using their self hosted server option that's outlined [here](https://docs.sentry.io/product/cli/configuration/) Ie, `sentry-cli --url https://selfhosted.url.com/ login`. It's also recommended to create a `.sentryclirc` config file. See [this example](https://github.com/mozilla-services/syncstorage-rs/blob/master/.sentryclirc.example) for the config values you'll need.
+
+## Tests
+
+### Unit tests
+
+Run unit tests for a specific database backend using one of the following make targets:
+
+- MySQL: `make test` or `make test_with_coverage`
+- Postgres: `make postgres_test_with_coverage`
+- Spanner: `make spanner_test_with_coverage`
+
+These commands will run the Rust test suite using cargo-nextest and generate coverage reports using cargo-llvm-cov.
+
+### End-to-End tests
+
+End-to-end (E2E) tests validate the complete integration of syncstorage-rs with a real database backend and mock Firefox Accounts server. These tests run the full Python integration test suite located in [tools/integration_tests/](../../tools/integration_tests/).
+
+#### Running E2E Tests Locally
+
+To run E2E tests, you'll need to:
+
+1. Build a Docker image for your target backend using the appropriate Makefile target
+2. Run the E2E test suite using docker-compose
+
+The E2E tests are available for three database backends:
+
+**MySQL:**
+```bash
+make docker_run_mysql_e2e_tests
+```
+
+**Postgres:**
+```bash
+make docker_run_postgres_e2e_tests
+```
+
+**Spanner:**
+```bash
+make docker_run_spanner_e2e_tests
+```
+
+Each E2E test run:
+1. Starts the required services (database, mock FxA server, syncserver) using docker-compose
+2. Runs the Python integration tests with JWK caching enabled
+3. Runs the tests again with JWK caching disabled
+4. Outputs JUnit XML test results
+
+The E2E test configurations are defined in:
+- [docker-compose.e2e.mysql.yaml](../../docker-compose.e2e.mysql.yaml)
+- [docker-compose.e2e.postgres.yaml](../../docker-compose.e2e.postgres.yaml)
+- [docker-compose.e2e.spanner.yaml](../../docker-compose.e2e.spanner.yaml)
+
+These compose files extend the base service definitions from their corresponding `docker-compose.<backend>.yaml` files.
+
+#### How E2E Tests Work
+
+The E2E tests:
+- Run in a containerized environment with all dependencies (database, syncserver, mock FxA)
+- Execute integration tests from [tools/integration_tests/](../../tools/integration_tests/) using pytest
+- Test OAuth token validation with both cached and non-cached JWKs
+- Validate tokenserver functionality, including user allocation and token generation
+- Test syncstorage operations like BSO creation, retrieval, and deletion
+
+#### CI/CD
+
+In GitHub Actions, E2E tests run as part of the CI/CD pipeline for each backend:
+- [.github/workflows/mysql.yml](../../.github/workflows/mysql.yml) - `mysql-e2e-tests` job
+- [.github/workflows/postgres.yml](../../.github/workflows/postgres.yml) - `postgres-e2e-tests` job
+- [.github/workflows/spanner.yml](../../.github/workflows/spanner.yml) - `spanner-e2e-tests` job
+
+Each workflow builds a Docker image, runs unit tests, then executes E2E tests using the same make targets described above.
 
 - [System Requirements](#system-requirements)
 - [Local Setup](#local-setup)

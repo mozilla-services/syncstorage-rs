@@ -8,6 +8,8 @@
 - [Introduction](introduction.md)
 - [Application Architecture](architecture.md)
 - [Application Configuration](config.md)
+- [Testing](testing.md)
+- [Release Process](release-process.md)
 - [Frequently Asked Questions](faq.md)
 - [Data Types](data-types.md)
 - [OpenAPI Documentation](open-api-docs.md)
