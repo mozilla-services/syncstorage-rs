@@ -46,6 +46,7 @@ services:
       SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
       SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: "api.accounts.firefox.com"
       SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: "https://oauth.accounts.firefox.com"
+      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:8000}"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/__heartbeat__"]
@@ -56,9 +57,10 @@ services:
 ```
 
 Note that multiple values will be read from the environment:
-- `SYNC_MASTER_SECRET`: a secret used in cryptographic operationsk a passphrase or random character string, e.g. `use_your_own_secret_4d3d3d3d`
-- `SYNC_SYNCSTORAGE__DATABASE_URL`: database URL for syncstorage, e.g. `mysql://sync:test@example.io/syncstorage` or `postgres://testo:@localhost/syncdb`
-- `SYNC_TOKENSERVER__DATABASE_URL`: database URL for tokenserver, e.g. `mysql://sync:test@example.io/tokenserver` or `postgres://testo:@localhost/syncdb`
+- [`SYNC_MASTER_SECRET`](../config.md#SYNC_MASTER_SECRET): a secret used in cryptographic operations, a passphrase or random character string, e.g. `use_your_own_secret_4d3d3d3d`
+- [`SYNC_SYNCSTORAGE__DATABASE_URL`](../config.md#SYNC_SYNCSTORAGE__DATABASE_URL): database URL for syncstorage, e.g. `mysql://sync:test@example.io/syncstorage` or `postgres://testo:@localhost/syncdb`
+- [`SYNC_TOKENSERVER__DATABASE_URL`](../config.md#SYNC_TOKENSERVER__DATABASE_URL): database URL for tokenserver, e.g. `mysql://sync:test@example.io/tokenserver` or `postgres://testo:@localhost/syncdb`
+- [`SYNC_TOKENSERVER__INIT_NODE_URL`](../config.md#SYNC_TOKENSERVER__INIT_NODE_URL): the storage node URL (defaults to `http://localhost:8000`).  Replace with the actual URL where clients will access the sync server.
 
 The values can be directly written into the yaml as well.
 
@@ -68,46 +70,13 @@ Next, start the service with `docker compose`:
 SYNC_MASTER_SECRET=use_your_own_secret_4d3d3d3d \
 SYNC_SYNCSTORAGE__DATABASE_URL="mysql://sync:test@example.io/syncstorage" \
 SYNC_TOKENSERVER__DATABASE_URL="mysql://sync:test@example.io/tokenserver" \
+SYNC_TOKENSERVER__INIT_NODE_URL="http://localhost:8000" \
 docker compose -f docker-compose.yaml up -d
-```
-
-### Database Bootstrapping
-
-After starting the service on a clean, uninitialized database, some bootstrapping records need to be inserted.
-
-For MySQL, run
-```sql
-INSERT INTO tokenserver.services (service, pattern) VALUES ('sync-1.5', '{node}/1.5/{uid}');
-
-INSERT INTO tokenserver.nodes (service, node, available, current_load, capacity, downed, backoff)
-VALUES (
-  (SELECT id FROM services WHERE service = 'sync-1.5'),
-  'http://localhost:8000',
-  1, 0, 1000, 0, 0
-);
-```
-
-For PostgreSQL, run
-```sql
-INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
-VALUES (
-  (SELECT id FROM services WHERE service = 'sync-1.5'),
-  'http://localhost:8000',
-  1, 0, 1000, 0, 0
-);
-```
-
-Note that `http://localhost:8000` above needs to be replaced with the actual
-service URL.
-
-Restart the service with 
-```sh
-docker compose -f docker-compose.yaml restart
 ```
 
 ## Docker Compose, One-Shot with PostgreSQL
 
-Alternatively, the database can be started through `docker compose` as well.  The real service URL can be set with the `NODE_URL` environment variable.
+Alternatively, the database can be started through `docker compose` as well. The real service URL can be set with the `INIT_NODE_URL` environment variable.
 
 Save the yaml below into a file, e.g. `docker-compose.one-shot.yaml`.
 
@@ -131,6 +100,7 @@ services:
       SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: "https://oauth.accounts.firefox.com"
       SYNC_HUMAN_LOGS: "${SYNC_HUMAN_LOGS:-false}"
       RUST_LOG: "${RUST_LOG:-info}"
+      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:8000}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -159,32 +129,6 @@ services:
       start_period: 30s
     restart: unless-stopped
 
-  # insert record for the storage node
-  bootstrap:
-    image: postgres:18
-    container_name: syncserver-bootstrap
-    environment:
-      PGHOST: postgres
-      PGPORT: 5432
-      PGUSER: sync
-      PGPASSWORD: sync
-      PGDATABASE: syncserver
-      NODE_URL: "${NODE_URL:-http://localhost:8000}"
-    depends_on:
-      syncserver:
-        condition: service_healthy
-    command: >
-      sh -c "
-      echo 'Waiting for migrations to complete...';
-      sleep 5;
-      echo 'Inserting storage node record...';
-      psql -c \"INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
-               VALUES ((SELECT id FROM services WHERE service = 'sync-1.5'), '\$\${NODE_URL}', 1, 0, 1000, 0, 0)
-               ON CONFLICT (service, node) DO NOTHING;\";
-      echo 'DB bootstrap complete';
-      "
-    restart: "no"
-
 volumes:
   postgres_data:
     driver: local
@@ -194,7 +138,7 @@ Next, start the service with `docker compose`:
 
 ```sh
 SYNC_MASTER_SECRET=use_your_own_secret_4d3d3d3d \
-NODE_URL=http://localhost:8000 \
+SYNC_TOKENSERVER__INIT_NODE_URL=http://localhost:8000 \
 docker compose -f docker-compose.one-shot.yaml up -d
 ```
 

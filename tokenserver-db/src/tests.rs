@@ -400,6 +400,88 @@ async fn post_user() -> DbResult<()> {
 }
 
 #[tokio::test]
+async fn test_init_sync15_node() -> DbResult<()> {
+    temp_env::async_with_vars(
+        [
+            (
+                "SYNC_TOKENSERVER__INIT_NODE_URL",
+                Some("https://testo.example.gg"),
+            ),
+            ("SYNC_TOKENSERVER__INIT_NODE_CAPACITY", Some("38383")),
+        ],
+        async {
+            let pool = db_pool().await?;
+            let mut db = pool.get().await?;
+
+            let service_id = db
+                .get_service_id(params::GetServiceId {
+                    service: params::Sync15Node::SERVICE_NAME.to_owned(),
+                })
+                .await?
+                .id;
+
+            let node_id = db
+                .get_node_id(params::GetNodeId {
+                    service_id,
+                    node: "https://testo.example.gg".to_owned(),
+                })
+                .await?
+                .id;
+
+            let node = db.get_node(params::GetNode { id: node_id }).await?;
+
+            assert_eq!(node.node, "https://testo.example.gg");
+            assert_eq!(node.capacity, 38383);
+            assert_eq!(node.available, 1);
+            assert_eq!(node.current_load, 0);
+
+            Ok(())
+        },
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_init_sync15_node_with_default_capacity() -> DbResult<()> {
+    temp_env::async_with_vars(
+        [
+            (
+                "SYNC_TOKENSERVER__INIT_NODE_URL",
+                Some("https://testo.example.gg"),
+            ),
+            ("SYNC_TOKENSERVER__INIT_NODE_CAPACITY", None::<&str>),
+        ],
+        async {
+            let pool = db_pool().await?;
+            let mut db = pool.get().await?;
+
+            let service_id = db
+                .get_service_id(params::GetServiceId {
+                    service: params::Sync15Node::SERVICE_NAME.to_owned(),
+                })
+                .await?
+                .id;
+
+            let node_id = db
+                .get_node_id(params::GetNodeId {
+                    service_id,
+                    node: "https://testo.example.gg".to_owned(),
+                })
+                .await?
+                .id;
+
+            let node = db.get_node(params::GetNode { id: node_id }).await?;
+
+            assert_eq!(node.node, "https://testo.example.gg");
+            assert_eq!(node.capacity, 100000);
+
+            Ok(())
+        },
+    )
+    .await
+}
+
+#[tokio::test]
 async fn get_node_id() -> DbResult<()> {
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
@@ -1351,29 +1433,6 @@ async fn db_pool() -> DbResult<Box<dyn DbPool>> {
         use_test_transactions,
     )?;
     pool.init().await?;
-
-    if settings.tokenserver.database_url.starts_with("mysql://") {
-        // Ensure the "sync-1.5" service
-        // TODO: tokenserver-mysql's migration should add this service
-        // entry for us (if possible)
-        let mut db = pool.get().await?;
-        let service = "sync-1.5".to_owned();
-        let result = db
-            .get_service_id(params::GetServiceId {
-                service: service.clone(),
-            })
-            .await;
-        if let Err(e) = result {
-            if !e.is_diesel_not_found() {
-                return Err(e);
-            }
-            db.post_service(params::PostService {
-                service,
-                pattern: "{node}/1.5/{uid}".to_owned(),
-            })
-            .await?;
-        }
-    }
 
     Ok(pool)
 }

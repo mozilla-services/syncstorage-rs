@@ -377,6 +377,27 @@ impl Db for TokenserverDb {
         Ok(result)
     }
 
+    async fn insert_sync15_node(&mut self, params: params::Sync15Node) -> DbResult<()> {
+        let query = format!(
+            r#"
+            INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
+            VALUES (
+                (SELECT id FROM services WHERE service = '{}'),
+                ?, 1, 0, ?, 0, 0
+            )
+            "#,
+            params::Sync15Node::SERVICE_NAME
+        );
+
+        diesel::sql_query(query)
+            .bind::<Text, _>(&params.node)
+            .bind::<Integer, _>(params.capacity)
+            .execute(&mut self.conn)
+            .await?;
+
+        Ok(())
+    }
+
     #[cfg(debug_assertions)]
     async fn post_node(&mut self, params: params::PostNode) -> DbResult<results::PostNode> {
         const QUERY: &str = r#"

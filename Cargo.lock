@@ -4125,6 +4125,7 @@ dependencies = [
  "syncserver-common",
  "syncserver-db-common",
  "syncserver-settings",
+ "temp-env",
  "tokenserver-db-common",
  "tokenserver-mysql",
  "tokenserver-postgres",

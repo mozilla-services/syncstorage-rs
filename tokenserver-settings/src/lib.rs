@@ -55,6 +55,12 @@ pub struct Settings {
     pub additional_blocking_threads_for_fxa_requests: Option<u32>,
     /// The amount of time in seconds before a token provided by Tokenserver expires.
     pub token_duration: u64,
+    /// The storage node URL to insert into the `nodes` table on startup.  The insert is performed
+    /// only when this value is set.  On db record conflict it will do nothing.
+    pub init_node_url: Option<String>,
+    /// The capacity value for the node record created for `init_node_url`.  Only used if
+    /// `init_node_url` is set.
+    pub init_node_capacity: i32,
 }
 
 impl Default for Settings {
@@ -78,6 +84,8 @@ impl Default for Settings {
             spanner_node_id: None,
             additional_blocking_threads_for_fxa_requests: Some(1),
             token_duration: 3600,
+            init_node_url: None,
+            init_node_capacity: 100000,
         }
     }
 }

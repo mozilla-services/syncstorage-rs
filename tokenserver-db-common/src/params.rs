@@ -126,3 +126,12 @@ pub struct RemoveNode {
 
 #[cfg(debug_assertions)]
 pub type SpannerNodeId = Option<i32>;
+
+pub struct Sync15Node {
+    pub node: String,
+    pub capacity: i32,
+}
+
+impl Sync15Node {
+    pub const SERVICE_NAME: &str = "sync-1.5";
+}
