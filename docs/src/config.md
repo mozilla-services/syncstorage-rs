@@ -47,6 +47,7 @@ The following configuration options are available.
 | <span id="SYNC_CORS_ALLOWED_ORIGIN"></span>SYNC_CORS_ALLOWED_ORIGIN | * | Allowed origins for CORS requests |
 | <span id="SYNC_CORS_MAX_AGE"></span>SYNC_CORS_MAX_AGE | 1728000 | CORS preflight cache seconds (20 days) |
 | <span id="SYNC_CORS_ALLOWED_METHODS"></span>SYNC_CORS_ALLOWED_METHODS | ["DELETE", "GET", "POST", "PUT"] | Allowed methods |
+| <span id="SYNC_CORS_ALLOWED_HEADERS"></span>SYNC_CORS_ALLOWED_HEADERS | See source | Allowed headers for CORS requests |
 
 ### Syncstorage Database
 
@@ -81,6 +82,8 @@ The following configuration options are available.
 | <span id="SYNC_SYNCSTORAGE__ENABLE_QUOTA"></span>SYNC_SYNCSTORAGE__ENABLE_QUOTA | false | Enable quota tracking (Spanner only) |
 | <span id="SYNC_SYNCSTORAGE__ENFORCE_QUOTA"></span>SYNC_SYNCSTORAGE__ENFORCE_QUOTA | false | Enforce quota limits (Spanner only) |
 | <span id="SYNC_SYNCSTORAGE__GLEAN_ENABLED"></span>SYNC_SYNCSTORAGE__GLEAN_ENABLED | true | Enable Glean telemetry |
+| <span id="SYNC_SYNCSTORAGE__LBHEARTBEAT_TTL"></span>SYNC_SYNCSTORAGE__LBHEARTBEAT_TTL | None | Load balancer heartbeat period in seconds |
+| <span id="SYNC_SYNCSTORAGE__LBHEARTBEAT_TTL_JITTER"></span>SYNC_SYNCSTORAGE__LBHEARTBEAT_TTL_JITTER | 25 | Jitter percentage for the load balancer heartbeat period |
 | <span id="SYNC_SYNCSTORAGE__STATSD_LABEL"></span>SYNC_SYNCSTORAGE__STATSD_LABEL | syncstorage | StatsD metrics label prefix |
 
 ### Tokenserver Database
@@ -100,6 +103,7 @@ The following configuration options are available.
 | <span id="SYNC_TOKENSERVER__ENABLED"></span>SYNC_TOKENSERVER__ENABLED | false | Enable tokenserver service |
 | <span id="SYNC_TOKENSERVER__RUN_MIGRATIONS"></span>SYNC_TOKENSERVER__RUN_MIGRATIONS | false | Run DB migrations on startup |
 | <span id="SYNC_TOKENSERVER__NODE_TYPE"></span>SYNC_TOKENSERVER__NODE_TYPE | spanner | Storage backend type reported in token response for telemetry. Valid values: "mysql", "postgres", "spanner" |
+| <span id="SYNC_TOKENSERVER__STATSD_LABEL"></span>SYNC_TOKENSERVER__STATSD_LABEL | syncstorage.tokenserver | StatsD metrics label prefix |
 | <span id="SYNC_TOKENSERVER__TOKEN_DURATION"></span>SYNC_TOKENSERVER__TOKEN_DURATION | 3600 | Token TTL (1 hour) |
 
 ### Tokenserver+FxA Integration
@@ -110,6 +114,7 @@ The following configuration options are available.
 | <span id="SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"></span>SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL | https://oauth.stage.mozaws.net | FxA OAuth server URL |
 | <span id="SYNC_TOKENSERVER__FXA_OAUTH_REQUEST_TIMEOUT"></span>SYNC_TOKENSERVER__FXA_OAUTH_REQUEST_TIMEOUT | 10 | OAuth request timeout in seconds |
 | <span id="SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET"></span>SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET | secret | Secret for hashing metrics to maintain anonymity |
+| <span id="SYNC_TOKENSERVER__ADDITIONAL_BLOCKING_THREADS_FOR_FXA_REQUESTS"></span>SYNC_TOKENSERVER__ADDITIONAL_BLOCKING_THREADS_FOR_FXA_REQUESTS | 1 | Number of additional blocking threads to add to the threadpool for OAuth verification requests to FxA |
 | <span id="SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KTY"></span>SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KTY | None | Primary JWK key type (e.g., "RSA") |
 | <span id="SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__ALG"></span>SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__ALG | None | Primary JWK algorithm (e.g., "RS256") |
 | <span id="SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KID"></span>SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KID | None | Primary JWK key ID |
