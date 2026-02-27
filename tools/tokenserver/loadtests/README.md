@@ -48,30 +48,31 @@ Ex. `poetry run python locustfile.py`
    ```
 
 2. Run the `generate-keys.sh` script to generate an RSA keypair and derive the public JWK.
-   Since this script calls `get_jwk.py` and it has a dependency on `autlib`, call the shell script using Poetry:
 
-      ```sh
-   poetry run ./generate-keys.sh 
+Since this script calls `get_jwk.py` and it has a dependency on `autlib`, call the shell script using Poetry:
+
+```sh
+poetry run ./generate-keys.sh 
+```
+
+Otherwise, if in built virtual environment with installed Poetry dependencies:
+
+```sh
+./generate-keys.sh
+```
+
+This script will output two files:
+
+- `load_test.pem`: The private key to be used by the load tests to create OAuth tokens
+- `jwk.json`: The public JWK associated with the private key. This is a key of the form:
+
+```json
+{
+   "n": ...,
+   "e": ...,
+   "kty": "RSA"
+}
    ```
-
-   Otherwise, if in built virtual environment with installed Poetry dependencies:
-   
-   ```sh
-   ./generate-keys.sh
-   ```
-
-   This script will output two files:
-
-   - `load_test.pem`: The private key to be used by the load tests to create OAuth tokens
-   - `jwk.json`: The public JWK associated with the private key. This is a key of the form
-
-     ```json
-     {
-        "n": ...,
-        "e": ...,
-        "kty": "RSA"
-     }
-     ```
 
 3. Set the following environment variables/settings on Tokenserver:
 
