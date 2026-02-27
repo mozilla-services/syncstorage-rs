@@ -24,6 +24,7 @@ tokenlib = "2.0.0"
 pytest = "8.3.5"
 backoff = "^2.2.1"
 datadog = "^0.51.0"
+psycopg2-binary = "^2.9.11"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.16.0"

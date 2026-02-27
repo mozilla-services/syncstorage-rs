@@ -102,17 +102,13 @@ jobs:
 
       # Upload to GCS on master
       - name: Authenticate to Google Cloud
-        if: github.ref == 'refs/heads/master' && env.GCP_AUTH_KEY != ''
-        env:
-          GCP_AUTH_KEY: ${{ secrets.ETE_GCLOUD_SERVICE_KEY }}
+        if: github.ref == 'refs/heads/master'
         uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.ETE_GCLOUD_SERVICE_KEY }}
 
       - name: Upload JUnit results to GCS
-        if: github.ref == 'refs/heads/master' && env.GCP_AUTH_KEY != ''
-        env:
-          GCP_AUTH_KEY: ${{ secrets.ETE_GCLOUD_SERVICE_KEY }}
+        if: github.ref == 'refs/heads/master'
         uses: google-github-actions/upload-cloud-storage@v2
         with:
           path: workflow/test-results
@@ -122,9 +118,7 @@ jobs:
           process_gcloudignore: false
 
       - name: Upload coverage results to GCS
-        if: github.ref == 'refs/heads/master' && env.GCP_AUTH_KEY != ''
-        env:
-          GCP_AUTH_KEY: ${{ secrets.ETE_GCLOUD_SERVICE_KEY }}
+        if: github.ref == 'refs/heads/master'
         uses: google-github-actions/upload-cloud-storage@v2
         with:
           path: workflow/test-results
@@ -215,17 +209,13 @@ jobs:
 
       # Upload to GCS on master
       - name: Authenticate to Google Cloud
-        if: github.ref == 'refs/heads/master' && env.GCP_AUTH_KEY != ''
-        env:
-          GCP_AUTH_KEY: ${{ secrets.ETE_GCLOUD_SERVICE_KEY }}
+        if: github.ref == 'refs/heads/master'
         uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.ETE_GCLOUD_SERVICE_KEY }}
 
       - name: Upload e2e test results to GCS
-        if: github.ref == 'refs/heads/master' && env.GCP_AUTH_KEY != ''
-        env:
-          GCP_AUTH_KEY: ${{ secrets.ETE_GCLOUD_SERVICE_KEY }}
+        if: github.ref == 'refs/heads/master'
         uses: google-github-actions/upload-cloud-storage@v2
         with:
           path: workflow/test-results

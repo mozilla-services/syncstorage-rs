@@ -4,6 +4,8 @@
 
 import math
 import os
+from urllib.parse import urlsplit
+
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text as sqltext
 
@@ -257,8 +259,13 @@ SERVICE_NAME = "sync-1.5"
 
 class Database:
     def __init__(self):
-        engine = create_engine(os.environ["SYNC_TOKENSERVER__DATABASE_URL"])
-        self.db_mode = os.environ["SYNC_TOKENSERVER__DATABASE_URL"].split(":")[0]
+        # Formatted for rust diesel with a "postgres" dialect, whereas
+        # sqlalchemy uses "postgresql" instead
+        s = urlsplit(os.environ["SYNC_TOKENSERVER__DATABASE_URL"])
+        if s.scheme == "postgres":
+            s = s._replace(scheme="postgresql")
+        self.db_mode = s.scheme
+        engine = create_engine(s.geturl())
         self.database = engine.execution_options(isolation_level="AUTOCOMMIT").connect()
         self.capacity_release_rate = os.environ.get("NODE_CAPACITY_RELEASE_RATE", 0.1)
         self.spanner_node_id = os.environ.get("SYNC_TOKENSERVER__SPANNER_NODE_ID")
@@ -348,7 +355,7 @@ class Database:
             "client_state": client_state,
             "timestamp": timestamp,
         }
-        if self.db_mode == "postgres":
+        if self.db_mode == "postgresql":
             insert_sql = sqltext("""\
                 insert into users (service, email, nodeid, generation, keys_changed_at, client_state, created_at, replaced_at)
                 values (:service, :email, :nodeid, :generation, :keys_changed_at, :client_state, :timestamp, NULL)
@@ -358,7 +365,7 @@ class Database:
             insert_sql = _CREATE_USER_RECORD
         res = self._execute_sql(insert_sql, **params)
 
-        if self.db_mode == "postgres":
+        if self.db_mode == "postgresql":
             uid = res.fetchone()[0]
         else:
             uid = res.lastrowid
@@ -431,7 +438,7 @@ class Database:
                 "client_state": client_state,
                 "timestamp": now,
             }
-            if self.db_mode == "postgres":
+            if self.db_mode == "postgresql":
                 insert_sql = sqltext("""\
                 insert into users (service, email, nodeid, generation, keys_changed_at, client_state, created_at, replaced_at)
                 values (:service, :email, :nodeid, :generation, :keys_changed_at, :client_state, :timestamp, NULL)
@@ -441,7 +448,7 @@ class Database:
                 insert_sql = _CREATE_USER_RECORD
             res = self._execute_sql(insert_sql, **params)
 
-            if self.db_mode == "postgres":
+            if self.db_mode == "postgresql":
                 uid = res.fetchone()[0]
             else:
                 uid = res.lastrowid
@@ -583,7 +590,7 @@ class Database:
 
     def add_service(self, service_name, pattern, **kwds):
         """Add definition for a new service."""
-        if self.db_mode == "postgres":
+        if self.db_mode == "postgresql":
             insert_sql = sqltext("""
             insert into services (service, pattern)
             values (:servicename, :pattern)
@@ -601,7 +608,7 @@ class Database:
             **kwds,
         )
         res.close()
-        if self.db_mode == "postgres":
+        if self.db_mode == "postgresql":
             return res.fetchone()[0]
         else:
             return res.lastrowid

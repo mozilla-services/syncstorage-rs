@@ -105,7 +105,7 @@ def purge_old_records(
                     # NOTE: only delete_user+service_data calls count
                     # against the counter
                 elif not row.downed:
-                    logger.info("Purging uid {row.uid} on {row.node}")
+                    logger.info(f"Purging uid {row.uid} on {row.node}")
                     if not dryrun:
                         retryable(
                             delete_service_data,
@@ -360,9 +360,7 @@ def main(args=None):
         parser.print_usage()
         return 1
 
-    # Secret is the last arg?
     secret = args[-1]
-    logger.debug(f"Secret: {secret}")
 
     uid_range = None
     if opts.range_start or opts.range_end:
@@ -387,7 +385,7 @@ def main(args=None):
             # Randomize sleep interval +/- thirty percent to desynchronize
             # instances of this script running on multiple webheads.
             sleep_time = opts.purge_interval
-            sleep_time += random.randint(-0.3 * sleep_time, 0.3 * sleep_time)
+            sleep_time += int(random.uniform(-0.3 * sleep_time, 0.3 * sleep_time))
             logger.debug("Sleeping for %d seconds", sleep_time)
             time.sleep(sleep_time)
             purge_old_records(

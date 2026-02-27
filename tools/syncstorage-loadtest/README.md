@@ -61,7 +61,33 @@ If you already have Poetry installed:
 ```bash
 poetry install
 ```
+### Generate Key
+ Run the `generate-keys.sh` script to generate an RSA keypair and derive the public JWK.
 
+Since this script calls `get_jwk.py` and it has a dependency on `autlib`, call the shell script using Poetry:
+
+```bash
+poetry run ./generate-keys.sh 
+```
+
+Otherwise, if in built virtual environment with installed Poetry dependencies:
+
+```bash
+./generate-keys.sh
+```
+
+This script will output two files:
+
+- `load_test.pem`: The private key to be used by the load tests to create OAuth tokens
+- `jwk.json`: The public JWK associated with the private key. This is a key of the form:
+
+```json
+{
+   "n": ...,
+   "e": ...,
+   "kty": "RSA"
+}
+```
 ## Mode 1: Direct Access
 
 With a known syncstorage master secret:
