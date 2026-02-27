@@ -113,6 +113,10 @@ impl Db for MockDb {
         Ok(results::GetServiceId::default())
     }
 
+    async fn insert_sync15_node(&mut self, _params: params::Sync15Node) -> Result<(), DbError> {
+        Ok(())
+    }
+
     fn metrics(&self) -> &Metrics {
         static METRICS: LazyLock<Metrics> = LazyLock::new(Metrics::noop);
         &METRICS

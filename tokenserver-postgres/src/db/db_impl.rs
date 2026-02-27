@@ -66,6 +66,29 @@ impl Db for TokenserverPgDb {
 
     // Nodes Table Methods
 
+    /// Upsert the initial node record for Sync 1.5.
+    async fn insert_sync15_node(&mut self, params: params::Sync15Node) -> DbResult<()> {
+        let query = format!(
+            r#"
+              INSERT INTO nodes (service, node,  available, current_load, capacity, downed, backoff)
+              VALUES (
+                  (SELECT id FROM services WHERE service = '{}'),
+                  $1, 1, 0, $2, 0, 0
+              )
+              ON CONFLICT (service, node) DO NOTHING
+              "#,
+            params::Sync15Node::SERVICE_NAME
+        );
+
+        diesel::sql_query(query)
+            .bind::<Text, _>(&params.node)
+            .bind::<Integer, _>(params.capacity)
+            .execute(&mut self.conn)
+            .await?;
+
+        Ok(())
+    }
+
     /// Get Node with complete metadata, given a provided Node ID.
     /// Returns a complete Node, including id, service_id, node string identifier
     /// availability, and current load.

@@ -95,6 +95,8 @@ The following configuration options are available.
 
 | Env Var | Default Value | Description |
 | --- | --- | --- |
+| <span id="SYNC_TOKENSERVER__INIT_NODE_URL"></span>SYNC_TOKENSERVER__INIT_NODE_URL | None | The storage node URL, protocol + host, to insert into the `nodes` table on startup. This is the origin where the service is hosted, e.g. "http://localhost:8000". |
+| <span id="SYNC_TOKENSERVER__INIT_NODE_CAPACITY"></span>SYNC_TOKENSERVER__INIT_NODE_CAPACITY | 100000 | The storage node capacity of the server specified by `SYNC_TOKENSERVER__INIT_NODE_URL`. Only used if `SYNC_TOKENSERVER__INIT_NODE_URL` is set. |
 | <span id="SYNC_TOKENSERVER__ENABLED"></span>SYNC_TOKENSERVER__ENABLED | false | Enable tokenserver service |
 | <span id="SYNC_TOKENSERVER__RUN_MIGRATIONS"></span>SYNC_TOKENSERVER__RUN_MIGRATIONS | false | Run DB migrations on startup |
 | <span id="SYNC_TOKENSERVER__NODE_TYPE"></span>SYNC_TOKENSERVER__NODE_TYPE | spanner | Storage backend type reported in token response for telemetry. Valid values: "mysql", "postgres", "spanner" |
