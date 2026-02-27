@@ -12,31 +12,9 @@ To get up and running quickly, see [Run Your Own Sync with Docker](how-to/how-to
 
 For a complete list of available configuration options you'll need to consider, see the [Configuration](config.md) reference.
 
-Below are detailed instructions for other setup configurations, including using the Google Spanner Emulator and MySQL.
+Below are detailed instructions for other setup configurations, including bootstrapping and migration instructions for Postgres, MySQL, and using the Google Spanner Emulator.
 
 Mozilla Sync Storage built with [Rust](https://rust-lang.org). Our documentation is generated using [mdBook](https://rust-lang.github.io/mdBook/index.html) and published to GitHub Pages.
-
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-
-
-- [System Requirements](#system-requirements)
-- [Local Setup](#local-setup)
-  - [MySQL](#mysql)
-  - [Spanner](#spanner)
-  - [Running via Docker](#running-via-docker)
-  - [Connecting to Firefox](#connecting-to-firefox)
-- [Logging](#logging)
-  - [Sentry:](#sentry)
-  - [RUST_LOG](#rust_log)
-- [Tests](#tests)
-  - [Unit tests](#unit-tests)
-  - [End-to-End tests](#end-to-end-tests)
-- [Creating Releases](#creating-releases)
-- [Troubleshooting](#troubleshooting)
-- [Related Documentation](#related-documentation)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## Initial Setup - Bootstrapping
 
