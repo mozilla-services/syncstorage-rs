@@ -48,6 +48,8 @@ Syncstorage-rs supports PostgreSQL as a database backend. The database connectio
 
 This DSN is then used for the `SYNC_TOKENSERVER__DATABASE_URL` & `SYNC_SYNCSTORAGE__DATABASE_URL` URLs.
 
+These values are environment variables set for the application. You can view all configurations and environment variables in the [Configuration documentation](config.md), specifically [SYNC_TOKENSERVER__DATABASE_URL](config.md#SYNC_TOKENSERVER__DATABASE_URL) and [SYNC_SYNCSTORAGE__DATABASE_URL](config.md#SYNC_SYNCSTORAGE__DATABASE_URL).
+
 Use your preferred methods, however here are some general instructions on how to setup a fresh PostgreSQL database and user:
 
 1. First make sure you have a PostgreSQL server running. On most systems, you can start it with:
@@ -94,6 +96,35 @@ touch .env
 ```
 And add:
 `DATABASE_URL=postgres://sample_user:sample_password@localhost/syncstorage`
+
+**Important Note about `.env` files:**
+
+We don't tend to use the `.env` configuration in the production version of Sync, but for some choosing to self host, the `.env` solution may be useful. The `.env` file serves different purposes depending on the context:
+
+1. **For Diesel CLI migrations**: Diesel automatically reads `DATABASE_URL` from a `.env` file in the current directory. When running migrations from `tokenserver-postgres/` or `syncstorage-postgres/`, you can create a `.env` file in that specific directory with the appropriate database URL. This allows you to run `diesel migration run` without the `--database-url` flag.
+
+2. **For running the application**: The syncstorage-rs application uses prefixed environment variables:
+   - `SYNC_TOKENSERVER__DATABASE_URL` for the tokenserver database
+   - `SYNC_SYNCSTORAGE__DATABASE_URL` for the syncstorage database
+
+   These can also be set in a `.env` file at the project root.
+
+**Example `.env` file for the application** (at project root):
+```bash
+SYNC_TOKENSERVER__DATABASE_URL=postgres://sample_user:sample_password@localhost/tokenserver
+SYNC_SYNCSTORAGE__DATABASE_URL=postgres://sample_user:sample_password@localhost/syncstorage
+```
+
+**Example `.env` file for diesel migrations** (in `tokenserver-postgres/` directory):
+```bash
+DATABASE_URL=postgres://sample_user:sample_password@localhost/tokenserver
+```
+
+**Example `.env` file for diesel migrations** (in `syncstorage-postgres/` directory):
+```bash
+DATABASE_URL=postgres://sample_user:sample_password@localhost/syncstorage
+```
+
 ### Bootstrapping Tokenserver (Postgres)
 
 Tokenserver includes migrations to initialize its database, but they do not run by default. These can be enabled via the setting:
@@ -107,6 +138,51 @@ Once you have created and defined your database, copy the URL.
 ```bash
 SYNC_TOKENSERVER__DATABASE_URL=postgres://<DB URL>
 ```
+
+#### Running Migrations Manually for Tokenserver
+
+If you prefer to run migrations manually instead of using `SYNC_TOKENSERVER__RUN_MIGRATIONS=true`, you can use Diesel CLI:
+
+**Prerequisites:**
+1. Install diesel_cli with PostgreSQL support:
+   ```bash
+   cargo install diesel_cli --no-default-features --features postgres
+   ```
+
+2. Optional: Install diesel_cli_ext for additional features (schema/model generation):
+   ```bash
+   cargo install diesel_cli_ext
+   ```
+
+   For more information on diesel_cli_ext, see the [diesel_cli_ext repository](https://github.com/abbychau/diesel_cli_ext).
+
+**Running Migrations:**
+
+The migrations are located in the `tokenserver-postgres/migrations` directory. To run them:
+
+```bash
+cd tokenserver-postgres
+diesel migration run --database-url="postgres://<DB URL>"
+```
+
+Alternatively, if you've set the `DATABASE_URL` environment variable:
+```bash
+cd tokenserver-postgres
+export DATABASE_URL="postgres://<DB URL>"
+diesel migration run
+```
+
+**Undoing Migrations:**
+
+To undo the last migration:
+```bash
+cd tokenserver-postgres
+diesel migration redo --database-url="postgres://<DB URL>"
+```
+
+**Note:** The diesel.toml configuration file in the `tokenserver-postgres` directory specifies the migrations directory path and schema generation settings.
+
+**Note:** We have automated support for this in Tokenserver, however the manual query that must run for Tokenserver is as follows: 
 
 After migrations run, insert a node entry:
 ```sql
@@ -123,6 +199,42 @@ Configure the database URL:
 ```bash
 SYNC_SYNCSTORAGE__DATABASE_URL=postgres://<DB URL>
 ```
+
+#### Running Migrations Manually for Syncstorage
+
+If you need to run Syncstorage migrations manually, you can use Diesel CLI:
+
+**Prerequisites:**
+Install diesel_cli with PostgreSQL support (if not already installed):
+```bash
+cargo install diesel_cli --no-default-features --features postgres
+```
+
+**Running Migrations:**
+
+The migrations are located in the `syncstorage-postgres/migrations` directory. To run them:
+
+```bash
+cd syncstorage-postgres
+diesel migration run --database-url="postgres://<DB URL>"
+```
+
+Or with the `DATABASE_URL` environment variable:
+```bash
+cd syncstorage-postgres
+export DATABASE_URL="postgres://<DB URL>"
+diesel migration run
+```
+
+**Undoing Migrations:**
+
+To undo the last migration:
+```bash
+cd syncstorage-postgres
+diesel migration redo --database-url="postgres://<DB URL>"
+```
+
+**Note:** Both `syncstorage-postgres` and `tokenserver-postgres` directories contain their own `diesel.toml` configuration files and separate `migrations` directories. Each must be run from its respective directory.
 
 ### Bootstrapping Tokenserver (MySQL)
 
