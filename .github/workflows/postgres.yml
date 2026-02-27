@@ -13,6 +13,7 @@ on:
 env:
   RUST_VERSION: "1.91"
   PYTHON_VERSION: "3.12"
+  test: "test"
 
 jobs:
   build-and-test-postgres:
