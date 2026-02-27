@@ -239,35 +239,6 @@ commands:
           environment:
             SYNCSTORAGE_RS_IMAGE: app:build
 
-  gcs-configure-and-upload:
-    parameters:
-      source:
-        type: string
-      destination:
-        type: string
-      extension:
-        type: enum
-        enum: ["xml", "json"]
-    steps:
-      - gcp-cli/setup:
-          google_project_id: ETE_GOOGLE_PROJECT_ID
-          gcloud_service_key: ETE_GCLOUD_SERVICE_KEY
-          google_project_number: ETE_GOOGLE_PROJECT_NUMBER
-      - run:
-          name: Upload << parameters.source >> << parameters.extension >> Files to GCS
-          when: always # Ensure the step runs even if previous steps, like test runs, fail
-          command: |
-            if [ "$CIRCLE_BRANCH" = "master" ]; then
-              FILES=$(ls -1 << parameters.source>>/*.<< parameters.extension>> )
-              if [ -z "$FILES" ]; then
-                echo "No << parameters.extension >> files found in << parameters.source >>/"
-                exit 1
-              fi
-              gsutil cp $FILES << parameters.destination >>
-            else
-              echo "Skipping artifact upload, not on 'master' branch."
-            fi
-
   setup-sccache:
     steps:
       - run:
@@ -348,14 +319,6 @@ jobs:
       - make-test-dir
       - run-unit-tests-mysql
       - store-test-results
-      - gcs-configure-and-upload:
-          source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
-          extension: xml
-      - gcs-configure-and-upload:
-          source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
-          extension: json
       # - save-sccache-cache
 
   build-and-test-postgres:
@@ -394,15 +357,6 @@ jobs:
       - run-unit-tests-postgres
       - run-utils-tests-postgres
       - store-test-results
-      - gcs-configure-and-upload:
-          source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
-          extension: xml
-      # TODO: enable when run-unit-tests-postgres succeeds
-      #- gcs-configure-and-upload:
-      #    source: workflow/test-results
-      #    destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
-      #    extension: json
 
   build-and-test-spanner:
     docker:
@@ -439,15 +393,6 @@ jobs:
       - make-test-dir
       - run-spanner-tests
       - store-test-results
-      - gcs-configure-and-upload:
-          source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
-          extension: xml
-      # TODO: enable when run-spanner-tests succeeds
-      #- gcs-configure-and-upload:
-      #    source: workflow/test-results
-      #    destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
-      #    extension: json
 
   build-mysql-image:
     docker:
@@ -592,10 +537,6 @@ jobs:
       - run-e2e-tests:
           db: mysql
       - store-test-results
-      - gcs-configure-and-upload:
-          source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
-          extension: xml
 
   postgres-e2e-tests:
     docker:
@@ -621,10 +562,6 @@ jobs:
       - run-e2e-tests:
           db: postgres
       - store-test-results
-      - gcs-configure-and-upload:
-          source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
-          extension: xml
 
   spanner-e2e-tests:
     docker:
@@ -650,10 +587,6 @@ jobs:
       - run-e2e-tests:
           db: spanner
       - store-test-results
-      - gcs-configure-and-upload:
-          source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
-          extension: xml
 
   deploy-spanner:
     docker:
