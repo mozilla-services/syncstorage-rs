@@ -14,7 +14,7 @@ Broadly, Tokenserver is responsible for:
 * Re-assigning the user to a new storage node if their FxA encryption key changes.
 * Cleaning up old data from deleted accounts.
 
-In practice today, it is only used for connecting to Sync.However, the service was originally conceived to be a general-purpose mechanism for connecting users
+In practice today, it is only used for connecting to Sync. However, the service was originally conceived to be a general-purpose mechanism for connecting users
 to multiple different Mozilla-run services, and you can see some of the historical context
 for that original design [here](https://wiki.mozilla.org/Services/Sagrada/TokenServer)
 and [here](https://mozilla-services.readthedocs.io/en/latest/token/index.html).

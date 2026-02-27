@@ -58,7 +58,6 @@ The following configuration options are available.
 | <span id="SYNC_SYNCSTORAGE__DATABASE_POOL_CONNECTION_TIMEOUT"></span>SYNC_SYNCSTORAGE__DATABASE_POOL_CONNECTION_TIMEOUT | 30 | Pool timeout in seconds |
 | <span id="SYNC_SYNCSTORAGE__DATABASE_POOL_CONNECTION_LIFESPAN"></span>SYNC_SYNCSTORAGE__DATABASE_POOL_CONNECTION_LIFESPAN | None | Max connection age in seconds |
 | <span id="SYNC_SYNCSTORAGE__DATABASE_POOL_CONNECTION_MAX_IDLE"></span>SYNC_SYNCSTORAGE__DATABASE_POOL_CONNECTION_MAX_IDLE | None | Max idle time in seconds |
-| <span id="SYNC_SYNCSTORAGE__DATABASE_POOL_MIN_IDLE"></span>SYNC_SYNCSTORAGE__DATABASE_POOL_MIN_IDLE | None | Minimum guaranteed idle time for pooled connections |
 | <span id="SYNC_SYNCSTORAGE__DATABASE_POOL_SWEEPER_TASK_INTERVAL"></span>SYNC_SYNCSTORAGE__DATABASE_POOL_SWEEPER_TASK_INTERVAL | 30 | How often, in seconds, a background task runs to evict idle database connections (Spanner only) |
 | <span id="SYNC_SYNCSTORAGE__DATABASE_SPANNER_ROUTE_TO_LEADER"></span>SYNC_SYNCSTORAGE__DATABASE_SPANNER_ROUTE_TO_LEADER | false | Send leader-aware headers to Spanner |
 | <span id="SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST"></span>SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST | None | Spanner emulator host (e.g., localhost:9010) |
@@ -94,7 +93,6 @@ The following configuration options are available.
 | <span id="SYNC_TOKENSERVER__DATABASE_URL"></span>SYNC_TOKENSERVER__DATABASE_URL | mysql://root@127.0.0.1/tokenserver | Tokenserver database URL |
 | <span id="SYNC_TOKENSERVER__DATABASE_POOL_MAX_SIZE"></span>SYNC_TOKENSERVER__DATABASE_POOL_MAX_SIZE | 10 | Max tokenserver DB connections |
 | <span id="SYNC_TOKENSERVER__DATABASE_POOL_CONNECTION_TIMEOUT"></span>SYNC_TOKENSERVER__DATABASE_POOL_CONNECTION_TIMEOUT | 30 | Pool timeout in seconds |
-| <span id="SYNC_TOKENSERVER__DATABASE_POOL_MIN_IDLE"></span>SYNC_TOKENSERVER__DATABASE_POOL_MIN_IDLE | None | Minimum idle time for the tokenserver database connection pool |
 
 ### Tokenserver Features
 
