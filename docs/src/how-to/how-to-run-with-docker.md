@@ -142,14 +142,25 @@ SYNC_TOKENSERVER__INIT_NODE_URL=http://localhost:8000 \
 docker compose -f docker-compose.one-shot.yaml up -d
 ```
 
-## Configuring Firefox
+## Configuring Firefox (Desktop)
 
 Firefox itself needs to be configured to use the self-hosted Sync server.
 
 1. Go to `about:config` in Firefox.
-1. Find the `identity.sync.tokenserver.uri` configuration.
-1. Change the value to `http://localhost:8000/1.0/sync/1.5`.
-1. Restart Firefox.
+2. Find the `identity.sync.tokenserver.uri` configuration.
+3. Change the value to `http://localhost:8000/1.0/sync/1.5`.
+4. Restart Firefox.
 
 Firefox should be using the self-hosted Sync server at this point.  That can be
 verified by checking the logs in `about:sync-log`.
+
+## Configuring Firefox (Mobile)
+
+Firefox itself needs to be configured to use the self-hosted Sync server.
+
+1. Go to Settings -> About Firefox
+2. Repeadetly press the Firefox logo (six times) to activate the debug menu
+3. Go back to the main Setting menu.
+4. Click on the "Sync Debug" menu
+5. Click on "custom sync server" and change the value to `http://localhost:8000/1.0/sync/1.5`.
+6. After changing the "custom sync server" click on "Stop Firefox" in the same menu so the changes can be applied.
