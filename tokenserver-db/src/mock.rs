@@ -7,10 +7,15 @@ use syncserver_common::Metrics;
 use syncserver_db_common::{GetPoolState, PoolState};
 use tokenserver_db_common::{Db, DbError, DbPool, params, results};
 
+/// A mock database connection pool for testing.
+///
+/// This implementation provides no-op database operations suitable for unit tests
+/// where actual db connectivity is not required.
 #[derive(Clone, Debug)]
 pub struct MockDbPool;
 
 impl MockDbPool {
+    /// Creates a new mock database pool.
     pub fn new() -> Self {
         MockDbPool
     }
@@ -37,10 +42,16 @@ impl GetPoolState for MockDbPool {
     }
 }
 
+/// A mock database connection for testing.
+///
+/// This implementation provides no-op implementations of all db operations,
+/// returning default values where necessary. Suitable for unit tests that don't
+/// require actual database interaction.
 #[derive(Clone, Debug)]
 pub struct MockDb;
 
 impl MockDb {
+    /// Creates a new mock database connection.
     pub fn new() -> Self {
         MockDb
     }

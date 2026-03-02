@@ -26,3 +26,6 @@ syncserver-settings = { path = "../syncserver-settings" }
 default = ["mysql"]
 mysql = ['tokenserver-mysql']
 postgres = ['tokenserver-postgres']
+
+[lints.rust]
+missing_docs = "warn"

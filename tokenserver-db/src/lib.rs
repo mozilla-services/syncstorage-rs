@@ -1,3 +1,12 @@
+//! Database abstraction layer for Tokenserver.
+//!
+//! This crate provides a unified interface for interacting with Tokenserver databases,
+//! supporting both MySQL and PostgreSQL backends. It includes:
+//! - Database connection pool management
+//! - Common database operations and traits
+//! - Mock implementations for testing
+
+/// Mock database implementations for testing.
 pub mod mock;
 #[cfg(test)]
 mod tests;
@@ -8,6 +17,35 @@ use syncserver_common::Metrics;
 pub use tokenserver_db_common::{Db, DbError, DbPool, params, results};
 use tokenserver_settings::Settings;
 
+/// Creates a database connection pool from the provided settings.
+///
+/// This function examines the database URL scheme and returns the appropriate
+/// database pool implementation (MySQL or PostgreSQL).
+///
+/// # Arguments
+///
+/// * `settings` - The Tokenserver configuration settings
+/// * `metrics` - Metrics collector for monitoring database operations
+/// * `use_test_transactions` - If true, enables test transaction mode where
+///   database changes are rolled back after each test
+///
+/// # Returns
+///
+/// Returns a boxed `DbPool` trait object on success, or a `DbError` if:
+/// - The database URL is invalid
+/// - The URL scheme is not supported (must be "mysql" or "postgres")
+/// - Pool creation fails
+///
+/// # Examples
+///
+/// ```no_run
+/// # use tokenserver_settings::Settings;
+/// # use syncserver_common::Metrics;
+/// # use tokenserver_db::pool_from_settings;
+/// let settings = Settings::default();
+/// let metrics = Metrics::noop();
+/// let pool = pool_from_settings(&settings, &metrics, false).unwrap();
+/// ```
 pub fn pool_from_settings(
     settings: &Settings,
     metrics: &Metrics,
