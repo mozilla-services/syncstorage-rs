@@ -24,7 +24,7 @@ use tokenserver_settings::Settings;
 ///
 /// # Arguments
 ///
-/// * `settings` - The Tokenserver configuration settings
+/// * `settings` - Tokenserver configuration settings
 /// * `metrics` - Metrics collector for monitoring database operations
 /// * `use_test_transactions` - If true, enables test transaction mode where
 ///   database changes are rolled back after each test

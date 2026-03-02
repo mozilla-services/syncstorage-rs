@@ -1,8 +1,23 @@
+//! Common database interface for Tokenserver.
+//!
+//! This crate provides the core database abstraction layer used by Tokenserver implementations.
+//! It defines traits, types, and common functionality for interacting with Tokenserver,
+//! supporting multiple database backends (MySQL & PostgreSQL).
+//!
+//! The main components are:
+//! - [`DbPool`] trait for managing database connection pools
+//! - [`Db`] trait defining all database operations
+//! - [`DbError`] for database error handling
+//! - Parameter types in the [`params`] module
+//! - Result types in the [`results`] module
+
 #[macro_use]
 extern crate slog_scope;
 
 mod error;
+/// Parameter types for database operations.
 pub mod params;
+/// Result types returned from database operations.
 pub mod results;
 
 use std::{
@@ -16,18 +31,32 @@ use syncserver_db_common::{GetPoolState, PoolState};
 
 pub use crate::error::DbError;
 
+/// Result type for database operations that may fail with a [`DbError`].
 pub type DbResult<T> = Result<T, DbError>;
 
 /// The maximum possible generation number. Used as a tombstone to mark users that have been
 /// "retired" from the db.
 pub const MAX_GENERATION: i64 = i64::MAX;
 
+/// Trait for managing a pool of database connections.
+///
+/// Implementors of this trait provide connection pooling functionality for a specific
+/// database backend. The pool can be cloned and shared across threads.
 #[async_trait(?Send)]
 pub trait DbPool: Sync + Send + GetPoolState {
+    /// Initializes the database pool.
+    ///
+    /// This performs tasks such as running migrations or verifying connectivity.
     async fn init(&mut self) -> DbResult<()>;
 
+    /// Gets a database connection from the pool.
+    ///
+    /// Returns a boxed [`Db`] trait object representing an active database connection.
     async fn get(&self) -> DbResult<Box<dyn Db>>;
 
+    /// Creates a clone of this pool as a boxed trait object.
+    ///
+    /// This is used to implement [`Clone`] for `Box<dyn DbPool>`.
     fn box_clone(&self) -> Box<dyn DbPool>;
 }
 
@@ -43,65 +72,90 @@ impl Clone for Box<dyn DbPool> {
     }
 }
 
+/// Trait defining all database operations for Tokenserver.
+///
+/// This trait provides the complete interface for interacting with a Tokenserver database,
+/// including user management, node allocation, and service queries.
 #[async_trait(?Send)]
 pub trait Db {
-    /// Return the Db instance timeout duration.
+    /// Returns the timeout duration for this database connection.
+    ///
+    /// If `None`, no timeout is configured.
     fn timeout(&self) -> Option<Duration> {
         None
     }
 
-    /// Mark the user with the given uid and service ID as being replaced.
+    /// Marks the user with the given uid and service ID as being replaced.
+    ///
+    /// This is used when a user is moved to a new record or node.
     async fn replace_user(&mut self, params: params::ReplaceUser)
     -> DbResult<results::ReplaceUser>;
 
-    /// Mark users matching the given email and service ID as replaced.
+    /// Marks all users matching the given email and service ID as replaced.
+    ///
+    /// This is used when all existing user records for an email should be retired.
     async fn replace_users(
         &mut self,
         params: params::ReplaceUsers,
     ) -> DbResult<results::ReplaceUsers>;
 
-    /// Post complete user object and get last insert ID.
+    /// Creates a new user record and returns the assigned user ID.
     async fn post_user(&mut self, params: params::PostUser) -> DbResult<results::PostUser>;
 
-    /// Based on service_id, email, generation, and changed keys timestamp, update user.
+    /// Updates an existing user's `generation` and `keys_changed_at` timestamp.
+    ///
+    /// The user is identified by service_id and email.
     async fn put_user(&mut self, params: params::PutUser) -> DbResult<results::PutUser>;
 
-    /// Show database uptime status and health as boolean.
+    /// Checks the database health and availability.
+    ///
+    /// Returns `true` if the database is healthy and accessible.
     async fn check(&mut self) -> DbResult<results::Check>;
 
-    /// Insert an initial Sync 1.5 node record.  Does nothing when there is a conflict.
+    /// Inserts an initial Sync 1.5 node record into the database.
+    ///
+    /// Does nothing if a node with the same identifier already exists.
     async fn insert_sync15_node(&mut self, params: params::Sync15Node) -> DbResult<()>;
 
-    /// Get Node ID based on service_id and node string.
+    /// Retrieves the node ID for a given service and node identifier string.
     async fn get_node_id(&mut self, params: params::GetNodeId) -> DbResult<results::GetNodeId>;
 
-    /// Get Node ID and string identifier based on node
-    /// with lowest capacity or high release rate.
+    /// Retrieves the best available node for user allocation.
+    ///
+    /// Selects a node based on capacity and load.
     async fn get_best_node(
         &mut self,
         params: params::GetBestNode,
     ) -> DbResult<results::GetBestNode>;
 
-    /// Add a user to a specific node, based on service and node string.
+    /// Assigns a user to a specific node by updating the node's capacity and load.
+    ///
+    /// Decrements available capacity and increments current load for the specified node.
     async fn add_user_to_node(
         &mut self,
         params: params::AddUserToNode,
     ) -> DbResult<results::AddUserToNode>;
 
-    /// Get vector of users based on passed in service and FxA email.
+    /// Retrieves all user records matching the given email and service ID.
     async fn get_users(&mut self, params: params::GetUsers) -> DbResult<results::GetUsers>;
 
-    /// Get the service id by passing in service string identifier.
+    /// Retrieves the service ID for a given service name.
     async fn get_service_id(
         &mut self,
         params: params::GetServiceId,
     ) -> DbResult<results::GetServiceId>;
 
-    /// Return the Db instance Metrics.
+    /// Returns the metrics collector for this database connection.
     fn metrics(&self) -> &Metrics;
 
-    /// Gets the user with the given email and service ID.
-    /// If one doesn't exist, allocates a new user.
+    /// Gets the user with the given email and service ID, or creates a new one if needed.
+    ///
+    /// This is the primary method for user retrieval in Tokenserver. It handles several scenarios:
+    /// - If no user exists, allocates a new user on an available node
+    /// - If users exist, returns the most recent (highest generation/created_at)
+    /// - Handles replaced users by creating new user records
+    /// - Ensures old user records are marked as replaced
+    /// - Collects old client states for validation
     async fn get_or_create_user(
         &mut self,
         params: params::GetOrCreateUser,
@@ -224,7 +278,13 @@ pub trait Db {
         }
     }
 
-    /// Creates a new user and assigns them to a node.
+    /// Creates a new user record and assigns them to an available node.
+    ///
+    /// This method:
+    /// 1. Finds the best available node based on capacity
+    /// 2. Updates the node's capacity and load
+    /// 3. Creates a new user record with a generated UID
+    /// 4. Returns the new user's UID, assigned node, and creation timestamp
     async fn allocate_user(
         &mut self,
         params: params::AllocateUser,
@@ -273,47 +333,49 @@ pub trait Db {
 
     // Internal methods used by the db tests
 
+    /// Updates the created_at timestamp for a user. Only available in debug builds.
     #[cfg(debug_assertions)]
     async fn set_user_created_at(
         &mut self,
         params: params::SetUserCreatedAt,
     ) -> DbResult<results::SetUserCreatedAt>;
 
-    /// Update users replaced_at attribute based on user uid.
+    /// Updates the replaced_at timestamp for a user. Only available in debug builds.
     #[cfg(debug_assertions)]
     async fn set_user_replaced_at(
         &mut self,
         params: params::SetUserReplacedAt,
     ) -> DbResult<results::SetUserReplacedAt>;
 
-    /// Get full user object based on passed user ID.
+    /// Retrieves a complete user record by user ID. Only available in debug builds.
     #[cfg(debug_assertions)]
     async fn get_user(&mut self, params: params::GetUser) -> DbResult<results::GetUser>;
 
-    /// Create a complete node and return insert id from node.
+    /// Creates a new node record and returns its ID. Only available in debug builds.
     #[cfg(debug_assertions)]
     async fn post_node(&mut self, params: params::PostNode) -> DbResult<results::PostNode>;
 
-    /// Get complete node entry based on passed id.
+    /// Retrieves a complete node record by node ID. Only available in debug builds.
     #[cfg(debug_assertions)]
     async fn get_node(&mut self, params: params::GetNode) -> DbResult<results::GetNode>;
 
-    /// Based on Node ID, unassign node from `users`.
+    /// Unassigns a node from all users by clearing their node assignments. Only available in debug builds.
     #[cfg(debug_assertions)]
     async fn unassign_node(
         &mut self,
         params: params::UnassignNode,
     ) -> DbResult<results::UnassignNode>;
 
-    /// Remove Node based on Node ID
+    /// Removes a node record from the database. Only available in debug builds.
     #[cfg(debug_assertions)]
     async fn remove_node(&mut self, params: params::RemoveNode) -> DbResult<results::RemoveNode>;
 
+    /// Creates a new service and returns its service ID. Only available in debug builds.
     #[cfg(debug_assertions)]
-    /// Creates new service and returns new service_id.
     async fn post_service(&mut self, params: params::PostService)
     -> DbResult<results::PostService>;
 
+    /// Sets the Spanner node ID for testing. Only available in debug builds.
     #[cfg(debug_assertions)]
     fn set_spanner_node_id(&mut self, params: params::SpannerNodeId);
 }

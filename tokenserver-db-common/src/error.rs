@@ -12,20 +12,30 @@ use tokenserver_common::TokenserverError;
 /// tokenserver request.
 #[derive(Debug)]
 pub struct DbError {
+    /// The specific kind of database error that occurred.
     kind: DbErrorKind,
+    /// The HTTP status code associated with this error.
     pub status: StatusCode,
+    /// The backtrace captured when this error was created.
     pub backtrace: Box<Backtrace>,
 }
 
 impl DbError {
+    /// Creates a new internal error with the given message.
+    ///
+    /// Internal errors represent unexpected conditions that are not recoverable.
     pub fn internal(msg: String) -> Self {
         DbErrorKind::Internal(msg).into()
     }
 
+    /// Creates a new pool timeout error.
+    ///
+    /// This error occurs when a connection cannot be obtained from the pool within the timeout period.
     pub fn pool_timeout(timeout_type: deadpool::managed::TimeoutType) -> Self {
         DbErrorKind::PoolTimeout(timeout_type).into()
     }
 
+    /// Returns true if this error is a Diesel "not found" error. Only available in debug builds.
     #[cfg(debug_assertions)]
     pub fn is_diesel_not_found(&self) -> bool {
         matches!(&self.kind, DbErrorKind::Sql(e) if e.is_diesel_not_found())
@@ -57,14 +67,18 @@ impl ReportableError for DbError {
     }
 }
 
+/// The specific kind of database error that occurred.
 #[derive(Debug, Error)]
 enum DbErrorKind {
+    /// A SQL-level error from the database driver.
     #[error("{}", _0)]
     Sql(SqlError),
 
+    /// An unexpected internal error.
     #[error("Unexpected error: {}", _0)]
     Internal(String),
 
+    /// A timeout occurred while waiting for a connection from the pool.
     #[error("A database pool timeout occurred, type: {:?}", _0)]
     PoolTimeout(deadpool::managed::TimeoutType),
 }
