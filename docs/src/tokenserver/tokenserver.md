@@ -1,9 +1,11 @@
 # Tokenserver
 
 ## What is Tokenserver?
-Tokenserver is responsible for allocating Firefox Sync users to Sync Storage nodes hosted in our Spanner GCP Backend.
+Tokenserver is responsible for allocating Firefox Sync users to Sync Storage nodes hosted in our Spanner GCP or Postgres DB Backend.
 Tokenserver provides the "glue" between [Firefox Accounts](https://github.com/mozilla/fxa/) and the
 [SyncStorage API](api/index.md).
+
+Tokenserver consists of a single REST GET endpoint: `GET /1.0/<app_name>/<app_version>`, where `GET /1.0/sync/1.5` is the only endpoint used.
 
 Broadly, Tokenserver is responsible for:
 
@@ -12,12 +14,10 @@ Broadly, Tokenserver is responsible for:
 * Re-assigning the user to a new storage node if their FxA encryption key changes.
 * Cleaning up old data from deleted accounts.
 
-The service was originally conceived to be a general-purpose mechanism for connecting users
+In practice today, it is only used for connecting to Sync. However, the service was originally conceived to be a general-purpose mechanism for connecting users
 to multiple different Mozilla-run services, and you can see some of the historical context
 for that original design [here](https://wiki.mozilla.org/Services/Sagrada/TokenServer)
 and [here](https://mozilla-services.readthedocs.io/en/latest/token/index.html).
-
-In practice today, it is only used for connecting to Sync.
 
 ## Tokenserver Crates & Their Purpose
 
@@ -41,6 +41,52 @@ Manages all database interactions for Tokenserver:
 Handles configuration management:
 - Loads and validates settings for Tokenserver.
 - Supports integration with different deployment environments.
+
+## Data Model
+
+The core of the Tokenserver's data model is a table named `users` that maps each user to their storage
+node, and that provides enough information to update that mapping over time.  Each row in the table
+contains the following fields:
+
+| Field | Description |
+|-------|-------------|
+| `uid` | Auto-incrementing numeric userid, created automatically for each row. |
+| `service` | The service the user is accessing; in practice this is always `sync-1.5`. |
+| `email` | Stable identifier for the user; in practice this is always `<fxa_uid>@api.accounts.firefox.com`. |
+| `nodeid` | The storage node to which the user has been assigned. |
+| `generation` | A monotonically increasing number provided by the FxA server, indicating the last time at which the user's login credentials were changed. |
+| `client_state` | The hash of the user's sync encryption key. |
+| `keys_changed_at` | A monotonically increasing timestamp provided by the FxA server, indicating the last time at which the user's encryption keys were changed. |
+| `created_at` | Timestamp at which this node-assignment record was created. |
+| `replaced_at` | Timestamp at which this node-assignment record was replaced by a newer assignment, if any. |
+
+TThe `generation` column is used to detect when the user's FxA credentials have been changed
+and to lock out clients that have not been updated with the latest credentials.
+Tokenserver tracks the highest value of `generation` that it has ever seen for a user,
+and rejects a number is less than that high-water mark. This was used previously with BrowserID.
+However, OAuth clients do not provide a `generation` number, because OAuth tokens get revoked immediately when the user's credentials are changed.
+
+The `client_state` column is used to detect when the user's encryption key changes.
+When it sees a new value for `client_state`, Tokenserver will replace the user's node assignment
+with a new one, so that data encrypted with the new key will be written into a different
+storage "bucket" on the storage nodes.
+
+The `keys_changed_at` column tracks the timestamp at which the user's encryption keys were
+last changed. BrowserID clients provide this as a field in the assertion, while OAuth clients
+provide it as part of the `X-KeyID` header. Tokenserver will check that changes in the value
+of `keys_changed_at` always correspond to a change in `client_state`, and will use this pair of
+values to construct the `fxa_kid` field that is communicated to the storage nodes.
+
+When replacing a user's node assignment, the previous column is not deleted immediately.
+Instead, it is marked as "replaced" by setting the `replaced_at` timestamp, and then a background
+job periodically purges replaced rows (including making a `DELETE` request to the storage node
+to clean up any old data stored under that `uid`).
+
+For this scheme to work as intended, it's expected that storage nodes will index user data by either:
+
+1. The tuple `(fxa_uid, fxa_kid)`, which identifies a consistent set of sync data for a particular
+   user, encrypted using a particular key.
+2. The numeric `uid`, which changes whenever either of the above two values change.
 
 ## How Tokenserver Handles Failure Cases
 

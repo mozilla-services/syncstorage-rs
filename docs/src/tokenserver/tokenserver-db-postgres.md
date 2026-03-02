@@ -5,20 +5,18 @@ The core of the Tokenserver's data model is a table named `users` that maps each
 node, and that provides enough information to update that mapping over time.  Each row in the table
 contains the following fields:
 
-* `uid`: Auto-incrementing numeric userid, created automatically for each row.
-* `service`: The service the user is accessing; in practice this is always `sync-1.5`.
-* `email`: Stable identifier for the user; in practice this is always `<fxa_uid>@api.accounts.firefox.com`.
-* `nodeid`: The storage node to which the user has been assigned.
-* `generation`: A monotonically increasing number provided by the FxA server, indicating
-                the last time at which the user's login credentials were changed.
-* `client_state`: The hash of the user's sync encryption key.
-* `keys_changed_at`: A monotonically increasing timestamp provided by the FxA server, indicating
-                     the last time at which the user's encryption keys were changed.
-* `created_at`: Timestamp at which this node-assignment record was created.
-* `replaced_at`: Timestamp at which this node-assignment record was replaced by a newer assignment, if any.
+| Field | Description |
+|-------|-------------|
+| `uid` | Auto-incrementing numeric userid, created automatically for each row. |
+| `service` | The service the user is accessing; in practice this is always `sync-1.5`. |
+| `email` | Stable identifier for the user; in practice this is always `<fxa_uid>@api.accounts.firefox.com`. |
+| `nodeid` | The storage node to which the user has been assigned. |
+| `generation` | A monotonically increasing number provided by the FxA server, indicating the last time at which the user's login credentials were changed. |
+| `client_state` | The hash of the user's sync encryption key. |
+| `keys_changed_at` | A monotonically increasing timestamp provided by the FxA server, indicating the last time at which the user's encryption keys were changed. |
+| `created_at` | Timestamp at which this node-assignment record was created. |
+| `replaced_at` | Timestamp at which this node-assignment record was replaced by a newer assignment, if any. |
 
-This table contains some unnecessarily general names; these are a legacy of earlier plans
-to re-use Tokenserver for multiple Mozilla services and with multiple identity providers.
 
 The `generation` column is used to detect when the user's FxA credentials have been changed
 and to lock out clients that have not been updated with the latest credentials.
