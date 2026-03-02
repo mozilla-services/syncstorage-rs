@@ -29,6 +29,10 @@ pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 /// Connection type defined as an AsyncPgConnection for purposes of abstraction.
 pub(crate) type Conn = Object<AsyncPgConnection>;
 
+/// PostgreSQL database connection pool for Tokenserver.
+///
+/// This pool manages connections to a PostgreSQL database and provides
+/// initialization logic for database migrations and service configuration.
 #[derive(Clone)]
 pub struct TokenserverPgPool {
     /// Pool of db connections.
@@ -50,6 +54,17 @@ pub struct TokenserverPgPool {
 }
 
 impl TokenserverPgPool {
+    /// Creates a new PostgreSQL database connection pool.
+    ///
+    /// # Arguments
+    ///
+    /// * `settings` - The Tokenserver configuration settings
+    /// * `metrics` - Metrics collector for monitoring
+    /// * `_use_test_transactions` - If true, wraps connections in test transactions (debug builds only)
+    ///
+    /// # Returns
+    ///
+    /// Returns a new `TokenserverPgPool` or an error if pool creation fails.
     pub fn new(
         settings: &Settings,
         metrics: &Metrics,
@@ -104,6 +119,10 @@ impl TokenserverPgPool {
         })
     }
 
+    /// Gets a database connection from the pool.
+    ///
+    /// Returns a `TokenserverPgDb` instance configured with the pool's
+    /// metrics, service ID, spanner node ID, and timeout settings.
     async fn get_tokenserver_db(&self) -> Result<TokenserverPgDb, DbError> {
         Ok(TokenserverPgDb::new(
             self.inner.get().await?,

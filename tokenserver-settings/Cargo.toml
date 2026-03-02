@@ -10,3 +10,6 @@ serde.workspace=true
 jsonwebtoken.workspace=true
 
 tokenserver-common = { path = "../tokenserver-common" }
+
+[lints.rust]
+missing_docs = "warn"

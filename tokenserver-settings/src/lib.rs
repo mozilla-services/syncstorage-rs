@@ -1,7 +1,21 @@
+//! Configuration settings for Tokenserver.
+//!
+//! This crate provides the `Settings` struct which contains all configuration
+//! options for Tokenserver, including database connections, FxA OAuth
+//! configuration, and node management settings.
+
 use jsonwebtoken::jwk::Jwk;
 use serde::Deserialize;
 use tokenserver_common::NodeType;
 
+/// Configuration settings for the Tokenserver service.
+///
+///   These settings control all aspects of Tokenserver operation, including:
+/// - Database connection and pooling
+/// - Firefox Accounts (FxA) OAuth integration
+/// - Token generation and expiration
+/// - Node capacity management
+/// - Metrics and monitoring
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default)]
 pub struct Settings {

@@ -1,3 +1,8 @@
+//! PostgreSQL database implementation for Tokenserver.
+//!
+//! This crate provides PostgreSQL-specific implementation of the Tokenserver database
+//! traits, including connection pooling and database operations.
+
 #![allow(non_local_definitions)]
 extern crate diesel;
 extern crate diesel_migrations;
