@@ -26,22 +26,44 @@ pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 pub(crate) type Conn = Object<AsyncMysqlConnection>;
 
+/// MySQL database connection pool for Tokenserver.
+///
+/// This pool manages connections to a MySQL database and provides
+/// initialization logic for database migrations and service configuration.
 #[derive(Clone)]
 pub struct TokenserverPool {
-    /// Pool of db connections
+    /// Pool of database connections
     inner: Pool<AsyncMysqlConnection>,
+    /// Metrics collector for monitoring database operations
     metrics: Metrics,
-    // This field is public so the service ID can be set after the pool is created
+    /// The service ID for "sync-1.5". This field is public so the service ID can be set after the pool is created.
     pub service_id: Option<i32>,
+    /// Optional reference to the The Spanner node ID
     spanner_node_id: Option<i32>,
+    /// Optional timeout for database requests
     pub timeout: Option<Duration>,
+    /// Whether to run database migrations on startup
     run_migrations: bool,
+    /// The database connection URL
     database_url: String,
+    /// Optional storage node URL to insert into the nodes table on startup
     init_node_url: Option<String>,
+    /// The capacity value for the node created with init_node_url
     init_node_capacity: i32,
 }
 
 impl TokenserverPool {
+    /// Creates a new MySQL database connection pool.
+    ///
+    /// # Arguments
+    ///
+    /// * `settings` - Tokenserver configuration settings
+    /// * `metrics` - Metrics collector for monitoring
+    /// * `_use_test_transactions` - If true, wraps connections in test transactions (debug builds only)
+    ///
+    /// # Returns
+    ///
+    /// Returns a new `TokenserverPool` or an error if pool creation fails.
     pub fn new(
         settings: &Settings,
         metrics: &Metrics,
@@ -97,6 +119,10 @@ impl TokenserverPool {
         })
     }
 
+    /// Gets a database connection from the pool.
+    ///     
+    /// Returns a `TokenserverPgDb` instance configured with the pool's
+    /// metrics, service ID, spanner node ID, and timeout settings.
     pub async fn get_tokenserver_db(&self) -> Result<TokenserverDb, DbError> {
         Ok(TokenserverDb::new(
             self.inner.get().await?,
