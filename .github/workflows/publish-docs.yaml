@@ -18,8 +18,10 @@ jobs:
       MERMAID_ENV: 0.17.0 # For crate `mdbook-mermaid`. See: `https://github.com/badboy/mdBook-mermaid/`. Always check version compatibility with mdbook.
       DEST_DIR: /home/runner/.cargo/bin
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/cache@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: |
             ~/.cargo/bin/
@@ -45,7 +47,7 @@ jobs:
           cargo doc --no-deps
           cp -r ../target/doc/* output/api
       - name: Upload mdBook artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: mdbook-output
           path: ./docs/output
@@ -54,8 +56,10 @@ jobs:
   build-openapi:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/cache@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: |
             ~/.cargo/bin/
@@ -88,7 +92,7 @@ jobs:
 
           echo "Swagger UI setup complete!"
       - name: Upload Swagger UI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: swagger-ui-output
           path: ./swagger-ui-dist
@@ -99,12 +103,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download mdBook artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: mdbook-output
           path: ./output
       - name: Download Swagger UI artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: swagger-ui-output
           path: ./output/swagger-ui
@@ -122,7 +126,7 @@ jobs:
           echo "Checking index.html files:"
           find output -maxdepth 3 -type f -name "index.html" -print || true
       - name: Upload combined artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: ./output
 
@@ -138,10 +142,13 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
       - name: Print deployed docs URL
         run: |
           echo "Documentation deployed successfully."
-          echo "Main Documentation: ${{ steps.deployment.outputs.page_url }}"
-          echo "Rust API Docs: ${{ steps.deployment.outputs.page_url }}api/"
-          echo "OpenAPI/Swagger UI: ${{ steps.deployment.outputs.page_url }}swagger-ui/"
+          echo "Main Documentation: ${PAGE_URL}"
+          echo "Rust API Docs: ${PAGE_URL}api/"
+          echo "OpenAPI/Swagger UI: ${PAGE_URL}swagger-ui/"
+
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}

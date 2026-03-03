@@ -12,10 +12,253 @@ To get up and running quickly, see [Run Your Own Sync with Docker](how-to/how-to
 
 For a complete list of available configuration options you'll need to consider, see the [Configuration](config.md) reference.
 
-Below are detailed instructions for other setup configurations, including using the Google Spanner Emulator and MySQL.
+Below are detailed instructions for other setup configurations, including bootstrapping and migration instructions for Postgres, MySQL, and using the Google Spanner Emulator.
 
 Mozilla Sync Storage built with [Rust](https://rust-lang.org). Our documentation is generated using [mdBook](https://rust-lang.github.io/mdBook/index.html) and published to GitHub Pages.
 
+## Initial Setup - Bootstrapping
+
+### General PostgreSQL Setup
+
+Syncstorage-rs supports PostgreSQL as a database backend. The database connection is specified with a DSN like:
+
+`postgres://_user_:_password_@_host_/_database_`
+
+This DSN is then used for the `SYNC_TOKENSERVER__DATABASE_URL` & `SYNC_SYNCSTORAGE__DATABASE_URL` URLs.
+
+These values are environment variables set for the application. You can view all configurations and environment variables in the [Configuration documentation](config.md), specifically [SYNC_TOKENSERVER__DATABASE_URL](config.md#SYNC_TOKENSERVER__DATABASE_URL) and [SYNC_SYNCSTORAGE__DATABASE_URL](config.md#SYNC_SYNCSTORAGE__DATABASE_URL).
+
+Use your preferred methods, however here are some general instructions on how to setup a fresh PostgreSQL database and user:
+
+1. First make sure you have a PostgreSQL server running. On most systems, you can start it with:
+   ```bash
+   # On macOS with Homebrew
+   brew services start postgresql
+
+   # On Ubuntu/Debian
+   sudo systemctl start postgresql
+   ```
+
+2. Create the databases using `createdb`:
+   ```bash
+   createdb -U postgres syncstorage
+   createdb -U postgres tokenserver
+   ```
+
+3. Connect to PostgreSQL to create a user and grant privileges:
+   ```bash
+   psql -U postgres -d syncstorage
+   ```
+
+4. Run the following SQL statements:
+   ```sql
+   CREATE USER sample_user WITH PASSWORD 'sample_password';
+   GRANT ALL PRIVILEGES ON DATABASE syncstorage TO sample_user;
+   GRANT ALL PRIVILEGES ON DATABASE tokenserver TO sample_user;
+   ```
+
+**Connection pattern:** The general pattern for connecting to a PostgreSQL database is:
+```bash
+psql -d database_name -U username
+```
+The `-d` flag is a shorter alternative for `--dbname` while `-U` is an alternative for `--username`.
+
+**Environment configuration:** You can optionally create a `.env` file with your database URL:
+```bash
+echo "DATABASE_URL=postgres://sample_user:sample_password@localhost/syncstorage" > .env
+```
+
+Or manually create the file:
+```bash
+touch .env
+```
+And add:
+`DATABASE_URL=postgres://sample_user:sample_password@localhost/syncstorage`
+
+**Important Note about `.env` files:**
+
+We don't tend to use the `.env` configuration in the production version of Sync, but for some choosing to self host, the `.env` solution may be useful. The `.env` file serves different purposes depending on the context:
+
+1. **For Diesel CLI migrations**: Diesel automatically reads `DATABASE_URL` from a `.env` file in the current directory. When running migrations from `tokenserver-postgres/` or `syncstorage-postgres/`, you can create a `.env` file in that specific directory with the appropriate database URL. This allows you to run `diesel migration run` without the `--database-url` flag.
+
+2. **For running the application**: The syncstorage-rs application uses prefixed environment variables:
+   - `SYNC_TOKENSERVER__DATABASE_URL` for the tokenserver database
+   - `SYNC_SYNCSTORAGE__DATABASE_URL` for the syncstorage database
+
+   These can also be set in a `.env` file at the project root.
+
+**Example `.env` file for the application** (at project root):
+```bash
+SYNC_TOKENSERVER__DATABASE_URL=postgres://sample_user:sample_password@localhost/tokenserver
+SYNC_SYNCSTORAGE__DATABASE_URL=postgres://sample_user:sample_password@localhost/syncstorage
+```
+
+**Example `.env` file for diesel migrations** (in `tokenserver-postgres/` directory):
+```bash
+DATABASE_URL=postgres://sample_user:sample_password@localhost/tokenserver
+```
+
+**Example `.env` file for diesel migrations** (in `syncstorage-postgres/` directory):
+```bash
+DATABASE_URL=postgres://sample_user:sample_password@localhost/syncstorage
+```
+
+### Bootstrapping Tokenserver (Postgres)
+
+Tokenserver includes migrations to initialize its database, but they do not run by default. These can be enabled via the setting:
+
+```bash
+SYNC_TOKENSERVER__RUN_MIGRATIONS=true
+```
+
+Once you have created and defined your database, copy the URL.
+
+```bash
+SYNC_TOKENSERVER__DATABASE_URL=postgres://<DB URL>
+```
+
+#### Running Migrations Manually for Tokenserver
+
+If you prefer to run migrations manually instead of using `SYNC_TOKENSERVER__RUN_MIGRATIONS=true`, you can use Diesel CLI:
+
+**Prerequisites:**
+1. Install diesel_cli with PostgreSQL support:
+   ```bash
+   cargo install diesel_cli --no-default-features --features postgres
+   ```
+
+2. Optional: Install diesel_cli_ext for additional features (schema/model generation):
+   ```bash
+   cargo install diesel_cli_ext
+   ```
+
+   For more information on diesel_cli_ext, see the [diesel_cli_ext repository](https://github.com/abbychau/diesel_cli_ext).
+
+**Running Migrations:**
+
+The migrations are located in the `tokenserver-postgres/migrations` directory. To run them:
+
+```bash
+cd tokenserver-postgres
+diesel migration run --database-url="postgres://<DB URL>"
+```
+
+Alternatively, if you've set the `DATABASE_URL` environment variable:
+```bash
+cd tokenserver-postgres
+export DATABASE_URL="postgres://<DB URL>"
+diesel migration run
+```
+
+**Undoing Migrations:**
+
+To undo the last migration:
+```bash
+cd tokenserver-postgres
+diesel migration redo --database-url="postgres://<DB URL>"
+```
+
+**Note:** The diesel.toml configuration file in the `tokenserver-postgres` directory specifies the migrations directory path and schema generation settings.
+
+**Note:** We have automated support for this in Tokenserver, however the manual query that must run for Tokenserver is as follows: 
+
+After migrations run, insert a node entry:
+```sql
+INSERT INTO nodes (id, service, node, available, current_load, capacity, downed, backoff)
+VALUES (1, 1, 'https://<SYNCSTORAGE URL HERE>', 100000, 0, 100000, 0, 0)
+ON CONFLICT DO NOTHING;
+```
+
+### Bootstrapping Syncstorage (Postgres)
+
+Syncstorage includes migrations to initialize its database. These run by default (unlike Tokenserver).
+
+Configure the database URL:
+```bash
+SYNC_SYNCSTORAGE__DATABASE_URL=postgres://<DB URL>
+```
+
+#### Running Migrations Manually for Syncstorage
+
+If you need to run Syncstorage migrations manually, you can use Diesel CLI:
+
+**Prerequisites:**
+Install diesel_cli with PostgreSQL support (if not already installed):
+```bash
+cargo install diesel_cli --no-default-features --features postgres
+```
+
+**Running Migrations:**
+
+The migrations are located in the `syncstorage-postgres/migrations` directory. To run them:
+
+```bash
+cd syncstorage-postgres
+diesel migration run --database-url="postgres://<DB URL>"
+```
+
+Or with the `DATABASE_URL` environment variable:
+```bash
+cd syncstorage-postgres
+export DATABASE_URL="postgres://<DB URL>"
+diesel migration run
+```
+
+**Undoing Migrations:**
+
+To undo the last migration:
+```bash
+cd syncstorage-postgres
+diesel migration redo --database-url="postgres://<DB URL>"
+```
+
+**Note:** Both `syncstorage-postgres` and `tokenserver-postgres` directories contain their own `diesel.toml` configuration files and separate `migrations` directories. Each must be run from its respective directory.
+
+### Bootstrapping Tokenserver (MySQL)
+
+Tokenserver includes migrations to initialize its database, but they do not run by default. These can be enabled via the setting:
+
+```bash
+SYNC_TOKENSERVER__RUN_MIGRATIONS=true
+```
+
+**NOTE:** These migrations don't run with any locking (at least on MySQL), it's probably safest to limit the node count to 1 during the first run.
+
+After migrations run, insert service and node entries:
+```sql
+INSERT INTO services (id, service, pattern)
+VALUES (1, 'sync-1.5', '{node}/1.5/{uid}');
+
+INSERT IGNORE INTO nodes (id, service, node, available, current_load, capacity, downed, backoff)
+VALUES (1, 1, 'https://ent-dev.sync.nonprod.webservices.mozgcp.net', 100, 0, 100, 0, 0);
+```
+
+### Bootstrapping Syncstorage (Cloud Spanner)
+
+Syncstorage does not support initializing Cloud Spanner instances; this must be done manually. It does support initializing its MySQL backend and will support initializing the PostgreSQL backend in the future.
+
+The schema DDL is available here: [schema.ddl](https://github.com/mozilla-services/syncstorage-rs/blob/master/syncstorage-spanner/src/schema.ddl)
+
+We include a basic script to create an instance and initialize the schema via Spanner's REST API: [prepare-spanner.sh](https://github.com/mozilla-services/syncstorage-rs/blob/master/scripts/prepare-spanner.sh). This script is currently oriented to run against Cloud Spanner emulators, but it may be adapted to run against a real Spanner database.
+
+## System Requirements
+
+- cmake (>= 3.5 and < 3.30)
+- gcc
+- [golang](https://golang.org/doc/install)
+- libcurl4-openssl-dev
+- libssl-dev
+- make
+- pkg-config
+- [Rust stable](https://rustup.rs)
+- python 3.9+
+- MySQL 8.0 (or compatible)
+  * libmysqlclient (`brew install mysql` on macOS, `apt install libmysqlclient-dev` on Ubuntu, `apt install libmariadb-dev-compat` on Debian)
+
+Depending on your OS, you may also need to install `libgrpcdev`,
+and `protobuf-compiler-grpc`. *Note*: if the code complies cleanly,
+but generates a Segmentation Fault within Sentry init, you probably
+are missing `libcurl4-openssl-dev`.
 
 ## Local Setup
 
