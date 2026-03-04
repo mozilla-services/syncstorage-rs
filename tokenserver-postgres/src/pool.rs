@@ -129,14 +129,17 @@ impl TokenserverPgPool {
 
     /// Bootstrap the initial Sync 1.5 node record if init_node_url is set.
     async fn init_sync15_node(&mut self, node_url: String, capacity: i32) -> Result<(), DbError> {
-        let _ = self
+        let node_added = self
             .get()
             .await?
             .insert_sync15_node(params::Sync15Node {
-                node: node_url,
+                node: node_url.clone(),
                 capacity,
             })
-            .await;
+            .await?;
+        if node_added {
+            info!("Initialized syncstorage nodes entry, node: {node_url:?} capacity: {capacity}");
+        }
         Ok(())
     }
 }
@@ -153,9 +156,8 @@ impl DbPool for TokenserverPgPool {
 
         // Init the Sync 1.5 node record if init_node_url is set
         if let Some(node_url) = self.init_node_url.clone() {
-            let _ = self
-                .init_sync15_node(node_url, self.init_node_capacity)
-                .await;
+            self.init_sync15_node(node_url, self.init_node_capacity)
+                .await?;
         }
 
         Ok(())

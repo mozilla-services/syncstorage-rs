@@ -13,6 +13,8 @@ diesel.workspace = true
 diesel-async.workspace = true
 diesel_migrations.workspace = true
 http.workspace = true
+slog-scope.workspace = true
+
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
 tokenserver-common = { path = "../tokenserver-common" }

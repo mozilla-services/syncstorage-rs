@@ -113,8 +113,8 @@ impl Db for MockDb {
         Ok(results::GetServiceId::default())
     }
 
-    async fn insert_sync15_node(&mut self, _params: params::Sync15Node) -> Result<(), DbError> {
-        Ok(())
+    async fn insert_sync15_node(&mut self, _params: params::Sync15Node) -> Result<bool, DbError> {
+        Ok(false)
     }
 
     fn metrics(&self) -> &Metrics {

@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate slog_scope;
+
 mod db;
 mod pool;
 
