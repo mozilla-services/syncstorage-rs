@@ -31,9 +31,10 @@ pyo3 = { version = "0.28", features = ["auto-initialize"], optional = true }
 
 
 [dev-dependencies]
-# mockito = "0.30"
+jsonwebtoken = { workspace = true, features = ["use_pem"] }
 mockito = "1.7.2"
 tokio = { workspace = true, features = ["macros"] }
 
 [features]
 py = ["pyo3", "tokenserver-common/py"]
+test-support = ["jsonwebtoken/use_pem"]

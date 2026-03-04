@@ -1,18 +1,26 @@
 #![allow(clippy::new_without_default)]
 
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock, Mutex};
 
 use async_trait::async_trait;
 use syncserver_common::Metrics;
 use syncserver_db_common::{GetPoolState, PoolState};
 use tokenserver_db_common::{Db, DbError, DbPool, params, results};
 
-#[derive(Clone, Debug)]
-pub struct MockDbPool;
+#[derive(Clone, Default)]
+pub struct MockDbPool {
+    put_user_calls: Arc<Mutex<Vec<params::PutUser>>>,
+}
 
 impl MockDbPool {
     pub fn new() -> Self {
-        MockDbPool
+        MockDbPool::default()
+    }
+
+    pub fn with_capture() -> (Self, Arc<Mutex<Vec<params::PutUser>>>) {
+        let pool = MockDbPool::default();
+        let put_user_calls = Arc::clone(&pool.put_user_calls);
+        (pool, put_user_calls)
     }
 }
 
@@ -23,7 +31,9 @@ impl DbPool for MockDbPool {
     }
 
     async fn get(&self) -> Result<Box<dyn Db>, DbError> {
-        Ok(Box::new(MockDb::new()))
+        Ok(Box::new(MockDb {
+            put_user_calls: Arc::clone(&self.put_user_calls),
+        }))
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
@@ -37,12 +47,14 @@ impl GetPoolState for MockDbPool {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct MockDb;
+#[derive(Clone, Default)]
+pub struct MockDb {
+    put_user_calls: Arc<Mutex<Vec<params::PutUser>>>,
+}
 
 impl MockDb {
     pub fn new() -> Self {
-        MockDb
+        MockDb::default()
     }
 }
 
@@ -66,7 +78,8 @@ impl Db for MockDb {
         Ok(results::PostUser::default())
     }
 
-    async fn put_user(&mut self, _params: params::PutUser) -> Result<results::PutUser, DbError> {
+    async fn put_user(&mut self, params: params::PutUser) -> Result<results::PutUser, DbError> {
+        self.put_user_calls.lock().unwrap().push(params);
         Ok(())
     }
 

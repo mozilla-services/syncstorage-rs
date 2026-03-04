@@ -22,6 +22,8 @@ pub type DbResult<T> = Result<T, DbError>;
 /// "retired" from the db.
 pub const MAX_GENERATION: i64 = i64::MAX;
 
+pub const SYNC_SERVICE_NAME: &str = "sync-1.5";
+
 #[async_trait(?Send)]
 pub trait DbPool: Sync + Send + GetPoolState {
     async fn init(&mut self) -> DbResult<()>;

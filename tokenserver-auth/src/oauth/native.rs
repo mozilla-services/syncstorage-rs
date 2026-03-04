@@ -1,7 +1,7 @@
 use super::VerifyOutput;
 use crate::VerifyToken;
 pub use crate::crypto::JWTVerifier;
-use crate::crypto::OAuthVerifyError;
+use crate::crypto::JWTVerifyError;
 use async_trait::async_trait;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
@@ -146,9 +146,9 @@ where
         &self,
         verifiers: &[Cow<'_, J>],
         token: &str,
-    ) -> Result<TokenClaims, OAuthVerifyError> {
+    ) -> Result<TokenClaims, JWTVerifyError> {
         if verifiers.is_empty() {
-            return Err(OAuthVerifyError::InvalidKey);
+            return Err(JWTVerifyError::InvalidKey);
         }
 
         verifiers
@@ -157,13 +157,13 @@ where
                 match verifier.verify::<TokenClaims>(token) {
                     // If it's an invalid signature, it means our key was well formatted,
                     // but the signature was incorrect. Lets try another key if we have any
-                    Err(OAuthVerifyError::InvalidSignature) => None,
+                    Err(JWTVerifyError::InvalidSignature) => None,
                     res => Some(res),
                 }
             })
             // If there is nothing, it means all of our keys were well formatted, but none of them
             // were able to verify the signature, lets erturn a TrustError
-            .ok_or(OAuthVerifyError::TrustError)?
+            .ok_or(JWTVerifyError::TrustError)?
     }
 }
 
@@ -218,7 +218,7 @@ where
                     metrics.incr(e.metric_label())
                 }
                 match e {
-                    OAuthVerifyError::DecodingError | OAuthVerifyError::InvalidKey => {
+                    JWTVerifyError::DecodingError | JWTVerifyError::InvalidKey => {
                         self.remote_verify_token(&token).await?
                     }
                     e => return Err(unauthorized_err_with_ctx(e)),
@@ -245,7 +245,7 @@ fn internal_err_with_ctx<E: std::fmt::Display>(err: E) -> TokenserverError {
 
 #[cfg(test)]
 mod tests {
-    use crate::crypto::{JWTVerifierImpl, OAuthVerifyError};
+    use crate::crypto::{JWTVerifierImpl, JWTVerifyError};
     use serde_json::json;
 
     use super::*;
@@ -260,7 +260,7 @@ mod tests {
             #[derive(Clone, Debug)]
             struct MockJWTVerifier {}
             impl TryFrom<MockJWK> for MockJWTVerifier {
-                type Error = OAuthVerifyError;
+                type Error = JWTVerifyError;
                 fn try_from(_value: MockJWK) -> Result<Self, Self::Error> {
                     Ok(Self {})
                 }
@@ -271,7 +271,7 @@ mod tests {
                 fn verify<T: ::serde::de::DeserializeOwned>(
                     &self,
                     $token: &str,
-                ) -> Result<T, OAuthVerifyError> {
+                ) -> Result<T, JWTVerifyError> {
                     $im
                 }
             }
@@ -314,7 +314,7 @@ mod tests {
     async fn test_expired_signature_fails() -> Result<(), TokenserverError> {
         let mut server = mockito::Server::new();
         let mock = server.mock("POST", "/v1/verify").create();
-        mock_jwk_verifier!(Err(OAuthVerifyError::InvalidSignature));
+        mock_jwk_verifier!(Err(JWTVerifyError::InvalidSignature));
 
         let jwk_verifiers = vec![MockJWTVerifier {}];
         let settings = Settings {
@@ -348,7 +348,7 @@ mod tests {
         }
 
         impl TryFrom<MockJWK> for MockJWTVerifier {
-            type Error = OAuthVerifyError;
+            type Error = JWTVerifyError;
             fn try_from(_value: MockJWK) -> Result<Self, Self::Error> {
                 Ok(Self { id: 0 })
             }
@@ -359,9 +359,9 @@ mod tests {
             fn verify<T: serde::de::DeserializeOwned>(
                 &self,
                 token: &str,
-            ) -> Result<T, OAuthVerifyError> {
+            ) -> Result<T, JWTVerifyError> {
                 if self.id == 0 {
-                    Err(OAuthVerifyError::InvalidSignature)
+                    Err(JWTVerifyError::InvalidSignature)
                 } else {
                     Ok(serde_json::from_str(token).unwrap())
                 }
@@ -397,7 +397,7 @@ mod tests {
     async fn test_verifier_all_signature_failures_fails() -> Result<(), TokenserverError> {
         let mut server = mockito::Server::new();
         let mock_verify = server.mock("POST", "/v1/verify").create();
-        mock_jwk_verifier!(Err(OAuthVerifyError::InvalidSignature));
+        mock_jwk_verifier!(Err(JWTVerifyError::InvalidSignature));
 
         let jwk_verifiers = vec![MockJWTVerifier {}, MockJWTVerifier {}];
         let settings = Settings {
@@ -435,7 +435,7 @@ mod tests {
             .with_body(body.to_string())
             .create();
 
-        mock_jwk_verifier!(Err(OAuthVerifyError::DecodingError));
+        mock_jwk_verifier!(Err(JWTVerifyError::DecodingError));
 
         let jwk_verifiers = vec![MockJWTVerifier {}];
         let settings = Settings {
@@ -506,7 +506,7 @@ mod tests {
             ..Settings::default()
         };
 
-        mock_jwk_verifier!(Err(OAuthVerifyError::DecodingError));
+        mock_jwk_verifier!(Err(JWTVerifyError::DecodingError));
         let jwk_verifiers = vec![];
 
         let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
@@ -547,7 +547,7 @@ mod tests {
             ..Settings::default()
         };
 
-        mock_jwk_verifier!(Err(OAuthVerifyError::DecodingError));
+        mock_jwk_verifier!(Err(JWTVerifyError::DecodingError));
         let jwk_verifiers = vec![];
 
         let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
