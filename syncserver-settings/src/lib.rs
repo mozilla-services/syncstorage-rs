@@ -142,7 +142,7 @@ impl Settings {
         Ok(())
     }
 
-    pub fn validate(&mut self) -> Result<(), ConfigError> {
+    pub fn validate(&self) -> Result<(), ConfigError> {
         if let Some(init_node_url) = &self.tokenserver.init_node_url {
             let url = Url::parse(init_node_url).map_err(|e| {
                 ConfigError::Message(format!("Invalid SYNC_TOKENSERVER__INIT_NODE_URL: {e}"))
