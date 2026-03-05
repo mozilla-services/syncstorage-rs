@@ -67,13 +67,13 @@ regex = "1.12"
 reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls",
 ] }
-sentry = { version = "0.42", default-features = false, features = [
+sentry = { version = "0.46.2", default-features = false, features = [
   "curl",
   "backtrace",
   "contexts",
   "debug-images",
 ] }
-sentry-backtrace = "0.42"
+sentry-backtrace = "0.46.2"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
@@ -91,7 +91,7 @@ slog-stdlog = "4.1"
 slog-term = "2.9"
 temp-env = { version = "0.3", features = ["async_closure"] }
 tokio = "1"
-thiserror = "1.0.69"
+thiserror = "2.0.18"
 time = "0.3.47"
 utoipa = "5.4.0"
 utoipa-swagger-ui = { version = "9", features = ["actix-web"] }
