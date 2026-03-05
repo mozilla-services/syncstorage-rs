@@ -70,57 +70,8 @@ impl Settings {
         // `SYNC_FOO__BAR_VALUE="gorp"` as `foo.bar_value = "gorp"`
         s.merge(Environment::with_prefix(&PREFIX.to_uppercase()).separator("__"))?;
 
-        match s.try_into::<Self>() {
-            Ok(mut s) => {
-                s.syncstorage.normalize();
-                if s.worker_max_blocking_threads == 0 {
-                    // Db backends w/ blocking calls block via
-                    // actix-threadpool: grow its size to accommodate the
-                    // full number of connections
-                    let total_db_pool_size = {
-                        let syncstorage_pool_max_size =
-                            if s.syncstorage.uses_spanner() || !s.syncstorage.enabled {
-                                0
-                            } else {
-                                s.syncstorage.database_pool_max_size
-                            };
-
-                        let tokenserver_pool_max_size = if s.tokenserver.enabled {
-                            s.tokenserver.database_pool_max_size
-                        } else {
-                            0
-                        };
-
-                        syncstorage_pool_max_size + tokenserver_pool_max_size
-                    };
-
-                    let fxa_threads = if s.tokenserver.enabled
-                        && s.tokenserver.fxa_oauth_primary_jwk.is_none()
-                        && s.tokenserver.fxa_oauth_secondary_jwk.is_none()
-                    {
-                        s.tokenserver
-                            .additional_blocking_threads_for_fxa_requests
-                            .ok_or_else(|| {
-                                println!(
-                                    "If the Tokenserver OAuth JWK is not cached, additional blocking \
-                                        threads must be used to handle the requests to FxA."
-                                );
-
-                                let setting_name =
-                                    "tokenserver.additional_blocking_threads_for_fxa_requests";
-                                ConfigError::NotFound(String::from(setting_name))
-                            })?
-                    } else {
-                        0
-                    };
-                    s.worker_max_blocking_threads =
-                        (total_db_pool_size + fxa_threads).max(num_cpus::get() as u32 * 5) as usize;
-                }
-                Ok(s)
-            }
-            // Configuration errors are not very sysop friendly, Try to make them
-            // a bit more 3AM useful.
-            Err(ConfigError::Message(v)) => {
+        let mut s = s.try_into::<Self>().map_err(|e| match e {
+            ConfigError::Message(v) => {
                 println!("Bad configuration: {:?}", &v);
                 println!("Please set in config file or use environment variable.");
                 println!(
@@ -128,13 +79,83 @@ impl Settings {
                     PREFIX.to_uppercase()
                 );
                 error!("Configuration error: Value undefined {:?}", &v);
-                Err(ConfigError::NotFound(v))
+                ConfigError::NotFound(v)
             }
-            Err(e) => {
+            e => {
                 error!("Configuration error: Other: {:?}", &e);
-                Err(e)
+                e
+            }
+        })?;
+        s.normalize()?;
+        s.validate()?;
+        Ok(s)
+    }
+
+    /// Adjust values if required
+    pub fn normalize(&mut self) -> Result<(), ConfigError> {
+        self.syncstorage.normalize();
+
+        if self.worker_max_blocking_threads != 0 {
+            return Ok(());
+        }
+
+        // Db backends w/ blocking calls block via actix-threadpool: grow its
+        // size to accommodate the full number of connections
+        let total_db_pool_size = {
+            let syncstorage_pool_max_size =
+                if self.syncstorage.uses_spanner() || !self.syncstorage.enabled {
+                    0
+                } else {
+                    self.syncstorage.database_pool_max_size
+                };
+
+            let tokenserver_pool_max_size = if self.tokenserver.enabled {
+                self.tokenserver.database_pool_max_size
+            } else {
+                0
+            };
+
+            syncstorage_pool_max_size + tokenserver_pool_max_size
+        };
+
+        let fxa_threads = if self.tokenserver.enabled
+            && self.tokenserver.fxa_oauth_primary_jwk.is_none()
+            && self.tokenserver.fxa_oauth_secondary_jwk.is_none()
+        {
+            self.tokenserver
+                .additional_blocking_threads_for_fxa_requests
+                .ok_or_else(|| {
+                    println!(
+                        "If the Tokenserver OAuth JWK is not cached, additional blocking \
+                                        threads must be used to handle the requests to FxA."
+                    );
+
+                    let setting_name = "tokenserver.additional_blocking_threads_for_fxa_requests";
+                    ConfigError::NotFound(String::from(setting_name))
+                })?
+        } else {
+            0
+        };
+        self.worker_max_blocking_threads =
+            (total_db_pool_size + fxa_threads).max(num_cpus::get() as u32 * 5) as usize;
+
+        Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if let Some(init_node_url) = &self.tokenserver.init_node_url {
+            let url = Url::parse(init_node_url).map_err(|e| {
+                ConfigError::Message(format!("Invalid SYNC_TOKENSERVER__INIT_NODE_URL: {e}"))
+            })?;
+            if !["http", "https"].contains(&url.scheme()) {
+                return Err(ConfigError::Message(
+                    "Invalid SYNC_TOKENSERVER__INIT_NODE_URL: \
+                     requires an \"https\"/\"http\" scheme"
+                        .to_owned(),
+                ));
             }
         }
+        Ok(())
     }
 
     #[cfg(debug_assertions)]

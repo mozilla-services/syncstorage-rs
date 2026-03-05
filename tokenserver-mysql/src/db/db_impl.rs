@@ -377,10 +377,10 @@ impl Db for TokenserverDb {
         Ok(result)
     }
 
-    async fn insert_sync15_node(&mut self, params: params::Sync15Node) -> DbResult<()> {
+    async fn insert_sync15_node(&mut self, params: params::Sync15Node) -> DbResult<bool> {
         let query = format!(
             r#"
-            INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
+            INSERT IGNORE INTO nodes (service, node, available, current_load, capacity, downed, backoff)
             VALUES (
                 (SELECT id FROM services WHERE service = '{}'),
                 ?, 1, 0, ?, 0, 0
@@ -389,13 +389,13 @@ impl Db for TokenserverDb {
             params::Sync15Node::SERVICE_NAME
         );
 
-        diesel::sql_query(query)
+        let affected_rows = diesel::sql_query(query)
             .bind::<Text, _>(&params.node)
             .bind::<Integer, _>(params.capacity)
             .execute(&mut self.conn)
             .await?;
 
-        Ok(())
+        Ok(affected_rows == 1)
     }
 
     #[cfg(debug_assertions)]

@@ -70,7 +70,8 @@ pub trait Db {
     async fn check(&mut self) -> DbResult<results::Check>;
 
     /// Insert an initial Sync 1.5 node record.  Does nothing when there is a conflict.
-    async fn insert_sync15_node(&mut self, params: params::Sync15Node) -> DbResult<()>;
+    /// Returns whether a node entry was added.
+    async fn insert_sync15_node(&mut self, params: params::Sync15Node) -> DbResult<bool>;
 
     /// Get Node ID based on service_id and node string.
     async fn get_node_id(&mut self, params: params::GetNodeId) -> DbResult<results::GetNodeId>;

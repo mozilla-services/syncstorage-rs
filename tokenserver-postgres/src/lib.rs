@@ -2,6 +2,9 @@
 extern crate diesel;
 extern crate diesel_migrations;
 
+#[macro_use]
+extern crate slog_scope;
+
 mod db;
 mod pool;
 
