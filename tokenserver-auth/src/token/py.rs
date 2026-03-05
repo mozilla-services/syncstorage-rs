@@ -35,7 +35,7 @@ impl PyTokenlib {
         plaintext: MakeTokenPlaintext,
         shared_secret: &str,
     ) -> Result<(String, String), TokenserverError> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             // `import tokenlib`
             let module = PyModule::import(py, "tokenlib")
                 .inspect_err(|e| e.print_and_set_sys_last_vars(py))?;
