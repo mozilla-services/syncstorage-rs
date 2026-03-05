@@ -35,13 +35,13 @@ docopt = "1.1"
 base64 = "0.22"
 
 diesel = "2.3"
-diesel-async = { version = "0.7", features = ["mysql", "deadpool", "migrations", "async-connection-wrapper"] }
+diesel-async = { version = "0.7", features = ["mysql", "deadpool", "migrations", "async-connection-wrapper"] } # worth checking when updating deadpool
 diesel_migrations = "2.3"
 
 cadence = "1.7"
 backtrace = "0.3"
 chrono = "0.4"
-deadpool = { version = "0.12", features = ["rt_tokio_1"] }
+deadpool = { version = "0.12", features = ["rt_tokio_1"] } # deps related to diesel-async, have to wait for them to update version to upgrade
 env_logger = "0.11"
 futures = { version = "0.3", features = ["compat"] }
 futures-util = { version = "0.3", features = [

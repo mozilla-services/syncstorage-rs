@@ -75,7 +75,7 @@ impl Settings {
         );
         let settings: Config = builder.build()?;
 
-        let mut s = s.try_into::<Self>().map_err(|e| match e {
+        let mut s: Settings = settings.try_deserialize::<Self>().map_err(|e| match e {
             ConfigError::Message(v) => {
                 println!("Bad configuration: {:?}", &v);
                 println!("Please set in config file or use environment variable.");
