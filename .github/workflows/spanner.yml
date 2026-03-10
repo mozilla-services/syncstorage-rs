@@ -5,7 +5,7 @@ on:
     types: [opened, synchronize]
   push:
     branches:
-      - master
+      - "**"
     tags:
       - "**"
   workflow_dispatch: {}
@@ -47,7 +47,9 @@ jobs:
       RUST_TEST_THREADS: 1
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - uses: ./.github/actions/setup-rust
         with:
@@ -60,12 +62,14 @@ jobs:
       - name: Create version.json
         run: |
           printf '{"commit":"%s","version":"%s","source":"https://github.com/%s/%s","build":"%s"}\n' \
-            "${{ github.sha }}" \
-            "${{ github.ref_name }}" \
-            "${{ github.repository_owner }}" \
-            "${{ github.event.repository.name }}" \
-            "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            "${GITHUB_SHA}" \
+            "${GITHUB_REF_NAME}" \
+            "${GITHUB_REPOSITORY_OWNER}" \
+            "${GITHUB_REPOSITORY_NAME}" \
+            "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
             > version.json
+        env:
+          GITHUB_REPOSITORY_NAME: ${{ github.event.repository.name }}
 
       - name: Install cargo-nextest
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
@@ -129,7 +133,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: spanner-test-results
           path: workflow/test-results/
@@ -137,13 +141,13 @@ jobs:
       # Upload to GCS on master
       - name: Authenticate to Google Cloud
         if: github.ref == 'refs/heads/master'
-        uses: google-github-actions/auth@v3
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           credentials_json: ${{ secrets.ETE_GCLOUD_SERVICE_KEY }}
 
       - name: Upload JUnit results to GCS
         if: github.ref == 'refs/heads/master'
-        uses: google-github-actions/upload-cloud-storage@v2
+        uses: google-github-actions/upload-cloud-storage@c0f6160ff80057923ff50e5e567695cea181ec23 # v2
         with:
           path: workflow/test-results
           destination: ecosystem-test-eng-metrics/syncstorage-rs/junit
@@ -153,7 +157,7 @@ jobs:
 
       - name: Upload coverage results to GCS
         if: github.ref == 'refs/heads/master'
-        uses: google-github-actions/upload-cloud-storage@v2
+        uses: google-github-actions/upload-cloud-storage@c0f6160ff80057923ff50e5e567695cea181ec23 # v2
         with:
           path: workflow/test-results
           destination: ecosystem-test-eng-metrics/syncstorage-rs/coverage
@@ -166,23 +170,27 @@ jobs:
     needs: build-and-test-spanner
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Create version.json
         run: |
           printf '{"commit":"%s","version":"%s","source":"https://github.com/%s/%s","build":"%s"}\n' \
-            "${{ github.sha }}" \
-            "${{ github.ref_name }}" \
-            "${{ github.repository_owner }}" \
-            "${{ github.event.repository.name }}" \
-            "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            "${GITHUB_SHA}" \
+            "${GITHUB_REF_NAME}" \
+            "${GITHUB_REPOSITORY_OWNER}" \
+            "${GITHUB_REPOSITORY_NAME}" \
+            "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
             > version.json
+        env:
+          GITHUB_REPOSITORY_NAME: ${{ github.event.repository.name }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Build Spanner Docker image (local artifact)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           push: false
@@ -195,7 +203,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: spanner-docker-image
           path: /tmp/spanner-image.tar
@@ -206,10 +214,12 @@ jobs:
     needs: build-spanner-image
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Download Docker image
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: spanner-docker-image
           path: /tmp
@@ -236,7 +246,7 @@ jobs:
 
       - name: Upload e2e test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: spanner-e2e-test-results
           path: workflow/test-results/
@@ -244,13 +254,13 @@ jobs:
       # Upload to GCS on master
       - name: Authenticate to Google Cloud
         if: github.ref == 'refs/heads/master'
-        uses: google-github-actions/auth@v3
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           credentials_json: ${{ secrets.ETE_GCLOUD_SERVICE_KEY }}
 
       - name: Upload e2e test results to GCS
         if: github.ref == 'refs/heads/master'
-        uses: google-github-actions/upload-cloud-storage@v2
+        uses: google-github-actions/upload-cloud-storage@c0f6160ff80057923ff50e5e567695cea181ec23 # v2
         with:
           path: workflow/test-results
           destination: ecosystem-test-eng-metrics/syncstorage-rs/junit

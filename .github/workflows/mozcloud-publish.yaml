@@ -73,6 +73,31 @@ jobs:
         TOKENSERVER_DATABASE_BACKEND=postgres
       should_tag_ghcr: true
 
+  build-and-push-syncserver-postgres-enterprise-gar:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'push' &&
+        (github.ref_name == 'master' || startsWith(github.ref, 'refs/tags/'))
+      ) ||
+      (
+        github.event_name == 'pull_request' &&
+        contains(github.event.pull_request.labels.*.name, 'preview') &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
+    with:
+      image_name: syncserver-postgres
+      gar_name: fx-enterprise-private
+      project_id: moz-fx-fx-enterprise-prod
+      docker_build_args: |
+        SYNCSTORAGE_DATABASE_BACKEND=postgres
+        TOKENSERVER_DATABASE_BACKEND=postgres
+
   # Note: we are moving towards renaming all images `syncserver`, the union of sync and tokenserver.
   # This presently remains for the time being to simplify deploys by maintaining `image_name: syncstorage-rs-spanner-python-utils`.
   # Historical context: <https://github.com/mozilla-services/syncstorage-rs/pull/1306>
@@ -125,6 +150,30 @@ jobs:
       dockerfile_path: tools/postgres/Dockerfile
       image_build_context: tools/postgres
       should_tag_ghcr: true
+
+  build-and-push-syncserver-postgres-python-utils-enterprise-gar:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'push' &&
+        (github.ref_name == 'master' || startsWith(github.ref, 'refs/tags/'))
+      ) ||
+      (
+        github.event_name == 'pull_request' &&
+        contains(github.event.pull_request.labels.*.name, 'preview') &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
+    with:
+      image_name: syncserver-postgres-python-utils
+      gar_name: fx-enterprise-private
+      project_id: moz-fx-fx-enterprise-prod
+      dockerfile_path: tools/postgres/Dockerfile
+      image_build_context: tools/postgres
 
   build-and-push-syncserver-mysql:
     if: >
