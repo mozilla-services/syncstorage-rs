@@ -14,9 +14,14 @@ env:
   RUST_VERSION: "1.91"
   PYTHON_VERSION: "3.12"
 
+permissions: {} # workflow-level default — deny all
+
 jobs:
   build-and-test-postgres:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
 
     services:
       postgres:
@@ -140,6 +145,9 @@ jobs:
   build-postgres-image:
     runs-on: ubuntu-latest
     needs: build-and-test-postgres
+    permissions:
+      contents: read
+      actions: write
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -184,6 +192,9 @@ jobs:
   postgres-e2e-tests:
     runs-on: ubuntu-latest
     needs: build-postgres-image
+    permissions:
+      contents: read
+      checks: write
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6

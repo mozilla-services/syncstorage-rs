@@ -5,6 +5,11 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+permissions: {} # workflow-level default — deny all
+
 jobs:
   glean-probe-scraper:
+    permissions:
+      contents: read
+      checks: write
     uses: mozilla/probe-scraper/.github/workflows/glean.yaml@main

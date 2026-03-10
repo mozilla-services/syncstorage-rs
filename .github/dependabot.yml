@@ -1,6 +1,6 @@
 version: 2
 updates:
-  - package-ecosystem: cargo
+  - package-ecosystem: "cargo"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -53,7 +53,7 @@ updates:
         versions:
           - 4.4.0
 
-  - package-ecosystem: pip # Applies for poetry deps as well
+  - package-ecosystem: "pip" # Applies for poetry deps as well
     directories:
       - "/"
       - "/tools/hawk"
@@ -70,7 +70,7 @@ updates:
     labels:
       - dependencies
 
-  - package-ecosystem: github-actions
+  - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
