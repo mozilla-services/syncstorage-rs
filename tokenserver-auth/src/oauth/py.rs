@@ -32,7 +32,7 @@ impl Verifier {
         settings: &Settings,
         blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> Result<Self, TokenserverError> {
-        let inner: Py<PyAny> = Python::with_gil::<_, Result<Py<PyAny>, TokenserverError>>(|py| {
+        let inner: Py<PyAny> = Python::attach(|py| -> Result<Py<PyAny>, TokenserverError> {
             let code: &CStr = c_str!(include_str!("verify.py"));
             let module = PyModule::from_code(py, code, c_str!("verify.py"), c_str!("verify.py"))
                 .map_err(pyerr_to_tokenserver_error)?;
@@ -125,7 +125,7 @@ impl VerifyToken for Verifier {
         // since that would require passing `self` to a separate thread. Passing &Self to a closure
         // gives us the flexibility to clone only when necessary.
         let verify_inner = |verifier: &Self| {
-            let maybe_verify_output_string = Python::with_gil(|py| {
+            let maybe_verify_output_string = Python::attach(|py| {
                 let client = verifier.inner.bind(py);
                 // `client.verify_token(token)`
                 let result: Bound<PyAny> = client
@@ -135,7 +135,7 @@ impl VerifyToken for Verifier {
                 if result.is_none() {
                     Ok(None)
                 } else {
-                    let verify_output_python_string = result.downcast::<PyString>()?;
+                    let verify_output_python_string = result.cast::<PyString>()?;
                     verify_output_python_string.extract::<String>().map(Some)
                 }
             })

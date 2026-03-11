@@ -5,7 +5,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use rand::{Rng, thread_rng};
 use serde::{Deserialize, Serialize};
 use syncserver_common::{self, MAX_SPANNER_LOAD_SIZE};
 
@@ -56,7 +55,7 @@ impl From<&Settings> for Deadman {
             // ttl w/ a 10% jitter results in a random final ttl between 60-66s
             let ttl = lbheartbeat_ttl as f32;
             let max_jitter = ttl * (settings.lbheartbeat_ttl_jitter as f32 * 0.01);
-            let ttl = thread_rng().gen_range(ttl..ttl + max_jitter);
+            let ttl = rand::random_range(ttl..ttl + max_jitter);
             Instant::now() + Duration::from_secs(ttl as u64)
         });
         Deadman {

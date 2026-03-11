@@ -15,7 +15,6 @@ use hawk::{self, Credentials, Key, RequestBuilder};
 use hmac::{Hmac, Mac};
 use http::StatusCode;
 use lazy_static::lazy_static;
-use rand::{Rng, thread_rng};
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use sha2::Sha256;
@@ -36,7 +35,7 @@ lazy_static! {
     static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
     static ref SECRETS: Arc<Secrets> =
         Arc::new(Secrets::new("foo").expect("Could not get Secrets in server/test.rs"));
-    static ref RAND_UID: u32 = thread_rng().gen_range(0..10000);
+    static ref RAND_UID: u32 = rand::random_range(0..10000);
 }
 
 const TEST_HOST: &str = "localhost";

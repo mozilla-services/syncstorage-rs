@@ -14,7 +14,6 @@ use glean::server_events::GleanEventsLogger;
 use hawk::{Credentials, Key, RequestBuilder};
 use hmac::{Hmac, Mac};
 use lazy_static::lazy_static;
-use rand::{Rng, thread_rng};
 use sha2::Sha256;
 use tokio::sync::RwLock;
 
@@ -29,7 +28,7 @@ use crate::{server::ServerState, web::auth::HawkPayload};
 lazy_static! {
     static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
     pub static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("Ted Koppel is a robot").unwrap());
-    pub static ref USER_ID: u64 = thread_rng().gen_range(0..10000);
+    pub static ref USER_ID: u64 = rand::random_range(0..10000);
     pub static ref USER_ID_STR: String = USER_ID.to_string();
 }
 
