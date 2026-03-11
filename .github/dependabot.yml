@@ -4,7 +4,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      timezone: UCT
+      timezone: UTC
     open-pull-requests-limit: 1
     labels:
       - dependencies
@@ -65,7 +65,7 @@ updates:
       - "/tools/tokenserver/loadtests"
     schedule:
       interval: "weekly"
-      timezone: UCT
+      timezone: UTC
     open-pull-requests-limit: 1
     labels:
       - dependencies
@@ -74,7 +74,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      timezone: UCT
+      timezone: UTC
     open-pull-requests-limit: 1
     labels:
       - dependencies
