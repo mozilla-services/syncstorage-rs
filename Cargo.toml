@@ -35,13 +35,13 @@ docopt = "1.1"
 base64 = "0.22"
 
 diesel = "2.3"
-diesel-async = { version = "0.7", features = ["mysql", "deadpool", "migrations", "async-connection-wrapper"] }
+diesel-async = { version = "0.7", features = ["mysql", "deadpool", "migrations", "async-connection-wrapper"] } # worth checking when updating deadpool
 diesel_migrations = "2.3"
 
 cadence = "1.7"
 backtrace = "0.3"
 chrono = "0.4"
-deadpool = { version = "0.12", features = ["rt_tokio_1"] }
+deadpool = { version = "0.12", features = ["rt_tokio_1"] } # deps related to diesel-async, have to wait for them to update version to upgrade
 env_logger = "0.11"
 futures = { version = "0.3", features = ["compat"] }
 futures-util = { version = "0.3", features = [
@@ -61,19 +61,18 @@ log = { version = "0.4", features = [
     "max_level_debug",
     "release_max_level_info",
 ] }
-protobuf = "=2.25.2" # pin to 2.25.2 to prevent side updating
-rand = "0.8"
+rand = "0.10"
 regex = "1.12"
-reqwest = { version = "0.12", default-features = false, features = [
-  "rustls-tls",
+reqwest = { version = "0.13.2", default-features = false, features = [
+  "rustls",
 ] }
-sentry = { version = "0.42", default-features = false, features = [
+sentry = { version = "0.46.2", default-features = false, features = [
   "curl",
   "backtrace",
   "contexts",
   "debug-images",
 ] }
-sentry-backtrace = "0.42"
+sentry-backtrace = "0.46.2"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
@@ -91,7 +90,7 @@ slog-stdlog = "4.1"
 slog-term = "2.9"
 temp-env = { version = "0.3", features = ["async_closure"] }
 tokio = "1"
-thiserror = "1.0.69"
+thiserror = "2.0.18"
 time = "0.3.47"
 utoipa = "5.4.0"
 utoipa-swagger-ui = { version = "9", features = ["actix-web"] }

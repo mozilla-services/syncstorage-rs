@@ -1,8 +1,8 @@
 #![allow(clippy::cognitive_complexity)]
-use std::collections::HashMap;
-
 use lazy_static::lazy_static;
-use rand::{Rng, distributions::Alphanumeric, thread_rng};
+use rand::rng;
+use rand::{RngExt, distr::Alphanumeric};
+use std::collections::HashMap;
 use syncserver_settings::Settings;
 use syncstorage_db_common::{
     DEFAULT_BSO_TTL, Sorting, error::DbErrorIntrospect, params, util::SyncTimestamp,
@@ -17,7 +17,7 @@ use crate::{Db, DbError, tests::support::test_db};
 const MAX_TIMESTAMP: u64 = 4_070_937_600_000;
 
 lazy_static! {
-    static ref UID: u32 = thread_rng().gen_range(0..10000);
+    static ref UID: u32 = rng().random_range(0..10000);
 }
 
 #[tokio::test]
@@ -623,8 +623,8 @@ async fn get_collection_usage() -> Result<(), DbError> {
 
         for &coll in ["bookmarks", "history", "prefs"].iter() {
             for i in 0..5 {
-                let size = 50 + thread_rng().gen_range(0..100);
-                let payload = thread_rng()
+                let size = 50 + rng().random_range(0..100);
+                let payload = rng()
                     .sample_iter(&Alphanumeric)
                     .take(size)
                     .collect::<Vec<u8>>();
@@ -681,7 +681,7 @@ async fn test_quota() -> Result<(), DbError> {
         let coll = "bookmarks";
 
         let size = 5000;
-        let random = thread_rng()
+        let random = rng()
             .sample_iter(&Alphanumeric)
             .take(size)
             .collect::<Vec<u8>>();
@@ -714,10 +714,10 @@ async fn get_collection_counts() -> Result<(), DbError> {
     with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let mut expected = HashMap::new();
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         for &coll in ["bookmarks", "history", "prefs"].iter() {
-            let count = 5 + rng.gen_range(0..5);
+            let count = 5 + rng.random_range(0..5);
             expected.insert(coll.to_owned(), count);
             for i in 0..count {
                 db.put_bso(pbso(uid, coll, &format!("b{}", i), Some("x"), None, None))
