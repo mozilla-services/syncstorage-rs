@@ -1,7 +1,7 @@
 //! Mock db implementation with methods stubbed to return default values.
 #![allow(clippy::new_without_default)]
 use async_trait::async_trait;
-use syncserver_db_common::{GetPoolState, PoolState};
+use syncserver_db_common::GetPoolStatus;
 #[cfg(debug_assertions)]
 use syncstorage_db_common::util::SyncTimestamp;
 use syncstorage_db_common::{BatchDb, Db, DbPool, params, results};
@@ -34,9 +34,14 @@ impl DbPool for MockDbPool {
     }
 }
 
-impl GetPoolState for MockDbPool {
-    fn state(&self) -> PoolState {
-        PoolState::default()
+impl GetPoolStatus for MockDbPool {
+    fn status(&self) -> deadpool::Status {
+        deadpool::Status {
+            max_size: 0,
+            size: 0,
+            available: 0,
+            waiting: 0,
+        }
     }
 }
 

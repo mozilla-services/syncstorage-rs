@@ -3979,6 +3979,7 @@ dependencies = [
  "base64",
  "cadence",
  "chrono",
+ "deadpool",
  "docopt",
  "futures 0.3.32",
  "glean",
@@ -4078,6 +4079,7 @@ name = "syncstorage-db"
 version = "0.21.1"
 dependencies = [
  "async-trait",
+ "deadpool",
  "env_logger 0.11.9",
  "lazy_static",
  "log",
@@ -4406,6 +4408,7 @@ version = "0.21.1"
 dependencies = [
  "async-trait",
  "chrono",
+ "deadpool",
  "env_logger 0.11.9",
  "syncserver-common",
  "syncserver-db-common",

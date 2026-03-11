@@ -4,7 +4,7 @@ use std::sync::LazyLock;
 
 use async_trait::async_trait;
 use syncserver_common::Metrics;
-use syncserver_db_common::{GetPoolState, PoolState};
+use syncserver_db_common::GetPoolStatus;
 use tokenserver_db_common::{Db, DbError, DbPool, params, results};
 
 #[derive(Clone, Debug)]
@@ -31,9 +31,14 @@ impl DbPool for MockDbPool {
     }
 }
 
-impl GetPoolState for MockDbPool {
-    fn state(&self) -> PoolState {
-        PoolState::default()
+impl GetPoolStatus for MockDbPool {
+    fn status(&self) -> deadpool::Status {
+        deadpool::Status {
+            max_size: 0,
+            size: 0,
+            available: 0,
+            waiting: 0,
+        }
     }
 }
 

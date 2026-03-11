@@ -1,7 +1,7 @@
 pub mod error;
 pub mod test;
 
-use std::{error::Error, fmt::Debug};
+use std::error::Error;
 
 #[cfg(debug_assertions)]
 use diesel::connection::InstrumentationEvent;
@@ -14,25 +14,9 @@ use diesel_migrations::{EmbeddedMigrations, MigrationHarness};
 use tokio::task::spawn_blocking;
 
 /// A trait to be implemented by database pool data structures. It provides an interface to
-/// derive the current state of the pool, as represented by the `PoolState` struct.
-pub trait GetPoolState {
-    fn state(&self) -> PoolState;
-}
-
-#[derive(Debug, Default)]
-/// A mockable r2d2::State
-pub struct PoolState {
-    pub connections: u32,
-    pub idle_connections: u32,
-}
-
-impl From<deadpool::Status> for PoolState {
-    fn from(status: deadpool::Status) -> PoolState {
-        PoolState {
-            connections: status.size as u32,
-            idle_connections: status.available.max(0) as u32,
-        }
-    }
+/// derive the current status of the pool, as represented by [deadpool::Status]
+pub trait GetPoolStatus {
+    fn status(&self) -> deadpool::Status;
 }
 
 /// Establish an [AsyncConnection] logging diesel queries to the `debug` log
