@@ -383,7 +383,7 @@ impl Db for TokenserverDb {
             INSERT IGNORE INTO nodes (service, node, available, current_load, capacity, downed, backoff)
             VALUES (
                 (SELECT id FROM services WHERE service = '{}'),
-                ?, 1, 0, ?, 0, 0
+                ?, ?, 0, ?, 0, 0
             )
             "#,
             params::Sync15Node::SERVICE_NAME
@@ -391,6 +391,7 @@ impl Db for TokenserverDb {
 
         let affected_rows = diesel::sql_query(query)
             .bind::<Text, _>(&params.node)
+            .bind::<Integer, _>(params.capacity)
             .bind::<Integer, _>(params.capacity)
             .execute(&mut self.conn)
             .await?;

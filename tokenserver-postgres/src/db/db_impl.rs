@@ -70,10 +70,10 @@ impl Db for TokenserverPgDb {
     async fn insert_sync15_node(&mut self, params: params::Sync15Node) -> DbResult<bool> {
         let query = format!(
             r#"
-              INSERT INTO nodes (service, node,  available, current_load, capacity, downed, backoff)
+              INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
               VALUES (
                   (SELECT id FROM services WHERE service = '{}'),
-                  $1, 1, 0, $2, 0, 0
+                  $1, $2, 0, $2, 0, 0
               )
               ON CONFLICT (service, node) DO NOTHING
               "#,
