@@ -432,7 +432,7 @@ async fn test_init_sync15_node() -> DbResult<()> {
 
             assert_eq!(node.node, "https://testo.example.gg");
             assert_eq!(node.capacity, 38383);
-            assert_eq!(node.available, 1);
+            assert_eq!(node.available, 38383);
             assert_eq!(node.current_load, 0);
 
             Ok(())
@@ -474,6 +474,7 @@ async fn test_init_sync15_node_with_default_capacity() -> DbResult<()> {
 
             assert_eq!(node.node, "https://testo.example.gg");
             assert_eq!(node.capacity, 100000);
+            assert_eq!(node.available, 100000);
 
             Ok(())
         },
