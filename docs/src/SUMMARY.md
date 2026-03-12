@@ -13,6 +13,7 @@
 - [Frequently Asked Questions](faq.md)
 - [Data Types](data-types.md)
 - [OpenAPI Documentation](open-api-docs.md)
+- [GitHub Actions](gh-actions.md)
 - [Syncstorage API](syncstorage/api.md)
     - [API v1.5](syncstorage/api-1.5.md)
     - [API v1.1 (Obsolete)](syncstorage/api-1.1.md)
