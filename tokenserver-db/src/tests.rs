@@ -1,7 +1,5 @@
-use std::{
-    thread,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use chrono::{TimeDelta, Utc};
+use std::thread;
 
 use syncserver_common::Metrics;
 use syncserver_settings::Settings;
@@ -160,10 +158,7 @@ async fn replace_users() -> DbResult<()> {
 
     let pool = db_pool().await?;
     let mut db = pool.get().await?;
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as i64;
+    let now: i64 = Utc::now().timestamp_millis();
     let an_hour_ago = now - MILLISECONDS_IN_AN_HOUR;
 
     let service_id = db
@@ -1198,7 +1193,7 @@ async fn test_correct_created_at_used_during_node_reassignment() -> DbResult<()>
 
     // Sleep very briefly to ensure the timestamp created during node reassignment is greater
     // than the timestamp created during user creation
-    thread::sleep(Duration::from_millis(5));
+    thread::sleep(TimeDelta::milliseconds(5).to_std().unwrap());
 
     // Get the user, prompting the user's reassignment to the same node
     let user2 = db
@@ -1255,7 +1250,7 @@ async fn test_correct_created_at_used_during_user_retrieval() -> DbResult<()> {
 
     // Sleep very briefly to ensure that any timestamp that might be created below is greater
     // than the timestamp created during user creation
-    thread::sleep(Duration::from_millis(5));
+    thread::sleep(TimeDelta::milliseconds(5).to_std().unwrap());
 
     // Get the user
     let user2 = db
@@ -1301,11 +1296,7 @@ async fn test_latest_created_at() -> DbResult<()> {
         .id;
 
     let email = "test_user";
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as i64;
-
+    let now: i64 = Utc::now().timestamp_millis();
     // Add a user marked as replaced
     let post_user = params::PostUser {
         service_id,

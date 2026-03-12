@@ -2,10 +2,10 @@
 /// imports only to be added during debug builds.
 /// cargo build --release will not include this code in the binary.
 use std::time::Duration;
-#[cfg(debug_assertions)]
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
+#[cfg(debug_assertions)]
+use chrono::Utc;
 use diesel::{
     OptionalExtension,
     sql_types::{BigInt, Float, Integer, Nullable, Text},
@@ -461,10 +461,7 @@ impl Db for TokenserverPgDb {
              WHERE nodeid = $2
         "#;
 
-        let current_time: i64 = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as i64;
+        let current_time = Utc::now().timestamp_millis();
 
         diesel::sql_query(QUERY)
             .bind::<BigInt, _>(current_time)
