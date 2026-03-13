@@ -68,6 +68,13 @@ pub trait Db {
     /// Based on service_id, email, generation, and changed keys timestamp, update user.
     async fn put_user(&mut self, params: params::PutUser) -> DbResult<results::PutUser>;
 
+    /// Update `generation` and/or `keys_changed_at` in place using COALESCE. `None` leaves the
+    /// existing value unchanged.
+    async fn update_user_generation(
+        &mut self,
+        params: params::UpdateUserGeneration,
+    ) -> DbResult<results::UpdateUserGeneration>;
+
     /// Mark all records for the user as replaced, and set a large generation number to block
     /// future logins.
     async fn retire_user(&mut self, params: params::RetireUser) -> DbResult<results::RetireUser>;

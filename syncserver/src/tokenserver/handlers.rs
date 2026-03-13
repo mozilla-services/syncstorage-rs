@@ -14,7 +14,7 @@ use tokenserver_auth::{MakeTokenPlaintext, Tokenlib, TokenserverOrigin};
 use tokenserver_common::{NodeType, TokenserverError};
 use tokenserver_db::{
     Db, SYNC_SERVICE_NAME,
-    params::{GetNodeId, PostUser, PutUser, ReplaceUsers, RetireUser},
+    params::{GetNodeId, PostUser, PutUser, ReplaceUsers, RetireUser, UpdateUserGeneration},
 };
 
 use super::{
@@ -320,10 +320,10 @@ pub async fn handle_fxa_events(
                     .get("changeTime")
                     .and_then(|t| t.as_i64())
                 {
-                    db.put_user(tokenserver_db::params::PutUser {
+                    db.update_user_generation(UpdateUserGeneration {
                         service_id,
                         email: format!("{}@{}", claims.sub, state.fxa_email_domain),
-                        generation: change_time_ms / 1000 - 1,
+                        generation: Some(change_time_ms / 1000 - 1),
                         keys_changed_at: None,
                     })
                     .await?;
@@ -390,6 +390,7 @@ pub async fn test_error() -> Result<HttpResponse, TokenserverError> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use actix_web::middleware::ErrorHandlers;
@@ -401,7 +402,6 @@ mod tests {
     use utoipa::OpenApi;
     use utoipa_swagger_ui::SwaggerUi;
 
-    use std::sync::Arc;
     use syncserver_common::middleware::sentry::SentryWrapper;
     use syncserver_settings::Settings;
     use tokenserver_auth::test_utils::{
@@ -588,7 +588,6 @@ mod tests {
         let retire_user_calls = call_log.retire_user.lock().unwrap();
         assert_eq!(retire_user_calls.len(), 1);
         assert_eq!(retire_user_calls[0].email, "quux@api.accounts.firefox.com");
-        assert_eq!(call_log.put_user.lock().unwrap().len(), 0);
     }
 
     #[actix_web::test]
@@ -615,11 +614,18 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
-        let put_user_calls = call_log.put_user.lock().unwrap();
-        assert_eq!(put_user_calls.len(), 1);
-        assert_eq!(put_user_calls[0].email, "quux@api.accounts.firefox.com");
-        assert_eq!(put_user_calls[0].generation, change_time_ms / 1000 - 1);
-        assert_eq!(put_user_calls[0].keys_changed_at, None);
+        let update_user_generation_calls = call_log.update_user_generation.lock().unwrap();
+        assert_eq!(update_user_generation_calls.len(), 1);
+        assert_eq!(
+            update_user_generation_calls[0].email,
+            "quux@api.accounts.firefox.com"
+        );
+        assert_eq!(
+            update_user_generation_calls[0].generation,
+            Some(change_time_ms / 1000 - 1)
+        );
+        assert_eq!(update_user_generation_calls[0].keys_changed_at, None);
+
         assert_eq!(call_log.retire_user.lock().unwrap().len(), 0);
     }
 
@@ -643,7 +649,8 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
-        assert_eq!(call_log.put_user.lock().unwrap().len(), 0);
+
+        assert_eq!(call_log.update_user_generation.lock().unwrap().len(), 0);
         assert_eq!(call_log.retire_user.lock().unwrap().len(), 0);
     }
 }

@@ -1,9 +1,9 @@
 /// Note the addition of `#[cfg(debug_assertions)]` flags methods and
 /// imports only to be added during debug builds.
 /// cargo build --release will not include this code in the binary.
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 #[cfg(debug_assertions)]
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 
 use async_trait::async_trait;
 use diesel::{
@@ -391,6 +391,33 @@ impl Db for TokenserverPgDb {
             .bind::<Integer, _>(params.service_id)
             .bind::<Text, _>(params.email)
             .bind::<BigInt, _>(params.generation)
+            .bind::<Nullable<BigInt>, _>(params.keys_changed_at)
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
+    }
+
+    async fn update_user_generation(
+        &mut self,
+        params: params::UpdateUserGeneration,
+    ) -> DbResult<results::UpdateUserGeneration> {
+        const QUERY: &str = r#"
+            UPDATE users
+               SET generation = COALESCE($1, generation),
+                   keys_changed_at = COALESCE($2, keys_changed_at)
+             WHERE service = $3
+               AND email = $4
+               AND generation <= COALESCE($5, generation)
+               AND COALESCE(keys_changed_at, 0) <= COALESCE($6, keys_changed_at, 0)
+               AND replaced_at IS NULL
+        "#;
+
+        diesel::sql_query(QUERY)
+            .bind::<Nullable<BigInt>, _>(params.generation)
+            .bind::<Nullable<BigInt>, _>(params.keys_changed_at)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<Text, _>(params.email)
+            .bind::<Nullable<BigInt>, _>(params.generation)
             .bind::<Nullable<BigInt>, _>(params.keys_changed_at)
             .execute(&mut self.conn)
             .await?;

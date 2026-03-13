@@ -58,6 +58,7 @@ pub struct PostUser {
 pub type ReplaceUsers = ();
 pub type ReplaceUser = ();
 pub type RetireUser = ();
+pub type UpdateUserGeneration = ();
 pub type PutUser = ();
 
 #[derive(Default, QueryableByName)]

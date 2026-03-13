@@ -9,8 +9,8 @@ use tokenserver_db_common::{Db, DbError, DbPool, params, results};
 
 #[derive(Clone, Default)]
 pub struct CallLog {
-    pub put_user: Arc<Mutex<Vec<params::PutUser>>>,
     pub retire_user: Arc<Mutex<Vec<params::RetireUser>>>,
+    pub update_user_generation: Arc<Mutex<Vec<params::UpdateUserGeneration>>>,
 }
 
 #[derive(Clone, Default)]
@@ -84,8 +84,19 @@ impl Db for MockDb {
         Ok(results::PostUser::default())
     }
 
-    async fn put_user(&mut self, params: params::PutUser) -> Result<results::PutUser, DbError> {
-        self.call_log.put_user.lock().unwrap().push(params);
+    async fn put_user(&mut self, _params: params::PutUser) -> Result<results::PutUser, DbError> {
+        Ok(())
+    }
+
+    async fn update_user_generation(
+        &mut self,
+        params: params::UpdateUserGeneration,
+    ) -> Result<results::UpdateUserGeneration, DbError> {
+        self.call_log
+            .update_user_generation
+            .lock()
+            .unwrap()
+            .push(params);
         Ok(())
     }
 

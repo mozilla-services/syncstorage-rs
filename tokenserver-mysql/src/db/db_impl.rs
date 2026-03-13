@@ -1,6 +1,6 @@
-use std::time::Duration;
 #[cfg(debug_assertions)]
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
+use std::time::{Duration, SystemTime};
 
 use async_trait::async_trait;
 use diesel::{
@@ -138,6 +138,33 @@ impl Db for TokenserverDb {
             .bind::<Integer, _>(&params.service_id)
             .bind::<Text, _>(&params.email)
             .bind::<Bigint, _>(params.generation)
+            .bind::<Nullable<Bigint>, _>(params.keys_changed_at)
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
+    }
+
+    async fn update_user_generation(
+        &mut self,
+        params: params::UpdateUserGeneration,
+    ) -> DbResult<results::UpdateUserGeneration> {
+        const QUERY: &str = r#"
+            UPDATE users
+               SET generation = COALESCE(?, generation),
+                   keys_changed_at = COALESCE(?, keys_changed_at)
+             WHERE service = ?
+               AND email = ?
+               AND generation <= COALESCE(?, generation)
+               AND COALESCE(keys_changed_at, 0) <= COALESCE(?, keys_changed_at, 0)
+               AND replaced_at IS NULL
+        "#;
+
+        diesel::sql_query(QUERY)
+            .bind::<Nullable<Bigint>, _>(params.generation)
+            .bind::<Nullable<Bigint>, _>(params.keys_changed_at)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<Text, _>(&params.email)
+            .bind::<Nullable<Bigint>, _>(params.generation)
             .bind::<Nullable<Bigint>, _>(params.keys_changed_at)
             .execute(&mut self.conn)
             .await?;
