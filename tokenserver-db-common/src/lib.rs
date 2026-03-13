@@ -68,6 +68,10 @@ pub trait Db {
     /// Based on service_id, email, generation, and changed keys timestamp, update user.
     async fn put_user(&mut self, params: params::PutUser) -> DbResult<results::PutUser>;
 
+    /// Mark all records for the user as replaced, and set a large generation number to block
+    /// future logins.
+    async fn retire_user(&mut self, params: params::RetireUser) -> DbResult<results::RetireUser>;
+
     /// Show database uptime status and health as boolean.
     async fn check(&mut self) -> DbResult<results::Check>;
 

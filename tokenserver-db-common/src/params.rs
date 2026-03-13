@@ -74,6 +74,11 @@ pub struct ReplaceUser {
     pub replaced_at: i64,
 }
 
+pub struct RetireUser {
+    pub service_id: i32,
+    pub email: String,
+}
+
 #[derive(Debug, Default)]
 pub struct GetNodeId {
     pub service_id: i32,

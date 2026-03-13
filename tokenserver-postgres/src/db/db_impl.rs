@@ -448,6 +448,29 @@ impl Db for TokenserverPgDb {
         Ok(())
     }
 
+    /// Mark a user as retired by email.
+    async fn retire_user(&mut self, params: params::RetireUser) -> DbResult<results::RetireUser> {
+        const QUERY: &str = r#"
+            UPDATE users
+               SET generation = $1,
+                   replaced_at = $2
+             WHERE service = $3
+               AND email = $4
+               AND replaced_at IS NULL
+        "#;
+
+        let now = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_millis() as i64;
+
+        diesel::sql_query(QUERY)
+            .bind::<BigInt, _>(tokenserver_db_common::MAX_GENERATION)
+            .bind::<BigInt, _>(now)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<Text, _>(params.email)
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
+    }
+
     /// Given ONLY a particular `node_id`, update the users table to indicate an unassigned
     /// node by updating the `replaced_at` field with the current time since Unix Epoch.
     #[cfg(debug_assertions)]

@@ -87,6 +87,29 @@ impl Db for TokenserverDb {
         Ok(())
     }
 
+    /// Mark a user as retired by email.
+    async fn retire_user(&mut self, params: params::RetireUser) -> DbResult<results::RetireUser> {
+        const QUERY: &str = r#"
+            UPDATE users
+               SET generation = ?,
+                   replaced_at = ?
+             WHERE service = ?
+               AND email = ?
+               AND replaced_at IS NULL
+        "#;
+
+        let now = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_millis() as i64;
+
+        diesel::sql_query(QUERY)
+            .bind::<Bigint, _>(tokenserver_db_common::MAX_GENERATION)
+            .bind::<Bigint, _>(now)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<Text, _>(params.email)
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
+    }
+
     /// Update the user with the given email and service ID with the given `generation` and
     /// `keys_changed_at`.
     async fn put_user(&mut self, params: params::PutUser) -> DbResult<results::PutUser> {

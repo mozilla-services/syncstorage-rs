@@ -8,8 +8,14 @@ use syncserver_db_common::{GetPoolState, PoolState};
 use tokenserver_db_common::{Db, DbError, DbPool, params, results};
 
 #[derive(Clone, Default)]
+pub struct CallLog {
+    pub put_user: Arc<Mutex<Vec<params::PutUser>>>,
+    pub retire_user: Arc<Mutex<Vec<params::RetireUser>>>,
+}
+
+#[derive(Clone, Default)]
 pub struct MockDbPool {
-    put_user_calls: Arc<Mutex<Vec<params::PutUser>>>,
+    call_log: CallLog,
 }
 
 impl MockDbPool {
@@ -17,10 +23,10 @@ impl MockDbPool {
         MockDbPool::default()
     }
 
-    pub fn with_capture() -> (Self, Arc<Mutex<Vec<params::PutUser>>>) {
+    pub fn with_capture() -> (Self, CallLog) {
         let pool = MockDbPool::default();
-        let put_user_calls = Arc::clone(&pool.put_user_calls);
-        (pool, put_user_calls)
+        let call_log = pool.call_log.clone();
+        (pool, call_log)
     }
 }
 
@@ -32,7 +38,7 @@ impl DbPool for MockDbPool {
 
     async fn get(&self) -> Result<Box<dyn Db>, DbError> {
         Ok(Box::new(MockDb {
-            put_user_calls: Arc::clone(&self.put_user_calls),
+            call_log: self.call_log.clone(),
         }))
     }
 
@@ -49,7 +55,7 @@ impl GetPoolState for MockDbPool {
 
 #[derive(Clone, Default)]
 pub struct MockDb {
-    put_user_calls: Arc<Mutex<Vec<params::PutUser>>>,
+    call_log: CallLog,
 }
 
 impl MockDb {
@@ -79,7 +85,15 @@ impl Db for MockDb {
     }
 
     async fn put_user(&mut self, params: params::PutUser) -> Result<results::PutUser, DbError> {
-        self.put_user_calls.lock().unwrap().push(params);
+        self.call_log.put_user.lock().unwrap().push(params);
+        Ok(())
+    }
+
+    async fn retire_user(
+        &mut self,
+        params: params::RetireUser,
+    ) -> Result<results::RetireUser, DbError> {
+        self.call_log.retire_user.lock().unwrap().push(params);
         Ok(())
     }
 

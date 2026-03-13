@@ -13,8 +13,8 @@ use utoipa::ToSchema;
 use tokenserver_auth::{MakeTokenPlaintext, Tokenlib, TokenserverOrigin};
 use tokenserver_common::{NodeType, TokenserverError};
 use tokenserver_db::{
-    Db, MAX_GENERATION, SYNC_SERVICE_NAME,
-    params::{GetNodeId, PostUser, PutUser, ReplaceUsers},
+    Db, SYNC_SERVICE_NAME,
+    params::{GetNodeId, PostUser, PutUser, ReplaceUsers, RetireUser},
 };
 
 use super::{
@@ -309,11 +309,9 @@ pub async fn handle_fxa_events(
     for event_type in events.keys() {
         match event_type.as_str() {
             "https://schemas.accounts.firefox.com/event/delete-user" => {
-                db.put_user(tokenserver_db::params::PutUser {
+                db.retire_user(RetireUser {
                     service_id,
                     email: format!("{}@{}", claims.sub, state.fxa_email_domain),
-                    generation: MAX_GENERATION,
-                    keys_changed_at: None,
                 })
                 .await?;
             }
@@ -392,7 +390,6 @@ pub async fn test_error() -> Result<HttpResponse, TokenserverError> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use actix_web::middleware::ErrorHandlers;
@@ -404,6 +401,7 @@ mod tests {
     use utoipa::OpenApi;
     use utoipa_swagger_ui::SwaggerUi;
 
+    use std::sync::Arc;
     use syncserver_common::middleware::sentry::SentryWrapper;
     use syncserver_settings::Settings;
     use tokenserver_auth::test_utils::{
@@ -571,7 +569,7 @@ mod tests {
     async fn test_delete_user_event() {
         let verifier =
             SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
-        let (pool, put_user_calls) = MockDbPool::with_capture();
+        let (pool, call_log) = MockDbPool::with_capture();
         let app =
             make_app_from_state(make_state_with_db_pool(vec![verifier], Box::new(pool))).await;
         let token = make_set(
@@ -587,18 +585,17 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
-        let calls = put_user_calls.lock().unwrap();
-        assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].email, "quux@api.accounts.firefox.com");
-        assert_eq!(calls[0].generation, tokenserver_db::MAX_GENERATION);
-        assert_eq!(calls[0].keys_changed_at, None);
+        let retire_user_calls = call_log.retire_user.lock().unwrap();
+        assert_eq!(retire_user_calls.len(), 1);
+        assert_eq!(retire_user_calls[0].email, "quux@api.accounts.firefox.com");
+        assert_eq!(call_log.put_user.lock().unwrap().len(), 0);
     }
 
     #[actix_web::test]
     async fn test_password_change_event() {
         let verifier =
             SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
-        let (pool, put_user_calls) = MockDbPool::with_capture();
+        let (pool, call_log) = MockDbPool::with_capture();
         let app =
             make_app_from_state(make_state_with_db_pool(vec![verifier], Box::new(pool))).await;
         let change_time_ms = SystemTime::now()
@@ -618,18 +615,19 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
-        let calls = put_user_calls.lock().unwrap();
-        assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].email, "quux@api.accounts.firefox.com");
-        assert_eq!(calls[0].generation, change_time_ms / 1000 - 1);
-        assert_eq!(calls[0].keys_changed_at, None);
+        let put_user_calls = call_log.put_user.lock().unwrap();
+        assert_eq!(put_user_calls.len(), 1);
+        assert_eq!(put_user_calls[0].email, "quux@api.accounts.firefox.com");
+        assert_eq!(put_user_calls[0].generation, change_time_ms / 1000 - 1);
+        assert_eq!(put_user_calls[0].keys_changed_at, None);
+        assert_eq!(call_log.retire_user.lock().unwrap().len(), 0);
     }
 
     #[actix_web::test]
     async fn test_unknown_event() {
         let verifier =
             SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
-        let (pool, put_user_calls) = MockDbPool::with_capture();
+        let (pool, call_log) = MockDbPool::with_capture();
         let app =
             make_app_from_state(make_state_with_db_pool(vec![verifier], Box::new(pool))).await;
         let token = make_set(
@@ -645,6 +643,7 @@ mod tests {
             .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), 200);
-        assert_eq!(put_user_calls.lock().unwrap().len(), 0);
+        assert_eq!(call_log.put_user.lock().unwrap().len(), 0);
+        assert_eq!(call_log.retire_user.lock().unwrap().len(), 0);
     }
 }
