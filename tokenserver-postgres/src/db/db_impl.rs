@@ -1,9 +1,9 @@
+#[cfg(debug_assertions)]
+use std::time::UNIX_EPOCH;
 /// Note the addition of `#[cfg(debug_assertions)]` flags methods and
 /// imports only to be added during debug builds.
 /// cargo build --release will not include this code in the binary.
 use std::time::{Duration, SystemTime};
-#[cfg(debug_assertions)]
-use std::time::UNIX_EPOCH;
 
 use async_trait::async_trait;
 use diesel::{
