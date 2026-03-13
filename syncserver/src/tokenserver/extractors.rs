@@ -675,8 +675,8 @@ mod tests {
 
     use crate::tokenserver::ServerState;
 
+    use chrono::Utc;
     use std::sync::Arc;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     lazy_static! {
         static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("Ted Koppel is a robot").unwrap());
@@ -886,11 +886,10 @@ mod tests {
         fn build_request() -> TestRequest {
             let fxa_uid = "test123";
             let oauth_verifier = {
-                let start = SystemTime::now();
-                let current_time = start.duration_since(UNIX_EPOCH).unwrap();
+                let current_time = Utc::now().timestamp();
                 let verify_output = oauth::VerifyOutput {
                     fxa_uid: fxa_uid.to_owned(),
-                    generation: Some(current_time.as_secs() as i64),
+                    generation: Some(current_time),
                 };
                 let valid = true;
 
