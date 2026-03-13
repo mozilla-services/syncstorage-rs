@@ -25,10 +25,9 @@ SYNCSTORAGE_LOAD_TEST_DIR := $(TOOLS_DIR)/syncstorage-loadtest
 RUST_LOG ?= debug
 
 # In order to be consumed by the ETE Test Metric Pipeline, files need to follow a strict naming
-# convention: {job_number}__{utc_epoch_datetime}__{workflow}__{test_suite}__results{-index}.xml
-# TODO: update workflow name appropriately
-WORKFLOW := build-deploy
+# convention: {job_number}__{utc_epoch_datetime}__{repository}__{workflow}__{test_suite}__results{-index}.xml
 EPOCH_TIME := $(shell date +"%s")
+WORKFLOW := $(shell echo "$(GITHUB_WORKFLOW)" | tr ' ' '-' | tr '[:upper:]' '[:lower:]')
 TEST_RESULTS_DIR ?= workflow/test-results
 TEST_PROFILE := $(if $(or $(CIRCLECI),$(GITHUB_ACTIONS)),ci,default)
 TEST_FILE_PREFIX := $(if $(GITHUB_ACTIONS),$(GITHUB_RUN_NUMBER)__$(EPOCH_TIME)__$(notdir $(GITHUB_REPOSITORY))__$(WORKFLOW)__)
