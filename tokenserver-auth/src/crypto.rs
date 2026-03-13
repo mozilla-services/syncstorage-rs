@@ -195,6 +195,7 @@ impl SETVerifierImpl {
         let decoding_key = DecodingKey::from_jwk(jwk).map_err(|_| JWTVerifyError::InvalidKey)?;
         let mut validation = Validation::new(Algorithm::RS256);
         validation.set_audience(&[client_id]);
+        validation.set_issuer(&[<SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL?>]);
         validation.validate_exp = true;
         Ok(Self {
             key: decoding_key,

@@ -302,9 +302,8 @@ pub async fn handle_fxa_events(
         })
         .await?
         .id;
-    let events = match claims.events.as_object() {
-        Some(map) => map.clone(),
-        None => return Ok(HttpResponse::Ok().finish()),
+    let Some(events) = claims.events.as_object() else {
+        return Ok(HttpResponse::Ok().finish());
     };
 
     for event_type in events.keys() {
