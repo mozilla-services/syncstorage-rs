@@ -12,7 +12,7 @@ on:
 
 env:
   RUST_VERSION: "1.91" # RUST_VER
-  PYTHON_VERSION: "3.12" # PY_VER
+  PYTHON_VERSION: "3.14" # PY_VER
 
 permissions: {} # workflow-level default — deny all
 
@@ -278,4 +278,3 @@ jobs:
           glob: "*.xml"
           parent: false
           process_gcloudignore: false
-
