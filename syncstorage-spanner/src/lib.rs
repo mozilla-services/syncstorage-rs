@@ -1,4 +1,4 @@
-use std::time::SystemTime;
+use chrono::Utc;
 
 #[macro_use]
 extern crate slog_scope;
@@ -18,9 +18,7 @@ pub use pool::SpannerDbPool;
 
 type DbResult<T> = Result<T, error::DbError>;
 
+/// Return a timestamp of the seconds since Epoch, repr as `i64`.
 fn now() -> i64 {
-    SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
+    Utc::now().timestamp()
 }
