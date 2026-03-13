@@ -191,11 +191,11 @@ pub struct SETVerifierImpl {
 }
 
 impl SETVerifierImpl {
-    pub fn new(jwk: &Jwk, client_id: &str) -> Result<Self, JWTVerifyError> {
+    pub fn new(jwk: &Jwk, client_id: &str, issuer_url: &str) -> Result<Self, JWTVerifyError> {
         let decoding_key = DecodingKey::from_jwk(jwk).map_err(|_| JWTVerifyError::InvalidKey)?;
         let mut validation = Validation::new(Algorithm::RS256);
         validation.set_audience(&[client_id]);
-        validation.set_issuer(&[<SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL?>]);
+        validation.set_issuer(&[issuer_url]);
         validation.validate_exp = true;
         Ok(Self {
             key: decoding_key,
@@ -217,7 +217,8 @@ mod tests {
 
     #[test]
     fn test_verify_valid_set() {
-        let verifier = SETVerifierImpl::new(&test_jwk(), "testo").unwrap();
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
         let token = make_set(
             "quux",
             "testo",
@@ -232,7 +233,8 @@ mod tests {
 
     #[test]
     fn test_verify_expired_set() {
-        let verifier = SETVerifierImpl::new(&test_jwk(), "testo").unwrap();
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
         let token = make_set("quux", "testo", json!({}), -3600, TEST_PRIVATE_KEY_PEM);
         let err = verifier.verify::<FxaWebhookClaims>(&token).unwrap_err();
         assert!(matches!(err, JWTVerifyError::ExpiredSignature));
@@ -240,7 +242,8 @@ mod tests {
 
     #[test]
     fn test_verify_wrong_key_set() {
-        let verifier = SETVerifierImpl::new(&test_jwk(), "testo").unwrap();
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
         let token = make_set("quux", "testo", json!({}), 3600, OTHER_PRIVATE_KEY_PEM);
         let err = verifier.verify::<FxaWebhookClaims>(&token).unwrap_err();
         assert!(matches!(err, JWTVerifyError::InvalidSignature));

@@ -1373,7 +1373,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_fxa_webhook_valid_token() {
-        let verifier = SETVerifierImpl::new(&test_jwk(), "testo").unwrap();
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
         let state = make_webhook_state(vec![verifier]);
         let token = make_set(
             "quux",
@@ -1393,8 +1394,10 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_fxa_webhook_invalid_signature_fall_through() {
-        let v1 = SETVerifierImpl::new(&test_jwk(), "testo").unwrap();
-        let v2 = SETVerifierImpl::new(&test_jwk(), "testo").unwrap();
+        let v1 =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
+        let v2 =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
         let state = make_webhook_state(vec![v1, v2]);
         let token = make_set(
             "quux",
@@ -1438,7 +1441,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_fxa_webhook_tmissing_auth_header() {
-        let verifier = SETVerifierImpl::new(&test_jwk(), "testo").unwrap();
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
         let state = make_webhook_state(vec![verifier]);
         let req = TestRequest::default()
             .app_data(Data::new(state))

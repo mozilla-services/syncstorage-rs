@@ -479,7 +479,8 @@ mod tests {
 
     #[actix_web::test]
     async fn test_missing_auth_header() {
-        let verifier = SETVerifierImpl::new(&test_jwk(), "testo").unwrap();
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
         let app = make_app(vec![verifier]).await;
         let req = TestRequest::post()
             .uri("/1.0/webhooks/fxa/events")
@@ -490,7 +491,8 @@ mod tests {
 
     #[actix_web::test]
     async fn test_wrong_signing_key() {
-        let verifier = SETVerifierImpl::new(&test_jwk(), "testo").unwrap();
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
         let app = make_app(vec![verifier]).await;
         let token = make_set(
             "quux",
@@ -509,7 +511,8 @@ mod tests {
 
     #[actix_web::test]
     async fn test_expired_token() {
-        let verifier = SETVerifierImpl::new(&test_jwk(), "testo").unwrap();
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
         let app = make_app(vec![verifier]).await;
         let token = make_set(
             "quux",
@@ -528,7 +531,8 @@ mod tests {
 
     #[actix_web::test]
     async fn test_wrong_audience() {
-        let verifier = SETVerifierImpl::new(&test_jwk(), "testo").unwrap();
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
         let app = make_app(vec![verifier]).await;
         let token = make_set(
             "quux",
@@ -565,7 +569,8 @@ mod tests {
 
     #[actix_web::test]
     async fn test_delete_user_event() {
-        let verifier = SETVerifierImpl::new(&test_jwk(), "testo").unwrap();
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
         let (pool, put_user_calls) = MockDbPool::with_capture();
         let app =
             make_app_from_state(make_state_with_db_pool(vec![verifier], Box::new(pool))).await;
@@ -591,7 +596,8 @@ mod tests {
 
     #[actix_web::test]
     async fn test_password_change_event() {
-        let verifier = SETVerifierImpl::new(&test_jwk(), "testo").unwrap();
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
         let (pool, put_user_calls) = MockDbPool::with_capture();
         let app =
             make_app_from_state(make_state_with_db_pool(vec![verifier], Box::new(pool))).await;
@@ -621,7 +627,8 @@ mod tests {
 
     #[actix_web::test]
     async fn test_unknown_event() {
-        let verifier = SETVerifierImpl::new(&test_jwk(), "testo").unwrap();
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
         let (pool, put_user_calls) = MockDbPool::with_capture();
         let app =
             make_app_from_state(make_state_with_db_pool(vec![verifier], Box::new(pool))).await;

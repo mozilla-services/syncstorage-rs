@@ -78,14 +78,22 @@ impl ServerState {
             if let Some(client_id) = &settings.fxa_client_id {
                 if let Some(primary_jwk) = &settings.fxa_oauth_primary_jwk {
                     verifiers.push(
-                        SETVerifierImpl::new(primary_jwk, client_id)
-                            .expect("Invalid primary JWK for SET verification"),
+                        SETVerifierImpl::new(
+                            primary_jwk,
+                            client_id,
+                            &settings.fxa_oauth_server_url,
+                        )
+                        .expect("Invalid primary JWK for SET verification"),
                     );
                 }
                 if let Some(secondary_jwk) = &settings.fxa_oauth_secondary_jwk {
                     verifiers.push(
-                        SETVerifierImpl::new(secondary_jwk, client_id)
-                            .expect("Invalid secondary JWK for SET verification"),
+                        SETVerifierImpl::new(
+                            secondary_jwk,
+                            client_id,
+                            &settings.fxa_oauth_server_url,
+                        )
+                        .expect("Invalid secondary JWK for SET verification"),
                     );
                 }
             }
