@@ -122,9 +122,6 @@ def setup_server_local_testing_with_oauth():
     """
     _set_local_test_env_vars()
 
-    # Set OAuth-specific environment variables
-    os.environ["TOKENSERVER_AUTH_METHOD"] = "oauth"
-
     # Start the server
     yield from _server_manager()
 
