@@ -48,21 +48,13 @@ def get_args() -> argparse.Namespace:
         "--uid", type=int, default=LEGACY_UID, help=f"Legacy UID ({LEGACY_UID})"
     )
     parser.add_argument("--uri", default=URI, help=f"URI path ({URI})")
-    parser.add_argument(
-        "--method", default=METHOD, help=f"The HTTP Method ({METHOD})"
-    )
-    parser.add_argument(
-        "--fxa_uid", default=FXA_UID, help=f"FxA User ID ({FXA_UID})"
-    )
-    parser.add_argument(
-        "--fxa_kid", default=FXA_KID, help=f"FxA K ID ({FXA_KID})"
-    )
+    parser.add_argument("--method", default=METHOD, help=f"The HTTP Method ({METHOD})")
+    parser.add_argument("--fxa_uid", default=FXA_UID, help=f"FxA User ID ({FXA_UID})")
+    parser.add_argument("--fxa_kid", default=FXA_KID, help=f"FxA K ID ({FXA_KID})")
     parser.add_argument(
         "--device_id", default=DEVICE_ID, help=f"FxA Device ID ({DEVICE_ID})"
     )
-    parser.add_argument(
-        "--node", default=NODE, help=f"HTTP Host URI for node ({NODE})"
-    )
+    parser.add_argument("--node", default=NODE, help=f"HTTP Host URI for node ({NODE})")
     parser.add_argument(
         "--duration", type=int, default=DURATION, help=f"Hawk TTL ({DURATION})"
     )
