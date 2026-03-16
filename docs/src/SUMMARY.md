@@ -27,6 +27,7 @@
     - [Process Account Events](tools/process_account_events.md)
     - [Purge Old Records](tools/purge_old_records_tokenserver.md)
     - [Spanner Purge TTL](tools/spanner_purge_ttl.md)
+    - [Hawk Token Generator](tools/hawk_make_token.md)
 - [Sync Client](sync-client/overview.md)
     - [Life of a Sync](sync-client/life-of-a-sync.md)
     - [Sync Storage Formats](sync-client/sync-storage-formats.md)
