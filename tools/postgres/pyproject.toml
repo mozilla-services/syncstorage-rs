@@ -25,6 +25,15 @@ black = "^26.3.1"
 bandit = "^1.9.4"
 isort = "^8.0.1"
 
+[tool.mypy]
+python_version = "3.14"
+ignore_missing_imports = true
+explicit_package_bases = true
+strict = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
