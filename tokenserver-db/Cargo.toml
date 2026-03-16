@@ -7,6 +7,7 @@ edition.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+chrono.workspace = true
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
 tokenserver-db-common = { path = "../tokenserver-db-common" }

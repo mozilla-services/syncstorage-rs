@@ -1,10 +1,8 @@
-use std::{
-    collections::HashMap,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::{collections::HashMap, time::Duration};
 
 use actix_web::{Error, HttpResponse, http::StatusCode, web::Data};
 use base64::{Engine, engine};
+use chrono::{TimeDelta, Utc};
 use serde::Serialize;
 use serde_json::Value;
 use tokio::time::timeout;
@@ -80,10 +78,7 @@ pub async fn get_tokenserver_result(
         node_type: req.node_type,
     };
 
-    let timestamp = {
-        let start = SystemTime::now();
-        start.duration_since(UNIX_EPOCH).unwrap().as_secs()
-    };
+    let timestamp = Utc::now().timestamp() as u64;
 
     Ok(HttpResponse::build(StatusCode::OK)
         .insert_header(("X-Timestamp", timestamp.to_string()))
@@ -117,13 +112,7 @@ fn get_token_plaintext(
         )
     };
 
-    let expires = {
-        let start = SystemTime::now();
-        let current_time = start.duration_since(UNIX_EPOCH).unwrap();
-        let expires = current_time + Duration::from_secs(req.duration);
-
-        expires.as_secs()
-    };
+    let expires = (Utc::now() + TimeDelta::seconds(req.duration as i64)).timestamp() as u64;
 
     Ok(MakeTokenPlaintext {
         node: req.user.node.to_owned(),
@@ -227,10 +216,7 @@ async fn update_user(
     // If the client state changed, we need to mark the current user as "replaced" and create a
     // new user record. Otherwise, we can update the user in place.
     if req.auth_data.client_state != req.user.client_state {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as i64;
+        let timestamp = Utc::now().timestamp_millis();
 
         // Create new user record with updated generation/keys_changed_at
         let post_user_params = PostUser {

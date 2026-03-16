@@ -1,17 +1,17 @@
-#[cfg(debug_assertions)]
-use std::time::UNIX_EPOCH;
 /// Note the addition of `#[cfg(debug_assertions)]` flags methods and
 /// imports only to be added during debug builds.
 /// cargo build --release will not include this code in the binary.
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use async_trait::async_trait;
+use chrono::Utc;
 use diesel::{
     OptionalExtension,
     sql_types::{BigInt, Float, Integer, Nullable, Text},
 };
 use diesel_async::RunQueryDsl;
 use http::StatusCode;
+
 use syncserver_common::Metrics;
 use tokenserver_db_common::{Db, DbError, DbResult, params, results};
 
@@ -486,7 +486,7 @@ impl Db for TokenserverPgDb {
                AND replaced_at IS NULL
         "#;
 
-        let now = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_millis() as i64;
+        let now = chrono::Utc::now().timestamp_millis();
 
         diesel::sql_query(QUERY)
             .bind::<BigInt, _>(tokenserver_db_common::MAX_GENERATION)
@@ -511,10 +511,7 @@ impl Db for TokenserverPgDb {
              WHERE nodeid = $2
         "#;
 
-        let current_time: i64 = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as i64;
+        let current_time = Utc::now().timestamp_millis();
 
         diesel::sql_query(QUERY)
             .bind::<BigInt, _>(current_time)

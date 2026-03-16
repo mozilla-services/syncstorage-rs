@@ -6,17 +6,14 @@
     allow(dead_code, unused_imports, unused_variables)
 )]
 
-use std::convert::TryInto;
-
 use base64::{Engine, engine};
-use chrono::offset::Utc;
+use chrono::{TimeDelta, offset::Utc};
 use hawk::{self, Header as HawkHeader, Key, RequestBuilder};
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use syncserver_common;
 use syncserver_settings::Secrets;
-use time::Duration;
 use tokenserver_auth::TokenserverOrigin;
 
 use actix_web::dev::ConnectionInfo;
@@ -104,8 +101,8 @@ impl HawkPayload {
 
         #[cfg(not(feature = "no_auth"))]
         {
-            let mut duration: std::time::Duration = Duration::weeks(52)
-                .try_into()
+            let mut duration = TimeDelta::weeks(52)
+                .to_std()
                 .map_err(|_| ApiErrorKind::Internal("Duration::weeks".to_owned()))?;
             if cfg!(test) {
                 // test cases are valid until 3018. Add millenia as required.

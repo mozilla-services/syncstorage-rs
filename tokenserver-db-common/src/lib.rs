@@ -5,12 +5,10 @@ mod error;
 pub mod params;
 pub mod results;
 
-use std::{
-    cmp,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::{cmp, time::Duration};
 
 use async_trait::async_trait;
+use chrono::Utc;
 use syncserver_common::Metrics;
 use syncserver_db_common::{GetPoolState, PoolState};
 
@@ -261,10 +259,7 @@ pub trait Db {
         })
         .await?;
 
-        let created_at = {
-            let start = SystemTime::now();
-            start.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64
-        };
+        let created_at: i64 = Utc::now().timestamp_millis();
         let uid = self
             .post_user(params::PostUser {
                 service_id: params.service_id,

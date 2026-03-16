@@ -1,8 +1,7 @@
-#[cfg(debug_assertions)]
-use std::time::UNIX_EPOCH;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use async_trait::async_trait;
+use chrono::Utc;
 use diesel::{
     OptionalExtension,
     sql_types::{Bigint, Float, Integer, Nullable, Text},
@@ -98,7 +97,7 @@ impl Db for TokenserverDb {
                AND replaced_at IS NULL
         "#;
 
-        let now = SystemTime::UNIX_EPOCH.elapsed().unwrap().as_millis() as i64;
+        let now = chrono::Utc::now().timestamp_millis();
 
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(tokenserver_db_common::MAX_GENERATION)
@@ -498,10 +497,7 @@ impl Db for TokenserverDb {
              WHERE nodeid = ?
         "#;
 
-        let current_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as i64;
+        let current_time = Utc::now().timestamp_millis();
 
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(current_time)
