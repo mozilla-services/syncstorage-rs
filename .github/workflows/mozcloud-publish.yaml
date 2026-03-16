@@ -18,10 +18,9 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  # Note: we are moving towards renaming all images `syncserver`, the union of sync and tokenserver.
-  # This presently remains for the time being to simplify deploys by maintaining `image_name: syncstorage-rs`.
-  # Historical context: <https://github.com/mozilla-services/syncstorage-rs/pull/1306>
-  build-and-push-syncstorage-rs:
+  # Note: the check job only contains all of the requirements for running the following build workflows.
+  # This consolidates our build checks into a single place.
+  check:
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -30,9 +29,21 @@ jobs:
       ) ||
       (
         github.event_name == 'pull_request' &&
-        contains(github.event.pull_request.labels.*.name, 'preview') &&
-        github.event.pull_request.head.repo.full_name == github.repository
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        (
+          contains(github.event.pull_request.labels.*.name, 'preview') ||
+          contains(github.event.pull_request.labels.*.name, 'tokenserver-preview')
+        )
       )
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Conditions met, proceeding with build jobs"
+
+  # Note: we are moving towards renaming all images `syncserver`, the union of sync and tokenserver.
+  # This presently remains for the time being to simplify deploys by maintaining `image_name: syncstorage-rs`.
+  # Historical context: <https://github.com/mozilla-services/syncstorage-rs/pull/1306>
+  build-and-push-syncstorage-rs:
+    needs: check
     permissions:
       contents: read
       id-token: write
@@ -48,17 +59,7 @@ jobs:
       should_tag_ghcr: true
 
   build-and-push-syncserver-postgres:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event_name == 'push' &&
-        (github.ref_name == 'master' || startsWith(github.ref, 'refs/tags/'))
-      ) ||
-      (
-        github.event_name == 'pull_request' &&
-        contains(github.event.pull_request.labels.*.name, 'preview') &&
-        github.event.pull_request.head.repo.full_name == github.repository
-      )
+    needs: check
     permissions:
       contents: read
       id-token: write
@@ -74,17 +75,7 @@ jobs:
       should_tag_ghcr: true
 
   build-and-push-syncserver-postgres-enterprise-gar:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event_name == 'push' &&
-        (github.ref_name == 'master' || startsWith(github.ref, 'refs/tags/'))
-      ) ||
-      (
-        github.event_name == 'pull_request' &&
-        contains(github.event.pull_request.labels.*.name, 'preview') &&
-        github.event.pull_request.head.repo.full_name == github.repository
-      )
+    needs: check
     permissions:
       contents: read
       id-token: write
@@ -102,17 +93,7 @@ jobs:
   # This presently remains for the time being to simplify deploys by maintaining `image_name: syncstorage-rs-spanner-python-utils`.
   # Historical context: <https://github.com/mozilla-services/syncstorage-rs/pull/1306>
   build-and-push-syncstorage-rs-spanner-python-utils:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event_name == 'push' &&
-        (github.ref_name == 'master' || startsWith(github.ref, 'refs/tags/'))
-      ) ||
-      (
-        github.event_name == 'pull_request' &&
-        contains(github.event.pull_request.labels.*.name, 'preview') &&
-        github.event.pull_request.head.repo.full_name == github.repository
-      )
+    needs: check
     permissions:
       contents: read
       id-token: write
@@ -127,17 +108,7 @@ jobs:
       should_tag_ghcr: true
 
   build-and-push-syncserver-postgres-python-utils:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event_name == 'push' &&
-        (github.ref_name == 'master' || startsWith(github.ref, 'refs/tags/'))
-      ) ||
-      (
-        github.event_name == 'pull_request' &&
-        contains(github.event.pull_request.labels.*.name, 'preview') &&
-        github.event.pull_request.head.repo.full_name == github.repository
-      )
+    needs: check
     permissions:
       contents: read
       id-token: write
@@ -152,17 +123,7 @@ jobs:
       should_tag_ghcr: true
 
   build-and-push-syncserver-postgres-python-utils-enterprise-gar:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event_name == 'push' &&
-        (github.ref_name == 'master' || startsWith(github.ref, 'refs/tags/'))
-      ) ||
-      (
-        github.event_name == 'pull_request' &&
-        contains(github.event.pull_request.labels.*.name, 'preview') &&
-        github.event.pull_request.head.repo.full_name == github.repository
-      )
+    needs: check
     permissions:
       contents: read
       id-token: write
@@ -176,17 +137,7 @@ jobs:
       image_build_context: tools/postgres
 
   build-and-push-syncserver-mysql:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event_name == 'push' &&
-        (github.ref_name == 'master' || startsWith(github.ref, 'refs/tags/'))
-      ) ||
-      (
-        github.event_name == 'pull_request' &&
-        contains(github.event.pull_request.labels.*.name, 'preview') &&
-        github.event.pull_request.head.repo.full_name == github.repository
-      )
+    needs: check
     permissions:
       contents: read
       id-token: write
