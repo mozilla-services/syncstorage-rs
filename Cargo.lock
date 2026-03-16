@@ -4010,7 +4010,6 @@ dependencies = [
  "syncstorage-settings",
  "temp-env",
  "thiserror 2.0.18",
- "time",
  "tokenserver-auth",
  "tokenserver-common",
  "tokenserver-db",
@@ -4161,7 +4160,6 @@ dependencies = [
  "rand 0.10.0",
  "serde",
  "syncserver-common",
- "time",
 ]
 
 [[package]]
@@ -4171,6 +4169,7 @@ dependencies = [
  "actix-web",
  "async-trait",
  "backtrace",
+ "chrono",
  "deadpool",
  "form_urlencoded",
  "futures 0.3.32",
@@ -4406,6 +4405,7 @@ name = "tokenserver-db"
 version = "0.21.1"
 dependencies = [
  "async-trait",
+ "chrono",
  "env_logger 0.11.9",
  "syncserver-common",
  "syncserver-db-common",
@@ -4425,6 +4425,7 @@ version = "0.21.1"
 dependencies = [
  "async-trait",
  "backtrace",
+ "chrono",
  "deadpool",
  "diesel",
  "diesel-async",
@@ -4443,6 +4444,7 @@ name = "tokenserver-mysql"
 version = "0.21.1"
 dependencies = [
  "async-trait",
+ "chrono",
  "deadpool",
  "diesel",
  "diesel-async",
@@ -4461,6 +4463,7 @@ name = "tokenserver-postgres"
 version = "0.21.1"
 dependencies = [
  "async-trait",
+ "chrono",
  "deadpool",
  "diesel",
  "diesel-async",

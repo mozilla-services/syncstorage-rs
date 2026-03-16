@@ -1,8 +1,8 @@
 use std::time::Duration;
-#[cfg(debug_assertions)]
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
+#[cfg(debug_assertions)]
+use chrono::Utc;
 use diesel::{
     OptionalExtension,
     sql_types::{Bigint, Float, Integer, Nullable, Text},
@@ -448,10 +448,7 @@ impl Db for TokenserverDb {
              WHERE nodeid = ?
         "#;
 
-        let current_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as i64;
+        let current_time = Utc::now().timestamp_millis();
 
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(current_time)

@@ -8,6 +8,7 @@ license.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+chrono.workspace = true
 deadpool.workspace = true
 diesel.workspace = true
 diesel-async.workspace = true

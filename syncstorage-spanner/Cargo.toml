@@ -9,6 +9,7 @@ edition.workspace = true
 actix-web.workspace = true
 async-trait.workspace = true
 backtrace.workspace = true
+chrono.workspace = true
 deadpool.workspace = true
 futures.workspace = true
 http.workspace = true

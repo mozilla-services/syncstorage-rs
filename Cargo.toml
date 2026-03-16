@@ -91,7 +91,6 @@ slog-term = "2.9"
 temp-env = { version = "0.3", features = ["async_closure"] }
 tokio = "1"
 thiserror = "2.0.18"
-time = "0.3.47"
 utoipa = "5.4.0"
 utoipa-swagger-ui = { version = "9", features = ["actix-web"] }
 uuid = { version = "1.20", features = ["serde", "v4"] }
