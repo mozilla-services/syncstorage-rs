@@ -1,10 +1,17 @@
-from unittest.mock import MagicMock
+from __future__ import annotations
+
 import logging
+from unittest.mock import MagicMock
+
+import pytest
 
 from tools.spanner import count_expired_rows
 
 
-def test_spanner_read_data_counts_and_logs(monkeypatch, caplog):
+def test_spanner_read_data_counts_and_logs(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """spanner_read_data logs row counts and emits statsd gauge and timer metrics."""
     # Prepare mocks
     mock_instance = MagicMock()
     mock_database = MagicMock()
