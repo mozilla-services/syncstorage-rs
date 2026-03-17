@@ -19,7 +19,7 @@ webob = "^1.8.9"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.19.1"
-pytest = "^8.4.0"
+pytest = "^9.0.2"
 pydocstyle = "^6.3.0"
 ruff = "^0.15.6"
 black = "^26.3.1"
