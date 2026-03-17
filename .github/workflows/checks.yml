@@ -10,6 +10,12 @@ on:
     branches:
       - "**"
 
+# This ensures any in-progress workflows in the same branch or PR
+# are cancelled if there is a fresh push.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 permissions: {} # workflow-level default — deny all
 
 jobs:

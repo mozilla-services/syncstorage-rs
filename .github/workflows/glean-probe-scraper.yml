@@ -5,7 +5,12 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+
 permissions: {} # workflow-level default — deny all
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   glean-probe-scraper:
