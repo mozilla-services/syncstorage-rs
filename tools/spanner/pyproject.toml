@@ -18,13 +18,14 @@ protobuf = ">=5.29,<7.0.0"
 statsd = "^4.0.1"
 
 [tool.poetry.group.dev.dependencies]
-mypy = "^1.16.0"
-pytest = "^8.4.0"
+pytest = "^9.0.2"
+mypy = "^1.19.1"
 pydocstyle = "^6.3.0"
-ruff = "^0.12.7"
-black = "^25.1.0"
-bandit = "^1.8.3"
-isort = "^6.0.1"
+ruff = "^0.15.6"
+black = "^26.3.1"
+bandit = "^1.9.4"
+isort = "^8.0.1"
+
 
 [tool.poetry.requires-plugins]
 poetry-plugin-export = ">=1.8"
