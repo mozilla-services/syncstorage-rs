@@ -6,7 +6,7 @@ import unittest
 from integration_tests.tokenserver.test_support import TestCase
 
 
-@pytest.mark.usefixtures("setup_server_local_testing_with_oauth")
+@pytest.mark.usefixtures("setup_server_local_testing")
 class TestAuthorization(TestCase, unittest.TestCase):
     def setUp(self):
         super(TestAuthorization, self).setUp()
