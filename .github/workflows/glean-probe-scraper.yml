@@ -5,6 +5,7 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+
 permissions: {} # workflow-level default — deny all
 
 concurrency:
