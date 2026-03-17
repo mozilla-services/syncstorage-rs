@@ -4,7 +4,6 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-#[cfg(debug_assertions)]
 use chrono::Utc;
 use diesel::{
     OptionalExtension,
@@ -12,6 +11,7 @@ use diesel::{
 };
 use diesel_async::RunQueryDsl;
 use http::StatusCode;
+
 use syncserver_common::Metrics;
 use tokenserver_db_common::{Db, DbError, DbResult, params, results};
 
@@ -397,6 +397,33 @@ impl Db for TokenserverPgDb {
         Ok(())
     }
 
+    async fn update_user_generation(
+        &mut self,
+        params: params::UpdateUserGeneration,
+    ) -> DbResult<results::UpdateUserGeneration> {
+        const QUERY: &str = r#"
+            UPDATE users
+               SET generation = COALESCE($1, generation),
+                   keys_changed_at = COALESCE($2, keys_changed_at)
+             WHERE service = $3
+               AND email = $4
+               AND generation <= COALESCE($5, generation)
+               AND COALESCE(keys_changed_at, 0) <= COALESCE($6, keys_changed_at, 0)
+               AND replaced_at IS NULL
+        "#;
+
+        diesel::sql_query(QUERY)
+            .bind::<Nullable<BigInt>, _>(params.generation)
+            .bind::<Nullable<BigInt>, _>(params.keys_changed_at)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<Text, _>(params.email)
+            .bind::<Nullable<BigInt>, _>(params.generation)
+            .bind::<Nullable<BigInt>, _>(params.keys_changed_at)
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
+    }
+
     /// Update the user record with the given uid and service id
     /// marking it as 'replaced'. This is through updating the `replaced_at` field.
     async fn replace_user(
@@ -443,6 +470,29 @@ impl Db for TokenserverPgDb {
             .bind::<Integer, _>(params.service_id)
             .bind::<Text, _>(params.email)
             .bind::<BigInt, _>(params.replaced_at)
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
+    }
+
+    /// Mark a user as retired by email.
+    async fn retire_user(&mut self, params: params::RetireUser) -> DbResult<results::RetireUser> {
+        const QUERY: &str = r#"
+            UPDATE users
+               SET generation = $1,
+                   replaced_at = $2
+             WHERE service = $3
+               AND email = $4
+               AND replaced_at IS NULL
+        "#;
+
+        let now = chrono::Utc::now().timestamp_millis();
+
+        diesel::sql_query(QUERY)
+            .bind::<BigInt, _>(tokenserver_db_common::MAX_GENERATION)
+            .bind::<BigInt, _>(now)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<Text, _>(params.email)
             .execute(&mut self.conn)
             .await?;
         Ok(())

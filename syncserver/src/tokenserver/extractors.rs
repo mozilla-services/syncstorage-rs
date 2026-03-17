@@ -23,8 +23,9 @@ use serde::Deserialize;
 use sha2::Sha256;
 use syncserver_common::Taggable;
 use syncserver_settings::Secrets;
+use tokenserver_auth::{FxaWebhookClaims, JWTVerifyError};
 use tokenserver_common::{ErrorLocation, NodeType, TokenserverError};
-use tokenserver_db::{Db, DbPool, params, results};
+use tokenserver_db::{Db, DbPool, SYNC_SERVICE_NAME, params, results};
 
 use super::{LogItemsMutator, ServerState, TokenserverMetrics};
 use crate::server::MetricsWrapper;
@@ -32,8 +33,6 @@ use crate::server::MetricsWrapper;
 lazy_static! {
     static ref CLIENT_STATE_REGEX: Regex = Regex::new("^[a-zA-Z0-9._-]{1,32}$").unwrap();
 }
-
-const SYNC_SERVICE_NAME: &str = "sync-1.5";
 
 /// Information from the request needed to process a Tokenserver request.
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -345,9 +344,9 @@ impl FromRequest for DbPoolWrapper {
 }
 
 /// An authentication token as parsed from the `Authorization` header.
-/// OAuth tokens are opaque to Tokenserver and must be verified via FxA.
+/// Signed JWTs can be verified locally or via FxA.
 pub enum Token {
-    OAuthToken(String),
+    JWT(String),
 }
 
 impl FromRequest for Token {
@@ -383,7 +382,7 @@ impl FromRequest for Token {
                 let auth_type = auth_type.to_ascii_lowercase();
 
                 if auth_type == "bearer" {
-                    Ok(Token::OAuthToken(token.to_owned()))
+                    Ok(Token::JWT(token.to_owned()))
                 } else {
                     // The request must use a Bearer token
                     Err(TokenserverError {
@@ -440,7 +439,7 @@ impl FromRequest for AuthData {
             }
 
             match token {
-                Token::OAuthToken(token) => {
+                Token::JWT(token) => {
                     // Add a tag to the request extensions
                     req.add_tag("token_type".to_owned(), "OAuth".to_owned());
                     log_items_mutator.insert("token_type".to_owned(), "OAuth".to_owned());
@@ -612,6 +611,41 @@ impl FromRequest for TokenserverMetrics {
     }
 }
 
+#[derive(Debug)]
+pub struct FxaWebhookToken(pub FxaWebhookClaims);
+
+impl FromRequest for FxaWebhookToken {
+    type Error = TokenserverError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        let req = req.clone();
+
+        Box::pin(async move {
+            let state = get_server_state(&req)?;
+            let Token::JWT(token) = Token::extract(&req).await?;
+
+            for verifier in &state.set_verifiers {
+                match verifier.verify::<FxaWebhookClaims>(&token) {
+                    Ok(claims) => return Ok(FxaWebhookToken(claims)),
+                    Err(JWTVerifyError::InvalidSignature) => continue,
+                    Err(e) => {
+                        return Err(TokenserverError {
+                            context: format!("SET verification failed: {}", e),
+                            ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
+                        });
+                    }
+                }
+            }
+
+            Err(TokenserverError {
+                context: "SET signature invalid for all available keys".to_owned(),
+                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
+            })
+        })
+    }
+}
+
 fn get_server_state(req: &HttpRequest) -> Result<&Data<ServerState>, TokenserverError> {
     req.app_data::<Data<ServerState>>()
         .ok_or_else(|| TokenserverError {
@@ -663,13 +697,17 @@ mod tests {
         dev::ServiceResponse,
         http::{Method, StatusCode},
         test::{self, TestRequest},
+        web::Data,
     };
     use futures::executor::block_on;
     use lazy_static::lazy_static;
     use serde_json;
     use syncserver_settings::Settings as GlobalSettings;
     use syncstorage_settings::ServerLimits;
-    use tokenserver_auth::{MockVerifier, oauth};
+    use tokenserver_auth::{
+        MockVerifier, SETVerifierImpl, oauth,
+        test_utils::{OTHER_PRIVATE_KEY_PEM, TEST_PRIVATE_KEY_PEM, make_set, test_jwk},
+    };
     use tokenserver_db::mock::MockDbPool as MockTokenserverPool;
     use tokenserver_settings::Settings as TokenserverSettings;
 
@@ -1305,6 +1343,110 @@ mod tests {
             )
             .unwrap(),
             token_duration: TOKEN_DURATION,
+            set_verifiers: Vec::new(),
+            fxa_webhook_enabled: false,
         }
+    }
+
+    fn make_webhook_state(set_verifiers: Vec<SETVerifierImpl>) -> ServerState {
+        let syncserver_settings = GlobalSettings::default();
+        let tokenserver_settings = TokenserverSettings::default();
+        ServerState {
+            fxa_email_domain: "test.com".to_owned(),
+            fxa_metrics_hash_secret: "".to_owned(),
+            oauth_verifier: Box::new(MockVerifier::<oauth::VerifyOutput>::default()),
+            db_pool: Box::new(MockTokenserverPool::new()),
+            node_capacity_release_rate: None,
+            node_type: NodeType::default(),
+            metrics: syncserver_common::metrics_from_opts(
+                &tokenserver_settings.statsd_label,
+                syncserver_settings.statsd_host.as_deref(),
+                syncserver_settings.statsd_port,
+            )
+            .unwrap(),
+            token_duration: TOKEN_DURATION,
+            set_verifiers,
+            fxa_webhook_enabled: true,
+        }
+    }
+
+    #[actix_rt::test]
+    async fn test_fxa_webhook_valid_token() {
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
+        let state = make_webhook_state(vec![verifier]);
+        let token = make_set(
+            "quux",
+            "testo",
+            serde_json::json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
+            3600,
+            TEST_PRIVATE_KEY_PEM,
+        );
+        let req = TestRequest::default()
+            .app_data(Data::new(state))
+            .insert_header(("Authorization", format!("Bearer {token}")))
+            .to_http_request();
+        let result = FxaWebhookToken::from_request(&req, &mut actix_web::dev::Payload::None).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().0.sub, "quux");
+    }
+
+    #[actix_rt::test]
+    async fn test_fxa_webhook_invalid_signature_fall_through() {
+        let v1 =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
+        let v2 =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
+        let state = make_webhook_state(vec![v1, v2]);
+        let token = make_set(
+            "quux",
+            "testo",
+            serde_json::json!({}),
+            3600,
+            OTHER_PRIVATE_KEY_PEM,
+        );
+        let req = TestRequest::default()
+            .app_data(Data::new(state))
+            .insert_header(("Authorization", format!("Bearer {token}")))
+            .to_http_request();
+        let result = FxaWebhookToken::from_request(&req, &mut actix_web::dev::Payload::None).await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .context
+                .contains("SET signature invalid for all available keys")
+        );
+    }
+
+    #[actix_rt::test]
+    async fn test_fxa_webhook_no_verifiers() {
+        let state = make_webhook_state(vec![]);
+        let token = make_set(
+            "quux",
+            "testo",
+            serde_json::json!({}),
+            3600,
+            TEST_PRIVATE_KEY_PEM,
+        );
+        let req = TestRequest::default()
+            .app_data(Data::new(state))
+            .insert_header(("Authorization", format!("Bearer {token}")))
+            .to_http_request();
+        let result = FxaWebhookToken::from_request(&req, &mut actix_web::dev::Payload::None).await;
+        assert!(result.is_err());
+    }
+
+    #[actix_rt::test]
+    async fn test_fxa_webhook_tmissing_auth_header() {
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
+        let state = make_webhook_state(vec![verifier]);
+        let req = TestRequest::default()
+            .app_data(Data::new(state))
+            .to_http_request();
+        let result = FxaWebhookToken::from_request(&req, &mut actix_web::dev::Payload::None).await;
+        assert!(result.is_err());
     }
 }

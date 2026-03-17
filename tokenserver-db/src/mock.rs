@@ -1,18 +1,32 @@
 #![allow(clippy::new_without_default)]
 
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock, Mutex};
 
 use async_trait::async_trait;
 use syncserver_common::Metrics;
 use syncserver_db_common::{GetPoolState, PoolState};
 use tokenserver_db_common::{Db, DbError, DbPool, params, results};
 
-#[derive(Clone, Debug)]
-pub struct MockDbPool;
+#[derive(Clone, Default)]
+pub struct CallLog {
+    pub retire_user: Arc<Mutex<Vec<params::RetireUser>>>,
+    pub update_user_generation: Arc<Mutex<Vec<params::UpdateUserGeneration>>>,
+}
+
+#[derive(Clone, Default)]
+pub struct MockDbPool {
+    call_log: CallLog,
+}
 
 impl MockDbPool {
     pub fn new() -> Self {
-        MockDbPool
+        MockDbPool::default()
+    }
+
+    pub fn with_capture() -> (Self, CallLog) {
+        let pool = MockDbPool::default();
+        let call_log = pool.call_log.clone();
+        (pool, call_log)
     }
 }
 
@@ -23,7 +37,9 @@ impl DbPool for MockDbPool {
     }
 
     async fn get(&self) -> Result<Box<dyn Db>, DbError> {
-        Ok(Box::new(MockDb::new()))
+        Ok(Box::new(MockDb {
+            call_log: self.call_log.clone(),
+        }))
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
@@ -37,12 +53,14 @@ impl GetPoolState for MockDbPool {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct MockDb;
+#[derive(Clone, Default)]
+pub struct MockDb {
+    call_log: CallLog,
+}
 
 impl MockDb {
     pub fn new() -> Self {
-        MockDb
+        MockDb::default()
     }
 }
 
@@ -67,6 +85,26 @@ impl Db for MockDb {
     }
 
     async fn put_user(&mut self, _params: params::PutUser) -> Result<results::PutUser, DbError> {
+        Ok(())
+    }
+
+    async fn update_user_generation(
+        &mut self,
+        params: params::UpdateUserGeneration,
+    ) -> Result<results::UpdateUserGeneration, DbError> {
+        self.call_log
+            .update_user_generation
+            .lock()
+            .unwrap()
+            .push(params);
+        Ok(())
+    }
+
+    async fn retire_user(
+        &mut self,
+        params: params::RetireUser,
+    ) -> Result<results::RetireUser, DbError> {
+        self.call_log.retire_user.lock().unwrap().push(params);
         Ok(())
     }
 
