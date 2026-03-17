@@ -8,7 +8,7 @@ from integration_tests.tokenserver.test_support import TestCase
 from sqlalchemy.sql import text as sqltext
 
 
-@pytest.mark.usefixtures("setup_server_local_testing_with_oauth")
+@pytest.mark.usefixtures("setup_server_local_testing")
 class TestNodeAssignment(TestCase, unittest.TestCase):
     def setUp(self):
         super(TestNodeAssignment, self).setUp()

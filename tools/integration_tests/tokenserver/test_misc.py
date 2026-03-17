@@ -9,7 +9,7 @@ from integration_tests.tokenserver.test_support import TestCase
 MAX_GENERATION = 9223372036854775807
 
 
-@pytest.mark.usefixtures("setup_server_local_testing_with_oauth")
+@pytest.mark.usefixtures("setup_server_local_testing")
 class TestMisc(TestCase, unittest.TestCase):
     def setUp(self):
         super(TestMisc, self).setUp()

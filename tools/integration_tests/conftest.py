@@ -114,19 +114,6 @@ def setup_server_local_testing():
 
 
 @pytest.fixture(scope="session")
-def setup_server_local_testing_with_oauth():
-    """
-    Fixture to set up the server for local testing with OAuth.
-    This fixture sets the necessary environment variables and
-    starts the server.
-    """
-    _set_local_test_env_vars()
-
-    # Start the server
-    yield from _server_manager()
-
-
-@pytest.fixture(scope="session")
 def setup_server_end_to_end_testing():
     """
     Fixture to set up the server for end-to-end testing.
