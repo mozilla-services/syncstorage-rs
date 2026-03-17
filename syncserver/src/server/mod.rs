@@ -208,6 +208,18 @@ macro_rules! build_app {
                 web::resource("/1.0/{application}/{version}")
                     .route(web::get().to(tokenserver::handlers::get_tokenserver_result)),
             )
+            .configure(|cfg| {
+                let fxa_webhook_enabled = $tokenserver_state
+                    .as_ref()
+                    .map(|s: &tokenserver::ServerState| s.fxa_webhook_enabled)
+                    .unwrap_or(false);
+                if fxa_webhook_enabled {
+                    cfg.service(
+                        web::resource("/1.0/webhooks/fxa/events")
+                            .route(web::post().to(tokenserver::handlers::handle_fxa_events)),
+                    );
+                }
+            })
             // Dockerflow
             // Remember to update .::web::middleware::DOCKER_FLOW_ENDPOINTS
             // when applying changes to endpoint names.
@@ -253,7 +265,8 @@ macro_rules! build_app {
 
 #[macro_export]
 macro_rules! build_app_without_syncstorage {
-    ($state: expr, $secrets: expr, $cors: expr, $metrics: expr) => {
+    ($state: expr, $secrets: expr, $cors: expr, $metrics: expr) => {{
+        let fxa_webhook_enabled = $state.fxa_webhook_enabled;
         App::new()
             .app_data(Data::new($state))
             .app_data(Data::new($secrets))
@@ -276,6 +289,14 @@ macro_rules! build_app_without_syncstorage {
                 web::resource("/1.0/{application}/{version}")
                     .route(web::get().to(tokenserver::handlers::get_tokenserver_result)),
             )
+            .configure(move |cfg| {
+                if fxa_webhook_enabled {
+                    cfg.service(
+                        web::resource("/1.0/webhooks/fxa/events")
+                            .route(web::post().to(tokenserver::handlers::handle_fxa_events)),
+                    );
+                }
+            })
             // Dockerflow
             // Remember to update .::web::middleware::DOCKER_FLOW_ENDPOINTS
             // when applying changes to endpoint names.
@@ -319,7 +340,7 @@ macro_rules! build_app_without_syncstorage {
                 SwaggerUi::new("/swagger-ui/{_:.*}")
                     .url("/api-doc/openapi.json", ApiDoc::openapi()),
             )
-    };
+    }};
 }
 
 impl Server {

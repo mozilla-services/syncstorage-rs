@@ -5,7 +5,9 @@ mod tests;
 use url::Url;
 
 use syncserver_common::Metrics;
-pub use tokenserver_db_common::{Db, DbError, DbPool, params, results};
+pub use tokenserver_db_common::{
+    Db, DbError, DbPool, MAX_GENERATION, SYNC_SERVICE_NAME, params, results,
+};
 use tokenserver_settings::Settings;
 
 pub fn pool_from_settings(

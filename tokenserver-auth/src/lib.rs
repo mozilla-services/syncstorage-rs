@@ -1,8 +1,12 @@
-#[cfg(not(feature = "py"))]
+#[allow(dead_code)]
 mod crypto;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_utils;
 
+pub use crypto::{FxaWebhookClaims, JWTVerifyError, SETVerifierImpl};
 #[cfg(not(feature = "py"))]
 pub use crypto::{JWTVerifier, JWTVerifierImpl};
+
 #[allow(clippy::result_large_err)]
 pub mod oauth;
 #[allow(clippy::result_large_err)]

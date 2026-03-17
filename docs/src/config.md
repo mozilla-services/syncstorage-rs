@@ -105,6 +105,7 @@ The following configuration options are available.
 | <span id="SYNC_TOKENSERVER__NODE_TYPE"></span>SYNC_TOKENSERVER__NODE_TYPE | spanner | Storage backend type reported in token response for telemetry. Valid values: "mysql", "postgres", "spanner" |
 | <span id="SYNC_TOKENSERVER__STATSD_LABEL"></span>SYNC_TOKENSERVER__STATSD_LABEL | syncstorage.tokenserver | StatsD metrics label prefix |
 | <span id="SYNC_TOKENSERVER__TOKEN_DURATION"></span>SYNC_TOKENSERVER__TOKEN_DURATION | 3600 | Token TTL (1 hour) |
+| <span id="SYNC_TOKENSERVER__FXA_WEBHOOK_ENABLED"></span>SYNC_TOKENSERVER__FXA_WEBHOOK_ENABLED | false | Enable the FxA webhook endpoint. When disabled, the route is not registered. |
 
 ### Tokenserver+FxA Integration
 
