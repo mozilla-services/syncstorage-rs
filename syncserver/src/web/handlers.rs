@@ -846,34 +846,37 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
     let db_state = if cfg!(test) {
         use actix_web::http::header::HeaderValue;
         use std::str::FromStr;
-        use syncstorage_db::PoolState;
 
-        PoolState {
-            connections: u32::from_str(
-                req.headers()
-                    .get("TEST_CONNECTIONS")
-                    .unwrap_or(&HeaderValue::from_static("0"))
-                    .to_str()
-                    .unwrap_or("0"),
-            )
-            .unwrap_or_default(),
-            idle_connections: u32::from_str(
-                req.headers()
-                    .get("TEST_IDLES")
-                    .unwrap_or(&HeaderValue::from_static("0"))
-                    .to_str()
-                    .unwrap_or("0"),
-            )
-            .unwrap_or_default(),
+        let size = usize::from_str(
+            req.headers()
+                .get("TEST_CONNECTIONS")
+                .unwrap_or(&HeaderValue::from_static("0"))
+                .to_str()
+                .unwrap_or("0"),
+        )
+        .unwrap_or_default();
+        let available = usize::from_str(
+            req.headers()
+                .get("TEST_IDLES")
+                .unwrap_or(&HeaderValue::from_static("0"))
+                .to_str()
+                .unwrap_or("0"),
+        )
+        .unwrap_or_default();
+        deadpool::Status {
+            max_size: size,
+            size,
+            available,
+            waiting: 0,
         }
     } else {
-        state.db_pool.clone().state()
+        state.db_pool.status()
     };
 
-    let active = db_state.connections - db_state.idle_connections;
+    let active = db_state.size - db_state.available;
     let mut status_code = StatusCode::OK;
 
-    if active >= deadman.max_size && db_state.idle_connections == 0 {
+    if active >= deadman.max_size as usize && db_state.available == 0 {
         if deadman.clock_start.is_none() {
             deadman.clock_start = Some(Instant::now());
         }
@@ -881,14 +884,14 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
     } else if deadman.clock_start.is_some() {
         deadman.clock_start = None
     }
-    deadman.previous_count = db_state.idle_connections as usize;
+    deadman.previous_count = db_state.available;
     {
         *deadarc.write().await = deadman;
     }
     resp.insert("active_connections".to_string(), Value::from(active));
     resp.insert(
         "idle_connections".to_string(),
-        Value::from(db_state.idle_connections),
+        Value::from(db_state.available),
     );
     if let Some(clock) = deadman.clock_start {
         let duration: Duration = Instant::now() - clock;

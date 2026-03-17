@@ -10,7 +10,7 @@ use std::{cmp, time::Duration};
 use async_trait::async_trait;
 use chrono::Utc;
 use syncserver_common::Metrics;
-use syncserver_db_common::{GetPoolState, PoolState};
+use syncserver_db_common::GetPoolStatus;
 
 pub use crate::error::DbError;
 
@@ -23,7 +23,7 @@ pub const MAX_GENERATION: i64 = i64::MAX;
 pub const SYNC_SERVICE_NAME: &str = "sync-1.5";
 
 #[async_trait(?Send)]
-pub trait DbPool: Sync + Send + GetPoolState {
+pub trait DbPool: Sync + Send + GetPoolStatus {
     async fn init(&mut self) -> DbResult<()>;
 
     async fn get(&self) -> DbResult<Box<dyn Db>>;
@@ -31,9 +31,9 @@ pub trait DbPool: Sync + Send + GetPoolState {
     fn box_clone(&self) -> Box<dyn DbPool>;
 }
 
-impl GetPoolState for Box<dyn DbPool> {
-    fn state(&self) -> PoolState {
-        (**self).state()
+impl GetPoolStatus for Box<dyn DbPool> {
+    fn status(&self) -> deadpool::Status {
+        (**self).status()
     }
 }
 

@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 use actix_web::rt;
 use async_trait::async_trait;
 use syncserver_common::{BlockingThreadpool, Metrics};
-use syncserver_db_common::{GetPoolState, PoolState};
+use syncserver_db_common::GetPoolStatus;
 use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 use tokio::sync::RwLock;
@@ -135,9 +135,9 @@ impl DbPool for SpannerDbPool {
     }
 }
 
-impl GetPoolState for SpannerDbPool {
-    fn state(&self) -> PoolState {
-        self.pool.status().into()
+impl GetPoolStatus for SpannerDbPool {
+    fn status(&self) -> deadpool::Status {
+        self.pool.status()
     }
 }
 

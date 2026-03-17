@@ -13,7 +13,7 @@ use syncserver_common::Metrics;
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::test_transaction_hook;
 use syncserver_db_common::{
-    GetPoolState, PoolState, establish_connection_with_logging, manager_config_with_logging,
+    GetPoolStatus, establish_connection_with_logging, manager_config_with_logging,
     run_embedded_migrations,
 };
 use tokenserver_db_common::{Db, DbError, DbPool, DbResult, params};
@@ -174,8 +174,8 @@ impl DbPool for TokenserverPool {
     }
 }
 
-impl GetPoolState for TokenserverPool {
-    fn state(&self) -> PoolState {
-        self.inner.status().into()
+impl GetPoolStatus for TokenserverPool {
+    fn status(&self) -> deadpool::Status {
+        self.inner.status()
     }
 }

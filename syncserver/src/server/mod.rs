@@ -19,7 +19,7 @@ use syncserver_common::{
     BlockingThreadpool, BlockingThreadpoolMetrics, Metrics, Taggable,
     middleware::sentry::SentryWrapper,
 };
-use syncserver_db_common::{GetPoolState, PoolState};
+use syncserver_db_common::GetPoolStatus;
 use syncserver_settings::Settings;
 use syncstorage_db::{DbError, DbPool, DbPoolImpl};
 use syncstorage_settings::{Deadman, ServerLimits};
@@ -575,7 +575,7 @@ impl FromRequest for MetricsWrapper {
 }
 
 /// Emit database pool and threadpool metrics periodically
-fn spawn_metric_periodic_reporter<T: GetPoolState + Send + 'static>(
+fn spawn_metric_periodic_reporter<T: GetPoolStatus + Send + 'static>(
     interval: Duration,
     metrics: Arc<StatsdClient>,
     pool: T,
@@ -603,22 +603,14 @@ fn spawn_metric_periodic_reporter<T: GetPoolState + Send + 'static>(
         };
 
         loop {
-            let PoolState {
-                connections,
-                idle_connections,
-            } = pool.state();
+            let deadpool::Status {
+                size, available, ..
+            } = pool.status();
             send_gauge_with_maybe_hostname(
                 "storage.pool.connections.active",
-                (connections - idle_connections) as u64,
+                (size - available) as u64,
             );
-            send_gauge_with_maybe_hostname(
-                "storage.pool.connections.active",
-                (connections - idle_connections) as u64,
-            );
-            send_gauge_with_maybe_hostname(
-                "storage.pool.connections.idle",
-                idle_connections as u64,
-            );
+            send_gauge_with_maybe_hostname("storage.pool.connections.idle", available as u64);
 
             let BlockingThreadpoolMetrics {
                 queued_tasks,
