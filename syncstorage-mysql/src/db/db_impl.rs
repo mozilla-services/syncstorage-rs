@@ -10,8 +10,10 @@ use diesel::{
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use syncstorage_db_common::{
-    DEFAULT_BSO_TTL, Db, Sorting, UserIdentifier, error::DbErrorIntrospect, params, results,
-    util::SyncTimestamp,
+    DEFAULT_BSO_TTL, Db, Sorting, UserIdentifier,
+    error::DbErrorIntrospect,
+    params, results,
+    util::{SyncTimestamp, encode_next_offset},
 };
 use syncstorage_settings::DEFAULT_MAX_TOTAL_RECORDS;
 
@@ -324,6 +326,13 @@ impl Db for MysqlDb {
             .filter(bso::expiry.gt(now))
             .into_boxed();
 
+        if let Some(ts) = params.offset.as_ref().and_then(|o| o.timestamp) {
+            match params.sort {
+                Sorting::Newest => query = query.filter(bso::modified.le(ts.as_i64())),
+                Sorting::Oldest => query = query.filter(bso::modified.ge(ts.as_i64())),
+                _ => {}
+            }
+        }
         if let Some(older) = params.older {
             query = query.filter(bso::modified.lt(older.as_i64()));
         }
@@ -340,14 +349,6 @@ impl Db for MysqlDb {
         // an error. We "fudge" a bit here by taking the id order as a secondary, since
         // that is guaranteed to be unique by the client.
         query = match params.sort {
-            // issue559: Revert to previous sorting
-            /*
-            Sorting::Index => query.order(bso::id.desc()).order(bso::sortindex.desc()),
-            Sorting::Newest | Sorting::None => {
-                query.order(bso::id.desc()).order(bso::modified.desc())
-            }
-            Sorting::Oldest => query.order(bso::id.asc()).order(bso::modified.asc()),
-            */
             Sorting::Index => query.order(bso::sortindex.desc()),
             Sorting::Newest => query.order((bso::modified.desc(), bso::id.desc())),
             Sorting::Oldest => query.order((bso::modified.asc(), bso::id.asc())),
@@ -363,6 +364,11 @@ impl Db for MysqlDb {
         // match the query conditions
         query = query.limit(if limit > 0 { limit + 1 } else { limit });
 
+        let prev_ts = params
+            .offset
+            .as_ref()
+            .and_then(|o| o.timestamp)
+            .map(|t| t.as_i64());
         let numeric_offset = params.offset.map_or(0, |offset| offset.offset as i64);
 
         if numeric_offset > 0 {
@@ -379,7 +385,13 @@ impl Db for MysqlDb {
 
         let next_offset = if limit >= 0 && bsos.len() > limit as usize {
             bsos.pop();
-            Some((limit + numeric_offset).to_string())
+            let modified_timestamps: Vec<i64> = bsos.iter().map(|b| b.modified.as_i64()).collect();
+            Some(encode_next_offset(
+                params.sort,
+                numeric_offset as u64,
+                prev_ts,
+                &modified_timestamps,
+            ))
         } else {
             // if an explicit "limit=0" is sent, return the offset of "0"
             // Otherwise, this would break at least the db::tests::db::get_bsos_limit_offset
@@ -420,8 +432,8 @@ impl Db for MysqlDb {
 
         query = match params.sort {
             Sorting::Index => query.order(bso::sortindex.desc()),
-            Sorting::Newest => query.order(bso::modified.desc()),
-            Sorting::Oldest => query.order(bso::modified.asc()),
+            Sorting::Newest => query.order((bso::modified.desc(), bso::id.desc())),
+            Sorting::Oldest => query.order((bso::modified.asc(), bso::id.asc())),
             _ => query,
         };
 
