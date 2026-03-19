@@ -263,7 +263,7 @@ are missing `libcurl4-openssl-dev`.
 ## Local Setup
 
 1. Follow the instructions below to use either MySQL or Spanner as your DB.
-2. Now `cp config/local.example.toml config/local.toml`. Open `config/local.toml` and make sure you have the desired settings configured. For a complete list of available configuration options, check out [docs/config.md](docs/config.md).
+2. Now `cp config/local.example.toml config/local.toml`. Open `config/local.toml` and make sure you have the desired settings configured. For a complete list of available configuration options, check out the [Configuration](config.md) reference.
 3. To start a local server in debug mode, run either:
     - `make run_mysql` if using MySQL or,
     - `make run_spanner` if using spanner.
