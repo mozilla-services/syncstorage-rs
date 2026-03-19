@@ -1393,7 +1393,7 @@ version = "82.0.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 optional = false
 python-versions = ">=3.9"
-groups = ["tokenserver-unit-tests"]
+groups = ["main", "tokenserver-unit-tests"]
 files = [
     {file = "setuptools-82.0.0-py3-none-any.whl", hash = "sha256:70b18734b607bd1da571d097d236cfcfacaf01de45717d59e6e04b96877532e0"},
     {file = "setuptools-82.0.0.tar.gz", hash = "sha256:22e0a2d69474c6ae4feb01951cb69d515ed23728cf96d05513d36e42b62b37cb"},
@@ -1866,4 +1866,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12"
-content-hash = "73c5a7a1cc4edf28c3c740d6b6759b7c8404a29d77193dccd1fe8fd4d3cd8d5e"
+content-hash = "a123dc3a86fc2fc173571c85c16eafe10b4337bcbcc93600ed19220822dfedaf"
