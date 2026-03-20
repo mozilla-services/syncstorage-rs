@@ -16,10 +16,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
-env:
-  RUST_VERSION: "1.91" # RUST_VER
-  PYTHON_VERSION: "3.12" # PY_VER
-
 permissions: {} # workflow-level default — deny all
 
 jobs:
