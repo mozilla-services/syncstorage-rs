@@ -1,0 +1,71 @@
+name: Build and Push Setup
+description: Checkout, version.json, image tag, buildx, GCP auth, and registry logins
+
+inputs:
+  version_json_path:
+    description: Path for version.json
+    required: false
+    default: ./version.json
+  workload_identity_provider:
+    description: GCP Workload Identity provider
+    required: true
+  gcp_service_account:
+    description: GCP service account email
+    required: true
+
+outputs:
+  image_tag:
+    description: Computed image tag
+    value: ${{ steps.tag.outputs.value }}
+  push_latest:
+    description: Whether to push a latest tag
+    value: ${{ steps.tag.outputs.push_latest }}
+
+runs:
+  using: composite
+  steps:
+    - name: Create version.json
+      shell: bash
+      run: |
+        printf '{"commit":"%s","version":"%s","source":"%s","build":"%s"}\n' \
+          "$GITHUB_SHA" "$GITHUB_REF_NAME" \
+          "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+          "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+          > ${{ inputs.version_json_path }}
+
+    - name: Compute image tag
+      id: tag
+      shell: bash
+      run: |
+        if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+          echo "value=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          echo "push_latest=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "value=${GITHUB_SHA:0:10}" >> "$GITHUB_OUTPUT"
+          echo "push_latest=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+
+    - name: GCP auth
+      id: gcp_auth
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+      with:
+        workload_identity_provider: ${{ inputs.workload_identity_provider }}
+        service_account: ${{ inputs.gcp_service_account }}
+        token_format: access_token
+
+    - name: Log in to GAR
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+      with:
+        registry: us-docker.pkg.dev
+        username: oauth2accesstoken
+        password: ${{ steps.gcp_auth.outputs.access_token }}
+
+    - name: Log in to GHCR
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ github.token }}

@@ -1,15 +1,8 @@
-# Mozilla Deploy Actions url: <https://github.com/mozilla-it/deploy-actions>
-# Note: even though Mozilla maintains the above actions, it is still suggested
-# when upgrading to use the full commit SHA and comment with version.
-# See <https://docs.github.com/en/actions/reference/security/secure-use#using-third-party-actions>
-# Ex. `mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2`
-name: Build, Tag and Push Container Images to GAR Repository
+name: Build, Tag and Push Container Images to GAR
 
 on:
   pull_request:
     types: [opened, labeled, unlabeled, synchronize]
-    # paths:
-    #     - '**/sync*/**'
   push:
     branches:
       - master
@@ -48,15 +41,44 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
-    with:
-      image_name: syncstorage-rs
-      gar_name: sync-prod
-      project_id: moz-fx-sync-prod
-      docker_build_args: |
-        SYNCSTORAGE_DATABASE_BACKEND=spanner
-        MYSQLCLIENT_PKG=libmysqlclient-dev
-      should_tag_ghcr: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-build-and-push
+        id: setup
+        with:
+          workload_identity_provider: ${{ vars.GCPV2_GITHUB_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp_service_account: "${{ vars.SERVICE_ACCOUNT_NAME || 'artifact-writer' }}@moz-fx-sync-prod.iam.gserviceaccount.com"
+
+      - name: Compute tags
+        run: |
+          TAGS=$(cat <<EOF
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncstorage-rs:${{ steps.setup.outputs.image_tag }}
+          ghcr.io/${{ github.repository }}/syncstorage-rs:${{ steps.setup.outputs.image_tag }}
+          EOF
+          )
+          if [[ "${{ steps.setup.outputs.push_latest }}" == "true" ]]; then
+            TAGS="$TAGS
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncstorage-rs:latest
+          ghcr.io/${{ github.repository }}/syncstorage-rs:latest"
+          fi
+          echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
+          echo "$TAGS" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+
+      - uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        with:
+          context: .
+          push: true
+          build-args: |
+            SYNCSTORAGE_DATABASE_BACKEND=spanner
+            MYSQLCLIENT_PKG=libmysqlclient-dev
+          tags: ${{ env.IMAGE_TAGS }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   build-and-push-syncserver-postgres:
     needs: check
@@ -64,30 +86,71 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
-    with:
-      image_name: syncserver-postgres
-      gar_name: sync-prod
-      project_id: moz-fx-sync-prod
-      docker_build_args: |
-        SYNCSTORAGE_DATABASE_BACKEND=postgres
-        TOKENSERVER_DATABASE_BACKEND=postgres
-      should_tag_ghcr: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
-  build-and-push-syncserver-postgres-enterprise-gar:
-    needs: check
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
-    with:
-      image_name: syncserver-postgres
-      gar_name: fx-enterprise-private
-      project_id: moz-fx-fx-enterprise-prod
-      docker_build_args: |
-        SYNCSTORAGE_DATABASE_BACKEND=postgres
-        TOKENSERVER_DATABASE_BACKEND=postgres
+      - uses: ./.github/actions/setup-build-and-push
+        id: setup
+        with:
+          workload_identity_provider: ${{ vars.GCPV2_GITHUB_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp_service_account: "${{ vars.SERVICE_ACCOUNT_NAME || 'artifact-writer' }}@moz-fx-sync-prod.iam.gserviceaccount.com"
+
+      - name: Compute tags
+        run: |
+          TAGS=$(cat <<EOF
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-postgres:${{ steps.setup.outputs.image_tag }}
+          ghcr.io/${{ github.repository }}/syncserver-postgres:${{ steps.setup.outputs.image_tag }}
+          EOF
+          )
+          if [[ "${{ steps.setup.outputs.push_latest }}" == "true" ]]; then
+            TAGS="$TAGS
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-postgres:latest
+          ghcr.io/${{ github.repository }}/syncserver-postgres:latest"
+          fi
+          echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
+          echo "$TAGS" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+
+      - name: Build and push to prod GAR and ghcr
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        with:
+          context: .
+          push: true
+          build-args: |
+            SYNCSTORAGE_DATABASE_BACKEND=postgres
+            TOKENSERVER_DATABASE_BACKEND=postgres
+          tags: ${{ env.IMAGE_TAGS }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: GCP auth (enterprise)
+        id: gcp_auth_ent
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.GCPV2_GITHUB_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: "${{ vars.SERVICE_ACCOUNT_NAME || 'artifact-writer' }}@moz-fx-fx-enterprise-prod.iam.gserviceaccount.com"
+          token_format: access_token
+
+      - name: Log in to enterprise GAR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: us-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.gcp_auth_ent.outputs.access_token }}
+
+      - name: Build and push to enterprise GAR
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        with:
+          context: .
+          push: true
+          build-args: |
+            SYNCSTORAGE_DATABASE_BACKEND=postgres
+            TOKENSERVER_DATABASE_BACKEND=postgres
+          tags: us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres:${{ steps.setup.outputs.image_tag }}
+          cache-from: type=gha
 
   # Note: we are moving towards renaming all images `syncserver`, the union of sync and tokenserver.
   # This presently remains for the time being to simplify deploys by maintaining `image_name: syncstorage-rs-spanner-python-utils`.
@@ -98,14 +161,43 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
-    with:
-      image_name: syncstorage-rs-spanner-python-utils
-      gar_name: sync-prod
-      project_id: moz-fx-sync-prod
-      dockerfile_path: tools/spanner/Dockerfile
-      image_build_context: tools/spanner
-      should_tag_ghcr: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-build-and-push
+        id: setup
+        with:
+          workload_identity_provider: ${{ vars.GCPV2_GITHUB_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp_service_account: "${{ vars.SERVICE_ACCOUNT_NAME || 'artifact-writer' }}@moz-fx-sync-prod.iam.gserviceaccount.com"
+          version_json_path: ./tools/spanner/version.json
+
+      - name: Compute tags
+        run: |
+          TAGS=$(cat <<EOF
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncstorage-rs-spanner-python-utils:${{ steps.setup.outputs.image_tag }}
+          ghcr.io/${{ github.repository }}/syncstorage-rs-spanner-python-utils:${{ steps.setup.outputs.image_tag }}
+          EOF
+          )
+          if [[ "${{ steps.setup.outputs.push_latest }}" == "true" ]]; then
+            TAGS="$TAGS
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncstorage-rs-spanner-python-utils:latest
+          ghcr.io/${{ github.repository }}/syncstorage-rs-spanner-python-utils:latest"
+          fi
+          echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
+          echo "$TAGS" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+
+      - uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        with:
+          context: tools/spanner
+          file: tools/spanner/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_TAGS }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   build-and-push-syncserver-postgres-python-utils:
     needs: check
@@ -113,28 +205,68 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
-    with:
-      image_name: syncserver-postgres-python-utils
-      gar_name: sync-prod
-      project_id: moz-fx-sync-prod
-      dockerfile_path: tools/postgres/Dockerfile
-      image_build_context: tools/postgres
-      should_tag_ghcr: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
-  build-and-push-syncserver-postgres-python-utils-enterprise-gar:
-    needs: check
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
-    with:
-      image_name: syncserver-postgres-python-utils
-      gar_name: fx-enterprise-private
-      project_id: moz-fx-fx-enterprise-prod
-      dockerfile_path: tools/postgres/Dockerfile
-      image_build_context: tools/postgres
+      - uses: ./.github/actions/setup-build-and-push
+        id: setup
+        with:
+          workload_identity_provider: ${{ vars.GCPV2_GITHUB_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp_service_account: "${{ vars.SERVICE_ACCOUNT_NAME || 'artifact-writer' }}@moz-fx-sync-prod.iam.gserviceaccount.com"
+          version_json_path: ./tools/postgres/version.json
+
+      - name: Compute tags
+        run: |
+          TAGS=$(cat <<EOF
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-postgres-python-utils:${{ steps.setup.outputs.image_tag }}
+          ghcr.io/${{ github.repository }}/syncserver-postgres-python-utils:${{ steps.setup.outputs.image_tag }}
+          EOF
+          )
+          if [[ "${{ steps.setup.outputs.push_latest }}" == "true" ]]; then
+            TAGS="$TAGS
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-postgres-python-utils:latest
+          ghcr.io/${{ github.repository }}/syncserver-postgres-python-utils:latest"
+          fi
+          echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
+          echo "$TAGS" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+
+      - name: Build and push to prod GAR and ghcr
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        with:
+          context: tools/postgres
+          file: tools/postgres/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_TAGS }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: GCP auth (enterprise)
+        id: gcp_auth_ent
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.GCPV2_GITHUB_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: "${{ vars.SERVICE_ACCOUNT_NAME || 'artifact-writer' }}@moz-fx-fx-enterprise-prod.iam.gserviceaccount.com"
+          token_format: access_token
+
+      - name: Log in to enterprise GAR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: us-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.gcp_auth_ent.outputs.access_token }}
+
+      - name: Build and push to enterprise GAR
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        with:
+          context: tools/postgres
+          file: tools/postgres/Dockerfile
+          push: true
+          tags: us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres-python-utils:${{ steps.setup.outputs.image_tag }}
+          cache-from: type=gha
 
   build-and-push-syncserver-mysql:
     needs: check
@@ -142,12 +274,41 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
-    with:
-      image_name: syncserver-mysql
-      gar_name: sync-prod
-      project_id: moz-fx-sync-prod
-      docker_build_args: |
-        SYNCSTORAGE_DATABASE_BACKEND=mysql
-        TOKENSERVER_DATABASE_BACKEND=mysql
-      should_tag_ghcr: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-build-and-push
+        id: setup
+        with:
+          workload_identity_provider: ${{ vars.GCPV2_GITHUB_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp_service_account: "${{ vars.SERVICE_ACCOUNT_NAME || 'artifact-writer' }}@moz-fx-sync-prod.iam.gserviceaccount.com"
+
+      - name: Compute tags
+        run: |
+          TAGS=$(cat <<EOF
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-mysql:${{ steps.setup.outputs.image_tag }}
+          ghcr.io/${{ github.repository }}/syncserver-mysql:${{ steps.setup.outputs.image_tag }}
+          EOF
+          )
+          if [[ "${{ steps.setup.outputs.push_latest }}" == "true" ]]; then
+            TAGS="$TAGS
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-mysql:latest
+          ghcr.io/${{ github.repository }}/syncserver-mysql:latest"
+          fi
+          echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
+          echo "$TAGS" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+
+      - uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+        with:
+          context: .
+          push: true
+          build-args: |
+            SYNCSTORAGE_DATABASE_BACKEND=mysql
+            TOKENSERVER_DATABASE_BACKEND=mysql
+          tags: ${{ env.IMAGE_TAGS }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
