@@ -28,6 +28,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ inputs.python-version }}
+
       - name: Cache pip and Poetry virtualenv
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
@@ -68,9 +73,6 @@ jobs:
 
       - name: Install Rust toolchain
         run: rustup toolchain install 1.91 --component rustfmt --component clippy --no-self-update && rustup default 1.91
-
-      - name: Install cargo-audit
-        run: cargo install --locked cargo-audit
 
       - name: Display Rust Version Info
         shell: bash
@@ -129,6 +131,9 @@ jobs:
 
       - name: Rust Format Check
         run: cargo fmt -- --check
+
+      - name: Install cargo-audit
+        run: cargo install --locked cargo-audit
 
       - name: Cargo Audit
         run: cargo audit
