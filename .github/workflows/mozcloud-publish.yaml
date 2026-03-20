@@ -73,7 +73,8 @@ jobs:
         TOKENSERVER_DATABASE_BACKEND=postgres
       should_tag_ghcr: true
 
-  build-and-push-syncserver-postgres-enterprise-gar:
+  push-syncserver-postgres-enterprise-gar:
+    needs: build-and-push-syncserver-postgres
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -88,15 +89,44 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
-    with:
-      image_name: syncserver-postgres
-      gar_name: fx-enterprise-private
-      project_id: moz-fx-fx-enterprise-prod
-      docker_build_args: |
-        SYNCSTORAGE_DATABASE_BACKEND=postgres
-        TOKENSERVER_DATABASE_BACKEND=postgres
+      packages: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute image tag
+        id: tag
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            echo "value=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_SHA:0:10}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: GCP auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: "projects/${{ vars.GCPV2_WORKLOAD_IDENTITY_POOL_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-actions/providers/github-actions"
+          service_account: "${{ vars.SERVICE_ACCOUNT_NAME || 'artifact-writer' }}@moz-fx-fx-enterprise-prod.iam.gserviceaccount.com"
+          token_format: access_token
+          create_credentials_file: false
+
+      - name: Configure GAR
+        run: gcloud auth configure-docker us-docker.pkg.dev --quiet
+
+      - name: Log in to ghcr
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Pull from ghcr, re-tag, push to enterprise GAR
+        run: |
+          TAG="${{ steps.tag.outputs.value }}"
+          SRC="ghcr.io/$GITHUB_REPOSITORY/syncserver-postgres:${TAG}"
+          DEST="us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres:${TAG}"
+          docker pull "$SRC"
+          docker tag "$SRC" "$DEST"
+          docker push "$DEST"
 
   # Note: we are moving towards renaming all images `syncserver`, the union of sync and tokenserver.
   # This presently remains for the time being to simplify deploys by maintaining `image_name: syncstorage-rs-spanner-python-utils`.
@@ -151,7 +181,8 @@ jobs:
       image_build_context: tools/postgres
       should_tag_ghcr: true
 
-  build-and-push-syncserver-postgres-python-utils-enterprise-gar:
+  push-syncserver-postgres-python-utils-enterprise-gar:
+    needs: build-and-push-syncserver-postgres-python-utils
     if: >
       github.event_name == 'workflow_dispatch' ||
       (
@@ -166,14 +197,44 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      packages: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@4784cb70739a4f32ce010921f60fb1ebbc791a38 # v6.2.2
-    with:
-      image_name: syncserver-postgres-python-utils
-      gar_name: fx-enterprise-private
-      project_id: moz-fx-fx-enterprise-prod
-      dockerfile_path: tools/postgres/Dockerfile
-      image_build_context: tools/postgres
+      packages: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute image tag
+        id: tag
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            echo "value=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_SHA:0:10}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: GCP auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: "projects/${{ vars.GCPV2_WORKLOAD_IDENTITY_POOL_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-actions/providers/github-actions"
+          service_account: "${{ vars.SERVICE_ACCOUNT_NAME || 'artifact-writer' }}@moz-fx-fx-enterprise-prod.iam.gserviceaccount.com"
+          token_format: access_token
+          create_credentials_file: false
+
+      - name: Configure GAR
+        run: gcloud auth configure-docker us-docker.pkg.dev --quiet
+
+      - name: Log in to ghcr
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Pull from ghcr, re-tag, push to enterprise GAR
+        run: |
+          TAG="${{ steps.tag.outputs.value }}"
+          SRC="ghcr.io/$GITHUB_REPOSITORY/syncserver-postgres-python-utils:${TAG}"
+          DEST="us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres-python-utils:${TAG}"
+          docker pull "$SRC"
+          docker tag "$SRC" "$DEST"
+          docker push "$DEST"
 
   build-and-push-syncserver-mysql:
     if: >
