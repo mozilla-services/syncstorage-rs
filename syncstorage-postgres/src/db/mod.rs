@@ -284,6 +284,13 @@ macro_rules! bsos_query {
                 .filter(bsos::expiry.gt(now))
                 .into_boxed();
 
+            if let Some(ts) = $params.offset.as_ref().and_then(|o| o.timestamp) {
+                match $params.sort {
+                    Sorting::Newest => query = query.filter(bsos::modified.le(ts.as_datetime()?)),
+                    Sorting::Oldest => query = query.filter(bsos::modified.ge(ts.as_datetime()?)),
+                    _ => {}
+                }
+            }
             if let Some(older) = $params.older {
                 query = query.filter(bsos::modified.lt(older.as_datetime()?));
             }
@@ -307,7 +314,7 @@ macro_rules! bsos_query {
             if let Some(limit) = limit {
                 query = query.limit(limit + 1);
             }
-            let numeric_offset = $params.offset.map_or(0, |offset| offset.offset as i64);
+            let numeric_offset = $params.offset.as_ref().map_or(0, |offset| offset.offset as i64);
             if numeric_offset != 0 {
                 // XXX: copy over this optimization:
                 // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
@@ -320,13 +327,11 @@ macro_rules! bsos_query {
             // returned in those cases
 
             let limit = limit.unwrap_or(-1);
-            let next_offset = if limit >= 0 && items.len() > limit as usize {
+            let did_overflow = limit  >= 0 && items.len() > limit as usize;
+            if  did_overflow {
                 items.pop();
-                Some((limit + numeric_offset).to_string())
-            } else {
-                None
-            };
-            (items, next_offset)
+            }
+            (items, did_overflow, limit, numeric_offset)
         }
     }
 }

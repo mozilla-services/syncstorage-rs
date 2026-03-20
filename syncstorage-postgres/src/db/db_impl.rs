@@ -9,7 +9,10 @@ use diesel::{
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use futures::TryStreamExt;
 use syncstorage_db_common::{
-    DEFAULT_BSO_TTL, Db, Sorting, error::DbErrorIntrospect, params, results, util::SyncTimestamp,
+    DEFAULT_BSO_TTL, Db, Sorting,
+    error::DbErrorIntrospect,
+    params, results,
+    util::{SyncTimestamp, encode_next_offset},
 };
 
 use super::{PgDb, TOMBSTONE};
@@ -338,16 +341,38 @@ impl Db for PgDb {
     }
 
     async fn get_bsos(&mut self, params: params::GetBsos) -> DbResult<results::GetBsos> {
-        let (bsos, offset) = bsos_query!(self, params, GetBso::as_select());
-        let items = bsos
+        let (bsos, did_overflow, _limit, numeric_offset) =
+            bsos_query!(self, params, GetBso::as_select());
+        let items: Vec<results::GetBso> = bsos
             .into_iter()
             .map(TryInto::try_into)
             .collect::<DbResult<_>>()?;
+        let offset = if did_overflow {
+            let modified_timestamps: Vec<i64> = items.iter().map(|b| b.modified.as_i64()).collect();
+            let prev_ts = params
+                .offset
+                .as_ref()
+                .and_then(|o| o.timestamp)
+                .map(|t| t.as_i64());
+            Some(encode_next_offset(
+                params.sort,
+                numeric_offset as u64,
+                prev_ts,
+                &modified_timestamps,
+            ))
+        } else {
+            None
+        };
         Ok(results::GetBsos { items, offset })
     }
 
     async fn get_bso_ids(&mut self, params: params::GetBsoIds) -> DbResult<results::GetBsoIds> {
-        let (items, offset) = bsos_query!(self, params, bsos::bso_id);
+        let (items, did_overflow, limit, numeric_offset) = bsos_query!(self, params, bsos::bso_id);
+        let offset = if did_overflow {
+            Some((limit + numeric_offset).to_string())
+        } else {
+            None
+        };
         Ok(results::GetBsoIds { items, offset })
     }
 
