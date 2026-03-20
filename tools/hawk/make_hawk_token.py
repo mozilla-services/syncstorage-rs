@@ -7,7 +7,7 @@ Creates the hawk headers for auth::tests, in particular valid_header and
 valid_header_with_querystring.
 
 The latter modifies the query string which changes the mac/nonce and
-potentially its values (in the Hawk header).
+potentially `ts` values (in the Hawk header).
 """
 
 import argparse

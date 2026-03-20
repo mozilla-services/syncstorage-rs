@@ -51,10 +51,12 @@ def test_metrics_hash_strips_email_domain() -> None:
 
 
 def test_metrics_hash_str_hmac_key_coerced_to_bytes() -> None:
-    """A string hmac_key is coerced to bytes in-place before hashing."""
+    """A string hmac_key is coerced to bytes and produces the correct HMAC-SHA256 digest."""
+    # Expected: HMAC-SHA256(key=b"foo", msg=b"value") via hmac.new(b'foo', b'value', hashlib.sha256).hexdigest())
+    expected = "40036668289b3e3257fd7653c09d3c0611d5f6e813b674c2b3984005e5736019"
     args = make_args(hmac_key="foo")
     result = metrics_hash(args, "value")
-    assert isinstance(result, str)
+    assert result == expected
     assert args.hmac_key == b"foo"
 
 
@@ -67,9 +69,11 @@ def test_create_token_returns_four_tuple() -> None:
 
 
 def test_create_token_expires_in_future() -> None:
-    """The expiry timestamp is strictly after the current time."""
-    _, _, expires, _ = create_token(make_args())
-    assert expires > int(time.time())
+    """The expiry timestamp embedded in the token is after the current time."""
+    args = make_args()
+    token, _, _, _ = create_token(args)
+    decoded = tokenlib.parse_token(token, secret=args.secret)
+    assert decoded["expires"] > int(time.time())
 
 
 def test_create_token_expires_approximately_correct() -> None:
