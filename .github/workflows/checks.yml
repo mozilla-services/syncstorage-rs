@@ -142,10 +142,28 @@ jobs:
       - name: Set Rust toolchain
         run: rustup default ${{ env.RUST_VERSION }}
 
+      - name: Cache cargo-audit
+        id: cache-cargo-audit
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: ${{ runner.os }}-cargo-audit-${{ hashFiles('.github/workflows/checks.yml') }}
+
       - name: Install cargo-audit
+        if: steps.cache-cargo-audit.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-audit
 
+      - name: Cache mdbook
+        id: cache-mdbook
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: |
+            ~/.cargo/bin/mdbook
+            ~/.cargo/bin/mdbook-mermaid
+          key: ${{ runner.os }}-mdbook-${{ hashFiles('Makefile') }}
+
       - name: Setup documentation checks
+        if: steps.cache-mdbook.outputs.cache-hit != 'true'
         run: make doc-install-deps
 
       - name: Rust Format Check
