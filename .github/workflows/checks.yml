@@ -3,12 +3,11 @@ name: Checks
 on:
   push:
     branches:
-      - "**"
+      - master
+      - main
     tags:
-      - "*"
-  pull_request:
-    branches:
       - "**"
+  pull_request:
   workflow_dispatch:
     inputs:
       python-version:
