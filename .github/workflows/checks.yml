@@ -143,17 +143,17 @@ jobs:
       - name: Set Rust toolchain
         run: rustup default ${{ env.RUST_VERSION }}
 
-      - name: Rust Format Check
-        run: cargo fmt -- --check
-
       - name: Install cargo-audit
         run: cargo install --locked cargo-audit
 
-      - name: Cargo Audit
-        run: cargo audit
-
       - name: Setup documentation checks
         run: make doc-install-deps
+
+      - name: Rust Format Check
+        run: cargo fmt -- --check
+
+      - name: Cargo Audit
+        run: cargo audit
 
       - name: Documentation checks
         run: make doc-test
