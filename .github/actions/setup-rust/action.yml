@@ -18,6 +18,14 @@ runs:
       with:
         persist-credentials: false
 
+    - name: Cache Rust toolchain
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+      with:
+        path: |
+          ~/.rustup/toolchains
+          ~/.rustup/update-hashes
+        key: ${{ runner.os }}-rust-toolchain-${{ inputs.rust-version }}
+
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
       with:
