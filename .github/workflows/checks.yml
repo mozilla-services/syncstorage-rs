@@ -17,7 +17,9 @@ concurrency:
 permissions: {} # workflow-level default — deny all
 
 jobs:
-  python-checks:
+  # Setup jobs and populate cache
+
+  python-env:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -26,17 +28,86 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-python
+      - name: Cache pip and Poetry virtualenv
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
-          workspace-path: workflow
+          path: |
+            ~/.cache/pip
+            ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
+
+      - name: Install Poetry
+        run: pip3 install poetry
+
+      - name: Install Python dependencies
+        run: poetry install --with tokenserver-unit-tests,dev --no-interaction --no-ansi
+
+      - name: Display Python Version Info
+        shell: bash
+        run: |
+          if [ "$(which python)" != "" ]; then python --version; fi
+          uname -a
+          cat /etc/os-release
+
+  rust-env:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Cache Rust toolchain
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: |
+            ~/.rustup/toolchains
+            ~/.rustup/update-hashes
+          key: ${{ runner.os }}-rust-toolchain-1.91 # RUST_VER
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install 1.91 --component rustfmt --component clippy --no-self-update && rustup default 1.91
+
+      - name: Install cargo-audit
+        run: cargo install --locked cargo-audit
+
+      - name: Display Rust Version Info
+        shell: bash
+        run: |
+          if [ "$(which rustc)" != "" ]; then rustc --version; fi
+          uname -a
+          cat /etc/os-release
+
+  python-checks:
+    needs: python-env
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Restore pip and Poetry virtualenv
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
+
+      - name: Install Poetry
+        run: pip3 install poetry
 
       - name: Python Format Check
-        run: make ruff-fmt-chk
+        run: poetry run ruff format --diff tools
 
       - name: Python Lint Check
-        run: make ruff-lint
+        run: poetry run ruff check tools
 
   rust-checks:
+    needs: rust-env
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -45,9 +116,16 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-rust
+      - name: Restore Rust toolchain
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
-          workspace-path: workflow
+          path: |
+            ~/.rustup/toolchains
+            ~/.rustup/update-hashes
+          key: ${{ runner.os }}-rust-toolchain-1.91 # RUST_VER
+
+      - name: Set Rust toolchain
+        run: rustup default 1.91
 
       - name: Rust Format Check
         run: cargo fmt -- --check
@@ -62,6 +140,7 @@ jobs:
         run: make doc-test
 
   clippy:
+    needs: rust-env
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -73,9 +152,16 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-rust
+      - name: Restore Rust toolchain
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
-          workspace-path: workflow
+          path: |
+            ~/.rustup/toolchains
+            ~/.rustup/update-hashes
+          key: ${{ runner.os }}-rust-toolchain-1.91 # RUST_VER
+
+      - name: Set Rust toolchain
+        run: rustup default 1.91
 
       - name: Rust Clippy ${{ matrix.target }}
         run: make clippy_${{ matrix.target }}
