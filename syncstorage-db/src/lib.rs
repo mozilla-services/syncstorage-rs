@@ -29,7 +29,7 @@ pub use syncstorage_spanner::DbError;
 #[cfg(feature = "spanner")]
 pub type DbImpl = syncstorage_spanner::SpannerDb;
 
-pub use syncserver_db_common::{GetPoolState, PoolState};
+pub use syncserver_db_common::GetPoolStatus;
 pub use syncstorage_db_common::error::DbErrorIntrospect;
 
 pub use syncstorage_db_common::{

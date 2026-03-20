@@ -20,7 +20,7 @@ use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::test_transaction_hook;
 use syncserver_db_common::{
-    GetPoolState, PoolState, establish_connection_with_logging, manager_config_with_logging,
+    GetPoolStatus, establish_connection_with_logging, manager_config_with_logging,
     run_embedded_migrations,
 };
 use syncstorage_db_common::{Db, DbPool, STD_COLLS};
@@ -170,9 +170,9 @@ impl fmt::Debug for MysqlDbPool {
     }
 }
 
-impl GetPoolState for MysqlDbPool {
-    fn state(&self) -> PoolState {
-        self.pool.status().into()
+impl GetPoolStatus for MysqlDbPool {
+    fn status(&self) -> deadpool::Status {
+        self.pool.status()
     }
 }
 

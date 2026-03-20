@@ -1,22 +1,23 @@
 use std::{collections::HashMap, time::Duration};
 
-use actix_web::{Error, HttpResponse, http::StatusCode};
+use actix_web::{Error, HttpResponse, http::StatusCode, web::Data};
 use base64::{Engine, engine};
 use chrono::{TimeDelta, Utc};
 use serde::Serialize;
 use serde_json::Value;
-use tokenserver_auth::{MakeTokenPlaintext, Tokenlib, TokenserverOrigin};
-use tokenserver_common::{NodeType, TokenserverError};
-use tokenserver_db::{
-    Db,
-    params::{GetNodeId, PostUser, PutUser, ReplaceUsers},
-};
 use tokio::time::timeout;
 use utoipa::ToSchema;
 
+use tokenserver_auth::{MakeTokenPlaintext, Tokenlib, TokenserverOrigin};
+use tokenserver_common::{NodeType, TokenserverError};
+use tokenserver_db::{
+    Db, SYNC_SERVICE_NAME,
+    params::{GetNodeId, PostUser, PutUser, ReplaceUsers, RetireUser, UpdateUserGeneration},
+};
+
 use super::{
     TokenserverMetrics,
-    extractors::{DbWrapper, TokenserverRequest},
+    extractors::{DbWrapper, FxaWebhookToken, TokenserverRequest},
 };
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -276,6 +277,55 @@ async fn update_user(
     }
 }
 
+pub async fn handle_fxa_events(
+    FxaWebhookToken(claims): FxaWebhookToken,
+    DbWrapper(mut db): DbWrapper,
+    state: Data<super::ServerState>,
+) -> Result<HttpResponse, TokenserverError> {
+    let service_id = db
+        .get_service_id(tokenserver_db::params::GetServiceId {
+            service: SYNC_SERVICE_NAME.to_owned(),
+        })
+        .await?
+        .id;
+    let Some(events) = claims.events.as_object() else {
+        return Ok(HttpResponse::Ok().finish());
+    };
+
+    for event_type in events.keys() {
+        let email = format!("{}@{}", claims.sub, state.fxa_email_domain);
+        match event_type.as_str() {
+            "https://schemas.accounts.firefox.com/event/delete-user" => {
+                info!("Processing account delete for {}", email);
+                db.retire_user(RetireUser { service_id, email }).await?;
+            }
+            "https://schemas.accounts.firefox.com/event/password-change" => {
+                if let Some(change_time_ms) = events[event_type]
+                    .get("changeTime")
+                    .and_then(|t| t.as_i64())
+                {
+                    info!("Processing password change for {}", email);
+                    db.update_user_generation(UpdateUserGeneration {
+                        service_id,
+                        email,
+                        generation: Some(change_time_ms / 1000 - 1),
+                        keys_changed_at: None,
+                    })
+                    .await?;
+                }
+            }
+            _ => {
+                info!(
+                    "Dropping unhandled event type {:?} for {}",
+                    event_type, email
+                );
+            }
+        }
+    }
+
+    Ok(HttpResponse::Ok().finish())
+}
+
 #[utoipa::path(
     get,
     path = "/__heartbeat__",
@@ -326,4 +376,271 @@ pub async fn test_error() -> Result<HttpResponse, TokenserverError> {
         description: "Test error for Sentry".to_owned(),
         ..TokenserverError::internal_error()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use actix_web::middleware::ErrorHandlers;
+    use actix_web::test::{self, TestRequest};
+    use actix_web::{
+        App, HttpRequest, HttpResponse, http::StatusCode, http::header::LOCATION, web, web::Data,
+    };
+    use serde_json::json;
+    use utoipa::OpenApi;
+    use utoipa_swagger_ui::SwaggerUi;
+
+    use syncserver_common::middleware::sentry::SentryWrapper;
+    use syncserver_settings::Settings;
+    use tokenserver_auth::test_utils::{
+        OTHER_PRIVATE_KEY_PEM, TEST_PRIVATE_KEY_PEM, make_set, test_jwk,
+    };
+    use tokenserver_auth::{MockVerifier, SETVerifierImpl, oauth};
+    use tokenserver_db::mock::MockDbPool;
+    use tokenserver_settings::Settings as TokenserverSettings;
+
+    use crate::build_app_without_syncstorage;
+    use crate::error::ApiError;
+    use crate::server::{ApiDoc, TOKENSERVER_DOCS_URL};
+    use crate::tokenserver::{self, ServerState};
+    use crate::web::middleware;
+
+    fn make_state(set_verifiers: Vec<SETVerifierImpl>) -> ServerState {
+        make_state_with_db_pool(set_verifiers, Box::new(MockDbPool::new()))
+    }
+
+    async fn make_app(
+        set_verifiers: Vec<SETVerifierImpl>,
+    ) -> impl actix_web::dev::Service<
+        actix_http::Request,
+        Response = actix_web::dev::ServiceResponse<impl actix_web::body::MessageBody>,
+        Error = actix_web::Error,
+    > {
+        let state = make_state(set_verifiers);
+        make_app_from_state(state).await
+    }
+
+    fn make_state_with_db_pool(
+        set_verifiers: Vec<SETVerifierImpl>,
+        db_pool: Box<dyn tokenserver_db::DbPool>,
+    ) -> ServerState {
+        let syncserver_settings = Settings::default();
+        let tokenserver_settings = TokenserverSettings::default();
+        ServerState {
+            fxa_email_domain: "api.accounts.firefox.com".to_owned(),
+            fxa_metrics_hash_secret: "topsecretz".to_owned(),
+            oauth_verifier: Box::new(MockVerifier::<oauth::VerifyOutput>::default()),
+            db_pool,
+            node_capacity_release_rate: None,
+            node_type: Default::default(),
+            metrics: syncserver_common::metrics_from_opts(
+                &tokenserver_settings.statsd_label,
+                syncserver_settings.statsd_host.as_deref(),
+                syncserver_settings.statsd_port,
+            )
+            .unwrap(),
+            token_duration: 3600,
+            set_verifiers,
+            fxa_webhook_enabled: true,
+        }
+    }
+
+    async fn make_app_from_state(
+        state: ServerState,
+    ) -> impl actix_web::dev::Service<
+        actix_http::Request,
+        Response = actix_web::dev::ServiceResponse<impl actix_web::body::MessageBody>,
+        Error = actix_web::Error,
+    > {
+        let secrets = Arc::new(syncserver_settings::Secrets::new("secret").unwrap());
+        let metrics = state.metrics.clone();
+        test::init_service(build_app_without_syncstorage!(
+            state,
+            secrets,
+            actix_cors::Cors::default(),
+            metrics
+        ))
+        .await
+    }
+
+    #[actix_web::test]
+    async fn test_missing_auth_header() {
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
+        let app = make_app(vec![verifier]).await;
+        let req = TestRequest::post()
+            .uri("/1.0/webhooks/fxa/events")
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 401);
+    }
+
+    #[actix_web::test]
+    async fn test_wrong_signing_key() {
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
+        let app = make_app(vec![verifier]).await;
+        let token = make_set(
+            "quux",
+            "testo",
+            json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
+            3600,
+            OTHER_PRIVATE_KEY_PEM,
+        );
+        let req = TestRequest::post()
+            .uri("/1.0/webhooks/fxa/events")
+            .insert_header(("Authorization", format!("Bearer {token}")))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 401);
+    }
+
+    #[actix_web::test]
+    async fn test_expired_token() {
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
+        let app = make_app(vec![verifier]).await;
+        let token = make_set(
+            "quux",
+            "testo",
+            json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
+            -3600,
+            TEST_PRIVATE_KEY_PEM,
+        );
+        let req = TestRequest::post()
+            .uri("/1.0/webhooks/fxa/events")
+            .insert_header(("Authorization", format!("Bearer {token}")))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 401);
+    }
+
+    #[actix_web::test]
+    async fn test_wrong_audience() {
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
+        let app = make_app(vec![verifier]).await;
+        let token = make_set(
+            "quux",
+            "some-other-RP",
+            json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
+            3600,
+            TEST_PRIVATE_KEY_PEM,
+        );
+        let req = TestRequest::post()
+            .uri("/1.0/webhooks/fxa/events")
+            .insert_header(("Authorization", format!("Bearer {token}")))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 401);
+    }
+
+    #[actix_web::test]
+    async fn test_no_verifiers_configured() {
+        let app = make_app(vec![]).await;
+        let token = make_set(
+            "quux",
+            "testo",
+            json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
+            3600,
+            TEST_PRIVATE_KEY_PEM,
+        );
+        let req = TestRequest::post()
+            .uri("/1.0/webhooks/fxa/events")
+            .insert_header(("Authorization", format!("Bearer {token}")))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 401);
+    }
+
+    #[actix_web::test]
+    async fn test_delete_user_event() {
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
+        let (pool, call_log) = MockDbPool::with_capture();
+        let app =
+            make_app_from_state(make_state_with_db_pool(vec![verifier], Box::new(pool))).await;
+        let token = make_set(
+            "quux",
+            "testo",
+            json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
+            3600,
+            TEST_PRIVATE_KEY_PEM,
+        );
+        let req = TestRequest::post()
+            .uri("/1.0/webhooks/fxa/events")
+            .insert_header(("Authorization", format!("Bearer {token}")))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 200);
+        let retire_user_calls = call_log.retire_user.lock().unwrap();
+        assert_eq!(retire_user_calls.len(), 1);
+        assert_eq!(retire_user_calls[0].email, "quux@api.accounts.firefox.com");
+    }
+
+    #[actix_web::test]
+    async fn test_password_change_event() {
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
+        let (pool, call_log) = MockDbPool::with_capture();
+        let app =
+            make_app_from_state(make_state_with_db_pool(vec![verifier], Box::new(pool))).await;
+        let change_time_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
+        let token = make_set(
+            "quux",
+            "testo",
+            json!({"https://schemas.accounts.firefox.com/event/password-change": {"changeTime": change_time_ms}}),
+            3600,
+            TEST_PRIVATE_KEY_PEM,
+        );
+        let req = TestRequest::post()
+            .uri("/1.0/webhooks/fxa/events")
+            .insert_header(("Authorization", format!("Bearer {token}")))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 200);
+        let update_user_generation_calls = call_log.update_user_generation.lock().unwrap();
+        assert_eq!(update_user_generation_calls.len(), 1);
+        assert_eq!(
+            update_user_generation_calls[0].email,
+            "quux@api.accounts.firefox.com"
+        );
+        assert_eq!(
+            update_user_generation_calls[0].generation,
+            Some(change_time_ms / 1000 - 1)
+        );
+        assert_eq!(update_user_generation_calls[0].keys_changed_at, None);
+
+        assert_eq!(call_log.retire_user.lock().unwrap().len(), 0);
+    }
+
+    #[actix_web::test]
+    async fn test_unknown_event() {
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
+        let (pool, call_log) = MockDbPool::with_capture();
+        let app =
+            make_app_from_state(make_state_with_db_pool(vec![verifier], Box::new(pool))).await;
+        let token = make_set(
+            "quux",
+            "testo",
+            json!({"https://schemas.accounts.firefox.com/event/unknown-event": {}}),
+            3600,
+            TEST_PRIVATE_KEY_PEM,
+        );
+        let req = TestRequest::post()
+            .uri("/1.0/webhooks/fxa/events")
+            .insert_header(("Authorization", format!("Bearer {token}")))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), 200);
+
+        assert_eq!(call_log.update_user_generation.lock().unwrap().len(), 0);
+        assert_eq!(call_log.retire_user.lock().unwrap().len(), 0);
+    }
 }

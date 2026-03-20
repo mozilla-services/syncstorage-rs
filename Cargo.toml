@@ -20,7 +20,7 @@ members = [
 default-members = ["syncserver"]
 
 [workspace.package]
-version = "0.21.1"
+version = "0.22.0"
 authors = [
   "Mozilla Sync Backend Engineering <sync-backend@mozilla.com",
 ]

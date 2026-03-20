@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-#[cfg(debug_assertions)]
 use chrono::Utc;
 use diesel::{
     OptionalExtension,
@@ -87,6 +86,29 @@ impl Db for TokenserverDb {
         Ok(())
     }
 
+    /// Mark a user as retired by email.
+    async fn retire_user(&mut self, params: params::RetireUser) -> DbResult<results::RetireUser> {
+        const QUERY: &str = r#"
+            UPDATE users
+               SET generation = ?,
+                   replaced_at = ?
+             WHERE service = ?
+               AND email = ?
+               AND replaced_at IS NULL
+        "#;
+
+        let now = chrono::Utc::now().timestamp_millis();
+
+        diesel::sql_query(QUERY)
+            .bind::<Bigint, _>(tokenserver_db_common::MAX_GENERATION)
+            .bind::<Bigint, _>(now)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<Text, _>(params.email)
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
+    }
+
     /// Update the user with the given email and service ID with the given `generation` and
     /// `keys_changed_at`.
     async fn put_user(&mut self, params: params::PutUser) -> DbResult<results::PutUser> {
@@ -115,6 +137,33 @@ impl Db for TokenserverDb {
             .bind::<Integer, _>(&params.service_id)
             .bind::<Text, _>(&params.email)
             .bind::<Bigint, _>(params.generation)
+            .bind::<Nullable<Bigint>, _>(params.keys_changed_at)
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
+    }
+
+    async fn update_user_generation(
+        &mut self,
+        params: params::UpdateUserGeneration,
+    ) -> DbResult<results::UpdateUserGeneration> {
+        const QUERY: &str = r#"
+            UPDATE users
+               SET generation = COALESCE(?, generation),
+                   keys_changed_at = COALESCE(?, keys_changed_at)
+             WHERE service = ?
+               AND email = ?
+               AND generation <= COALESCE(?, generation)
+               AND COALESCE(keys_changed_at, 0) <= COALESCE(?, keys_changed_at, 0)
+               AND replaced_at IS NULL
+        "#;
+
+        diesel::sql_query(QUERY)
+            .bind::<Nullable<Bigint>, _>(params.generation)
+            .bind::<Nullable<Bigint>, _>(params.keys_changed_at)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<Text, _>(&params.email)
+            .bind::<Nullable<Bigint>, _>(params.generation)
             .bind::<Nullable<Bigint>, _>(params.keys_changed_at)
             .execute(&mut self.conn)
             .await?;

@@ -10,7 +10,7 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use lazy_static::lazy_static;
 use serde::Deserialize;
-use syncserver_db_common::GetPoolState;
+use syncserver_db_common::GetPoolStatus;
 
 use error::DbErrorIntrospect;
 use util::SyncTimestamp;
@@ -49,7 +49,7 @@ pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
 pub const FIRST_CUSTOM_COLLECTION_ID: i32 = 101;
 
 #[async_trait]
-pub trait DbPool: Sync + Send + Debug + GetPoolState {
+pub trait DbPool: Sync + Send + Debug + GetPoolStatus {
     type Error;
 
     async fn init(&mut self) -> Result<(), Self::Error> {

@@ -19,9 +19,7 @@ use diesel_migrations::{EmbeddedMigrations, embed_migrations};
 use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::test_transaction_hook;
-use syncserver_db_common::{
-    GetPoolState, PoolState, manager_config_with_logging, run_embedded_migrations,
-};
+use syncserver_db_common::{GetPoolStatus, manager_config_with_logging, run_embedded_migrations};
 use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 
@@ -168,9 +166,9 @@ impl fmt::Debug for PgDbPool {
     }
 }
 
-impl GetPoolState for PgDbPool {
-    fn state(&self) -> PoolState {
-        self.pool.status().into()
+impl GetPoolStatus for PgDbPool {
+    fn status(&self) -> deadpool::Status {
+        self.pool.status()
     }
 }
 

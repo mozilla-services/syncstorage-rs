@@ -13,7 +13,7 @@ use serde::{
 use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(not(feature = "py_verifier"))]
 use tokenserver_auth::JWTVerifierImpl;
-use tokenserver_auth::{VerifyToken, oauth};
+use tokenserver_auth::{SETVerifierImpl, VerifyToken, oauth};
 use tokenserver_common::NodeType;
 use tokenserver_db::{DbPool, pool_from_settings};
 use tokenserver_settings::Settings;
@@ -32,6 +32,8 @@ pub struct ServerState {
     pub node_type: NodeType,
     pub metrics: Arc<StatsdClient>,
     pub token_duration: u64,
+    pub set_verifiers: Vec<SETVerifierImpl>,
+    pub fxa_webhook_enabled: bool,
 }
 
 impl ServerState {
@@ -70,6 +72,34 @@ impl ServerState {
             oauth::Verifier::new(settings, blocking_threadpool.clone())
                 .expect("failed to create Tokenserver OAuth verifier"),
         );
+
+        let set_verifiers = {
+            let mut verifiers = Vec::with_capacity(2);
+            if let Some(client_id) = &settings.fxa_client_id {
+                if let Some(primary_jwk) = &settings.fxa_oauth_primary_jwk {
+                    verifiers.push(
+                        SETVerifierImpl::new(
+                            primary_jwk,
+                            client_id,
+                            &settings.fxa_oauth_server_url,
+                        )
+                        .expect("Invalid primary JWK for SET verification"),
+                    );
+                }
+                if let Some(secondary_jwk) = &settings.fxa_oauth_secondary_jwk {
+                    verifiers.push(
+                        SETVerifierImpl::new(
+                            secondary_jwk,
+                            client_id,
+                            &settings.fxa_oauth_server_url,
+                        )
+                        .expect("Invalid secondary JWK for SET verification"),
+                    );
+                }
+            }
+            verifiers
+        };
+
         let use_test_transactions = false;
 
         let db_pool = pool_from_settings(settings, &Metrics::from(&metrics), use_test_transactions)
@@ -83,6 +113,8 @@ impl ServerState {
             node_type: settings.node_type,
             metrics,
             token_duration: settings.token_duration,
+            set_verifiers,
+            fxa_webhook_enabled: settings.fxa_webhook_enabled,
         })
     }
 

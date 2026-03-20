@@ -10,7 +10,7 @@ use std::{cmp, time::Duration};
 use async_trait::async_trait;
 use chrono::Utc;
 use syncserver_common::Metrics;
-use syncserver_db_common::{GetPoolState, PoolState};
+use syncserver_db_common::GetPoolStatus;
 
 pub use crate::error::DbError;
 
@@ -20,8 +20,10 @@ pub type DbResult<T> = Result<T, DbError>;
 /// "retired" from the db.
 pub const MAX_GENERATION: i64 = i64::MAX;
 
+pub const SYNC_SERVICE_NAME: &str = "sync-1.5";
+
 #[async_trait(?Send)]
-pub trait DbPool: Sync + Send + GetPoolState {
+pub trait DbPool: Sync + Send + GetPoolStatus {
     async fn init(&mut self) -> DbResult<()>;
 
     async fn get(&self) -> DbResult<Box<dyn Db>>;
@@ -29,9 +31,9 @@ pub trait DbPool: Sync + Send + GetPoolState {
     fn box_clone(&self) -> Box<dyn DbPool>;
 }
 
-impl GetPoolState for Box<dyn DbPool> {
-    fn state(&self) -> PoolState {
-        (**self).state()
+impl GetPoolStatus for Box<dyn DbPool> {
+    fn status(&self) -> deadpool::Status {
+        (**self).status()
     }
 }
 
@@ -63,6 +65,17 @@ pub trait Db {
 
     /// Based on service_id, email, generation, and changed keys timestamp, update user.
     async fn put_user(&mut self, params: params::PutUser) -> DbResult<results::PutUser>;
+
+    /// Update `generation` and/or `keys_changed_at` in place using COALESCE. `None` leaves the
+    /// existing value unchanged.
+    async fn update_user_generation(
+        &mut self,
+        params: params::UpdateUserGeneration,
+    ) -> DbResult<results::UpdateUserGeneration>;
+
+    /// Mark all records for the user as replaced, and set a large generation number to block
+    /// future logins.
+    async fn retire_user(&mut self, params: params::RetireUser) -> DbResult<results::RetireUser>;
 
     /// Show database uptime status and health as boolean.
     async fn check(&mut self) -> DbResult<results::Check>;
