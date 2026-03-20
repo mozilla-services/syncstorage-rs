@@ -1,40 +1,50 @@
-import pytest
-from unittest import mock
-from types import SimpleNamespace
+from __future__ import annotations
 
-# Import the functions to test from purge_ttl.py
+import argparse
+from types import SimpleNamespace
+from unittest import mock
+from unittest.mock import MagicMock
+
+import pytest
+
 from tools.spanner import purge_ttl
 
 
-def test_parse_args_list_single_item():
+def test_parse_args_list_single_item() -> None:
+    """A bare value (no brackets) is returned as a one-element list."""
     assert purge_ttl.parse_args_list("foo") == ["foo"]
 
 
-def test_parse_args_list_multiple_items():
+def test_parse_args_list_multiple_items() -> None:
+    """A bracketed comma-separated string is split into individual items."""
     assert purge_ttl.parse_args_list("[a,b,c]") == ["a", "b", "c"]
 
 
-def test_get_expiry_condition_now():
-    args = SimpleNamespace(expiry_mode="now")
+def test_get_expiry_condition_now() -> None:
+    """'now' mode compares expiry against the current Spanner timestamp."""
+    args = argparse.Namespace(expiry_mode="now")
     assert purge_ttl.get_expiry_condition(args) == "expiry < CURRENT_TIMESTAMP()"
 
 
-def test_get_expiry_condition_midnight():
-    args = SimpleNamespace(expiry_mode="midnight")
+def test_get_expiry_condition_midnight() -> None:
+    """'midnight' mode truncates the comparison to the start of the UTC day."""
+    args = argparse.Namespace(expiry_mode="midnight")
     assert (
         purge_ttl.get_expiry_condition(args)
         == 'expiry < TIMESTAMP_TRUNC(CURRENT_TIMESTAMP(), DAY, "UTC")'
     )
 
 
-def test_get_expiry_condition_invalid():
-    args = SimpleNamespace(expiry_mode="invalid")
+def test_get_expiry_condition_invalid() -> None:
+    """An unrecognised expiry mode raises an exception."""
+    args = argparse.Namespace(expiry_mode="invalid")
     with pytest.raises(Exception):
         purge_ttl.get_expiry_condition(args)
 
 
-def test_add_conditions_no_collections_no_prefix():
-    args = SimpleNamespace(collection_ids=[], uid_prefixes=None)
+def test_add_conditions_no_collections_no_prefix() -> None:
+    """No collection IDs and no prefix leaves the query and params unchanged."""
+    args = argparse.Namespace(collection_ids=[], uid_prefixes=None)
     query, params, types = purge_ttl.add_conditions(
         args, "SELECT * FROM foo WHERE 1=1", None
     )
@@ -43,8 +53,9 @@ def test_add_conditions_no_collections_no_prefix():
     assert types == {}
 
 
-def test_add_conditions_with_collections_single():
-    args = SimpleNamespace(collection_ids=["123"])
+def test_add_conditions_with_collections_single() -> None:
+    """A single collection ID adds an equality condition with an INT64 param type."""
+    args = argparse.Namespace(collection_ids=["123"])
     query, params, types = purge_ttl.add_conditions(
         args, "SELECT * FROM foo WHERE 1=1", None
     )
@@ -53,8 +64,9 @@ def test_add_conditions_with_collections_single():
     assert types["collection_id"] == purge_ttl.param_types.INT64
 
 
-def test_add_conditions_with_collections_multiple():
-    args = SimpleNamespace(collection_ids=["1", "2"])
+def test_add_conditions_with_collections_multiple() -> None:
+    """Multiple collection IDs add an IN condition with per-ID named params."""
+    args = argparse.Namespace(collection_ids=["1", "2"])
     query, params, types = purge_ttl.add_conditions(
         args, "SELECT * FROM foo WHERE 1=1", None
     )
@@ -64,8 +76,9 @@ def test_add_conditions_with_collections_multiple():
     assert types["collection_id_0"] == purge_ttl.param_types.INT64
 
 
-def test_add_conditions_with_prefix():
-    args = SimpleNamespace(collection_ids=[])
+def test_add_conditions_with_prefix() -> None:
+    """A UID prefix adds a STARTS_WITH condition with a STRING param type."""
+    args = argparse.Namespace(collection_ids=[])
     query, params, types = purge_ttl.add_conditions(
         args, "SELECT * FROM foo WHERE 1=1", "abc"
     )
@@ -75,7 +88,8 @@ def test_add_conditions_with_prefix():
 
 
 @mock.patch("tools.spanner.purge_ttl.statsd")
-def test_deleter_dryrun(statsd_mock):
+def test_deleter_dryrun(statsd_mock: MagicMock) -> None:
+    """In dryrun mode the database is never contacted."""
     database = mock.Mock()
     statsd_mock.timer.return_value.__enter__.return_value = None
     statsd_mock.timer.return_value.__exit__.return_value = None
@@ -84,7 +98,8 @@ def test_deleter_dryrun(statsd_mock):
 
 
 @mock.patch("tools.spanner.purge_ttl.statsd")
-def test_deleter_executes(statsd_mock):
+def test_deleter_executes(statsd_mock: MagicMock) -> None:
+    """Without dryrun, execute_partitioned_dml is called exactly once."""
     database = mock.Mock()
     statsd_mock.timer.return_value.__enter__.return_value = None
     statsd_mock.timer.return_value.__exit__.return_value = None
@@ -99,10 +114,13 @@ def test_deleter_executes(statsd_mock):
 @mock.patch("tools.spanner.purge_ttl.get_expiry_condition")
 @mock.patch("tools.spanner.purge_ttl.client")
 def test_spanner_purge_both(
-    client_mock, get_expiry_condition_mock, add_conditions_mock, deleter_mock
-):
-    # Setup
-    args = SimpleNamespace(
+    client_mock: MagicMock,
+    get_expiry_condition_mock: MagicMock,
+    add_conditions_mock: MagicMock,
+    deleter_mock: MagicMock,
+) -> None:
+    """spanner_purge calls deleter twice (batches + bso) when mode='both'."""
+    args = argparse.Namespace(
         instance_id="inst",
         database_id="db",
         expiry_mode="now",
@@ -126,8 +144,6 @@ def test_spanner_purge_both(
     purge_ttl.spanner_purge(args)
 
     assert deleter_mock.call_count == 2
-    deleter_mock.assert_called()
-
     deleter_mock.assert_any_call(
         database,
         name="batches",
@@ -137,7 +153,6 @@ def test_spanner_purge_both(
         prefix=None,
         dryrun=True,
     )
-
     deleter_mock.assert_any_call(
         database,
         name="bso",
@@ -150,8 +165,8 @@ def test_spanner_purge_both(
 
 
 @mock.patch("argparse.ArgumentParser.parse_args")
-def test_get_args_env_and_dsn(parse_args_mock):
-    # Simulate args with DSN
+def test_get_args_env_and_dsn(parse_args_mock: MagicMock) -> None:
+    """When a DSN URL is provided, get_args overrides instance, database, and project IDs."""
     args = SimpleNamespace(
         instance_id="foo",
         database_id="bar",

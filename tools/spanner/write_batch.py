@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 # Preload Spanner Database
 #
 # Spanner increases efficiency when there is a minimum of 300G of

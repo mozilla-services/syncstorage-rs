@@ -7,25 +7,36 @@ authors = [
 ]
 license = "Mozilla Public License Version 2.0"
 readme = "README.md"
-requires-python = ">=3.9.2"
+requires-python = ">=3.12,<4.0"
 
 [tool.poetry]
-package-mode = false 
+package-mode = false
 
 [tool.poetry.dependencies]
-google-cloud-spanner = ">=1.16.0"
+google-cloud-spanner = ">=3.63.0"
+protobuf = ">=5.29,<7.0.0"
 statsd = "^4.0.1"
 
 [tool.poetry.group.dev.dependencies]
-mypy = "^1.16.0"
+pytest = "^9.0.2"
+mypy = "^1.19.1"
 pydocstyle = "^6.3.0"
-ruff = "^0.12.7"
-black = "^25.1.0"
-bandit = "^1.8.3"
-isort = "^6.0.1"
+ruff = "^0.15.6"
+black = "^26.3.1"
+bandit = "^1.9.4"
+isort = "^8.0.1"
+
 
 [tool.poetry.requires-plugins]
 poetry-plugin-export = ">=1.8"
+
+[tool.mypy]
+python_version = "3.14"
+ignore_missing_imports = true
+strict = true
+
+[tool.pytest.ini_options]
+pythonpath = ["../.."]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

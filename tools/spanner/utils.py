@@ -4,10 +4,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+from __future__ import annotations
+
 import os
 from enum import auto, Enum
 from urllib import parse
-from typing import Tuple
 
 DSN_URL = "SYNC_SYNCSTORAGE__DATABASE_URL"
 """
@@ -22,10 +23,10 @@ class Mode(Enum):
     ENV_VAR = auto()
 
 
-def ids_from_env(dsn=DSN_URL, mode=Mode.ENV_VAR) -> Tuple[str, str, str]:
-    """
-    Function that extracts the instance, project, and database ids from the DSN url.
-    It is defined as the SYNC_SYNCSTORAGE__DATABASE_URL environment variable.
+def ids_from_env(dsn: str = DSN_URL, mode: Mode = Mode.ENV_VAR) -> tuple[str, str, str]:
+    """Extract the instance, project, and database IDs from a Spanner DSN url.
+
+    It is defined as the `SYNC_SYNCSTORAGE__DATABASE_URL` environment variable.
     The defined defaults are in webservices-infra/sync and can be configured there for
     production runs.
 
@@ -43,7 +44,7 @@ def ids_from_env(dsn=DSN_URL, mode=Mode.ENV_VAR) -> Tuple[str, str, str]:
 
     try:
         if mode == Mode.ENV_VAR:
-            url = os.environ.get(dsn)
+            url: str | None = os.environ.get(dsn)
             if not url:
                 raise Exception(f"No env var found for provided DSN: {dsn}")
         elif mode == Mode.URL:

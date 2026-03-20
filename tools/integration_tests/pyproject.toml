@@ -6,7 +6,7 @@ authors = [
     {name = "Taddes",email = "tkorris@mozilla.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.9.2"
+requires-python = ">=3.10.0"
 license = "Mozilla Public License Version 2.0"
 
 
@@ -24,7 +24,7 @@ pyjwt = "^2.10.1"
 pyramid = "^1.10.8"
 pyramid-hawkauth = "^2.0.0"
 pyfxa = "0.8.1"
-pytest = "^8.4.0"
+pytest = "^9.0.2"
 requests = "^2.32.4"
 simplejson = "^3.20.1"
 sqlalchemy = "^1.4.46"
@@ -34,12 +34,12 @@ wsgiproxy2 = "^0.5.1"
 
 
 [tool.poetry.group.dev.dependencies]
-mypy = "^1.16.0"
+mypy = "^1.19.1"
 pydocstyle = "^6.3.0"
-ruff = "^0.12.7"
-black = "^25.1.0"
-bandit = "^1.8.3"
-isort = "^6.0.1"
+ruff = "^0.15.6"
+black = "^26.3.1"
+bandit = "^1.9.4"
+isort = "^8.0.1"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
