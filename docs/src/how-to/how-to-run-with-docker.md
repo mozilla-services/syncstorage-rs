@@ -83,7 +83,7 @@ Save the yaml below into a file, e.g. `docker-compose.one-shot.yaml`.
 ```yaml
 services:
   syncserver:
-    image: ghcr.io/mozilla-services/syncstorage-rs/syncstorage-rs-postgres:${SYNCSERVER_VERSION:-11659d98f9}
+    image: ghcr.io/mozilla-services/syncstorage-rs/syncserver-postgres:${SYNCSERVER_VERSION:-11659d98f9}
     platform: linux/amd64
     container_name: syncserver
     ports:
