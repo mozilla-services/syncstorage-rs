@@ -8,6 +8,12 @@ updates:
     open-pull-requests-limit: 1
     labels:
       - dependencies
+    groups:
+      dev-deps:
+        dependency-type: "development"
+      prod-deps:
+        dependency-type: "production"
+
     ignore:
       - dependency-name: actix-rt
         versions:
@@ -69,6 +75,10 @@ updates:
     open-pull-requests-limit: 1
     labels:
       - dependencies
+    groups:
+      python-deps:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -78,3 +88,7 @@ updates:
     open-pull-requests-limit: 1
     labels:
       - dependencies
+    groups:
+      actions-deps:
+        patterns:
+          - "*"
