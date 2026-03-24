@@ -7,9 +7,10 @@
 
 import sys
 import logging
+from typing import Any
 from statsd.defaults.env import statsd
 
-from google.cloud import spanner
+from google.cloud import spanner  # type: ignore[attr-defined]
 from tools.spanner.utils import ids_from_env
 
 # set up logger
@@ -20,7 +21,7 @@ logging.basicConfig(
 )
 
 # Change these to match your install.
-client = spanner.Client()
+client: Any = spanner.Client()
 
 
 def spanner_read_data(query: str, table: str) -> None:

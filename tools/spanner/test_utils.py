@@ -4,8 +4,8 @@ from tools.spanner.utils import ids_from_env
 
 
 @pytest.fixture(autouse=True)
-def reset_env(monkeypatch):
-    # Reset environment variables before each test
+def reset_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reset Spanner-related environment variables before each test."""
     for var in [
         "SYNC_SYNCSTORAGE__DATABASE_URL",
         "INSTANCE_ID",
@@ -15,7 +15,7 @@ def reset_env(monkeypatch):
         monkeypatch.delenv(var, raising=False)
 
 
-def test_ids_from_env_parses_url(monkeypatch):
+def test_ids_from_env_parses_url(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test with passed in DSN"""
     monkeypatch.setenv(
         "SYNC_SYNCSTORAGE__DATABASE_URL",
@@ -28,7 +28,7 @@ def test_ids_from_env_parses_url(monkeypatch):
     assert database_id == "db"
 
 
-def test_ids_from_env_with_missing_url(monkeypatch):
+def test_ids_from_env_with_missing_url(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test ensures that default env vars set id values."""
     monkeypatch.setenv("INSTANCE_ID", "foo")
     monkeypatch.setenv("DATABASE_ID", "bar")
@@ -39,7 +39,8 @@ def test_ids_from_env_with_missing_url(monkeypatch):
     assert project_id == "baz"
 
 
-def test_from_env_with_invalid_url(monkeypatch):
+def test_from_env_with_invalid_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A non-spanner URL scheme falls through to the env-var fallbacks."""
     monkeypatch.setenv("SYNC_SYNCSTORAGE__DATABASE_URL", "notaspanner://foo")
     monkeypatch.setenv("INSTANCE_ID", "default")
     monkeypatch.setenv("DATABASE_ID", "default-db")

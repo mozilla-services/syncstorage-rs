@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import Any
 from urllib.parse import urlparse
 
 import sqlalchemy
@@ -21,7 +21,7 @@ logging.basicConfig(
 )
 
 
-def get_db_engine(database_url: str):
+def get_db_engine(database_url: str) -> Any:
     """Create a SQLAlchemy engine from a database url."""
     parsed = urlparse(database_url)
     if parsed.scheme not in ["postgresql", "postgres"]:
@@ -35,12 +35,12 @@ def get_db_engine(database_url: str):
 
 
 def exec_delete(
-    engine,
+    engine: Any,
     name: str,
     query: str,
-    params: Optional[dict] = None,
-    dryrun: Optional[bool] = False,
-):
+    params: dict[str, Any] | None = None,
+    dryrun: bool | None = False,
+) -> None:
     """Execute the DELETE query with the given query params."""
     with statsd.timer(f"syncstorage.purge_ttl.{name}_duration"):
         logging.info(f"Running: {query} :: {params}")
@@ -55,9 +55,9 @@ def exec_delete(
         logging.info(f"{name}: removed {result} rows, {name}_duration: {end - start}")
 
 
-def add_conditions(args, query: str) -> Tuple[str, dict]:
+def add_conditions(args: argparse.Namespace, query: str) -> tuple[str, dict[str, Any]]:
     """Add SQL conditions to the query and store the arg values."""
-    params = {}
+    params: dict[str, Any] = {}
 
     if args.collection_ids:
         ids = list(filter(len, args.collection_ids))
@@ -75,7 +75,7 @@ def add_conditions(args, query: str) -> Tuple[str, dict]:
     return (query, params)
 
 
-def get_expiry_condition(args) -> str:
+def get_expiry_condition(args: argparse.Namespace) -> str:
     """Build the expiry WHERE condition."""
     if args.expiry_mode == "now":
         return "expiry < CURRENT_TIMESTAMP"
@@ -85,8 +85,8 @@ def get_expiry_condition(args) -> str:
         raise Exception(f"Invalid expiry mode: {args.expiry_mode}")
 
 
-def purge_records(args) -> None:
-    """The main fn."""
+def purge_records(args: argparse.Namespace) -> None:
+    """Run DELETE queries against batches and/or bsos based on the given args."""
     engine = get_db_engine(args.database_url)
     expiry_condition = get_expiry_condition(args)
 
@@ -117,8 +117,8 @@ def purge_records(args) -> None:
         )
 
 
-def get_args():
-    """Parse cli args."""
+def get_args() -> argparse.Namespace:
+    """Parse and return CLI arguments."""
     parser = argparse.ArgumentParser(
         description="Purge expired records from the database"
     )
@@ -166,14 +166,14 @@ def get_args():
     return args
 
 
-def parse_args_list(args_list: str) -> List[str]:
-    """Parses a string representing a list of items into a list of strings.
+def parse_args_list(args_list: str) -> list[str]:
+    """Parse a string representing a list of items into a list of strings.
 
     Args:
-        args_list (str): String to parse, e.g., "[item1,item2,item3]" or "item1".
+        args_list: String to parse, e.g., "[item1,item2,item3]" or "item1".
 
     Returns:
-        List[str]: List of parsed string items.
+        List of parsed string items.
     """
     if not args_list or args_list == "[]":
         return []

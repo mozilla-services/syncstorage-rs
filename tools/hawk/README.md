@@ -22,10 +22,10 @@ See the [pyenv-virtualenv](https://github.com/pyenv/pyenv-virtualenv) documentat
     ```shell
     $ cd syncstorage-rs/tools/hawk
     # pyenv version install
-    $ pyenv install 3.10
+    $ pyenv install 3.14
 
     # creates named, associated virtualenv
-    $ pyenv virtualenv 3.10 hawk # or whatever project name you like.
+    $ pyenv virtualenv 3.14 hawk # or whatever project name you like.
     $ pyenv local hawk # activates virtual env whenever you enter this directory. 
 
     # Install dependencies
