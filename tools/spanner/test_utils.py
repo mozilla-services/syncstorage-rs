@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import pytest
 
 from tools.spanner.utils import ids_from_env
