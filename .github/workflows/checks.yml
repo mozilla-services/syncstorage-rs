@@ -362,10 +362,19 @@ jobs:
         env:
           GITHUB_REPOSITORY_NAME: ${{ github.event.repository.name }}
 
+      - name: Cache Docker image tar
+        id: cache-postgres-image
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: /tmp/postgres-image.tar
+          key: ${{ runner.os }}-postgres-image-${{ hashFiles('Dockerfile', 'Cargo.lock', '**/*.rs', '**/Cargo.toml') }}
+
       - name: Set up Docker Buildx
+        if: steps.cache-postgres-image.outputs.cache-hit != 'true'
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Build Postgres Docker image
+        if: steps.cache-postgres-image.outputs.cache-hit != 'true'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
