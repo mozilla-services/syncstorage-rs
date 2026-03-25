@@ -43,7 +43,7 @@ impl Db for MysqlDb {
         // Lock the db
         self.begin(false).await?;
         let collection_id = self
-            .get_collection_id(&params.collection)
+            ._get_collection_id(&params.collection)
             .await
             .or_else(|e| {
                 if e.is_collection_not_found() {
@@ -165,7 +165,7 @@ impl Db for MysqlDb {
         params: params::DeleteCollection,
     ) -> DbResult<SyncTimestamp> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let mut count = delete(bso::table)
             .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(&collection_id))
@@ -182,28 +182,6 @@ impl Db for MysqlDb {
             self.erect_tombstone(user_id as i32).await?;
         }
         self.get_storage_timestamp(params.user_id).await
-    }
-
-    async fn get_collection_id(&mut self, name: &str) -> DbResult<i32> {
-        if let Some(id) = self.coll_cache.get_id(name)? {
-            return Ok(id);
-        }
-
-        let id = sql_query(
-            "SELECT id
-               FROM collections
-              WHERE name = ?",
-        )
-        .bind::<Text, _>(name)
-        .get_result::<IdResult>(&mut self.conn)
-        .await
-        .optional()?
-        .ok_or_else(DbError::collection_not_found)?
-        .id;
-        if !self.session.in_write_transaction {
-            self.coll_cache.put(id, name.to_owned())?;
-        }
-        Ok(id)
     }
 
     async fn put_bso(&mut self, bso: params::PutBso) -> DbResult<results::PutBso> {
@@ -223,7 +201,6 @@ impl Db for MysqlDb {
                 .get_quota_usage(params::GetQuotaUsage {
                     user_id: bso.user_id.clone(),
                     collection: bso.collection.clone(),
-                    collection_id,
                 })
                 .await?;
             if usage.total_bytes >= self.quota.size {
@@ -311,7 +288,7 @@ impl Db for MysqlDb {
 
     async fn get_bsos(&mut self, params: params::GetBsos) -> DbResult<results::GetBsos> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let now = self.session.timestamp.as_i64();
         let mut query = bso::table
             .select((
@@ -412,7 +389,7 @@ impl Db for MysqlDb {
 
     async fn get_bso_ids(&mut self, params: params::GetBsos) -> DbResult<results::GetBsoIds> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let mut query = bso::table
             .select(bso::id)
             .filter(bso::user_id.eq(user_id))
@@ -475,7 +452,7 @@ impl Db for MysqlDb {
 
     async fn get_bso(&mut self, params: params::GetBso) -> DbResult<Option<results::GetBso>> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         Ok(bso::table
             .select((
                 bso::id,
@@ -495,7 +472,7 @@ impl Db for MysqlDb {
 
     async fn delete_bso(&mut self, params: params::DeleteBso) -> DbResult<results::DeleteBso> {
         let user_id = params.user_id.legacy_id;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let affected_rows = delete(bso::table)
             .filter(bso::user_id.eq(user_id as i64))
             .filter(bso::collection_id.eq(&collection_id))
@@ -516,7 +493,7 @@ impl Db for MysqlDb {
 
     async fn delete_bsos(&mut self, params: params::DeleteBsos) -> DbResult<results::DeleteBsos> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         delete(bso::table)
             .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(&collection_id))
@@ -572,7 +549,7 @@ impl Db for MysqlDb {
         params: params::GetCollectionTimestamp,
     ) -> DbResult<SyncTimestamp> {
         let user_id = params.user_id.legacy_id as u32;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         if let Some(modified) = self
             .session
             .coll_modified_cache
@@ -595,7 +572,7 @@ impl Db for MysqlDb {
         params: params::GetBsoTimestamp,
     ) -> DbResult<SyncTimestamp> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let modified = bso::table
             .select(bso::modified)
             .filter(bso::user_id.eq(user_id))
@@ -705,13 +682,14 @@ impl Db for MysqlDb {
         params: params::GetQuotaUsage,
     ) -> DbResult<results::GetQuotaUsage> {
         let uid = params.user_id.legacy_id as i64;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let (total_bytes, count): (i64, i32) = user_collections::table
             .select((
                 sql::<BigInt>("COALESCE(SUM(COALESCE(total_bytes, 0)), 0)"),
                 sql::<Integer>("COALESCE(SUM(COALESCE(count, 0)), 0)"),
             ))
             .filter(user_collections::user_id.eq(uid))
-            .filter(user_collections::collection_id.eq(params.collection_id))
+            .filter(user_collections::collection_id.eq(collection_id))
             .get_result(&mut self.conn)
             .await
             .optional()?
@@ -770,6 +748,11 @@ impl Db for MysqlDb {
     }
 
     #[cfg(debug_assertions)]
+    async fn get_collection_id(&mut self, name: &str) -> DbResult<i32> {
+        self._get_collection_id(name).await
+    }
+
+    #[cfg(debug_assertions)]
     fn timestamp(&self) -> SyncTimestamp {
         self.session.timestamp
     }
@@ -793,12 +776,6 @@ impl Db for MysqlDb {
             enforced,
         }
     }
-}
-
-#[derive(Debug, QueryableByName)]
-struct IdResult {
-    #[diesel(sql_type = Integer)]
-    id: i32,
 }
 
 #[derive(Debug, QueryableByName)]

@@ -471,12 +471,10 @@ pub async fn post_collection_batch(
             .await?;
 
         if is_valid {
-            let collection_id = db.get_collection_id(&coll.collection).await?;
             let usage = db
                 .get_quota_usage(params::GetQuotaUsage {
                     user_id: coll.user_id.clone(),
                     collection: coll.collection.clone(),
-                    collection_id,
                 })
                 .await?;
             CreateBatch {

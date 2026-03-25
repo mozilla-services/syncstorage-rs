@@ -206,6 +206,7 @@ impl Db for MockDb {
         Default::default()
     }
 
+    #[cfg(debug_assertions)]
     async fn get_collection_id(
         &mut self,
         _params: &str,
