@@ -253,6 +253,18 @@ jobs:
             ~/.cache/pypoetry/virtualenvs
           key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
 
+      - name: Cache Cargo build artifacts
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-postgres-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-postgres-
+
       - name: Create test results directory
         run: mkdir -p workflow/test-results
 
@@ -288,6 +300,9 @@ jobs:
         run: make postgres_test_with_coverage
         env:
           SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
+
+      - name: Install Poetry
+        run: pip3 install poetry
 
       - name: Run Postgres utils tests
         working-directory: tools/postgres
@@ -510,6 +525,18 @@ jobs:
             ~/.cache/pip
             ~/.cache/pypoetry/virtualenvs
           key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
+
+      - name: Cache Cargo build artifacts
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-mysql-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-mysql-
 
       - name: Create test results directory
         run: mkdir -p workflow/test-results
@@ -762,6 +789,18 @@ jobs:
             ~/.cache/pip
             ~/.cache/pypoetry/virtualenvs
           key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
+
+      - name: Cache Cargo build artifacts
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-spanner-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-spanner-
 
       - name: Create test results directory
         run: mkdir -p workflow/test-results
