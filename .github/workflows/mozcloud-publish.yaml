@@ -141,6 +141,17 @@ jobs:
           username: oauth2accesstoken
           password: ${{ steps.gcp_auth_ent.outputs.access_token }}
 
+      - name: Compute enterprise tags
+        run: |
+          TAGS="us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres:${{ steps.setup.outputs.image_tag }}"
+          if [[ "${{ steps.setup.outputs.push_latest }}" == "true" ]]; then
+            TAGS="$TAGS
+          us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres:latest"
+          fi
+          echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
+          echo "$TAGS" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+
       - name: Build and push to enterprise GAR
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
         with:
@@ -149,7 +160,7 @@ jobs:
           build-args: |
             SYNCSTORAGE_DATABASE_BACKEND=postgres
             TOKENSERVER_DATABASE_BACKEND=postgres
-          tags: us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres:${{ steps.setup.outputs.image_tag }}
+          tags: ${{ env.IMAGE_TAGS }}
           cache-from: type=gha
 
   # Note: we are moving towards renaming all images `syncserver`, the union of sync and tokenserver.
@@ -259,13 +270,24 @@ jobs:
           username: oauth2accesstoken
           password: ${{ steps.gcp_auth_ent.outputs.access_token }}
 
+      - name: Compute enterprise tags
+        run: |
+          TAGS="us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres-python-utils:${{ steps.setup.outputs.image_tag }}"
+          if [[ "${{ steps.setup.outputs.push_latest }}" == "true" ]]; then
+            TAGS="$TAGS
+          us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres-python-utils:latest"
+          fi
+          echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
+          echo "$TAGS" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+
       - name: Build and push to enterprise GAR
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
         with:
           context: tools/postgres
           file: tools/postgres/Dockerfile
           push: true
-          tags: us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres-python-utils:${{ steps.setup.outputs.image_tag }}
+          tags: ${{ env.IMAGE_TAGS }}
           cache-from: type=gha
 
   build-and-push-syncserver-mysql:
