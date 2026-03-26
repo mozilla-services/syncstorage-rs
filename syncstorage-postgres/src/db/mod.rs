@@ -326,8 +326,8 @@ macro_rules! bsos_query {
             // returned in those cases
 
             let limit = limit.unwrap_or(-1);
-            let did_overflow = limit  >= 0 && items.len() > limit as usize;
-            if  did_overflow {
+            let did_overflow = limit >= 0 && items.len() > limit as usize;
+            if did_overflow {
                 items.pop();
             }
             (items, did_overflow, limit, numeric_offset)
