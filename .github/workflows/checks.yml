@@ -30,8 +30,7 @@ concurrency:
 permissions: {} # workflow-level default — deny all
 
 jobs:
-  # Setup jobs and populate cache
-
+  # Setup Python ======
   python-env:
     runs-on: ubuntu-latest
     permissions:
@@ -66,7 +65,7 @@ jobs:
           if [ "$(which python)" != "" ]; then python --version; fi
           uname -a
           cat /etc/os-release
-
+  # Setup Rust ======
   rust-env:
     runs-on: ubuntu-latest
     permissions:
@@ -94,6 +93,7 @@ jobs:
           uname -a
           cat /etc/os-release
 
+  # Python lint and format checks ======
   python-checks:
     needs: python-env
     runs-on: ubuntu-latest
@@ -120,7 +120,7 @@ jobs:
 
       - name: Python Lint Check
         run: poetry run ruff check tools
-
+  # Rust lint and format checks ======
   rust-checks:
     needs: rust-env
     runs-on: ubuntu-latest
@@ -174,7 +174,7 @@ jobs:
 
       - name: Documentation checks
         run: make doc-test
-
+  # Rust clippy lint checker
   clippy:
     needs: rust-env
     runs-on: ubuntu-latest
@@ -202,7 +202,7 @@ jobs:
       - name: Rust Clippy ${{ matrix.target }}
         run: make clippy_${{ matrix.target }}
 
-  # Postgres
+  # Postgres unit tests ======
   build-and-unit-test-postgres:
     needs: [rust-env, python-env]
     runs-on: ubuntu-latest
@@ -355,7 +355,7 @@ jobs:
           glob: "*.json"
           parent: false
           process_gcloudignore: false
-
+  # Docker build Postgres Image ======
   build-postgres-image:
     runs-on: ubuntu-latest
     needs: [rust-env, python-env]
@@ -389,11 +389,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.cache-postgres-image.outputs.cache-hit != 'true'
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
       - name: Build Postgres Docker image
         if: steps.cache-postgres-image.outputs.cache-hit != 'true'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
         with:
           context: .
           push: false
@@ -411,7 +411,7 @@ jobs:
           name: postgres-docker-image
           path: /tmp/postgres-image.tar
           retention-days: 1
-
+  # End-to-end tests for Postgres build ======
   postgres-e2e-tests:
     runs-on: ubuntu-latest
     needs: build-postgres-image
@@ -474,7 +474,7 @@ jobs:
           parent: false
           process_gcloudignore: false
 
-  # MySQL
+  # MySQL Unit tests ======
   build-and-unit-test-mysql:
     runs-on: ubuntu-latest
     needs: [rust-env, python-env]
@@ -618,6 +618,7 @@ jobs:
           parent: false
           process_gcloudignore: false
 
+  # Docker build for MySQL Image
   build-mysql-image:
     runs-on: ubuntu-latest
     needs: [rust-env, python-env]
@@ -649,10 +650,10 @@ jobs:
           path: /tmp/mysql-image.tar
           key: ${{ runner.os }}-mysql-image-${{ hashFiles('Dockerfile', 'Cargo.lock', '**/*.rs', '**/Cargo.toml', 'tools/**', 'scripts/**') }}
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
       - name: Build MySQL Docker image
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
         with:
           context: .
           push: false
@@ -670,7 +671,7 @@ jobs:
           name: mysql-docker-image
           path: /tmp/mysql-image.tar
           retention-days: 1
-
+  # End-to-end tests for MySQL ======
   mysql-e2e-tests:
     runs-on: ubuntu-latest
     needs: build-mysql-image
@@ -733,7 +734,7 @@ jobs:
           parent: false
           process_gcloudignore: false
 
-  # Spanner
+  # Spanner Unit tests ======
   build-and-unit-test-spanner:
     runs-on: ubuntu-latest
     needs: [rust-env, python-env]
@@ -911,6 +912,7 @@ jobs:
           parent: false
           process_gcloudignore: false
 
+  # Docker image build for Spanner
   build-spanner-image:
     runs-on: ubuntu-latest
     needs: [rust-env, python-env]
@@ -942,10 +944,10 @@ jobs:
           path: /tmp/spanner-image.tar
           key: ${{ runner.os }}-spanner-image-${{ hashFiles('Dockerfile', 'Cargo.lock', '**/*.rs', '**/Cargo.toml', 'tools/**', 'scripts/**') }}
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
       - name: Build Spanner Docker image (local artifact)
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
         with:
           context: .
           push: false
@@ -964,6 +966,7 @@ jobs:
           path: /tmp/spanner-image.tar
           retention-days: 1
 
+  # End-to-end tests for Spanner ======
   spanner-e2e-tests:
     runs-on: ubuntu-latest
     needs: build-spanner-image
