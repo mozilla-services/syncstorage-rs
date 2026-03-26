@@ -1,4 +1,4 @@
-name: Checks
+name: Main Workflow - Lint, Build, Test
 
 on:
   push:
