@@ -32,13 +32,6 @@ impl From<Offset> for params::Offset {
 impl FromStr for Offset {
     type Err = ParseIntError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // issue559: Disable ':' support for now: simply parse as i64 as
-        // previously (it was u64 previously but i64's close enough)
-        let result = Offset {
-            timestamp: None,
-            offset: s.parse::<u64>()?,
-        };
-        /*
         let result = match s.chars().position(|c| c == ':') {
             None => Offset {
                 timestamp: None,
@@ -55,7 +48,6 @@ impl FromStr for Offset {
                 }
             }
         };
-        */
         Ok(result)
     }
 }
@@ -201,36 +193,34 @@ impl FromRequest for BsoQueryParams {
                     None,
                 )
             })?;
-            // issue559: Dead code (timestamp always None)
-            /*
-            if params.sort != Sorting::Index {
-                if let Some(timestamp) = params.offset.as_ref().and_then(|offset| offset.timestamp)
-                {
-                    let bound = timestamp.as_i64();
-                    if let Some(newer) = params.newer {
-                        if bound < newer.as_i64() {
-                            return Err(ValidationErrorKind::FromDetails(
-                                format!("Invalid Offset {} {}", bound, newer.as_i64()),
-                                RequestErrorLocation::QueryString,
-                                Some("newer".to_owned()),
-                                None,
-                            )
-                            .into());
-                        }
-                    } else if let Some(older) = params.older {
-                        if bound > older.as_i64() {
-                            return Err(ValidationErrorKind::FromDetails(
-                                "Invalid Offset".to_owned(),
-                                RequestErrorLocation::QueryString,
-                                Some("older".to_owned()),
-                                None,
-                            )
-                            .into());
-                        }
+
+            if params.sort != Sorting::Index
+                && let Some(timestamp) = params.offset.as_ref().and_then(|offset| offset.timestamp)
+            {
+                let bound = timestamp.as_i64();
+                if let Some(newer) = params.newer {
+                    if bound < newer.as_i64() {
+                        return Err(ValidationErrorKind::FromDetails(
+                            format!("Invalid Offset {} {}", bound, newer.as_i64()),
+                            RequestErrorLocation::QueryString,
+                            Some("newer".to_owned()),
+                            None,
+                        )
+                        .into());
                     }
+                } else if let Some(older) = params.older
+                    && bound > older.as_i64()
+                {
+                    return Err(ValidationErrorKind::FromDetails(
+                        "Invalid Offset".to_owned(),
+                        RequestErrorLocation::QueryString,
+                        Some("older".to_owned()),
+                        None,
+                    )
+                    .into());
                 }
             }
-            */
+
             Ok(params)
         })
     }
@@ -288,6 +278,50 @@ mod tests {
         assert!(result.full);
     }
 
+    #[test]
+    fn test_offset_bound_below_newer() {
+        let state = make_state();
+        let req = TestRequest::with_uri("/?sort=newest&newer=2.22&offset=1111:1")
+            .data(state)
+            .to_http_request();
+        let result = block_on(BsoQueryParams::extract(&req));
+        assert!(result.is_err());
+        let resp: HttpResponse = result.err().unwrap().into();
+        assert_eq!(resp.status(), 400);
+    }
+
+    #[test]
+    fn test_offset_bound_above_older() {
+        let state = make_state();
+        let req = TestRequest::with_uri("/?sort=newest&older=2.22&offset=5858:1")
+            .data(state)
+            .to_http_request();
+        let result = block_on(BsoQueryParams::extract(&req));
+        assert!(result.is_err());
+        let resp: HttpResponse = result.err().unwrap().into();
+        assert_eq!(resp.status(), 400);
+    }
+
+    #[test]
+    fn test_offset_bound_within_range() {
+        let state = make_state();
+        let req = TestRequest::with_uri("/?sort=newest&newer=1.23&older=5.43&offset=3838:1")
+            .data(state)
+            .to_http_request();
+        let result = block_on(BsoQueryParams::extract(&req));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_bound_validation_skipped_for_index_sort() {
+        let state = make_state();
+        let req = TestRequest::with_uri("/?sort=index&newer=2.22&offset=1111:1")
+            .data(state)
+            .to_http_request();
+        let result = block_on(BsoQueryParams::extract(&req));
+        assert!(result.is_ok());
+    }
+
     #[actix_rt::test]
     async fn test_offset() {
         let sample_offset = params::Offset {
@@ -295,12 +329,9 @@ mod tests {
             offset: 1234,
         };
 
-        let test_offset = Offset {
-            timestamp: None,
-            offset: sample_offset.offset,
-        };
-
         let offset_str = sample_offset.to_string();
-        assert!(test_offset == Offset::from_str(&offset_str).unwrap())
+        let parsed = Offset::from_str(&offset_str).unwrap();
+        assert_eq!(parsed.offset, sample_offset.offset);
+        assert_eq!(parsed.timestamp, sample_offset.timestamp,);
     }
 }
