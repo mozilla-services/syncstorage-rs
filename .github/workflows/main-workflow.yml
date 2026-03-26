@@ -78,7 +78,7 @@ jobs:
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
 
       - name: Install Rust toolchain
-        run: rustup toolchain install ${{ env.RUST_VERSION }} --component rustfmt --component clippy --no-self-update && rustup default ${{ env.RUST_VERSION }}
+        run: rustup toolchain install ${{ env.RUST_VERSION }} --component rustfmt --component clippy --component llvm-tools-preview --no-self-update && rustup default ${{ env.RUST_VERSION }}
 
       - name: Display Rust Version Info
         shell: bash
@@ -230,6 +230,7 @@ jobs:
       SYNC_TOKENSERVER__NODE_TYPE: postgres
       RUST_BACKTRACE: 1
       RUST_TEST_THREADS: 1
+      CARGO_INCREMENTAL: "0"
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -332,7 +333,7 @@ jobs:
           SYNC_SYNCSTORAGE__DATABASE_URL: postgresql://test:test@127.0.0.1/syncstorage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3
         if: always()
         with:
           name: Postgres Unit Tests
@@ -443,7 +444,7 @@ jobs:
           persist-credentials: false
 
       - name: Download Docker image
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8
         with:
           name: postgres-docker-image
           path: /tmp
@@ -460,7 +461,7 @@ jobs:
           SYNCSTORAGE_RS_IMAGE: app:build
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3
         if: always()
         with:
           name: Postgres E2E Tests
@@ -522,6 +523,7 @@ jobs:
       SYNC_TOKENSERVER__NODE_TYPE: spanner
       RUST_BACKTRACE: 1
       RUST_TEST_THREADS: 1
+      CARGO_INCREMENTAL: "0"
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -613,7 +615,7 @@ jobs:
           SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3
         if: always()
         with:
           name: MySQL Unit Tests
@@ -725,7 +727,7 @@ jobs:
           persist-credentials: false
 
       - name: Download Docker image
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8
         with:
           name: mysql-docker-image
           path: /tmp
@@ -742,7 +744,7 @@ jobs:
           SYNCSTORAGE_RS_IMAGE: app:build
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3
         if: always()
         with:
           name: MySQL E2E Tests
@@ -809,6 +811,7 @@ jobs:
       SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
       RUST_BACKTRACE: 1
       RUST_TEST_THREADS: 1
+      CARGO_INCREMENTAL: "0"
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -929,7 +932,7 @@ jobs:
         run: make spanner_test_with_coverage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3
         if: always()
         with:
           name: Spanner Unit Tests
@@ -1042,7 +1045,7 @@ jobs:
           persist-credentials: false
 
       - name: Download Docker image
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8
         with:
           name: spanner-docker-image
           path: /tmp
@@ -1059,7 +1062,7 @@ jobs:
           SYNCSTORAGE_RS_IMAGE: app:build
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3
         if: always()
         with:
           name: Spanner E2E Tests
