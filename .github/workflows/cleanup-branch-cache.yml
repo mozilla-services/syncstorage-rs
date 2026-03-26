@@ -11,25 +11,24 @@ jobs:
     permissions:
       actions: write
     steps:
-      - name: Delete caches for merged branch
+      - name: Delete caches for closed branch
         run: |
-          set +e
           CACHE_IDS=$(gh cache list \
             --repo "${{ github.repository }}" \
             --ref "refs/heads/${{ github.head_ref }}" \
             --limit 100 \
             --json id \
-            --jq '.[].id')
+            --jq '.[].id') || true
 
           if [ -z "$CACHE_IDS" ]; then
             echo "No caches found for branch ${{ github.head_ref }}"
             exit 0
           fi
 
-          echo "Deleting caches for merged branch: ${{ github.head_ref }}"
+          echo "Deleting caches for closed branch: ${{ github.head_ref }}"
           echo "$CACHE_IDS" | while IFS= read -r id; do
             echo "  Deleting cache ID: $id"
-            gh cache delete "$id" --repo "${{ github.repository }}"
+            gh cache delete "$id" --repo "${{ github.repository }}" || true
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

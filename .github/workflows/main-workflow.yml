@@ -60,7 +60,6 @@ jobs:
         run: poetry install --with tokenserver-unit-tests,dev --no-interaction --no-ansi
 
       - name: Display Python Version Info
-        shell: bash
         run: |
           if [ "$(which python)" != "" ]; then python --version; fi
           uname -a
@@ -68,13 +67,8 @@ jobs:
   # Setup Rust ======
   rust-env:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    permissions: {}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          persist-credentials: false
-
       - name: Cache Rust toolchain
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
@@ -103,6 +97,11 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Restore pip and Poetry virtualenv
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
@@ -147,7 +146,7 @@ jobs:
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: ~/.cargo/bin/cargo-audit
-          key: ${{ runner.os }}-cargo-audit-${{ hashFiles('.github/workflows/checks.yml') }}
+          key: ${{ runner.os }}-cargo-audit-${{ hashFiles('.github/workflows/main-workflow.yml') }}
 
       - name: Install cargo-audit
         if: steps.cache-cargo-audit.outputs.cache-hit != 'true'
@@ -245,6 +244,9 @@ jobs:
             ~/.rustup/update-hashes
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
 
+      - name: Set Rust toolchain
+        run: rustup default ${{ env.RUST_VERSION }}
+
       - name: Restore pip and Poetry virtualenv
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
@@ -287,10 +289,26 @@ jobs:
         env:
           GITHUB_REPOSITORY_NAME: ${{ github.event.repository.name }}
 
+      - name: Cache cargo-nextest
+        id: cache-cargo-nextest-postgres
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ~/.cargo/bin/cargo-nextest
+          key: ${{ runner.os }}-cargo-nextest-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install cargo-nextest
+        if: steps.cache-cargo-nextest-postgres.outputs.cache-hit != 'true'
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
+      - name: Cache cargo-llvm-cov
+        id: cache-cargo-llvm-cov-postgres
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ~/.cargo/bin/cargo-llvm-cov
+          key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install cargo-llvm-cov
+        if: steps.cache-cargo-llvm-cov-postgres.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-llvm-cov
 
       - name: Run unit tests with coverage
@@ -518,6 +536,9 @@ jobs:
             ~/.rustup/update-hashes
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
 
+      - name: Set Rust toolchain
+        run: rustup default ${{ env.RUST_VERSION }}
+
       - name: Restore pip and Poetry virtualenv
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
@@ -561,10 +582,26 @@ jobs:
         env:
           GITHUB_REPOSITORY_NAME: ${{ github.event.repository.name }}
 
+      - name: Cache cargo-nextest
+        id: cache-cargo-nextest-mysql
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ~/.cargo/bin/cargo-nextest
+          key: ${{ runner.os }}-cargo-nextest-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install cargo-nextest
+        if: steps.cache-cargo-nextest-mysql.outputs.cache-hit != 'true'
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
+      - name: Cache cargo-llvm-cov
+        id: cache-cargo-llvm-cov-mysql
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ~/.cargo/bin/cargo-llvm-cov
+          key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install cargo-llvm-cov
+        if: steps.cache-cargo-llvm-cov-mysql.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-llvm-cov
 
       - name: Run unit tests with coverage
@@ -649,10 +686,13 @@ jobs:
         with:
           path: /tmp/mysql-image.tar
           key: ${{ runner.os }}-mysql-image-${{ hashFiles('Dockerfile', 'Cargo.lock', '**/*.rs', '**/Cargo.toml', 'tools/**', 'scripts/**') }}
+
       - name: Set up Docker Buildx
+        if: steps.cache-mysql-image.outputs.cache-hit != 'true'
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
       - name: Build MySQL Docker image
+        if: steps.cache-mysql-image.outputs.cache-hit != 'true'
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
         with:
           context: .
@@ -783,6 +823,9 @@ jobs:
             ~/.rustup/update-hashes
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
 
+      - name: Set Rust toolchain
+        run: rustup default ${{ env.RUST_VERSION }}
+
       - name: Restore pip and Poetry virtualenv
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
@@ -818,10 +861,26 @@ jobs:
         env:
           GITHUB_REPOSITORY_NAME: ${{ github.event.repository.name }}
 
+      - name: Cache cargo-nextest
+        id: cache-cargo-nextest-spanner
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ~/.cargo/bin/cargo-nextest
+          key: ${{ runner.os }}-cargo-nextest-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install cargo-nextest
+        if: steps.cache-cargo-nextest-spanner.outputs.cache-hit != 'true'
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
+      - name: Cache cargo-llvm-cov
+        id: cache-cargo-llvm-cov-spanner
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: ~/.cargo/bin/cargo-llvm-cov
+          key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install cargo-llvm-cov
+        if: steps.cache-cargo-llvm-cov-spanner.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-llvm-cov
 
       - name: Build workspace (spanner feature)
@@ -943,10 +1002,13 @@ jobs:
         with:
           path: /tmp/spanner-image.tar
           key: ${{ runner.os }}-spanner-image-${{ hashFiles('Dockerfile', 'Cargo.lock', '**/*.rs', '**/Cargo.toml', 'tools/**', 'scripts/**') }}
+
       - name: Set up Docker Buildx
+        if: steps.cache-spanner-image.outputs.cache-hit != 'true'
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
       - name: Build Spanner Docker image (local artifact)
+        if: steps.cache-spanner-image.outputs.cache-hit != 'true'
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
         with:
           context: .
