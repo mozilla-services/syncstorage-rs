@@ -3,12 +3,10 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 """Authorization integration tests for the tokenserver."""
 
-import pytest
 import unittest
 from integration_tests.tokenserver.test_support import TestCase
 
 
-@pytest.mark.usefixtures("setup_server_local_testing")
 class TestAuthorization(TestCase, unittest.TestCase):
     """Authorization integration tests for the tokenserver."""
 

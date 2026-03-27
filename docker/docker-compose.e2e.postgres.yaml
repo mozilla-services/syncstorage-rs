@@ -1,0 +1,42 @@
+services:
+  syncserver:
+    environment:
+      SYNC_CORS_MAX_AGE: "555"
+      SYNC_CORS_ALLOWED_ORIGIN: "*"
+      SYNC_TOKENSERVER__ENABLED: "true"
+      SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: api-accounts.stage.mozaws.net
+      SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: secret0
+      SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
+  postgres-e2e-tests:
+    container_name: postgres-e2e-tests
+    depends_on:
+      mock-fxa-server:
+        condition: service_started
+      syncserver:
+        condition: service_healthy
+      sync-db:
+        condition: service_healthy
+      tokenserver-db:
+        condition: service_healthy
+    image: app:build
+    privileged: true
+    user: root
+    environment:
+      SYNC_SERVER_URL: http://syncserver:8000
+      TOKENSERVER_HOST: http://syncserver:8000
+      SYNC_HOST: 0.0.0.0
+      SYNC_MASTER_SECRET: secret0
+      SYNC_SYNCSTORAGE__DATABASE_URL: postgres://test:test@sync-db:5432/syncstorage
+      SYNC_TOKENSERVER__DATABASE_URL: postgres://test:test@tokenserver-db:5432/tokenserver
+      SYNC_TOKENSERVER__NODE_TYPE: postgres
+      SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: api-accounts.stage.mozaws.net
+      SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: secret0
+      SQLALCHEMY_SILENCE_UBER_WARNING: 1
+      RESULTS_FILENAME: ${RESULTS_FILENAME:-postgres_integration_results.xml}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >- 
+        PYTHONPATH=/app 
+        pytest /app/tools/integration_tests/
+        --junit-xml=/${RESULTS_FILENAME}

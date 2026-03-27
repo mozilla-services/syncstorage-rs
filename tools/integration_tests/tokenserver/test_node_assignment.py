@@ -3,14 +3,12 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 """Node assignment integration tests for the tokenserver."""
 
-import pytest
 import unittest
 
 from integration_tests.tokenserver.test_support import TestCase
 from sqlalchemy.sql import text as sqltext
 
 
-@pytest.mark.usefixtures("setup_server_local_testing")
 class TestNodeAssignment(TestCase, unittest.TestCase):
     """Node assignment integration tests for the tokenserver."""
 

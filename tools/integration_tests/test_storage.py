@@ -76,7 +76,6 @@ def randtext(size=10):
     return "".join([random.choice(_ASCII) for i in range(size)])
 
 
-@pytest.mark.usefixtures("setup_server_local_testing")
 class TestStorage(StorageFunctionalTestCase):
     """Storage testcases that only use the web API.
 
