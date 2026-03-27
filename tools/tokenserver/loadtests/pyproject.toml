@@ -15,15 +15,15 @@ package-mode = false
 
 [tool.poetry.dependencies]
 authlib = "^1.6.9"
-cryptography = "^46.0.5"
+cryptography = "^46.0.6"
 locust = "^2.37.10"
 pyjwt = "^2.12.1"
-sqlalchemy = "1.4.46"
+sqlalchemy = "2.0.48"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.19.1"
 pydocstyle = "^6.3.0"
-ruff = "^0.15.6"
+ruff = "^0.15.8"
 black = "^26.3.1"
 bandit = "^1.9.4"
 isort = "^8.0.1"
