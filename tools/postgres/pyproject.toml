@@ -12,7 +12,7 @@ requires-python = ">=3.12"
 package-mode = false
 
 [tool.poetry.dependencies]
-sqlalchemy = "^1.4.46"
+sqlalchemy = "^2.0.48"
 psycopg2-binary = "^2.9.11"
 statsd = "^4.0.1"
 
@@ -20,7 +20,7 @@ statsd = "^4.0.1"
 pytest = "^9.0.2"
 mypy = "^1.19.1"
 pydocstyle = "^6.3.0"
-ruff = "^0.15.6"
+ruff = "^0.15.8"
 black = "^26.3.1"
 bandit = "^1.9.4"
 isort = "^8.0.1"
