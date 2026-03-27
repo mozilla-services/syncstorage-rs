@@ -70,6 +70,7 @@ jobs:
     permissions: {}
     steps:
       - name: Cache Rust toolchain
+        id: cache-rust-toolchain
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: |
@@ -78,6 +79,7 @@ jobs:
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
 
       - name: Install Rust toolchain
+        if: steps.cache-rust-toolchain.outputs.cache-hit != 'true'
         run: rustup toolchain install ${{ env.RUST_VERSION }} --component rustfmt --component clippy --component llvm-tools-preview --no-self-update && rustup default ${{ env.RUST_VERSION }}
 
       - name: Display Rust Version Info
