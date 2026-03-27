@@ -1,0 +1,9 @@
+services:
+  spanner-e2e-tests:
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        PYTHONPATH=/app
+        pytest /app/tools/integration_tests/tokenserver/test_e2e.py
+        --junit-xml=/${RESULTS_FILENAME}

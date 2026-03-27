@@ -358,7 +358,7 @@ class FunctionalTestCase(TestCase):
         # delete the ones that don't work with distant = True along
         # with the need for self.distant.
         self.distant = False
-        self.host_url = "http://localhost:8000"
+        self.host_url = os.environ.get("SYNC_SERVER_URL", "http://localhost:8000")
         # This call implicitly commits the configurator. We probably still
         # want it for the side effects.
         self.config.make_wsgi_app()

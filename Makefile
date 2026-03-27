@@ -69,61 +69,121 @@ clean:
 	cargo clean
 
 docker_start_mysql:
-	docker compose -f docker-compose.mysql.yaml up -d
+	docker compose -f docker/docker-compose.mysql.yaml up -d
 
 docker_start_mysql_rebuild:
-	docker compose -f docker-compose.mysql.yaml up --build -d
+	docker compose -f docker/docker-compose.mysql.yaml up --build -d
 
 docker_stop_mysql:
-	docker compose -f docker-compose.mysql.yaml down
+	docker compose -f docker/docker-compose.mysql.yaml down
 
 docker_start_spanner:
-	docker compose -f docker-compose.spanner.yaml up -d
+	docker compose -f docker/docker-compose.spanner.yaml up -d
 
 docker_start_spanner_rebuild:
-	docker compose -f docker-compose.spanner.yaml up --build -d
+	docker compose -f docker/docker-compose.spanner.yaml up --build -d
 
 docker_stop_spanner:
-	docker compose -f docker-compose.spanner.yaml down
+	docker compose -f docker/docker-compose.spanner.yaml down
 
 .ONESHELL:
 docker_run_mysql_e2e_tests:
+	exit_code=0
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KTY \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__ALG \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KID \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__FXA_CREATED_AT \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__USE \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__N \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__E \
+	RESULTS_FILENAME=mysql_no_jwk_integration_results.xml \
 	docker compose \
-		-f docker-compose.mysql.yaml \
-		-f docker-compose.e2e.mysql.yaml \
+		-f docker/docker-compose.mysql.yaml \
+		-f docker/docker-compose.e2e.mysql.yaml \
+		-f docker/docker-compose.e2e.mysql.no-jwk-cache.yaml \
 	 	up \
 	 	--exit-code-from mysql-e2e-tests \
-	 	--abort-on-container-exit;
-	exit_code=$$?;
-	docker cp mysql-e2e-tests:/mysql_integration_results.xml ${MYSQL_INT_JUNIT_XML};
-	docker cp mysql-e2e-tests:/mysql_no_jwk_integration_results.xml ${MYSQL_NO_JWK_INT_JUNIT_XML};
-	exit $$exit_code;
+	 	--abort-on-container-exit || exit_code=$$?
+	docker cp mysql-e2e-tests:/mysql_no_jwk_integration_results.xml ${MYSQL_NO_JWK_INT_JUNIT_XML}
+	RESULTS_FILENAME=mysql_integration_results.xml docker compose \
+		-f docker/docker-compose.mysql.yaml \
+		-f docker/docker-compose.e2e.mysql.yaml \
+		-f docker/docker-compose.e2e.mysql.jwk-cache.yaml \
+	 	up \
+	 	--exit-code-from mysql-e2e-tests \
+	 	--abort-on-container-exit || exit_code=$$?
+	docker cp mysql-e2e-tests:/mysql_integration_results.xml ${MYSQL_INT_JUNIT_XML}
+	docker compose \
+		-f docker/docker-compose.mysql.yaml \
+		-f docker/docker-compose.e2e.mysql.yaml \
+		down -v --remove-orphans
+	exit $$exit_code
 
 .ONESHELL:
 docker_run_postgres_e2e_tests:
+	exit_code=0
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KTY \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__ALG \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KID \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__FXA_CREATED_AT \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__USE \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__N \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__E \
+	RESULTS_FILENAME=postgres_no_jwk_integration_results.xml \
 	docker compose \
-		-f docker-compose.postgres.yaml \
-		-f docker-compose.e2e.postgres.yaml \
+		-f docker/docker-compose.postgres.yaml \
+		-f docker/docker-compose.e2e.postgres.yaml \
+		-f docker/docker-compose.e2e.postgres.no-jwk-cache.yaml \
 	 	up \
 	 	--exit-code-from postgres-e2e-tests \
-	 	--abort-on-container-exit;
-	exit_code=$$?;
-	docker cp postgres-e2e-tests:/postgres_integration_results.xml ${POSTGRES_INT_JUNIT_XML};
-	docker cp postgres-e2e-tests:/postgres_no_jwk_integration_results.xml ${POSTGRES_NO_JWK_INT_JUNIT_XML};
-	exit $$exit_code;
+	 	--abort-on-container-exit || exit_code=$$?
+	docker cp postgres-e2e-tests:/postgres_no_jwk_integration_results.xml ${POSTGRES_NO_JWK_INT_JUNIT_XML}
+	RESULTS_FILENAME=postgres_integration_results.xml docker compose \
+		-f docker/docker-compose.postgres.yaml \
+		-f docker/docker-compose.e2e.postgres.yaml \
+		-f docker/docker-compose.e2e.postgres.jwk-cache.yaml \
+	 	up \
+	 	--exit-code-from postgres-e2e-tests \
+	 	--abort-on-container-exit || exit_code=$$?
+	docker cp postgres-e2e-tests:/postgres_integration_results.xml ${POSTGRES_INT_JUNIT_XML}
+	docker compose \
+		-f docker/docker-compose.postgres.yaml \
+		-f docker/docker-compose.e2e.postgres.yaml \
+		down -v --remove-orphans
+	exit $$exit_code
 
 .ONESHELL:
 docker_run_spanner_e2e_tests:
+	exit_code=0
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KTY \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__ALG \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KID \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__FXA_CREATED_AT \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__USE \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__N \
+	env -u SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__E \
+	RESULTS_FILENAME=spanner_no_jwk_integration_results.xml \
 	docker compose \
-		-f docker-compose.spanner.yaml \
-		-f docker-compose.e2e.spanner.yaml \
+		-f docker/docker-compose.spanner.yaml \
+		-f docker/docker-compose.e2e.spanner.yaml \
+		-f docker/docker-compose.e2e.spanner.no-jwk-cache.yaml \
 	 	up \
 	 	--exit-code-from spanner-e2e-tests \
-	 	--abort-on-container-exit;
-	exit_code=$$?;
-	docker cp spanner-e2e-tests:/spanner_integration_results.xml ${SPANNER_INT_JUNIT_XML};
-	docker cp spanner-e2e-tests:/spanner_no_jwk_integration_results.xml ${SPANNER_NO_JWK_INT_JUNIT_XML};
-	exit $$exit_code;
+	 	--abort-on-container-exit || exit_code=$$?
+	docker cp spanner-e2e-tests:/spanner_no_jwk_integration_results.xml ${SPANNER_NO_JWK_INT_JUNIT_XML}
+	RESULTS_FILENAME=spanner_integration_results.xml docker compose \
+		-f docker/docker-compose.spanner.yaml \
+		-f docker/docker-compose.e2e.spanner.yaml \
+		-f docker/docker-compose.e2e.spanner.jwk-cache.yaml \
+	 	up \
+	 	--exit-code-from spanner-e2e-tests \
+	 	--abort-on-container-exit || exit_code=$$?
+	docker cp spanner-e2e-tests:/spanner_integration_results.xml ${SPANNER_INT_JUNIT_XML}
+	docker compose \
+		-f docker/docker-compose.spanner.yaml \
+		-f docker/docker-compose.e2e.spanner.yaml \
+		down -v --remove-orphans
+	exit $$exit_code
 
 run_mysql: $(INSTALL_STAMP)
 	# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
@@ -179,6 +239,14 @@ run_token_server_integration_tests:
 	cd tools/tokenserver
 	poetry install --no-root --without dev
 	poetry run pytest tools/tokenserver --junit-xml=${INTEGRATION_JUNIT_XML}
+
+run_local_e2e_tests:
+	PYTHONPATH=$(PWD)/tools \
+	SYNC_MASTER_SECRET=$${SYNC_MASTER_SECRET:-secret0} \
+	SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL=$${SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL:-http://localhost:6000} \
+	TOKENSERVER_HOST=$${TOKENSERVER_HOST:-http://localhost:8000} \
+	poetry -C tools/integration_tests \
+		run pytest . --ignore=tokenserver/test_e2e.py
 
 .PHONY: install
 install: $(INSTALL_STAMP)  ##  Install dependencies with poetry
