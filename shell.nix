@@ -15,6 +15,13 @@ stdenv.mkDerivation {
     cmake
     protobuf
     go
+    grpc
   ];
+
+  # grpc otherwise fails since it's bulit with `-Wall`
+  hardeningDisable = [ "all" ];
+
+  GRPCIO_SYS_USE_PKG_CONFIG = 1;
+
   NIX_LDFLAGS = "-L${libmysqlclient}/lib/mysql";
 }
