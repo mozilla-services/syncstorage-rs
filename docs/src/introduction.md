@@ -246,7 +246,6 @@ We include a basic script to create an instance and initialize the schema via Sp
 - cmake (>= 3.5 and < 3.30)
 - gcc
 - [golang](https://golang.org/doc/install)
-- libcurl4-openssl-dev
 - libssl-dev
 - make
 - pkg-config
@@ -256,9 +255,7 @@ We include a basic script to create an instance and initialize the schema via Sp
   * libmysqlclient (`brew install mysql` on macOS, `apt install libmysqlclient-dev` on Ubuntu, `apt install libmariadb-dev-compat` on Debian)
 
 Depending on your OS, you may also need to install `libgrpcdev`,
-and `protobuf-compiler-grpc`. *Note*: if the code complies cleanly,
-but generates a Segmentation Fault within Sentry init, you probably
-are missing `libcurl4-openssl-dev`.
+and `protobuf-compiler-grpc`.
 
 ## Local Setup
 
