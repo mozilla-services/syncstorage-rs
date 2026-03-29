@@ -207,9 +207,7 @@ pub trait Db: BatchDb {
 
     // Internal methods used by the db tests
 
-    // TODO: should be test only but currently isn't:
-    // https://github.com/mozilla-services/syncstorage-rs/issues/1959
-    //#[cfg(debug_assertions)]
+    #[cfg(debug_assertions)]
     async fn get_collection_id(&mut self, name: &str) -> Result<i32, Self::Error>;
 
     #[cfg(debug_assertions)]

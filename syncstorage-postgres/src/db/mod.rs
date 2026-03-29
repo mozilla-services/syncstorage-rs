@@ -100,7 +100,7 @@ impl PgDb {
     /// Checks collection cache first to see if matching collection stored.
     /// Uses logic to not make change sif there is a conflict during insert.
     async fn get_or_create_collection_id(&mut self, name: &str) -> DbResult<i32> {
-        match self.get_collection_id(name).await {
+        match self._get_collection_id(name).await {
             Err(e) if e.is_collection_not_found() => self._create_collection(name).await,
             result => result,
         }
@@ -124,6 +124,25 @@ impl PgDb {
             ));
         }
         Ok(collection_id)
+    }
+
+    async fn _get_collection_id(&mut self, name: &str) -> DbResult<results::GetCollectionId> {
+        if let Some(id) = self.coll_cache.get_id(name)? {
+            return Ok(id);
+        }
+
+        let id = collections::table
+            .select(collections::collection_id)
+            .filter(collections::name.eq(name))
+            .first::<i32>(&mut self.conn)
+            .await
+            .optional()?
+            .ok_or_else(DbError::collection_not_found)?;
+
+        if !self.session.in_write_transaction {
+            self.coll_cache.put(id, name.to_owned())?;
+        }
+        Ok(id)
     }
 
     /// Given a set of collection_ids, return a HashMap of collection_id's
@@ -212,7 +231,6 @@ impl PgDb {
         &mut self,
         user_id: &UserIdentifier,
         collection: &str,
-        collection_id: i32,
     ) -> DbResult<Option<usize>> {
         if !self.quota.enabled {
             return Ok(None);
@@ -221,7 +239,6 @@ impl PgDb {
             .get_quota_usage(params::GetQuotaUsage {
                 user_id: user_id.clone(),
                 collection: collection.to_owned(),
-                collection_id,
             })
             .await?;
         if usage.total_bytes >= self.quota.size {
@@ -274,7 +291,7 @@ macro_rules! bsos_query {
     ($self:expr, $params:expr, $selection:expr) => {
         {
             let user_id = $params.user_id.legacy_id as i64;
-            let collection_id = $self.get_collection_id(&$params.collection).await?;
+            let collection_id = $self._get_collection_id(&$params.collection).await?;
             let limit = $params.limit.map(i64::from);
 
             let mut query = bsos::table

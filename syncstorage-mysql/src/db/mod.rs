@@ -9,7 +9,7 @@ use diesel::{
 use diesel_async::RunQueryDsl;
 use syncserver_common::Metrics;
 use syncstorage_db_common::{
-    Db, FIRST_CUSTOM_COLLECTION_ID, UserIdentifier, error::DbErrorIntrospect, results,
+    FIRST_CUSTOM_COLLECTION_ID, UserIdentifier, error::DbErrorIntrospect, results,
     util::SyncTimestamp,
 };
 use syncstorage_settings::Quota;
@@ -113,7 +113,7 @@ impl MysqlDb {
     }
 
     pub(super) async fn get_or_create_collection_id(&mut self, name: &str) -> DbResult<i32> {
-        match self.get_collection_id(name).await {
+        match self._get_collection_id(name).await {
             Err(e) if e.is_collection_not_found() => self._create_collection(name).await,
             result => result,
         }
@@ -143,6 +143,28 @@ impl MysqlDb {
             ));
         }
         Ok(collection_id)
+    }
+
+    async fn _get_collection_id(&mut self, name: &str) -> DbResult<i32> {
+        if let Some(id) = self.coll_cache.get_id(name)? {
+            return Ok(id);
+        }
+
+        let id = sql_query(
+            "SELECT id
+               FROM collections
+              WHERE name = ?",
+        )
+        .bind::<Text, _>(name)
+        .get_result::<IdResult>(&mut self.conn)
+        .await
+        .optional()?
+        .ok_or_else(DbError::collection_not_found)?
+        .id;
+        if !self.session.in_write_transaction {
+            self.coll_cache.put(id, name.to_owned())?;
+        }
+        Ok(id)
     }
 
     async fn map_collection_names<T>(
@@ -222,4 +244,10 @@ impl MysqlDb {
 struct NameResult {
     #[diesel(sql_type = Text)]
     name: String,
+}
+
+#[derive(Debug, QueryableByName)]
+struct IdResult {
+    #[diesel(sql_type = Integer)]
+    id: i32,
 }

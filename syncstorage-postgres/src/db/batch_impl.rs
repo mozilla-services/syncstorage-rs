@@ -167,7 +167,7 @@ impl BatchDb for PgDb {
     ) -> DbResult<results::DeleteBatch> {
         let batch_id = validate_batch_id(&params.id)?;
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
 
         delete(
             batches::table

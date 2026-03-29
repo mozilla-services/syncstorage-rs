@@ -193,7 +193,6 @@ collection_data! {
         id: String,
     },
     GetQuotaUsage {
-        collection_id: i32,
     },
 }
 

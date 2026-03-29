@@ -648,12 +648,10 @@ async fn get_collection_usage() -> Result<(), DbError> {
         assert_eq!(total, sum as u64);
         let settings = Settings::test_settings();
         if settings.syncstorage.enable_quota {
-            let collection_id = db.get_collection_id("bookmarks").await?;
             let quota = db
                 .get_quota_usage(params::GetQuotaUsage {
                     user_id: hid(uid),
                     collection: "ignored".to_owned(),
-                    collection_id,
                 })
                 .await?;
             assert_eq!(
@@ -1076,7 +1074,7 @@ async fn lock_for_read() -> Result<(), DbError> {
         collection: coll.to_owned(),
     })
     .await?;
-    let result = db.get_collection_id("NewCollection").await;
+    let result: Result<i32, DbError> = db.get_collection_id("NewCollection").await;
     assert!(result.unwrap_err().is_collection_not_found());
     Ok(())
 }

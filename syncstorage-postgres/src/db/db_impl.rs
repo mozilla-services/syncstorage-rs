@@ -21,7 +21,7 @@ use crate::{
     db::{CollectionLock, PRETOUCH_DT},
     orm_models::{BsoChangeset, sql_types::PostBso},
     pool::Conn,
-    schema::{bsos, collections, user_collections},
+    schema::{bsos, user_collections},
 };
 
 #[async_trait(?Send)]
@@ -76,7 +76,7 @@ impl Db for PgDb {
         self.begin(false).await?;
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self
-            .get_collection_id(&params.collection)
+            ._get_collection_id(&params.collection)
             .await
             .or_else(|e| {
                 if e.is_collection_not_found() {
@@ -181,7 +181,7 @@ impl Db for PgDb {
         params: params::GetCollectionTimestamp,
     ) -> DbResult<results::GetCollectionTimestamp> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         if let Some(modified) = self
             .session
             .coll_modified_cache
@@ -265,13 +265,14 @@ impl Db for PgDb {
         &mut self,
         params: params::GetQuotaUsage,
     ) -> DbResult<results::GetQuotaUsage> {
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let (total_bytes, count): (i64, i64) = user_collections::table
             .select((
                 sql::<BigInt>("COALESCE(SUM(COALESCE(total_bytes, 0)), 0)::BIGINT"),
                 sql::<BigInt>("COALESCE(SUM(COALESCE(count, 0)), 0)::BIGINT"),
             ))
             .filter(user_collections::user_id.eq(params.user_id.legacy_id as i64))
-            .filter(user_collections::collection_id.eq(params.collection_id))
+            .filter(user_collections::collection_id.eq(collection_id))
             .get_result(&mut self.conn)
             .await
             .optional()?
@@ -303,7 +304,7 @@ impl Db for PgDb {
         params: params::DeleteCollection,
     ) -> DbResult<results::DeleteCollection> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let mut count = delete(bsos::table)
             .filter(bsos::user_id.eq(user_id))
             .filter(bsos::collection_id.eq(&collection_id))
@@ -325,7 +326,7 @@ impl Db for PgDb {
 
     async fn delete_bsos(&mut self, params: params::DeleteBsos) -> DbResult<results::DeleteBsos> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         delete(bsos::table)
             .filter(bsos::user_id.eq(user_id))
             .filter(bsos::collection_id.eq(&collection_id))
@@ -378,7 +379,7 @@ impl Db for PgDb {
 
     async fn delete_bso(&mut self, params: params::DeleteBso) -> DbResult<results::DeleteBso> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let affected_rows = delete(bsos::table)
             .filter(bsos::user_id.eq(user_id))
             .filter(bsos::collection_id.eq(&collection_id))
@@ -399,7 +400,7 @@ impl Db for PgDb {
 
     async fn get_bso(&mut self, params: params::GetBso) -> DbResult<Option<results::GetBso>> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let bso = bsos::table
             .select(GetBso::as_select())
             .filter(bsos::user_id.eq(user_id))
@@ -419,7 +420,7 @@ impl Db for PgDb {
         params: params::GetBsoTimestamp,
     ) -> DbResult<results::GetBsoTimestamp> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let modified = bsos::table
             .select(bsos::modified)
             .filter(bsos::user_id.eq(user_id))
@@ -436,8 +437,7 @@ impl Db for PgDb {
         let user_id = bso.user_id.legacy_id as i64;
         let collection_id = self.get_or_create_collection_id(&bso.collection).await?;
 
-        self.check_quota(&bso.user_id, &bso.collection, collection_id)
-            .await?;
+        self.check_quota(&bso.user_id, &bso.collection).await?;
 
         let payload = bso.payload.as_deref().unwrap_or_default();
         let sortindex = bso.sortindex;
@@ -482,7 +482,7 @@ impl Db for PgDb {
     async fn post_bsos(&mut self, params: params::PostBsos) -> DbResult<results::PostBsos> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
-        self.check_quota(&params.user_id, &params.collection, collection_id)
+        self.check_quota(&params.user_id, &params.collection)
             .await?;
         self.ensure_user_collection(user_id, collection_id).await?;
 
@@ -506,25 +506,6 @@ impl Db for PgDb {
             collection: params.collection,
         })
         .await
-    }
-
-    async fn get_collection_id(&mut self, name: &str) -> DbResult<results::GetCollectionId> {
-        if let Some(id) = self.coll_cache.get_id(name)? {
-            return Ok(id);
-        }
-
-        let id = collections::table
-            .select(collections::collection_id)
-            .filter(collections::name.eq(name))
-            .first::<i32>(&mut self.conn)
-            .await
-            .optional()?
-            .ok_or_else(DbError::collection_not_found)?;
-
-        if !self.session.in_write_transaction {
-            self.coll_cache.put(id, name.to_owned())?;
-        }
-        Ok(id)
     }
 
     fn get_connection_info(&self) -> results::ConnectionInfo {
@@ -574,6 +555,11 @@ impl Db for PgDb {
     #[cfg(debug_assertions)]
     async fn create_collection(&mut self, name: &str) -> DbResult<i32> {
         self._create_collection(name).await
+    }
+
+    #[cfg(debug_assertions)]
+    async fn get_collection_id(&mut self, name: &str) -> DbResult<i32> {
+        self._get_collection_id(name).await
     }
 
     #[cfg(debug_assertions)]
