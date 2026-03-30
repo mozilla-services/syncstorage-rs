@@ -1,4 +1,5 @@
 """Mock FxA OAuth server for integration testing."""
+
 from wsgiref.simple_server import make_server as _make_server
 from pyramid.config import Configurator
 from pyramid.response import Response

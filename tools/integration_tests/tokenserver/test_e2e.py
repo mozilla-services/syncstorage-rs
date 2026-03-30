@@ -2,6 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 """End-to-end integration tests for the tokenserver."""
+
 from base64 import urlsafe_b64decode
 import hmac
 import json

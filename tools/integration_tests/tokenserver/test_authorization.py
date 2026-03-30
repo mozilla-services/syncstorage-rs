@@ -2,6 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 """Authorization integration tests for the tokenserver."""
+
 import pytest
 import unittest
 from integration_tests.tokenserver.test_support import TestCase
