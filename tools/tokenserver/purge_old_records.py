@@ -18,7 +18,7 @@ import hawkauthlib
 import logging
 import optparse
 import random
-import requests
+import requests  # type: ignore[import-untyped]
 import time
 import tokenlib
 

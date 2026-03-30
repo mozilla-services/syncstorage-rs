@@ -6,7 +6,7 @@ import signal
 import subprocess
 import time
 import pytest
-import requests
+import requests  # type: ignore[import-untyped]
 import logging
 
 DEBUG_BUILD = "target/debug/syncserver"

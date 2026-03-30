@@ -7,7 +7,7 @@ Usage:
 
 import json
 import os
-from typing import Any
+from typing import Any, cast
 
 from fxa.core import Client
 from fxa.errors import ClientError, ServerError
@@ -28,7 +28,7 @@ def load_tracked_accounts() -> list[dict[str, Any]]:
 
     try:
         with open(ACCT_TRACKING_FILE, "r") as f:
-            return json.load(f)
+            return cast(list[dict[str, Any]], json.load(f))
     except (json.JSONDecodeError, IOError) as e:
         print(f"Warning: Could not load tracking file: {e}")
         return []

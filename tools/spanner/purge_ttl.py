@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Any
 
 
-from google.cloud import spanner  # type: ignore[attr-defined]
+from google.cloud import spanner
 from google.cloud.spanner_v1 import param_types as param_types
 from statsd.defaults.env import statsd
 
@@ -152,8 +152,8 @@ def spanner_purge(args: argparse.Namespace) -> None:
             # Delete BSOs
             (bso_query, params, types) = add_conditions(
                 args,
-                f"DELETE FROM bsos WHERE {expiry_condition}",
-                prefix,  # nosec B608
+                f"DELETE FROM bsos WHERE {expiry_condition}",  # nosec B608
+                prefix,
             )
             deleter(
                 database,

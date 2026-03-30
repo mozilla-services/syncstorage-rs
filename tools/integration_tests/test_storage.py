@@ -24,7 +24,7 @@ import webtest
 import contextlib
 
 # import math
-import simplejson
+import simplejson  # type: ignore[import-untyped]
 
 from pyramid.interfaces import IAuthenticationPolicy
 from webtest.app import AppError

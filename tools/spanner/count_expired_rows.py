@@ -11,7 +11,7 @@ import logging
 from typing import Any
 from statsd.defaults.env import statsd
 
-from google.cloud import spanner  # type: ignore[attr-defined]
+from google.cloud import spanner
 from tools.spanner.utils import ids_from_env
 
 # set up logger
