@@ -56,6 +56,15 @@ add-select = ["D212"]
 # D400 First line should end with a period, doesn't work when sentence spans 2 lines
 add-ignore = ["D105","D107","D203", "D205", "D400"]
 
+[tool.bandit]
+# B101: https://bandit.readthedocs.io/en/latest/plugins/b101_assert_used.html
+# B104: https://bandit.readthedocs.io/en/latest/plugins/b104_hardcoded_bind_all_interfaces.html
+# B105: https://bandit.readthedocs.io/en/latest/plugins/b105_hardcoded_password_string.html — test fixture secrets only
+# B106: https://bandit.readthedocs.io/en/latest/plugins/b106_hardcoded_password_funcarg.html — test fixture secrets only
+# B311: https://bandit.readthedocs.io/en/latest/blacklists/blacklist_calls.html#b311-random
+# B404: https://bandit.readthedocs.io/en/latest/blacklists/blacklist_imports.html#b404-import-subprocess
+skips = ["B101", "B104", "B105", "B106", "B311", "B404"]
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
