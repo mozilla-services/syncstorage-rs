@@ -151,7 +151,9 @@ def spanner_purge(args: argparse.Namespace) -> None:
         if args.mode in ["bsos", "both"]:
             # Delete BSOs
             (bso_query, params, types) = add_conditions(
-                args, f"DELETE FROM bsos WHERE {expiry_condition}", prefix  # nosec B608
+                args,
+                f"DELETE FROM bsos WHERE {expiry_condition}",
+                prefix,  # nosec B608
             )
             deleter(
                 database,

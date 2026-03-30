@@ -63,7 +63,8 @@ add-ignore = ["D105","D107","D203", "D205", "D400"]
 # B106: https://bandit.readthedocs.io/en/latest/plugins/b106_hardcoded_password_funcarg.html — test fixture secrets only
 # B311: https://bandit.readthedocs.io/en/latest/blacklists/blacklist_calls.html#b311-random
 # B404: https://bandit.readthedocs.io/en/latest/blacklists/blacklist_imports.html#b404-import-subprocess
-skips = ["B101", "B104", "B105", "B106", "B311", "B404"]
+# B603: https://bandit.readthedocs.io/en/latest/plugins/b603_subprocess_without_shell_equals_true.html — subprocess on trusted internal binary path
+skips = ["B101", "B104", "B105", "B106", "B311", "B404", "B603"]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

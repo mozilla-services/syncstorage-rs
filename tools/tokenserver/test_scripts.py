@@ -5,8 +5,8 @@
 
 import json
 import os
+import tempfile
 import unittest
-import uuid
 
 from add_node import main as add_node_script
 from allocate_user import main as allocate_user_script
@@ -149,7 +149,8 @@ class TestScripts(unittest.TestCase):
         self.database.allocate_user("test3@test.com")
 
         timestamp = get_timestamp()
-        filename = "/tmp/" + str(uuid.uuid4())
+        fd, filename = tempfile.mkstemp()
+        os.close(fd)
         try:
             count_users_script(
                 args=["--output", filename, "--timestamp", str(timestamp)]
@@ -162,7 +163,8 @@ class TestScripts(unittest.TestCase):
         finally:
             os.remove(filename)
 
-        filename = "/tmp/" + str(uuid.uuid4())
+        fd, filename = tempfile.mkstemp()
+        os.close(fd)
         try:
             args = ["--output", filename, "--timestamp", str(timestamp - 10000)]
             count_users_script(args=args)

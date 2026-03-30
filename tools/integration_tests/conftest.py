@@ -60,8 +60,7 @@ def _start_server():
         raise RuntimeError("Neither {DEBUG_BUILD} nor {RELEASE_BUILD} were found.")
 
     server_proc = subprocess.Popen(
-        target_binary,
-        shell=True,
+        [target_binary],
         text=True,
         env=os.environ,
     )
