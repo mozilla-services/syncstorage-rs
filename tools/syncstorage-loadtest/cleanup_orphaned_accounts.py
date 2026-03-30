@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Cleanup orphaned accounts from interrupted tests.
+"""Cleanup orphaned accounts from interrupted tests.
 
 Usage:
     python cleanup_orphaned_accounts.py
