@@ -1,6 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
+"""Authorization integration tests for the tokenserver."""
 import pytest
 import unittest
 from integration_tests.tokenserver.test_support import TestCase
@@ -8,13 +9,18 @@ from integration_tests.tokenserver.test_support import TestCase
 
 @pytest.mark.usefixtures("setup_server_local_testing")
 class TestAuthorization(TestCase, unittest.TestCase):
+    """Authorization integration tests for the tokenserver."""
+
     def setUp(self):
+        """Set up test fixtures."""
         super(TestAuthorization, self).setUp()
 
     def tearDown(self):
+        """Tear down test fixtures."""
         super(TestAuthorization, self).tearDown()
 
     def test_unauthorized_error_status(self):
+        """Test unauthorized error status."""
         # Totally busted auth -> generic error.
         headers = {"Authorization": "Unsupported-Auth-Scheme IHACKYOU"}
         res = self.app.get("/1.0/sync/1.5", headers=headers, status=401)
@@ -26,6 +32,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(res.json, expected_error_response)
 
     def test_no_auth(self):
+        """Test no auth."""
         res = self.app.get("/1.0/sync/1.5", status=401)
 
         expected_error_response = {
@@ -35,6 +42,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(res.json, expected_error_response)
 
     def test_invalid_client_state_in_key_id(self):
+        """Test invalid client state in key id."""
         additional_headers = {"X-KeyID": "1234-state!"}
         headers = self._build_auth_headers(
             keys_changed_at=1234, client_state="aaaa", **additional_headers
@@ -48,6 +56,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(res.json, expected_error_response)
 
     def test_invalid_client_state_in_x_client_state(self):
+        """Test invalid client state in x client state."""
         additional_headers = {"X-Client-State": "state!"}
         headers = self._build_auth_headers(
             generation=1234,
@@ -71,6 +80,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(res.json, expected_error_response)
 
     def test_keys_changed_at_less_than_equal_to_generation(self):
+        """Test keys changed at less than equal to generation."""
         self._add_user(generation=1232, keys_changed_at=1234)
         # If keys_changed_at changes, that change must be less than or equal
         # to the new generation
@@ -103,6 +113,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.app.get("/1.0/sync/1.5", headers=headers)
 
     def test_disallow_reusing_old_client_state(self):
+        """Test disallow reusing old client state."""
         # Add a user record that has already been replaced
         self._add_user(client_state="aaaa", replaced_at=1200)
         # Add the most up-to-date user record
@@ -138,6 +149,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertNotEqual(res1.json["uid"], res2.json["uid"])
 
     def test_generation_change_must_accompany_client_state_change(self):
+        """Test generation change must accompany client state change."""
         self._add_user(generation=1234, client_state="aaaa")
         # A request with a new client state must also contain a new generation
         headers = self._build_auth_headers(
@@ -188,6 +200,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.app.get("/1.0/sync/1.5", headers=headers)
 
     def test_keys_changed_at_change_must_accompany_client_state_change(self):
+        """Test keys changed at change must accompany client state change."""
         self._add_user(generation=1234, keys_changed_at=1234, client_state="aaaa")
         # A request with a new client state must also contain a new
         # keys_changed_at
@@ -214,6 +227,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.app.get("/1.0/sync/1.5", headers=headers)
 
     def test_generation_must_not_be_less_than_last_seen_value(self):
+        """Test generation must not be less than last seen value."""
         uid = self._add_user(generation=1234)
         # The generation in the request cannot be less than the generation
         # currently stored on the user record
@@ -253,6 +267,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(res.json["uid"], uid)
 
     def test_set_generation_unchanged_without_keys_changed_at_update(self):
+        """Test set generation unchanged without keys changed at update."""
         # Add a user who has never sent us a generation
         uid = self._add_user(generation=0, keys_changed_at=1234, client_state="aaaa")
         # Send a request without a generation that doesn't update
@@ -274,6 +289,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(user["generation"], 1235)
 
     def test_set_generation_with_keys_changed_at_initialization(self):
+        """Test set generation with keys changed at initialization."""
         # Add a user who has never sent us a generation or a keys_changed_at
         uid = self._add_user(generation=0, keys_changed_at=None, client_state="aaaa")
 
@@ -287,6 +303,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(user["generation"], 1234)
 
     def test_fxa_kid_change(self):
+        """Test fxa kid change."""
         self._add_user(generation=1234, keys_changed_at=None, client_state="aaaa")
         # An OAuth client shows up, setting keys_changed_at.
         # (The value matches generation number above, beause in this scenario
@@ -335,6 +352,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(token["node"], token0["node"])
 
     def test_client_specified_duration(self):
+        """Test client specified duration."""
         self._add_user(generation=1234, keys_changed_at=1234, client_state="aaaa")
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=1234, client_state="aaaa"
@@ -355,6 +373,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
     # case to be handled. See this PR for more information:
     # https://github.com/mozilla-services/tokenserver/pull/176
     def test_kid_change_during_gradual_tokenserver_rollout(self):
+        """Test kid change during gradual tokenserver rollout."""
         # Let's start with a user already in the db, with no keys_changed_at.
         uid = self._add_user(generation=1234, client_state="aaaa", keys_changed_at=None)
         user1 = self._get_user(uid)
@@ -394,6 +413,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(user2["nodeid"], user1["nodeid"])
 
     def test_update_client_state(self):
+        """Test update client state."""
         uid = self._add_user(generation=0, keys_changed_at=None, client_state="")
         user1 = self._get_user(uid)
         # The user starts out with no client_state
@@ -463,6 +483,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(expected_error_response, res.json)
 
     def test_set_generation_from_no_generation(self):
+        """Test set generation from no generation."""
         # Add a user that has no generation set
         uid = self._add_user(generation=0, keys_changed_at=None, client_state="aaaa")
         headers = self._build_auth_headers(
@@ -475,6 +496,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(user["generation"], 1234)
 
     def test_set_keys_changed_at_from_no_keys_changed_at(self):
+        """Test set keys changed at from no keys changed at."""
         # Add a user that has no keys_changed_at set
         uid = self._add_user(generation=1234, keys_changed_at=None, client_state="aaaa")
         headers = self._build_auth_headers(
@@ -487,6 +509,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(user["keys_changed_at"], 1234)
 
     def test_x_client_state_must_have_same_client_state_as_key_id(self):
+        """Test x client state must have same client state as key id."""
         self._add_user(client_state="aaaa")
         additional_headers = {"X-Client-State": "bbbb"}
         headers = self._build_auth_headers(
@@ -507,6 +530,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         res = self.app.get("/1.0/sync/1.5", headers=headers)
 
     def test_zero_generation_treated_as_null(self):
+        """Test zero generation treated as null."""
         # Add a user that has a generation set
         uid = self._add_user(generation=1234, keys_changed_at=1234, client_state="aaaa")
         headers = self._build_auth_headers(
@@ -520,6 +544,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(user["generation"], 1234)
 
     def test_zero_keys_changed_at_treated_as_null(self):
+        """Test zero keys changed at treated as null."""
         # Add a user that has no keys_changed_at set
         uid = self._add_user(generation=1234, keys_changed_at=None, client_state="aaaa")
         headers = self._build_auth_headers(

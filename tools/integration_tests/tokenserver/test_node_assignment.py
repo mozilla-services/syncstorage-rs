@@ -1,6 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
+"""Node assignment integration tests for the tokenserver."""
 import pytest
 import unittest
 
@@ -10,13 +11,18 @@ from sqlalchemy.sql import text as sqltext
 
 @pytest.mark.usefixtures("setup_server_local_testing")
 class TestNodeAssignment(TestCase, unittest.TestCase):
+    """Node assignment integration tests for the tokenserver."""
+
     def setUp(self):
+        """Set up test fixtures."""
         super(TestNodeAssignment, self).setUp()
 
     def tearDown(self):
+        """Tear down test fixtures."""
         super(TestNodeAssignment, self).tearDown()
 
     def test_user_creation(self):
+        """Test user creation."""
         # Add a few more nodes
         self._add_node(available=0, node="https://node1")
         self._add_node(available=1, node="https://node2")
@@ -46,6 +52,7 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         self.assertEqual(self._count_users(), 1)
 
     def test_new_user_allocation(self):
+        """Test new user allocation."""
         # Start with a clean database
         cursor = self._execute_sql(sqltext("DELETE FROM nodes"), {})
         cursor.close()
@@ -77,6 +84,7 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         self.assertEqual(node["available"], 98)
 
     def test_successfully_releasing_node_capacity(self):
+        """Test successfully releasing node capacity."""
         # Start with a clean database
         cursor = self._execute_sql(sqltext("DELETE FROM nodes"), {})
         cursor.close()
@@ -125,6 +133,7 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         self.assertEqual(node5["available"], 0)
 
     def test_unsuccessfully_releasing_node_capacity(self):
+        """Test unsuccessfully releasing node capacity."""
         # Start with a clean database
         cursor = self._execute_sql(sqltext("DELETE FROM nodes"), {})
         cursor.close()

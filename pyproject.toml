@@ -43,6 +43,19 @@ black = "^26.3.1"
 bandit = "^1.9.4"
 isort = "^8.0.1"
 
+[tool.pydocstyle]
+match = ".*\\.py"
+convention = "pep257"
+# Error Code Ref: https://www.pydocstyle.org/en/stable/error_codes.html
+# D212 Multi-line docstring summary should start at the first line
+add-select = ["D212"]
+# D105 Docstrings for magic methods
+# D107 Docstrings for __init__
+# D203 as it conflicts with D211 https://github.com/PyCQA/pydocstyle/issues/141
+# D205 1 blank line required between summary line and description, awkward spacing
+# D400 First line should end with a period, doesn't work when sentence spans 2 lines
+add-ignore = ["D105","D107","D203", "D205", "D400"]
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
