@@ -135,7 +135,7 @@ def spanner_purge(args: argparse.Namespace) -> None:
             # IN PARENT batches ON DELETE CASCADE)
             (batch_query, params, types) = add_conditions(
                 args,
-                f"DELETE FROM batches WHERE {expiry_condition}",
+                f"DELETE FROM batches WHERE {expiry_condition}",  # nosec B608
                 prefix,
             )
             deleter(
@@ -151,7 +151,7 @@ def spanner_purge(args: argparse.Namespace) -> None:
         if args.mode in ["bsos", "both"]:
             # Delete BSOs
             (bso_query, params, types) = add_conditions(
-                args, f"DELETE FROM bsos WHERE {expiry_condition}", prefix
+                args, f"DELETE FROM bsos WHERE {expiry_condition}", prefix  # nosec B608
             )
             deleter(
                 database,

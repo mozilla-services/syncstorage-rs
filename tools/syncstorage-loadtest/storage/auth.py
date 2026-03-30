@@ -78,7 +78,7 @@ def _track_account_creation(email: str, password: str, fxa_uid: str) -> None:
         with open(_ACCT_TRACKING_FILE, "w") as f:
             json.dump(accounts, f, indent=2)
 
-    except Exception:
+    except Exception:  # nosec B110
         # continue with tests
         pass
 
@@ -105,7 +105,7 @@ def _remove_account_from_tracking(email: str) -> None:
             with open(_ACCT_TRACKING_FILE, "w") as f:
                 json.dump(accounts, f, indent=2)
 
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
 

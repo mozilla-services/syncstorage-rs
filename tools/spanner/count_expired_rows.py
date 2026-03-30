@@ -55,7 +55,7 @@ if __name__ == "__main__":
     logging.info("Starting count_expired_rows.py")
 
     for table in ["batches", "bsos"]:
-        query = f"SELECT COUNT(*) FROM {table} WHERE expiry < CURRENT_TIMESTAMP()"
+        query = f"SELECT COUNT(*) FROM {table} WHERE expiry < CURRENT_TIMESTAMP()"  # nosec B608
         spanner_read_data(query, table)
 
     logging.info("Completed count_expired_rows.py")

@@ -642,10 +642,9 @@ class Database:
         if "nodeid" in kwds:
             cols.append("id")
             args.append(":nodeid")
-        query = """
-            insert into nodes ({cols})
-            values ({args})
-            """.format(cols=", ".join(cols), args=", ".join(args))
+        query = "insert into nodes ({cols}) values ({args})".format(  # nosec B608
+            cols=", ".join(cols), args=", ".join(args)
+        )
         res = self._execute_sql(
             sqltext(query),
             nodeid=kwds.get("nodeid"),

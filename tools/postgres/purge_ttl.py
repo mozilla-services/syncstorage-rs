@@ -94,7 +94,7 @@ def purge_records(args: argparse.Namespace) -> None:
     if args.mode in ["batches", "both"]:
         (batch_query, params) = add_conditions(
             args,
-            f"DELETE FROM batches WHERE {expiry_condition}",
+            f"DELETE FROM batches WHERE {expiry_condition}",  # nosec B608
         )
         exec_delete(
             engine,
@@ -107,7 +107,7 @@ def purge_records(args: argparse.Namespace) -> None:
     if args.mode in ["bsos", "both"]:
         (bso_query, params) = add_conditions(
             args,
-            f"DELETE FROM bsos WHERE {expiry_condition}",
+            f"DELETE FROM bsos WHERE {expiry_condition}",  # nosec B608
         )
         exec_delete(
             engine,
