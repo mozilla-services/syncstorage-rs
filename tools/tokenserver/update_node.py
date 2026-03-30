@@ -1,11 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-"""
-
-Script to update node status in the db.
-
-"""
+"""Script to update node status in the database."""
 
 import logging
 import optparse
@@ -33,9 +29,9 @@ def update_node(node, **kwds):
 
 
 def main(args=None):
-    """Main entry-point for running this script.
+    """Run the update_node script with the given arguments.
 
-    This function parses command-line arguments and passes them on
+    Parse command-line arguments and pass them on
     to the update_node() function.
     """
     usage = "usage: %prog [options] node_name"

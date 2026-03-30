@@ -1,12 +1,9 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-"""
-
-Script to remove a node from the system.
+"""Script to remove a node from the system.
 
 This script clears any assignments to the named node.
-
 """
 
 import logging
@@ -44,9 +41,9 @@ def unassign_node(node):
 
 
 def main(args=None):
-    """Main entry-point for running this script.
+    """Run the unassign_node script with the given arguments.
 
-    This function parses command-line arguments and passes them on
+    Parse command-line arguments and pass them on
     to the unassign_node() function.
     """
     usage = "usage: %prog [options] node_name"

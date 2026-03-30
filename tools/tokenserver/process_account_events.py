@@ -1,11 +1,9 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-"""
+"""Script to process account-related events from an SQS queue.
 
-Script to process account-related events from an SQS queue.
-
-This script polls an SQS queue for events indicating activity on an upstream
+Poll an SQS queue for events indicating activity on an upstream
 account, as documented here:
 
   https://github.com/mozilla/fxa-auth-server/blob/master/docs/service_notifications.md
@@ -165,9 +163,9 @@ def update_generation_number(database, email, generation, metrics=None):
 
 
 def main(args=None):
-    """Main entry-point for running this script.
+    """Run the process_account_events script with the given arguments.
 
-    This function parses command-line arguments and passes them on
+    Parse command-line arguments and pass them on
     to the process_account_events() function.
     """
     usage = "usage: %prog [options] queue_name"

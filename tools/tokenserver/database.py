@@ -1,6 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
+"""Database access layer for the tokenserver."""
 
 import math
 import os
@@ -258,6 +259,8 @@ SERVICE_NAME = "sync-1.5"
 
 
 class Database:
+    """Tokenserver database access class."""
+
     def __init__(self):
         # Formatted for rust diesel with a "postgres" dialect, whereas
         # sqlalchemy uses "postgresql" instead
@@ -277,9 +280,11 @@ class Database:
         return self.database.execute(*args, **kwds)
 
     def close(self):
+        """Close the database connection."""
         self.database.close()
 
     def get_user(self, email):
+        """Return the current user record for the given email address."""
         params = {"service": self._get_service_id(SERVICE_NAME), "email": email}
         res = self._execute_sql(_GET_USER_RECORDS, **params)
         try:
@@ -340,6 +345,7 @@ class Database:
         node=None,
         timestamp=None,
     ):
+        """Allocate a node for a new user and return the user record."""
         if timestamp is None:
             timestamp = get_timestamp()
         if node is None:
@@ -384,6 +390,7 @@ class Database:
     def update_user(
         self, user, generation=None, client_state=None, keys_changed_at=None, node=None
     ):
+        """Update an existing user record with new generation, state, or node."""
         if client_state is None and node is None:
             # No need for a node-reassignment, just update the row in place.
             # Note that if we're changing keys_changed_at without changing
@@ -465,6 +472,7 @@ class Database:
             self.replace_user_records(user["email"], now)
 
     def retire_user(self, email):
+        """Retire a user by setting generation to MAX_GENERATION."""
         now = get_timestamp()
         params = {"email": email, "timestamp": now, "generation": MAX_GENERATION}
         # Pass through explicit engine to help with sharded implementation,
@@ -473,6 +481,7 @@ class Database:
         res.close()
 
     def count_users(self, timestamp=None):
+        """Return the count of users created before the given timestamp."""
         if timestamp is None:
             timestamp = get_timestamp()
         res = self._execute_sql(_COUNT_USER_RECORDS, timestamp=timestamp)
@@ -651,7 +660,7 @@ class Database:
         res.close()
 
     def update_node(self, node, **kwds):
-        """Updates node fields in the db."""
+        """Update node fields in the database."""
         values = {}
         cols = NODE_FIELDS & kwds.keys()
         for col in NODE_FIELDS:
@@ -723,8 +732,9 @@ class Database:
         res.close()
 
     def get_best_node(self):
-        """Returns the 'least loaded' node currently available, increments the
-        active count on that node, and decrements the slots currently available
+        """Return the least loaded node, incrementing its active count.
+
+        Decrement the slots currently available on the chosen node.
         """
         # The spanner node is the best node.
         if self.spanner_node:
@@ -775,6 +785,7 @@ class Database:
         return nodeid, node
 
     def get_node(self, node):
+        """Return the node record for the given node URL."""
         if node is None:
             raise Exception("NONE node")
         res = self._execute_sql(
@@ -788,6 +799,7 @@ class Database:
 
     # somewhat simplified version that just gets the one Spanner node.
     def get_spanner_node(self, node):
+        """Return the node URL for the given Spanner node ID."""
         res = self._execute_sql(_GET_SPANNER_NODE, id=node)
         row = res.fetchone()
         res.close()

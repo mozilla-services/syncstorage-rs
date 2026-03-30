@@ -1,6 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
+"""Tests for the tokenserver CLI management scripts."""
 
 import json
 import os
@@ -18,10 +19,13 @@ from util import get_timestamp
 
 
 class TestScripts(unittest.TestCase):
+    """Tests for the tokenserver management scripts."""
+
     NODE_ID = 800
     NODE_URL = "https://node1"
 
     def setUp(self):
+        """Set up test fixtures."""
         self.database = Database()
 
         # Start each test with a blank slate.
@@ -41,6 +45,7 @@ class TestScripts(unittest.TestCase):
         self.database.add_node(self.NODE_URL, 100, id=self.NODE_ID)
 
     def tearDown(self):
+        """Tear down test fixtures."""
         # And clean up at the end, for good measure.
         cursor = self.database._execute_sql("DELETE FROM users")
         cursor.close()
@@ -54,6 +59,7 @@ class TestScripts(unittest.TestCase):
         self.database.close()
 
     def test_add_node(self):
+        """Test add node."""
         add_node_script(args=["--current-load", "9", "test_node", "100"])
         res = self.database.get_node("test_node")
         # The node should have the expected attributes
@@ -65,6 +71,7 @@ class TestScripts(unittest.TestCase):
         self.assertEqual(res.service, self.database.service_id)
 
     def test_add_node_with_explicit_available(self):
+        """Test add node with explicit available."""
         args = ["--current-load", "9", "--available", "5", "test_node", "100"]
         add_node_script(args=args)
         res = self.database.get_node("test_node")
@@ -77,6 +84,7 @@ class TestScripts(unittest.TestCase):
         self.assertEqual(res.service, self.database.service_id)
 
     def test_add_downed_node(self):
+        """Test add downed node."""
         add_node_script(args=["--downed", "test_node", "100"])
         res = self.database.get_node("test_node")
         # The node should have the expected attributes
@@ -88,6 +96,7 @@ class TestScripts(unittest.TestCase):
         self.assertEqual(res.service, self.database.service_id)
 
     def test_add_backoff_node(self):
+        """Test add backoff node."""
         add_node_script(args=["--backoff", "test_node", "100"])
         res = self.database.get_node("test_node")
         # The node should have the expected attributes
@@ -99,6 +108,7 @@ class TestScripts(unittest.TestCase):
         self.assertEqual(res.service, self.database.service_id)
 
     def test_allocate_user_user_already_exists(self):
+        """Test allocate user user already exists."""
         email = "test@test.com"
         self.database.allocate_user(email)
         node = "https://node2"
@@ -112,6 +122,7 @@ class TestScripts(unittest.TestCase):
         self.assertEqual(count, 1)
 
     def test_allocate_user_given_node(self):
+        """Test allocate user given node."""
         email = "test@test.com"
         node = "https://node2"
         self.database.add_node(node, 100)
@@ -121,6 +132,7 @@ class TestScripts(unittest.TestCase):
         self.assertEqual(user["node"], node)
 
     def test_allocate_user_not_given_node(self):
+        """Test allocate user not given node."""
         email = "test@test.com"
         self.database.add_node("https://node2", 100, current_load=10)
         self.database.add_node("https://node3", 100, current_load=20)
@@ -131,6 +143,7 @@ class TestScripts(unittest.TestCase):
         self.assertEqual(user["node"], "https://node1")
 
     def test_count_users(self):
+        """Test count users."""
         self.database.allocate_user("test1@test.com")
         self.database.allocate_user("test2@test.com")
         self.database.allocate_user("test3@test.com")
@@ -162,6 +175,7 @@ class TestScripts(unittest.TestCase):
             os.remove(filename)
 
     def test_remove_node(self):
+        """Test remove node."""
         self.database.add_node("https://node2", 100)
         self.database.allocate_user("test1@test.com", node="https://node2")
         self.database.allocate_user("test2@test.com", node=self.NODE_URL)
@@ -182,6 +196,7 @@ class TestScripts(unittest.TestCase):
         self.assertEqual(user["node"], self.NODE_URL)
 
     def test_unassign_node(self):
+        """Test unassign node."""
         self.database.add_node("https://node2", 100)
         self.database.allocate_user("test1@test.com", node="https://node2")
         self.database.allocate_user("test2@test.com", node="https://node2")
@@ -198,6 +213,7 @@ class TestScripts(unittest.TestCase):
         self.assertEqual(user["node"], self.NODE_URL)
 
     def test_update_node(self):
+        """Test update node."""
         self.database.add_node("https://node2", 100)
         update_node_script(
             args=[
