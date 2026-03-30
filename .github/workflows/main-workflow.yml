@@ -127,6 +127,9 @@ jobs:
 
       - name: Python Security Check
         run: poetry run bandit --quiet -r -c pyproject.toml tools
+
+      - name: Python Type Check
+        run: poetry run mypy --config-file=pyproject.toml tools
   # Rust lint and format checks ======
   rust-checks:
     needs: rust-env

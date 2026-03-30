@@ -66,6 +66,21 @@ add-ignore = ["D105","D107","D203", "D205", "D400"]
 # B603: https://bandit.readthedocs.io/en/latest/plugins/b603_subprocess_without_shell_equals_true.html — subprocess on trusted internal binary path
 skips = ["B101", "B104", "B105", "B106", "B311", "B404", "B603"]
 
+[tool.mypy]
+python_version = "3.12"
+disable_error_code = "attr-defined"
+disallow_untyped_calls = false
+follow_imports = "normal"
+ignore_missing_imports = true
+pretty = true
+show_error_codes = true
+strict_optional = true
+warn_no_return = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unused_ignores = true
+warn_unreachable = true
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
