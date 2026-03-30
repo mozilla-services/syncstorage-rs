@@ -4,6 +4,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
+"""Count expired rows in the Spanner database tables."""
 
 import sys
 import logging
@@ -25,9 +26,9 @@ client: Any = spanner.Client()
 
 
 def spanner_read_data(query: str, table: str) -> None:
-    """
-    Executes a query on the specified Spanner table to count expired rows,
-    logs the result, and sends metrics to statsd.
+    """Execute a query on the specified Spanner table to count expired rows.
+
+    Log the result and send metrics to statsd.
 
     Args:
         query (str): The SQL query to execute.

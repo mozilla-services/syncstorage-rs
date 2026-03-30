@@ -1,3 +1,5 @@
+"""Tests for the Spanner utilities module."""
+
 import pytest
 
 from tools.spanner.utils import ids_from_env
