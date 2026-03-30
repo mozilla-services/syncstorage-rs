@@ -121,6 +121,9 @@ jobs:
 
       - name: Python Lint Check
         run: poetry run ruff check tools
+
+      - name: Python Docstring Check
+        run: poetry run pydocstyle -es --count --config=pyproject.toml tools
   # Rust lint and format checks ======
   rust-checks:
     needs: rust-env
