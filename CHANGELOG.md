@@ -1,3 +1,35 @@
+<a name="0.22.1"></a>
+## 0.22.1 (2026-04-01)
+
+
+#### Chore
+
+*   capture sentry backtraces (#2166) ([f0497396](https://github.com/mozilla-services/syncstorage-rs/commit/f049739658ab5ce46411800672042f0e448effcd))
+*   remove HTTP status metric from syncstorage-rs (#2163) ([19847721](https://github.com/mozilla-services/syncstorage-rs/commit/19847721577b49ec911433194a8b74a4a35473cb))
+*   build and push "directly" instead of using mozilla-it/deploy-actions (#2149) ([36e5683a](https://github.com/mozilla-services/syncstorage-rs/commit/36e5683a62c9355348fc3ef10877f1c91664c79e))
+*   upgrade Python for all utils and refactor (#2127) ([6b09e994](https://github.com/mozilla-services/syncstorage-rs/commit/6b09e9947a57b1d6dc816f2905b45d2184326ac8))
+*   bump rustls-webpki per RUSTSEC-2026-0049 (#2150) ([db5834db](https://github.com/mozilla-services/syncstorage-rs/commit/db5834db64729bba5431ae2c83bb78351a8b63fe))
+*   resolve aws-lc-rs vuln (#2148) ([cd18eae5](https://github.com/mozilla-services/syncstorage-rs/commit/cd18eae541357f91532fb385f291c28d64fa83f7))
+
+#### Features
+
+*   also push a latest tag to ent GAR (#2182) ([5513da89](https://github.com/mozilla-services/syncstorage-rs/commit/5513da89cdcd4fda0bc82d6ad917e2e65587396a))
+*   single workflow and actions optimizations (#2140) ([cf1d30ff](https://github.com/mozilla-services/syncstorage-rs/commit/cf1d30ffb723c41e128a44dd57e9c586faef7cf7))
+*   (re-)enable timestamp+offset based pagination optimization (#2145) ([c1d53b60](https://github.com/mozilla-services/syncstorage-rs/commit/c1d53b604f099e5fd43fde81143031c4d8cc4705))
+*   add logging for acct webhook handler (#2147) ([ecb6bd05](https://github.com/mozilla-services/syncstorage-rs/commit/ecb6bd05dd9379748e4c65dd6f9b6640e9c710d9))
+* **mozcloud-publish:**  updated mozcloud-publish workflow to trigger on tokenserver-preview labels and consolidated checks into a job that is required by all build jobs (#2135) ([685075e7](https://github.com/mozilla-services/syncstorage-rs/commit/685075e760d856bed84ed44be10d8cb8d4b202ca))
+
+#### Refactor
+
+*   stop passing collection id to get_quota_usage (#2170) ([857739dd](https://github.com/mozilla-services/syncstorage-rs/commit/857739dd4ce3e8344d5cfa9b0628712e264c2290))
+
+#### Doc
+
+*   fixes syncserver PostgreSQL GHCR image name (#2153) ([5dbe6bc4](https://github.com/mozilla-services/syncstorage-rs/commit/5dbe6bc4ea20733690def17aa4acbed0ff560738))
+*   fix broken link to config page (#2144) ([ed6e27fb](https://github.com/mozilla-services/syncstorage-rs/commit/ed6e27fbb7a2d616aa7b682315a835ed1fbc4d1d))
+
+
+
 <a name="0.22.0"></a>
 ## 0.22.0 (2026-03-17)
 
