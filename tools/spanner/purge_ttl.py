@@ -9,12 +9,11 @@ import logging
 import os
 import sys
 from datetime import datetime
-from typing import List, Optional
+from typing import Any
 
 
-from google.cloud import spanner
-from google.cloud.spanner_v1.database import Database
-from google.cloud.spanner_v1 import param_types
+from google.cloud import spanner  # type: ignore[attr-defined]
+from google.cloud.spanner_v1 import param_types as param_types
 from statsd.defaults.env import statsd
 
 from tools.spanner.utils import ids_from_env, Mode
@@ -31,14 +30,15 @@ client = spanner.Client()
 
 
 def deleter(
-    database: Database,
+    database: Any,
     name: str,
     query: str,
-    prefix: Optional[str] = None,
-    params: Optional[dict] = None,
-    param_types: Optional[dict] = None,
-    dryrun: Optional[bool] = False,
-):
+    prefix: str | None = None,
+    params: dict[str, Any] | None = None,
+    param_types: dict[str, Any] | None = None,
+    dryrun: bool | None = False,
+) -> None:
+    """Execute a partitioned DML delete and emit statsd timing metrics."""
     with statsd.timer(f"syncstorage.purge_ttl.{name}_duration"):
         logging.info(f"Running: {query} :: {params}")
         start = datetime.now()
@@ -53,16 +53,23 @@ def deleter(
         )
 
 
-def add_conditions(args, query: str, prefix: Optional[str]):
+def add_conditions(
+    args: argparse.Namespace,
+    query: str,
+    prefix: str | None,
+) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    """Add SQL conditions to a query based on collection IDs and UID prefix.
+
+    Args:
+        args: Parsed command-line arguments.
+        query: The base SQL query.
+        prefix: Optional UID prefix to filter rows.
+
+    Returns:
+        A 3-tuple of (updated query, params dict, param_types dict).
     """
-    Add SQL conditions to a query.
-    :param args: The program arguments
-    :param query: The SQL query
-    :param prefix: The current prefix, if given
-    :return: The updated SQL query, and list of params
-    """
-    params = {}
-    types = {}
+    params: dict[str, Any] = {}
+    types: dict[str, Any] = {}
     if args.collection_ids:
         ids = list(filter(len, args.collection_ids))
         if ids:
@@ -84,12 +91,8 @@ def add_conditions(args, query: str, prefix: Optional[str]):
     return (query, params, types)
 
 
-def get_expiry_condition(args):
-    """
-    Get the expiry SQL WHERE condition to use
-    :param args: The program arguments
-    :return: A SQL snippet to use in the WHERE clause
-    """
+def get_expiry_condition(args: argparse.Namespace) -> str:
+    """Return the expiry WHERE condition SQL snippet for the given expiry mode."""
     if args.expiry_mode == "now":
         return "expiry < CURRENT_TIMESTAMP()"
     elif args.expiry_mode == "midnight":
@@ -98,14 +101,13 @@ def get_expiry_condition(args):
         raise Exception(f"Invalid expiry mode: {args.expiry_mode}")
 
 
-def spanner_purge(args) -> None:
-    """
-    Purges expired TTL records from Spanner based on the provided arguments.
+def spanner_purge(args: argparse.Namespace) -> None:
+    """Purge expired TTL records from Spanner based on the provided arguments.
 
-    This function connects to the specified Spanner instance and database,
-    determines the expiry condition, and deletes expired records from the
-    'batches' and/or 'bsos' tables according to the purge mode. Supports
-    filtering by collection IDs and UID prefixes, and can operate in dry-run mode.
+    Connects to the specified Spanner instance and database, determines the
+    expiry condition, and deletes expired records from the 'batches' and/or
+    'bsos' tables. Supports filtering by collection IDs and UID prefixes,
+    and can operate in dry-run mode.
 
     Args:
         args (argparse.Namespace): Parsed command-line arguments containing
@@ -161,10 +163,12 @@ def spanner_purge(args) -> None:
             )
 
 
-def get_args():
-    """
-    Parses and returns command-line arguments for the Spanner TTL purge tool.
-    If a DSN URL is provided, usually `SYNC_SYNCSTORAGE__DATABASE_URL`, its values override the corresponding arguments.
+def get_args() -> argparse.Namespace:
+    """Parse and return CLI arguments for the Spanner TTL purge tool.
+
+    If a DSN URL is provided via --sync_database_url or
+    SYNC_SYNCSTORAGE__DATABASE_URL, its values override the corresponding
+    instance_id, database_id, and project_id arguments.
 
     Returns:
         argparse.Namespace: Parsed command-line arguments with the following attributes:
@@ -257,15 +261,14 @@ def get_args():
     return args
 
 
-def parse_args_list(args_list: str) -> List[str]:
-    """
-    Parses a string representing a list of items into a list of strings.
+def parse_args_list(args_list: str) -> list[str]:
+    """Parse a bracketed comma-separated string into a list of strings.
 
     Args:
-        args_list (str): String to parse, e.g., "[item1,item2,item3]" or "item1".
+        args_list: String to parse, e.g., "[item1,item2,item3]" or "item1".
 
     Returns:
-        List[str]: List of parsed string items.
+        List of parsed string items.
     """
     if args_list[0] != "[" or args_list[-1] != "]":
         # Assume it's a single item

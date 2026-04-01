@@ -150,7 +150,6 @@ macro_rules! build_app {
             .wrap_fn(tokenserver::logging::handle_request_log_line)
             .wrap_fn(middleware::rejectua::reject_user_agent)
             .wrap($cors)
-            .wrap_fn(middleware::emit_http_status_with_tokenserver_origin)
             .service(
                 web::resource(&cfg_path("/info/collections"))
                     .route(web::get().to(handlers::get_collections)),

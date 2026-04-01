@@ -10,8 +10,10 @@ use diesel::{
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use syncstorage_db_common::{
-    DEFAULT_BSO_TTL, Db, Sorting, UserIdentifier, error::DbErrorIntrospect, params, results,
-    util::SyncTimestamp,
+    DEFAULT_BSO_TTL, Db, Sorting, UserIdentifier,
+    error::DbErrorIntrospect,
+    params, results,
+    util::{SyncTimestamp, encode_next_offset},
 };
 use syncstorage_settings::DEFAULT_MAX_TOTAL_RECORDS;
 
@@ -41,7 +43,7 @@ impl Db for MysqlDb {
         // Lock the db
         self.begin(false).await?;
         let collection_id = self
-            .get_collection_id(&params.collection)
+            ._get_collection_id(&params.collection)
             .await
             .or_else(|e| {
                 if e.is_collection_not_found() {
@@ -163,7 +165,7 @@ impl Db for MysqlDb {
         params: params::DeleteCollection,
     ) -> DbResult<SyncTimestamp> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let mut count = delete(bso::table)
             .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(&collection_id))
@@ -180,28 +182,6 @@ impl Db for MysqlDb {
             self.erect_tombstone(user_id as i32).await?;
         }
         self.get_storage_timestamp(params.user_id).await
-    }
-
-    async fn get_collection_id(&mut self, name: &str) -> DbResult<i32> {
-        if let Some(id) = self.coll_cache.get_id(name)? {
-            return Ok(id);
-        }
-
-        let id = sql_query(
-            "SELECT id
-               FROM collections
-              WHERE name = ?",
-        )
-        .bind::<Text, _>(name)
-        .get_result::<IdResult>(&mut self.conn)
-        .await
-        .optional()?
-        .ok_or_else(DbError::collection_not_found)?
-        .id;
-        if !self.session.in_write_transaction {
-            self.coll_cache.put(id, name.to_owned())?;
-        }
-        Ok(id)
     }
 
     async fn put_bso(&mut self, bso: params::PutBso) -> DbResult<results::PutBso> {
@@ -221,7 +201,6 @@ impl Db for MysqlDb {
                 .get_quota_usage(params::GetQuotaUsage {
                     user_id: bso.user_id.clone(),
                     collection: bso.collection.clone(),
-                    collection_id,
                 })
                 .await?;
             if usage.total_bytes >= self.quota.size {
@@ -309,7 +288,7 @@ impl Db for MysqlDb {
 
     async fn get_bsos(&mut self, params: params::GetBsos) -> DbResult<results::GetBsos> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let now = self.session.timestamp.as_i64();
         let mut query = bso::table
             .select((
@@ -324,6 +303,15 @@ impl Db for MysqlDb {
             .filter(bso::expiry.gt(now))
             .into_boxed();
 
+        if let Some(ts) = params.offset.as_ref().and_then(|o| o.timestamp) {
+            match params.sort {
+                Sorting::Oldest => query = query.filter(bso::modified.ge(ts.as_i64())),
+                Sorting::Newest | Sorting::None => {
+                    query = query.filter(bso::modified.le(ts.as_i64()))
+                }
+                Sorting::Index => {}
+            }
+        }
         if let Some(older) = params.older {
             query = query.filter(bso::modified.lt(older.as_i64()));
         }
@@ -340,18 +328,9 @@ impl Db for MysqlDb {
         // an error. We "fudge" a bit here by taking the id order as a secondary, since
         // that is guaranteed to be unique by the client.
         query = match params.sort {
-            // issue559: Revert to previous sorting
-            /*
-            Sorting::Index => query.order(bso::id.desc()).order(bso::sortindex.desc()),
-            Sorting::Newest | Sorting::None => {
-                query.order(bso::id.desc()).order(bso::modified.desc())
-            }
-            Sorting::Oldest => query.order(bso::id.asc()).order(bso::modified.asc()),
-            */
             Sorting::Index => query.order(bso::sortindex.desc()),
-            Sorting::Newest => query.order((bso::modified.desc(), bso::id.desc())),
+            Sorting::Newest | Sorting::None => query.order((bso::modified.desc(), bso::id.desc())),
             Sorting::Oldest => query.order((bso::modified.asc(), bso::id.asc())),
-            _ => query,
         };
 
         let limit = params
@@ -363,6 +342,11 @@ impl Db for MysqlDb {
         // match the query conditions
         query = query.limit(if limit > 0 { limit + 1 } else { limit });
 
+        let prev_ts = params
+            .offset
+            .as_ref()
+            .and_then(|o| o.timestamp)
+            .map(|t| t.as_i64());
         let numeric_offset = params.offset.map_or(0, |offset| offset.offset as i64);
 
         if numeric_offset > 0 {
@@ -379,7 +363,13 @@ impl Db for MysqlDb {
 
         let next_offset = if limit >= 0 && bsos.len() > limit as usize {
             bsos.pop();
-            Some((limit + numeric_offset).to_string())
+            let modified_timestamps: Vec<i64> = bsos.iter().map(|b| b.modified.as_i64()).collect();
+            Some(encode_next_offset(
+                params.sort,
+                numeric_offset as u64,
+                prev_ts,
+                &modified_timestamps,
+            ))
         } else {
             // if an explicit "limit=0" is sent, return the offset of "0"
             // Otherwise, this would break at least the db::tests::db::get_bsos_limit_offset
@@ -399,7 +389,7 @@ impl Db for MysqlDb {
 
     async fn get_bso_ids(&mut self, params: params::GetBsos) -> DbResult<results::GetBsoIds> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let mut query = bso::table
             .select(bso::id)
             .filter(bso::user_id.eq(user_id))
@@ -420,8 +410,8 @@ impl Db for MysqlDb {
 
         query = match params.sort {
             Sorting::Index => query.order(bso::sortindex.desc()),
-            Sorting::Newest => query.order(bso::modified.desc()),
-            Sorting::Oldest => query.order(bso::modified.asc()),
+            Sorting::Newest => query.order((bso::modified.desc(), bso::id.desc())),
+            Sorting::Oldest => query.order((bso::modified.asc(), bso::id.asc())),
             _ => query,
         };
 
@@ -462,7 +452,7 @@ impl Db for MysqlDb {
 
     async fn get_bso(&mut self, params: params::GetBso) -> DbResult<Option<results::GetBso>> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         Ok(bso::table
             .select((
                 bso::id,
@@ -482,7 +472,7 @@ impl Db for MysqlDb {
 
     async fn delete_bso(&mut self, params: params::DeleteBso) -> DbResult<results::DeleteBso> {
         let user_id = params.user_id.legacy_id;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let affected_rows = delete(bso::table)
             .filter(bso::user_id.eq(user_id as i64))
             .filter(bso::collection_id.eq(&collection_id))
@@ -503,7 +493,7 @@ impl Db for MysqlDb {
 
     async fn delete_bsos(&mut self, params: params::DeleteBsos) -> DbResult<results::DeleteBsos> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         delete(bso::table)
             .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(&collection_id))
@@ -559,7 +549,7 @@ impl Db for MysqlDb {
         params: params::GetCollectionTimestamp,
     ) -> DbResult<SyncTimestamp> {
         let user_id = params.user_id.legacy_id as u32;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         if let Some(modified) = self
             .session
             .coll_modified_cache
@@ -582,7 +572,7 @@ impl Db for MysqlDb {
         params: params::GetBsoTimestamp,
     ) -> DbResult<SyncTimestamp> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let modified = bso::table
             .select(bso::modified)
             .filter(bso::user_id.eq(user_id))
@@ -692,13 +682,14 @@ impl Db for MysqlDb {
         params: params::GetQuotaUsage,
     ) -> DbResult<results::GetQuotaUsage> {
         let uid = params.user_id.legacy_id as i64;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let (total_bytes, count): (i64, i32) = user_collections::table
             .select((
                 sql::<BigInt>("COALESCE(SUM(COALESCE(total_bytes, 0)), 0)"),
                 sql::<Integer>("COALESCE(SUM(COALESCE(count, 0)), 0)"),
             ))
             .filter(user_collections::user_id.eq(uid))
-            .filter(user_collections::collection_id.eq(params.collection_id))
+            .filter(user_collections::collection_id.eq(collection_id))
             .get_result(&mut self.conn)
             .await
             .optional()?
@@ -757,6 +748,11 @@ impl Db for MysqlDb {
     }
 
     #[cfg(debug_assertions)]
+    async fn get_collection_id(&mut self, name: &str) -> DbResult<i32> {
+        self._get_collection_id(name).await
+    }
+
+    #[cfg(debug_assertions)]
     fn timestamp(&self) -> SyncTimestamp {
         self.session.timestamp
     }
@@ -780,12 +776,6 @@ impl Db for MysqlDb {
             enforced,
         }
     }
-}
-
-#[derive(Debug, QueryableByName)]
-struct IdResult {
-    #[diesel(sql_type = Integer)]
-    id: i32,
 }
 
 #[derive(Debug, QueryableByName)]

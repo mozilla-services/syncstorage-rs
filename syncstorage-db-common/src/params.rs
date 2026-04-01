@@ -68,27 +68,16 @@ pub struct Offset {
 
 impl Display for Offset {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), fmt::Error> {
-        // issue559: Disable ':' support for now.
-        write!(fmt, "{}", self.offset)
-        /*
         match self.timestamp {
-            None => self.offset.to_string(),
-            Some(ts) => format!("{}:{}", ts.as_i64(), self.offset),
+            None => write!(fmt, "{}", self.offset),
+            Some(ts) => write!(fmt, "{}:{}", ts.as_i64(), self.offset),
         }
-        */
     }
 }
 
 impl FromStr for Offset {
     type Err = ParseIntError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // issue559: Disable ':' support for now: simply parse as i64 as
-        // previously (it was u64 previously but i64's close enough)
-        let result = Offset {
-            timestamp: None,
-            offset: s.parse::<u64>()?,
-        };
-        /*
         let result = match s.chars().position(|c| c == ':') {
             None => Offset {
                 timestamp: None,
@@ -105,8 +94,61 @@ impl FromStr for Offset {
                 }
             }
         };
-        */
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::Offset;
+    use crate::util::SyncTimestamp;
+
+    #[test]
+    fn offset_display_without_timestamp() {
+        let offset = Offset {
+            timestamp: None,
+            offset: 50,
+        };
+        assert_eq!(offset.to_string(), "50");
+    }
+
+    #[test]
+    fn offset_display_with_timestamp() {
+        let offset = Offset {
+            timestamp: Some(SyncTimestamp::from_milliseconds(676760)),
+            offset: 2,
+        };
+        assert_eq!(offset.to_string(), "676760:2");
+    }
+
+    #[test]
+    fn offset_without_timestamp_parsed() {
+        let original = Offset {
+            timestamp: None,
+            offset: 99,
+        };
+        let parsed = Offset::from_str(&original.to_string()).unwrap();
+        assert_eq!(parsed.offset, original.offset);
+        assert!(parsed.timestamp.is_none());
+    }
+
+    #[test]
+    fn offset_with_timestamp_parsed() {
+        let original = Offset {
+            timestamp: Some(SyncTimestamp::from_milliseconds(71138383830)),
+            offset: 3,
+        };
+        let parsed = Offset::from_str(&original.to_string()).unwrap();
+        assert_eq!(parsed.offset, original.offset);
+        assert_eq!(parsed.timestamp, original.timestamp);
+    }
+
+    #[test]
+    fn offset_fromstr_malformed_returns_error() {
+        assert!(Offset::from_str("quux").is_err());
+        assert!(Offset::from_str("wibble:buzz").is_err());
     }
 }
 
@@ -151,7 +193,6 @@ collection_data! {
         id: String,
     },
     GetQuotaUsage {
-        collection_id: i32,
     },
 }
 

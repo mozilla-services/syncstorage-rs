@@ -7,7 +7,7 @@ authors = [
 ]
 readme = "README.md"
 # Odd <4.0 designation required for backoff dependency.
-requires-python = ">=3.9.2,<4.0"
+requires-python = ">=3.10.0,<4.0"
 license = "Mozilla Public License Version 2.0"
 
 [tool.poetry]
@@ -21,18 +21,18 @@ pyramid = "^1.10.8"
 sqlalchemy = "^1.4.46"
 testfixtures = "^8.3.0"
 tokenlib = "2.0.0"
-pytest = "8.3.5"
+pytest = "^9.0.2"
 backoff = "^2.2.1"
 datadog = "^0.51.0"
 psycopg2-binary = "^2.9.11"
 
 [tool.poetry.group.dev.dependencies]
-mypy = "^1.16.0"
+mypy = "^1.19.1"
 pydocstyle = "^6.3.0"
-ruff = "^0.12.7"
-black = "^25.1.0"
-bandit = "^1.8.3"
-isort = "^6.0.1"
+ruff = "^0.15.6"
+black = "^26.3.1"
+bandit = "^1.9.4"
+isort = "^8.0.1"
 
 [tool.poetry.requires-plugins]
 poetry-plugin-export = ">=1.8"

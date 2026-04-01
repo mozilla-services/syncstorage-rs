@@ -246,7 +246,6 @@ We include a basic script to create an instance and initialize the schema via Sp
 - cmake (>= 3.5 and < 3.30)
 - gcc
 - [golang](https://golang.org/doc/install)
-- libcurl4-openssl-dev
 - libssl-dev
 - make
 - pkg-config
@@ -256,14 +255,12 @@ We include a basic script to create an instance and initialize the schema via Sp
   * libmysqlclient (`brew install mysql` on macOS, `apt install libmysqlclient-dev` on Ubuntu, `apt install libmariadb-dev-compat` on Debian)
 
 Depending on your OS, you may also need to install `libgrpcdev`,
-and `protobuf-compiler-grpc`. *Note*: if the code complies cleanly,
-but generates a Segmentation Fault within Sentry init, you probably
-are missing `libcurl4-openssl-dev`.
+and `protobuf-compiler-grpc`.
 
 ## Local Setup
 
 1. Follow the instructions below to use either MySQL or Spanner as your DB.
-2. Now `cp config/local.example.toml config/local.toml`. Open `config/local.toml` and make sure you have the desired settings configured. For a complete list of available configuration options, check out [docs/config.md](docs/config.md).
+2. Now `cp config/local.example.toml config/local.toml`. Open `config/local.toml` and make sure you have the desired settings configured. For a complete list of available configuration options, check out the [Configuration](config.md) reference.
 3. To start a local server in debug mode, run either:
     - `make run_mysql` if using MySQL or,
     - `make run_spanner` if using spanner.

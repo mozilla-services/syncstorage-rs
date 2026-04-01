@@ -26,40 +26,12 @@ pub(super) const PRETOUCH_TS: &str = "0001-01-01T00:00:00.00Z";
 
 #[async_trait(?Send)]
 impl Db for SpannerDb {
-    async fn get_collection_id(&mut self, name: &str) -> DbResult<i32> {
-        if let Some(id) = self.coll_cache.get_id(name).await {
-            return Ok(id);
-        }
-        let (sqlparams, sqlparam_types) = params! { "name" => name.to_string() };
-        let result = self
-            .sql(
-                "SELECT collection_id
-                   FROM collections
-                  WHERE name = @name",
-            )
-            .await?
-            .params(sqlparams)
-            .param_types(sqlparam_types)
-            .execute(&self.conn)?
-            .one_or_none()
-            .await?
-            .ok_or_else(DbError::collection_not_found)?;
-        let id = result[0]
-            .get_string_value()
-            .parse::<i32>()
-            .map_err(|e| DbError::integrity(e.to_string()))?;
-        if !self.in_write_transaction() {
-            self.coll_cache.put(id, name.to_owned()).await;
-        }
-        Ok(id)
-    }
-
     async fn lock_for_read(&mut self, params: params::LockCollection) -> DbResult<()> {
         // Begin a transaction
         self.begin(false).await?;
 
         let collection_id = self
-            .get_collection_id(&params.collection)
+            ._get_collection_id(&params.collection)
             .await
             .or_else(|e| {
                 if e.is_collection_not_found() {
@@ -230,7 +202,7 @@ impl Db for SpannerDb {
         &mut self,
         params: params::GetCollectionTimestamp,
     ) -> DbResult<SyncTimestamp> {
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         if let Some(modified) = self
             .session
             .coll_modified_cache
@@ -446,6 +418,7 @@ impl Db for SpannerDb {
         if !self.quota.enabled {
             return Ok(results::GetQuotaUsage::default());
         }
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let check_sql = "SELECT COALESCE(total_bytes,0), COALESCE(count,0)
             FROM user_collections
            WHERE fxa_uid = @fxa_uid
@@ -454,7 +427,7 @@ impl Db for SpannerDb {
         let (sqlparams, sqlparam_types) = params! {
             "fxa_uid" => params.user_id.fxa_uid.clone(),
             "fxa_kid" => params.user_id.fxa_kid.clone(),
-            "collection_id" => params.collection_id,
+            "collection_id" => collection_id,
         };
         let result = self
             .sql(check_sql)
@@ -509,7 +482,7 @@ impl Db for SpannerDb {
     ) -> DbResult<results::DeleteCollection> {
         // Also deletes child bsos/batch rows (INTERLEAVE IN PARENT
         // user_collections ON DELETE CASCADE)
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let (sqlparams, mut sqlparam_types) = params! {
             "fxa_uid" => params.user_id.fxa_uid.clone(),
             "fxa_kid" => params.user_id.fxa_kid.clone(),
@@ -619,7 +592,7 @@ impl Db for SpannerDb {
     }
 
     async fn delete_bso(&mut self, params: params::DeleteBso) -> DbResult<results::DeleteBso> {
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let user_id = params.user_id.clone();
         let (sqlparams, sqlparam_types) = params! {
             "fxa_uid" => params.user_id.fxa_uid,
@@ -652,7 +625,7 @@ impl Db for SpannerDb {
 
     async fn delete_bsos(&mut self, params: params::DeleteBsos) -> DbResult<results::DeleteBsos> {
         let user_id = params.user_id.clone();
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
 
         let (sqlparams, sqlparam_types) = params! {
             "fxa_uid" => user_id.fxa_uid,
@@ -761,7 +734,7 @@ impl Db for SpannerDb {
     }
 
     async fn get_bso(&mut self, params: params::GetBso) -> DbResult<Option<results::GetBso>> {
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let (sqlparams, sqlparam_types) = params! {
             "fxa_uid" => params.user_id.fxa_uid,
             "fxa_kid" => params.user_id.fxa_kid,
@@ -791,7 +764,7 @@ impl Db for SpannerDb {
         &mut self,
         params: params::GetBsoTimestamp,
     ) -> DbResult<SyncTimestamp> {
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let (sqlparams, sqlparam_types) = params! {
             "fxa_uid" => params.user_id.fxa_uid,
             "fxa_kid" => params.user_id.fxa_kid,
@@ -867,6 +840,11 @@ impl Db for SpannerDb {
     #[cfg(debug_assertions)]
     async fn create_collection(&mut self, name: &str) -> DbResult<i32> {
         self._create_collection(name).await
+    }
+
+    #[cfg(debug_assertions)]
+    async fn get_collection_id(&mut self, name: &str) -> DbResult<i32> {
+        self._get_collection_id(name).await
     }
 
     #[cfg(debug_assertions)]

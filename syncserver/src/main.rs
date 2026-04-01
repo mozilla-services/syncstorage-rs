@@ -2,7 +2,7 @@
 #[macro_use]
 extern crate slog_scope;
 
-use std::{error::Error, sync::Arc};
+use std::error::Error;
 
 use docopt::Docopt;
 use serde::Deserialize;
@@ -34,16 +34,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     debug!("Starting up...");
 
     // Set SENTRY_DSN environment variable to enable Sentry.
-    // Avoid its default reqwest transport for now due to issues w/
-    // likely grpcio's boringssl
-    let curl_transport_factory = |options: &sentry::ClientOptions| {
-        Arc::new(sentry::transports::CurlHttpTransport::new(options)) as Arc<dyn sentry::Transport>
-    };
     // debug-images conflicts w/ our debug = 1 rustc build option:
     // https://github.com/getsentry/sentry-rust/issues/574
     let mut opts = sentry::apply_defaults(sentry::ClientOptions {
         // Note: set "debug: true," to diagnose sentry issues
-        transport: Some(Arc::new(curl_transport_factory)),
         release: sentry::release_name!(),
         environment: Some(settings.environment.clone().into()),
         ..sentry::ClientOptions::default()

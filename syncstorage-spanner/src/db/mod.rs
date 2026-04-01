@@ -112,7 +112,7 @@ impl SpannerDb {
     }
 
     async fn get_or_create_collection_id(&mut self, name: &str) -> DbResult<i32> {
-        match self.get_collection_id(name).await {
+        match self._get_collection_id(name).await {
             Err(e) if e.is_collection_not_found() => self._create_collection(name).await,
             result => result,
         }
@@ -155,6 +155,34 @@ impl SpannerDb {
         .param_types(sqlparam_types)
         .execute_dml(&self.conn)
         .await?;
+        Ok(id)
+    }
+
+    async fn _get_collection_id(&mut self, name: &str) -> DbResult<i32> {
+        if let Some(id) = self.coll_cache.get_id(name).await {
+            return Ok(id);
+        }
+        let (sqlparams, sqlparam_types) = params! { "name" => name.to_string() };
+        let result = self
+            .sql(
+                "SELECT collection_id
+                   FROM collections
+                  WHERE name = @name",
+            )
+            .await?
+            .params(sqlparams)
+            .param_types(sqlparam_types)
+            .execute(&self.conn)?
+            .one_or_none()
+            .await?
+            .ok_or_else(DbError::collection_not_found)?;
+        let id = result[0]
+            .get_string_value()
+            .parse::<i32>()
+            .map_err(|e| DbError::integrity(e.to_string()))?;
+        if !self.in_write_transaction() {
+            self.coll_cache.put(id, name.to_owned()).await;
+        }
         Ok(id)
     }
 
@@ -464,7 +492,7 @@ impl SpannerDb {
         let (mut sqlparams, mut sqlparam_types) = params! {
             "fxa_uid" => params.user_id.fxa_uid,
             "fxa_kid" => params.user_id.fxa_kid,
-            "collection_id" => self.get_collection_id(&params.collection).await?,
+            "collection_id" => self._get_collection_id(&params.collection).await?,
         };
 
         if !params.ids.is_empty() {
@@ -642,8 +670,7 @@ impl SpannerDb {
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
 
         if !params.for_batch {
-            self.check_quota(&user_id, &params.collection, collection_id)
-                .await?;
+            self.check_quota(&user_id, &params.collection).await?;
         }
 
         // Ensure a parent record exists in user_collections before writing to
@@ -760,7 +787,6 @@ impl SpannerDb {
         &mut self,
         user_id: &UserIdentifier,
         collection: &str,
-        collection_id: i32,
     ) -> DbResult<Option<usize>> {
         // duplicate quota trap in test func below.
         if !self.quota.enabled {
@@ -770,7 +796,6 @@ impl SpannerDb {
             .get_quota_usage(params::GetQuotaUsage {
                 user_id: user_id.clone(),
                 collection: collection.to_owned(),
-                collection_id,
             })
             .await?;
         if usage.total_bytes >= self.quota.size {
@@ -792,8 +817,7 @@ impl SpannerDb {
         use syncstorage_db_common::util::to_rfc3339;
         let collection_id = self.get_or_create_collection_id(&bso.collection).await?;
 
-        self.check_quota(&bso.user_id, &bso.collection, collection_id)
-            .await?;
+        self.check_quota(&bso.user_id, &bso.collection).await?;
 
         let (mut sqlparams, mut sqlparam_types) = params! {
             "fxa_uid" => bso.user_id.fxa_uid.clone(),

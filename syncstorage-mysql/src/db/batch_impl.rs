@@ -32,7 +32,7 @@ impl BatchDb for MysqlDb {
         params: params::CreateBatch,
     ) -> DbResult<results::CreateBatch> {
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         // Careful, there's some weirdness here!
         //
         // Sync timestamps are in seconds and quantized to two decimal places, so
@@ -85,7 +85,7 @@ impl BatchDb for MysqlDb {
         }
 
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let exists = batch_uploads::table
             .select(sql::<Integer>("1"))
             .filter(batch_uploads::batch_id.eq(&batch_id))
@@ -111,7 +111,7 @@ impl BatchDb for MysqlDb {
         }
 
         let batch_id = decode_id(&params.batch.id)?;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         do_append(self, batch_id, params.user_id, collection_id, params.bsos).await?;
         Ok(())
     }
@@ -135,7 +135,7 @@ impl BatchDb for MysqlDb {
     async fn delete_batch(&mut self, params: params::DeleteBatch) -> DbResult<()> {
         let batch_id = decode_id(&params.id)?;
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         diesel::delete(batch_uploads::table)
             .filter(batch_uploads::batch_id.eq(&batch_id))
             .filter(batch_uploads::user_id.eq(&user_id))
@@ -157,7 +157,7 @@ impl BatchDb for MysqlDb {
     ) -> DbResult<results::CommitBatch> {
         let batch_id = decode_id(&params.batch.id)?;
         let user_id = params.user_id.legacy_id as i64;
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let timestamp = self.session.timestamp;
         sql_query(include_str!("batch_commit.sql"))
             .bind::<BigInt, _>(user_id)

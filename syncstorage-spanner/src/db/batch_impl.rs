@@ -31,7 +31,7 @@ impl BatchDb for SpannerDb {
         params: params::CreateBatch,
     ) -> DbResult<results::CreateBatch> {
         let batch_id = Uuid::new_v4().simple().to_string();
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let timestamp = self.checked_timestamp()?.as_i64();
 
         // Ensure a parent record exists in user_collections before writing to batches
@@ -39,7 +39,7 @@ impl BatchDb for SpannerDb {
         pretouch_collection(self, &params.user_id, collection_id).await?;
         let new_batch = results::CreateBatch {
             size: self
-                .check_quota(&params.user_id, &params.collection, collection_id)
+                .check_quota(&params.user_id, &params.collection)
                 .await?,
             id: batch_id,
         };
@@ -83,10 +83,10 @@ impl BatchDb for SpannerDb {
     async fn append_to_batch(&mut self, params: params::AppendToBatch) -> DbResult<()> {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.spanner.append_items_to_batch", None);
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
 
         let current_size = self
-            .check_quota(&params.user_id, &params.collection, collection_id)
+            .check_quota(&params.user_id, &params.collection)
             .await?;
         let mut batch = params.batch;
         if let Some(size) = current_size {
@@ -120,7 +120,7 @@ impl BatchDb for SpannerDb {
     }
 
     async fn get_batch(&mut self, params: params::GetBatch) -> DbResult<Option<results::GetBatch>> {
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let (sqlparams, sqlparam_types) = params! {
             "fxa_uid" => params.user_id.fxa_uid.clone(),
             "fxa_kid" => params.user_id.fxa_kid.clone(),
@@ -148,7 +148,7 @@ impl BatchDb for SpannerDb {
     }
 
     async fn delete_batch(&mut self, params: params::DeleteBatch) -> DbResult<()> {
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
         let (sqlparams, sqlparam_types) = params! {
             "fxa_uid" => params.user_id.fxa_uid.clone(),
             "fxa_kid" => params.user_id.fxa_kid.clone(),
@@ -178,7 +178,7 @@ impl BatchDb for SpannerDb {
     ) -> DbResult<results::CommitBatch> {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.spanner.apply_batch", None);
-        let collection_id = self.get_collection_id(&params.collection).await?;
+        let collection_id = self._get_collection_id(&params.collection).await?;
 
         // Ensure a parent record exists in user_collections before writing to bsos
         // (INTERLEAVE IN PARENT user_collections)

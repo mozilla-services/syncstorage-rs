@@ -15,6 +15,7 @@ use diesel::{
 use serde::{Deserialize, Deserializer, Serialize, Serializer, ser};
 
 use super::error::SyncstorageDbError;
+use crate::{Sorting, params};
 
 /// Get the time since the UNIX epoch in milliseconds
 fn ms_since_epoch() -> i64 {
@@ -215,6 +216,39 @@ pub fn to_rfc3339(val: i64) -> Result<String, SyncstorageDbError> {
     )))
 }
 
+/// Encode a timestamp and the number of rows to skip for BSO query pagination.
+pub fn encode_next_offset(
+    sort: Sorting,
+    prev_offset: u64,
+    prev_timestamp: Option<i64>,
+    modified_timestamps: &[i64],
+) -> String {
+    if let Sorting::Index = sort {
+        return (prev_offset + modified_timestamps.len() as u64).to_string();
+    }
+    if modified_timestamps.is_empty() {
+        return prev_offset.to_string();
+    }
+
+    let bound = *modified_timestamps.last().unwrap();
+    let mut skip = 1usize;
+
+    skip += modified_timestamps[..modified_timestamps.len() - 1]
+        .iter()
+        .rev()
+        .take_while(|&&m| m == bound)
+        .count();
+    if skip == modified_timestamps.len() && prev_timestamp == Some(bound) {
+        skip += prev_offset as usize;
+    }
+
+    params::Offset {
+        timestamp: Some(SyncTimestamp::from_milliseconds(bound as u64)),
+        offset: skip as u64,
+    }
+    .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use std::error::Error;
@@ -261,5 +295,59 @@ mod tests {
         let zero = SyncTimestamp::zero();
         assert_eq!(zero, SyncTimestamp::from_i64(0).unwrap());
         assert_eq!(zero, SyncTimestamp::from_seconds(0.00));
+    }
+
+    mod encode_next_offset_tests {
+        use crate::Sorting;
+        use crate::util::encode_next_offset;
+
+        #[test]
+        fn index_sort_returns_numeric_offset() {
+            let result = encode_next_offset(Sorting::Index, 50, None, &[19, 83, 747]);
+            assert_eq!(result, "53");
+        }
+
+        #[test]
+        fn empty_modified_timestamps_returns_prev_offset() {
+            let result = encode_next_offset(Sorting::Newest, 42, None, &[]);
+            assert_eq!(result, "42");
+        }
+
+        #[test]
+        fn unique_last_timestamp_skip_is_one() {
+            let result = encode_next_offset(Sorting::Newest, 0, None, &[5500, 4200, 3800]);
+            assert_eq!(result, "3800:1");
+        }
+
+        #[test]
+        fn skip_counts_identical_tail_timestamps() {
+            let result = encode_next_offset(Sorting::Newest, 0, None, &[5000, 3800, 3800]);
+            assert_eq!(result, "3800:2");
+        }
+
+        #[test]
+        fn identical_timestamps_no_prev_bound_match() {
+            let result = encode_next_offset(Sorting::Newest, 0, Some(2048), &[3800, 3800, 3800]);
+            assert_eq!(result, "3800:3");
+        }
+
+        #[test]
+        fn identical_timestamps_with_matching_prev_bound_sums() {
+            let result = encode_next_offset(Sorting::Newest, 2, Some(9000), &[9000, 9000, 9000]);
+            assert_eq!(result, "9000:5");
+        }
+
+        #[test]
+        fn oldest_sort_works() {
+            let result = encode_next_offset(Sorting::Oldest, 0, None, &[8900, 9000, 9100]);
+            assert_eq!(result, "9100:1");
+        }
+
+        #[test]
+        fn none_sort_produces_timestamp_token() {
+            // Sorting::None behaves like Newest
+            let result = encode_next_offset(Sorting::None, 0, None, &[5500, 4200, 3800]);
+            assert_eq!(result, "3800:1");
+        }
     }
 }

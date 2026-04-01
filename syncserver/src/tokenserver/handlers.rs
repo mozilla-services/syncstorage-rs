@@ -293,29 +293,33 @@ pub async fn handle_fxa_events(
     };
 
     for event_type in events.keys() {
+        let email = format!("{}@{}", claims.sub, state.fxa_email_domain);
         match event_type.as_str() {
             "https://schemas.accounts.firefox.com/event/delete-user" => {
-                db.retire_user(RetireUser {
-                    service_id,
-                    email: format!("{}@{}", claims.sub, state.fxa_email_domain),
-                })
-                .await?;
+                info!("Processing account delete for {}", email);
+                db.retire_user(RetireUser { service_id, email }).await?;
             }
             "https://schemas.accounts.firefox.com/event/password-change" => {
                 if let Some(change_time_ms) = events[event_type]
                     .get("changeTime")
                     .and_then(|t| t.as_i64())
                 {
+                    info!("Processing password change for {}", email);
                     db.update_user_generation(UpdateUserGeneration {
                         service_id,
-                        email: format!("{}@{}", claims.sub, state.fxa_email_domain),
+                        email,
                         generation: Some(change_time_ms / 1000 - 1),
                         keys_changed_at: None,
                     })
                     .await?;
                 }
             }
-            _ => {}
+            _ => {
+                info!(
+                    "Dropping unhandled event type {:?} for {}",
+                    event_type, email
+                );
+            }
         }
     }
 

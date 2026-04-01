@@ -124,7 +124,7 @@ RUN apt-get -q update && \
         apt-get -q update ; \
     fi && \
     POSTGRES_PKG="libpq5" && \
-    apt-get -q install -y --no-install-recommends $MYSQL_PKG $POSTGRES_PKG libssl3 libffi8 libcurl4 libpython3.11 python3 python3-pip python3-venv curl jq && \
+    apt-get -q install -y --no-install-recommends $MYSQL_PKG $POSTGRES_PKG libssl3 libffi8 libpython3.11 python3 python3-pip python3-venv curl jq && \
     # The python3-cryptography debian package installs version 2.6.1, but we
     # we want to use the version specified in requirements.txt. To do this,
     # we have to remove the python3-cryptography package here.
