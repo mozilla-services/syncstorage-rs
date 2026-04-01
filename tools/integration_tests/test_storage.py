@@ -1,8 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-"""
-Functional tests for the SyncStorage server protocol.
+"""Functional tests for the SyncStorage server protocol.
 
 This file runs tests to ensure the correct operation of the server
 as specified in:
@@ -11,7 +10,6 @@ as specified in:
 
 If there's an aspect of that spec that's not covered by a test in this file,
 consider it a bug.
-
 """
 
 import pytest
@@ -26,7 +24,7 @@ import webtest
 import contextlib
 
 # import math
-import simplejson
+import simplejson  # type: ignore[import-untyped]
 
 from pyramid.interfaces import IAuthenticationPolicy
 from webtest.app import AppError
@@ -37,10 +35,14 @@ import tokenlib
 
 
 class ConflictError(Exception):
+    """Raised when a conflict (409) response is returned."""
+
     pass
 
 
 class BackendError(Exception):
+    """Raised when a backend error (503) response is returned."""
+
     pass
 
 
@@ -70,6 +72,7 @@ _ASCII = string.ascii_letters + string.digits
 
 
 def randtext(size=10):
+    """Return a random ASCII string of the given size."""
     return "".join([random.choice(_ASCII) for i in range(size)])
 
 
@@ -92,7 +95,8 @@ class TestStorage(StorageFunctionalTestCase):
 
     @contextlib.contextmanager
     def _switch_user(self):
-        """Allows for temporary switch url to another user id.
+        """Allow temporary switch of url to another user id.
+
         Context manager yields for duration of test and then
         returns to original user, regardless of test result.
         If unsuccessful, root url is retained.
@@ -111,15 +115,15 @@ class TestStorage(StorageFunctionalTestCase):
             self.root = orig_root
 
     def retry_post_json(self, *args, **kwargs):
-        """Helper wrapper for any POST operation."""
+        """Send a POST request with retry on transient errors."""
         return self._retry_send(self.app.post_json, *args, **kwargs)
 
     def retry_put_json(self, *args, **kwargs):
-        """Helper wrapper for any PUT operation."""
+        """Send a PUT request with retry on transient errors."""
         return self._retry_send(self.app.put_json, *args, **kwargs)
 
     def retry_delete(self, *args, **kwargs):
-        """Helper wrapper for any DELETE operation."""
+        """Send a DELETE request with retry on transient errors."""
         return self._retry_send(self.app.delete, *args, **kwargs)
 
     def _retry_send(self, func, *args, **kwargs):
@@ -137,6 +141,7 @@ class TestStorage(StorageFunctionalTestCase):
             return func(*args, **kwargs)
 
     def test_get_info_collections(self):
+        """Test get info collections."""
         # xxx_col1 gets 3 items, xxx_col2 gets 5 items.
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(3)]
         resp = self.retry_post_json(self.root + "/storage/xxx_col1", bsos)
@@ -164,6 +169,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(res["xxx_col2"], ts2)
 
     def test_get_collection_count(self):
+        """Test get collection count."""
         # xxx_col1 gets 3 items, xxx_col2 gets 5 items.
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(3)]
         self.retry_post_json(self.root + "/storage/xxx_col1", bsos)
@@ -177,6 +183,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(res["xxx_col2"], 5)
 
     def test_bad_cache(self):
+        """Test bad cache."""
         # fixes #637332
         # the collection name <-> id mapper is temporarely cached to
         # save a few requests.
@@ -195,6 +202,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(len(resp.json), numcols + 1)
 
     def test_get_collection_only(self):
+        """Test get collection only."""
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(5)]
         self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
 
@@ -403,6 +411,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(res, ["01", "02", "00"])
 
     def test_alternative_formats(self):
+        """Test alternative formats."""
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(5)]
         self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
 
@@ -443,6 +452,7 @@ class TestStorage(StorageFunctionalTestCase):
         )
 
     def test_set_collection_with_if_modified_since(self):
+        """Test set collection with if modified since."""
         # Create five items with different timestamps.
         for i in range(5):
             bsos = [{"id": str(i).zfill(2), "payload": "xxx"}]
@@ -465,6 +475,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertTrue("X-Last-Modified" in res.headers)
 
     def test_get_item(self):
+        """Test get item."""
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(5)]
         self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
         # grabbing object 1 from xxx_col2
@@ -496,6 +507,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(res.json["id"], "01")
 
     def test_set_item(self):
+        """Test set item."""
         # let's create an object
         bso = {"payload": _PLD}
         self.retry_put_json(self.root + "/storage/xxx_col2/12345", bso)
@@ -511,6 +523,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(res["payload"], "YYY")
 
     def test_set_collection(self):
+        """Test set collection."""
         # sending two bsos
         bso1 = {"id": "12", "payload": _PLD}
         bso2 = {"id": "13", "payload": _PLD}
@@ -547,6 +560,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.app.get(self.root + "/storage/xxx_col2/two", status=404)
 
     def test_set_collection_input_formats(self):
+        """Test set collection input formats."""
         # If we send with application/newlines it should work.
         bso1 = {"id": "12", "payload": _PLD}
         bso2 = {"id": "13", "payload": _PLD}
@@ -572,6 +586,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(len(items), 0)
 
     def test_set_item_input_formats(self):
+        """Test set item input formats."""
         # If we send with application/json it should work.
         body = json_dumps({"payload": _PLD})
         self.app.put(
@@ -600,6 +615,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(item["payload"], _PLD)
 
     def test_app_newlines_when_payloads_contain_newlines(self):
+        """Test app newlines when payloads contain newlines."""
         # Send some application/newlines with embedded newline chars.
         bsos = [
             {"id": "01", "payload": "hello\nworld"},
@@ -634,6 +650,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(items[1]["payload"], bsos[1]["payload"])
 
     def test_collection_usage(self):
+        """Test collection usage."""
         self.retry_delete(self.root + "/storage")
 
         bso1 = {"id": "13", "payload": "XyX"}
@@ -648,6 +665,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(round(xxx_col2_size, 2), round(wanted, 2))
 
     def test_delete_collection_items(self):
+        """Test delete collection items."""
         # creating a collection of three
         bso1 = {"id": "12", "payload": _PLD}
         bso2 = {"id": "13", "payload": _PLD}
@@ -675,6 +693,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(len(res.json), 0)
 
     def test_delete_item(self):
+        """Test delete item."""
         # creating a collection of three
         bso1 = {"id": "12", "payload": _PLD}
         bso2 = {"id": "13", "payload": _PLD}
@@ -698,6 +717,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertTrue(ts < float(res.headers["X-Last-Modified"]))
 
     def test_delete_storage(self):
+        """Test delete storage."""
         # creating a collection of three
         bso1 = {"id": "12", "payload": _PLD}
         bso2 = {"id": "13", "payload": _PLD}
@@ -715,6 +735,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(len(items), 0)
 
     def test_x_timestamp_header(self):
+        """Test x timestamp header."""
         if self.distant:
             pytest.skip("Test cannot be run against a live server.")
 
@@ -744,6 +765,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertTrue(now <= float(res.headers["X-Weave-Timestamp"]))
 
     def test_ifunmodifiedsince(self):
+        """Test ifunmodifiedsince."""
         bso = {"id": "12345", "payload": _PLD}
         res = self.retry_put_json(self.root + "/storage/xxx_col2/12345", bso)
         # Using an X-If-Unmodified-Since in the past should cause 412s.
@@ -842,6 +864,7 @@ class TestStorage(StorageFunctionalTestCase):
         )
 
     def test_quota(self):
+        """Test quota."""
         res = self.app.get(self.root + "/info/quota")
         old_used = res.json[0]
         bso = {"payload": _PLD}
@@ -851,6 +874,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(used - old_used, len(_PLD) / 1024.0)
 
     def test_get_collection_ttl(self):
+        """Test get collection ttl."""
         bso = {"payload": _PLD, "ttl": 0}
         res = self.retry_put_json(self.root + "/storage/xxx_col2/12345", bso)
         time.sleep(1.1)
@@ -874,6 +898,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(len(res.json), 0)
 
     def test_multi_item_post_limits(self):
+        """Test multi item post limits."""
         res = self.app.get(self.root + "/info/configuration")
         try:
             max_bytes = res.json["max_post_bytes"]
@@ -923,6 +948,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(len(res["failed"]), 1)
 
     def test_weird_args(self):
+        """Test weird args."""
         # pushing some data in xxx_col2
         bsos = [{"id": str(i).zfill(2), "payload": _PLD} for i in range(10)]
         res = self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
@@ -948,6 +974,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.app.get(self.root + "/storage/xxx_col2?blabla=1", status=200)
 
     def test_guid_deletion(self):
+        """Test guid deletion."""
         # pushing some data in xxx_col2
         bsos = [
             {
@@ -971,6 +998,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(len(res.json), 3)
 
     def test_specifying_ids_with_percent_encoded_query_string(self):
+        """Test specifying ids with percent encoded query string."""
         # create some items
         bsos = [{"id": "test-%d" % i, "payload": _PLD} for i in range(5)]
         res = self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
@@ -987,6 +1015,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(len(res.json), 3)
 
     def test_timestamp_numbers_are_decimals(self):
+        """Test timestamp numbers are decimals."""
         # Create five items with different timestamps.
         for i in range(5):
             bsos = [{"id": str(i).zfill(2), "payload": "xxx"}]
@@ -1024,6 +1053,7 @@ class TestStorage(StorageFunctionalTestCase):
             raise AssertionError(msg)
 
     def test_strict_newer(self):
+        """Test strict newer."""
         # send two bsos in the 'meh' collection
         bso1 = {"id": "01", "payload": _PLD}
         bso2 = {"id": "02", "payload": _PLD}
@@ -1044,6 +1074,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(sorted(res), ["03", "04"])
 
     def test_strict_older(self):
+        """Test strict older."""
         # send two bsos in the 'xxx_meh' collection
         bso1 = {"id": "01", "payload": _PLD}
         bso2 = {"id": "02", "payload": _PLD}
@@ -1064,6 +1095,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(sorted(res), ["01", "02"])
 
     def test_handling_of_invalid_json_in_bso_uploads(self):
+        """Test handling of invalid json in bso uploads."""
         # Single upload with JSON that's not a BSO.
         bso = "notabso"
         res = self.retry_put_json(
@@ -1106,6 +1138,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(len(res["failed"]), 1)
 
     def test_handling_of_invalid_bso_fields(self):
+        """Test handling of invalid bso fields."""
         coll_url = self.root + "/storage/xxx_col2"
         # Invalid ID - unacceptable characters.
         # The newline cases are especially nuanced because \n
@@ -1179,6 +1212,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(res.json, WEAVE_INVALID_WBO)
 
     def test_that_batch_gets_are_limited_to_max_number_of_ids(self):
+        """Test that batch gets are limited to max number of ids."""
         bso = {"id": "01", "payload": "testing"}
         self.retry_put_json(self.root + "/storage/xxx_col2/01", bso)
 
@@ -1197,6 +1231,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.app.get(self.root + "/storage/xxx_col2?ids=" + ids, status=400)
 
     def test_that_batch_deletes_are_limited_to_max_number_of_ids(self):
+        """Test that batch deletes are limited to max number of ids."""
         bso = {"id": "01", "payload": "testing"}
 
         # Deleting with less than the limit works OK.
@@ -1215,6 +1250,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.retry_delete(self.root + "/storage/xxx_col2?ids=" + ids, status=400)
 
     def test_that_expired_items_can_be_overwritten_via_PUT(self):
+        """Test that expired items can be overwritten via PUT."""
         # Upload something with a small ttl.
         bso = {"payload": "XYZ", "ttl": 0}
         self.retry_put_json(self.root + "/storage/xxx_col2/TEST", bso)
@@ -1226,6 +1262,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.retry_put_json(self.root + "/storage/xxx_col2/TEST", bso)
 
     def test_if_modified_since_on_info_views(self):
+        """Test if modified since on info views."""
         # Store something, so the views have a modified time > 0.
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(3)]
         self.retry_post_json(self.root + "/storage/xxx_col1", bsos)
@@ -1274,6 +1311,7 @@ class TestStorage(StorageFunctionalTestCase):
         #     self.app.get(self.root + view, headers=headers, status=304)
 
     def test_that_x_last_modified_is_sent_for_all_get_requests(self):
+        """Test that x last modified is sent for all get requests."""
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(5)]
         self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
         r = self.app.get(self.root + "/info/collections")
@@ -1286,6 +1324,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertTrue("X-Last-Modified" in r.headers)
 
     def test_update_of_ttl_without_sending_data(self):
+        """Test update of ttl without sending data."""
         bso = {"payload": "x", "ttl": 1}
         self.retry_put_json(self.root + "/storage/xxx_col2/TEST1", bso)
         self.retry_put_json(self.root + "/storage/xxx_col2/TEST2", bso)
@@ -1312,6 +1351,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertTrue(ts2 < ts3)
 
     def test_bulk_update_of_ttls_without_sending_data(self):
+        """Test bulk update of ttls without sending data."""
         # Create 5 BSOs with a ttl of 1 second.
         bsos = [{"id": str(i).zfill(2), "payload": "x", "ttl": 1} for i in range(5)]
         r = self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
@@ -1346,6 +1386,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(items["06"]["modified"], ts2)
 
     def test_that_negative_integer_fields_are_not_accepted(self):
+        """Test that negative integer fields are not accepted."""
         # ttls cannot be negative
         self.retry_put_json(
             self.root + "/storage/xxx_col2/TEST",
@@ -1388,6 +1429,7 @@ class TestStorage(StorageFunctionalTestCase):
         )
 
     def test_meta_global_sanity(self):
+        """Test meta global sanity."""
         # Memcache backend is configured to store 'meta' in write-through
         # cache, so we want to check it explicitly.  We might as well put it
         # in the base tests because there's nothing memcached-specific here.
@@ -1416,11 +1458,13 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(res.json["modified"], ts)
 
     def test_that_404_responses_have_a_json_body(self):
+        """Test that 404 responses have a json body."""
         res = self.app.get(self.root + "/nonexistent/url", status=404)
         self.assertEqual(res.content_type, "application/json")
         self.assertEqual(res.json, 0)
 
     def test_that_internal_server_fields_are_not_echoed(self):
+        """Test that internal server fields are not echoed."""
         self.retry_post_json(
             self.root + "/storage/xxx_col1", [{"id": "one", "payload": "blob"}]
         )
@@ -1440,6 +1484,7 @@ class TestStorage(StorageFunctionalTestCase):
             self.assertFalse("ttl" in res.json)
 
     def test_accessing_info_collections_with_an_expired_token(self):
+        """Test accessing info collections with an expired token."""
         # This can't be run against a live server because we
         # have to forge an auth token to test things properly.
         if self.distant:
@@ -1482,6 +1527,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(resp.json["xxx_col1"], ts)
 
     def test_pagination_with_newer_and_sort_by_oldest(self):
+        """Test pagination with newer and sort by oldest."""
         # Twelve bsos with three different modification times.
         NUM_ITEMS = 12
         bsos = []
@@ -1525,6 +1571,7 @@ class TestStorage(StorageFunctionalTestCase):
                 )
 
     def test_pagination_with_older_and_sort_by_newest(self):
+        """Test pagination with older and sort by newest."""
         # Twelve bsos with three different modification times.
         NUM_ITEMS = 12
         bsos = []
@@ -1568,6 +1615,7 @@ class TestStorage(StorageFunctionalTestCase):
                 )
 
     def assertCloseEnough(self, val1, val2, delta=0.05):
+        """Test assertCloseEnough."""
         if abs(val1 - val2) < delta:
             return True
         raise AssertionError(
@@ -1575,6 +1623,7 @@ class TestStorage(StorageFunctionalTestCase):
         )
 
     def test_batches(self):
+        """Test batches."""
         endpoint = self.root + "/storage/xxx_col2"
 
         bso1 = {"id": "12", "payload": "elegance"}
@@ -1653,6 +1702,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(committed, resp3.json["modified"])
 
     def test_aaa_batch_commit_collision(self):
+        """Test aaa batch commit collision."""
         # It's possible that a batch contain a BSO inside a batch as well
         # as inside the final "commit" message. This is a bit of a problem
         # for spanner because of conflicting ways that the data is written
@@ -1678,6 +1728,7 @@ class TestStorage(StorageFunctionalTestCase):
         assert resp.json[0].get("payload") == repl, "wrong payload returned"
 
     def test_we_dont_need_no_stinkin_batches(self):
+        """Test we dont need no stinkin batches."""
         endpoint = self.root + "/storage/xxx_col2"
 
         # invalid batch ID
@@ -1688,6 +1739,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.retry_post_json(endpoint + "?commit=true", [], status=400)
 
     def test_batch_size_limits(self):
+        """Test batch size limits."""
         limits = self.app.get(self.root + "/info/configuration").json
         self.assertTrue("max_post_records" in limits)
         self.assertTrue("max_post_bytes" in limits)
@@ -1842,6 +1894,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(resp.status_code, 400)
 
     def test_batch_partial_update(self):
+        """Test batch partial update."""
         collection = self.root + "/storage/xxx_col2"
         bsos = [
             {"id": "a", "payload": "aai"},
@@ -1890,6 +1943,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(res[1]["sortindex"], 17)
 
     def test_batch_ttl_update(self):
+        """Test batch ttl update."""
         collection = self.root + "/storage/xxx_col2"
         bsos = [
             {"id": "a", "payload": "ayy"},
@@ -1927,6 +1981,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(res[0]["payload"], "see")
 
     def test_batch_ttl_is_based_on_commit_timestamp(self):
+        """Test batch ttl is based on commit timestamp."""
         collection = self.root + "/storage/xxx_col2"
 
         resp = self.retry_post_json(collection + "?batch=true", [], status=202)
@@ -1954,6 +2009,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(len(res), 0)
 
     def test_batch_with_immediate_commit(self):
+        """Test batch with immediate commit."""
         collection = self.root + "/storage/xxx_col2"
         bsos = [
             {"id": "a", "payload": "aih"},
@@ -1982,6 +2038,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(res[2]["payload"], "cee")
 
     def test_batch_uploads_properly_update_info_collections(self):
+        """Test batch uploads properly update info collections."""
         collection1 = self.root + "/storage/xxx_col1"
         collection2 = self.root + "/storage/xxx_col2"
         bsos = [
@@ -2026,6 +2083,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(resp.json["xxx_col2"], ts2)
 
     def test_batch_with_failing_bsos(self):
+        """Test batch with failing bsos."""
         collection = self.root + "/storage/xxx_col2"
         bsos = [
             {"id": "a", "payload": "aai"},
@@ -2057,6 +2115,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(res[1]["payload"], "sea")
 
     def test_batch_id_is_correctly_scoped_to_a_collection(self):
+        """Test batch id is correctly scoped to a collection."""
         collection1 = self.root + "/storage/xxx_col1"
         bsos = [
             {"id": "a", "payload": "aih"},
@@ -2090,6 +2149,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(res[3]["payload"], "dii")
 
     def test_users_with_the_same_batch_id_get_separate_data(self):
+        """Test users with the same batch id get separate data."""
         # Try to generate two users with the same batch-id.
         # It might take a couple of attempts...
         for _ in range(100):
@@ -2122,6 +2182,7 @@ class TestStorage(StorageFunctionalTestCase):
             pytest.skip("failed to generate conflicting batchid")
 
     def test_that_we_dont_resurrect_committed_batches(self):
+        """Test that we dont resurrect committed batches."""
         # This retry loop tries to trigger a situation where we:
         #  * create a batch with a single item
         #  * successfully commit that batch
@@ -2151,6 +2212,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(resp.json, ["j"])
 
     def test_batch_id_is_correctly_scoped_to_a_user(self):
+        """Test batch id is correctly scoped to a user."""
         collection = self.root + "/storage/xxx_col1"
         bsos = [
             {"id": "a", "payload": "aih"},
@@ -2186,6 +2248,7 @@ class TestStorage(StorageFunctionalTestCase):
 
     # bug 1332552 make sure ttl:null use the default ttl
     def test_create_bso_with_null_ttl(self):
+        """Test create bso with null ttl."""
         bso = {"payload": "x", "ttl": None}
         self.retry_put_json(self.root + "/storage/xxx_col2/TEST1", bso)
         time.sleep(0.1)
@@ -2193,6 +2256,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(res.json["payload"], "x")
 
     def test_rejection_of_known_bad_payloads(self):
+        """Test rejection of known bad payloads."""
         bso = {
             "id": "keys",
             "payload": json_dumps(
@@ -2212,6 +2276,8 @@ class TestStorage(StorageFunctionalTestCase):
 
     # bug 1397357
     def test_batch_empty_commit(self):
+        """Test batch empty commit."""
+
         def testEmptyCommit(contentType, body, status=200):
             bsos = [{"id": str(i).zfill(2), "payload": "X"} for i in range(5)]
             res = self.retry_post_json(self.root + "/storage/xxx_col?batch=true", bsos)
@@ -2235,6 +2301,7 @@ class TestStorage(StorageFunctionalTestCase):
         testEmptyCommit("application/newlines", "[]", status=400)
 
     def test_cors_settings_are_set(self):
+        """Test cors settings are set."""
         res = self.app.options(
             self.root + "/__heartbeat__",
             headers={
@@ -2248,6 +2315,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(res.headers["access-control-allow-origin"], "localhost")
 
     def test_cors_allows_any_origin(self):
+        """Test cors allows any origin."""
         self.app.options(
             self.root + "/__heartbeat__",
             headers={
@@ -2260,6 +2328,7 @@ class TestStorage(StorageFunctionalTestCase):
 
     # PATCH is not a default allowed method, so request should return 405
     def test_patch_is_not_allowed(self):
+        """Test patch is not allowed."""
         collection = self.root + "/storage/xxx_col1"
         with self.assertRaises(AppError) as error:
             self.app.patch_json(collection)

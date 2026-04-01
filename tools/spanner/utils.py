@@ -3,6 +3,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
+"""Utility functions and types for Spanner CLI scripts."""
 
 import os
 from enum import auto, Enum
@@ -17,6 +18,8 @@ In this context, should always point to spanner for these scripts.
 
 
 class Mode(Enum):
+    """Enumeration of DSN resolution modes."""
+
     URL = auto()
     ENV_VAR = auto()
 

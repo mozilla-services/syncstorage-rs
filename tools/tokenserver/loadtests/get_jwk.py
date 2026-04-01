@@ -1,3 +1,5 @@
+"""Print a public RSA key as a JSON Web Key (JWK)."""
+
 import sys
 
 from authlib.jose import JsonWebKey

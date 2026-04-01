@@ -1,6 +1,8 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
+"""Miscellaneous integration tests for the tokenserver."""
+
 import pytest
 import unittest
 
@@ -11,13 +13,18 @@ MAX_GENERATION = 9223372036854775807
 
 @pytest.mark.usefixtures("setup_server_local_testing")
 class TestMisc(TestCase, unittest.TestCase):
+    """Miscellaneous tokenserver integration tests."""
+
     def setUp(self):
+        """Set up test fixtures."""
         super(TestMisc, self).setUp()
 
     def tearDown(self):
+        """Tear down test fixtures."""
         super(TestMisc, self).tearDown()
 
     def test_unknown_app(self):
+        """Test unknown app."""
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=1234, client_state="aaaa"
         )
@@ -35,6 +42,7 @@ class TestMisc(TestCase, unittest.TestCase):
         self.assertEqual(res.json, expected_error_response)
 
     def test_unknown_version(self):
+        """Test unknown version."""
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=1234, client_state="aaaa"
         )
@@ -52,6 +60,7 @@ class TestMisc(TestCase, unittest.TestCase):
         self.assertEqual(res.json, expected_error_response)
 
     def test_valid_app(self):
+        """Test valid app."""
         self._add_user()
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=1234, client_state="aaaa"
@@ -62,6 +71,7 @@ class TestMisc(TestCase, unittest.TestCase):
         self.assertEqual(res.json["duration"], 3600)
 
     def test_current_user_is_the_most_up_to_date(self):
+        """Test current user is the most up to date."""
         # Add some users
         self._add_user(generation=1234, created_at=1234)
         self._add_user(generation=1235, created_at=1234)
@@ -76,6 +86,7 @@ class TestMisc(TestCase, unittest.TestCase):
         self.assertEqual(res.json["uid"], uid)
 
     def test_user_creation_when_most_current_user_is_replaced(self):
+        """Test user creation when most current user is replaced."""
         # Add some users
         uid1 = self._add_user(generation=1234, created_at=1234)
         uid2 = self._add_user(generation=1235, created_at=1235)
@@ -90,6 +101,7 @@ class TestMisc(TestCase, unittest.TestCase):
         self.assertNotIn(res.json["uid"], seen_uids)
 
     def test_old_users_marked_as_replaced_in_race_recovery(self):
+        """Test old users marked as replaced in race recovery."""
         # Add some users
         uid1 = self._add_user(generation=1234, created_at=1234)
         uid2 = self._add_user(generation=1235, created_at=1235)
@@ -109,6 +121,7 @@ class TestMisc(TestCase, unittest.TestCase):
         self.assertEqual(user2["replaced_at"], 1240)
 
     def test_user_updates_with_new_client_state(self):
+        """Test user updates with new client state."""
         # Start with a single user in the database
         uid = self._add_user(generation=1234, keys_changed_at=1234, client_state="aaaa")
         # Send a request, updating the generation, keys_changed_at, and
@@ -144,6 +157,7 @@ class TestMisc(TestCase, unittest.TestCase):
         self.assertEqual(replaced_user["client_state"], "aaaa")
 
     def test_user_updates_with_same_client_state(self):
+        """Test user updates with same client state."""
         # Start with a single user in the database
         uid = self._add_user(generation=1234, keys_changed_at=1234)
         # Send a request, updating the generation and keys_changed_at but not
@@ -161,6 +175,7 @@ class TestMisc(TestCase, unittest.TestCase):
         self.assertEqual(user["keys_changed_at"], 1235)
 
     def test_retired_users_can_make_requests(self):
+        """Test retired users can make requests."""
         # Add a retired user to the database
         self._add_user(generation=MAX_GENERATION)
         headers = self._build_auth_headers(
@@ -182,6 +197,7 @@ class TestMisc(TestCase, unittest.TestCase):
         self.app.get("/1.0/sync/1.5", headers=headers)
 
     def test_replaced_users_can_make_requests(self):
+        """Test replaced users can make requests."""
         # Add a replaced user to the database
         self._add_user(generation=1234, created_at=1234, replaced_at=1234)
         headers = self._build_auth_headers(
@@ -191,6 +207,7 @@ class TestMisc(TestCase, unittest.TestCase):
         self.app.get("/1.0/sync/1.5", headers=headers)
 
     def test_retired_users_with_no_node_cannot_make_requests(self):
+        """Test retired users with no node cannot make requests."""
         # Add a retired user to the database
         invalid_node_id = self.NODE_ID + 1
         self._add_user(generation=MAX_GENERATION, nodeid=invalid_node_id)
@@ -201,6 +218,7 @@ class TestMisc(TestCase, unittest.TestCase):
         self.app.get("/1.0/sync/1.5", headers=headers, status=500)
 
     def test_replaced_users_with_no_node_can_make_requests(self):
+        """Test replaced users with no node can make requests."""
         # Add a replaced user to the database
         invalid_node_id = self.NODE_ID + 1
         self._add_user(created_at=1234, replaced_at=1234, nodeid=invalid_node_id)
@@ -214,6 +232,7 @@ class TestMisc(TestCase, unittest.TestCase):
         self.assertEqual(user["nodeid"], self.NODE_ID)
 
     def test_x_content_type_options(self):
+        """Test x content type options."""
         self._add_user(generation=1234, keys_changed_at=1234, client_state="aaaa")
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=1234, client_state="aaaa"

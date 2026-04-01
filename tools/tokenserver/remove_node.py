@@ -1,14 +1,11 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-"""
+"""Script to remove a node from the system.
 
-Script to remove a node from the system.
-
-This script nukes any references to the named node - it is removed from
+Nuke any references to the named node - it is removed from
 the "nodes" table and any users currently assigned to that node have their
 assignments cleared.
-
 """
 
 import logging
@@ -45,9 +42,9 @@ def remove_node(node):
 
 
 def main(args=None):
-    """Main entry-point for running this script.
+    """Run the remove_node script with the given arguments.
 
-    This function parses command-line arguments and passes them on
+    Parse command-line arguments and pass them on
     to the remove_node() function.
     """
     usage = "usage: %prog [options] node_name"

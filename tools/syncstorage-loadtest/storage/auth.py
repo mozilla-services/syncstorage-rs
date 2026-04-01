@@ -78,7 +78,7 @@ def _track_account_creation(email: str, password: str, fxa_uid: str) -> None:
         with open(_ACCT_TRACKING_FILE, "w") as f:
             json.dump(accounts, f, indent=2)
 
-    except Exception:
+    except Exception:  # nosec B110
         # continue with tests
         pass
 
@@ -105,7 +105,7 @@ def _remove_account_from_tracking(email: str) -> None:
             with open(_ACCT_TRACKING_FILE, "w") as f:
                 json.dump(accounts, f, indent=2)
 
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
 
@@ -157,7 +157,7 @@ def _create_self_signed_jwt(
     # sign JWT
     oauth_token = jwt.encode(
         payload,
-        private_key,
+        private_key,  # type: ignore[arg-type]
         algorithm=OAUTH_JWT_ALGORITHM,
         headers={"typ": "application/at+jwt"},
     )
@@ -189,7 +189,7 @@ def _is_oauth_token_expired(oauth_token: str, buffer_seconds: int = 300) -> bool
             return False
 
         current_time = time.time()
-        return current_time >= (exp - buffer_seconds)
+        return bool(current_time >= (exp - buffer_seconds))
 
     except Exception:
         return True

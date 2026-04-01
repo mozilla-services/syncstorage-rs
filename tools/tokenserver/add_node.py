@@ -2,11 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
-"""
-
-Script to add a new node to the system.
-
-"""
+"""Script to add a new node to the system."""
 
 import logging
 import optparse
@@ -33,9 +29,9 @@ def add_node(node, capacity, **kwds):
 
 
 def main(args=None):
-    """Main entry-point for running this script.
+    """Run the add_node script with the given arguments.
 
-    This function parses command-line arguments and passes them on
+    Parse command-line arguments and pass them on
     to the add_node() function.
     """
     usage = "usage: %prog [options] node_name capacity"

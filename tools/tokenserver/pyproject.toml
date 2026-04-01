@@ -16,7 +16,7 @@ package-mode = false
 [tool.poetry.dependencies]
 boto = "2.49.0"
 hawkauthlib = "2.0.0"
-mysqlclient = "2.1.1"
+mysqlclient = "^2.1.8"
 pyramid = "^1.10.8"
 sqlalchemy = "^1.4.46"
 testfixtures = "^8.3.0"

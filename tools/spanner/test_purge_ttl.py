@@ -1,3 +1,5 @@
+"""Tests for the Spanner TTL purge utility."""
+
 import argparse
 from types import SimpleNamespace
 from unittest import mock

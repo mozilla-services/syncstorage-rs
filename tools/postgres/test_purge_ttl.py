@@ -1,6 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
+"""Tests for the PostgreSQL TTL purge utility."""
 
 from argparse import Namespace
 from unittest.mock import MagicMock, Mock, patch
@@ -17,6 +18,8 @@ from purge_ttl import (
 
 
 class TestParseArgsList:
+    """Tests for the parse_args_list function."""
+
     def test_empty_string(self) -> None:
         """Empty string returns an empty list."""
         assert parse_args_list("") == []
@@ -39,6 +42,8 @@ class TestParseArgsList:
 
 
 class TestAddConditions:
+    """Tests for the add_conditions function."""
+
     def test_no_conditions(self) -> None:
         """Empty collection_ids leaves the query and params unchanged."""
         args = Namespace(collection_ids=[])
@@ -85,6 +90,8 @@ class TestAddConditions:
 
 
 class TestGetExpiryCondition:
+    """Tests for the get_expiry_condition function."""
+
     def test_expiry_mode_now(self) -> None:
         """'now' mode compares expiry against the current timestamp."""
         args = Namespace(expiry_mode="now")
@@ -105,6 +112,8 @@ class TestGetExpiryCondition:
 
 
 class TestGetDbEngine:
+    """Tests for the get_db_engine function."""
+
     @patch("purge_ttl.sqlalchemy.create_engine")
     def test_postgresql_url(self, mock_create_engine: MagicMock) -> None:
         """A 'postgresql://' URL is passed through to create_engine unchanged."""
@@ -129,6 +138,8 @@ class TestGetDbEngine:
 
 
 class TestExecDelete:
+    """Tests for the exec_delete function."""
+
     @patch("purge_ttl.statsd")
     def test_dryrun(self, mock_statsd: MagicMock) -> None:
         """In dryrun mode the engine is never contacted."""
@@ -187,6 +198,8 @@ class TestExecDelete:
 
 
 class TestIntegration:
+    """Integration tests for the purge_ttl module."""
+
     def test_full_query(self) -> None:
         """get_expiry_condition and add_conditions compose correctly for a single ID."""
         args = Namespace(collection_ids=["8"], expiry_mode="now")
