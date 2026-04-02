@@ -1,18 +1,15 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-"""
+"""Script to purge user records that have been replaced.
 
-Script to purge user records that have been replaced.
-
-This script purges any obsolete user records from the database.
+Purge any obsolete user records from the database.
 Obsolete records are those that have been replaced by a newer record for
 the same user.
 
 Note that this is a purely optional administrative task, since replaced records
 are handled internally by the assignment backend.  But it should help reduce
 overheads, improve performance etc if run regularly.
-
 """
 
 import backoff
@@ -21,7 +18,7 @@ import hawkauthlib
 import logging
 import optparse
 import random
-import requests
+import requests  # type: ignore[import-untyped]
 import time
 import tokenlib
 
@@ -210,20 +207,22 @@ def delete_service_data(
 
 
 def retry_giveup(e):
+    """Return True if the HTTP error is a permanent server error that should stop retrying."""
     return 500 <= e.response.status_code < 505
 
 
 @backoff.on_exception(backoff.expo, requests.HTTPError, giveup=retry_giveup)
 def retryable(fn, *args, **kwargs):
+    """Call fn with args, retrying on HTTP errors with exponential backoff."""
     fn(*args, **kwargs)
 
 
 def points_to_active(database, replaced_at_row, override_node, metrics=None):
-    """Determine if a `replaced_at` user record has the same
-    generation/client_state as their active record.
+    """Determine if a replaced_at user record has the same state as the active record.
 
-    In which case issuing a `force`/`override_node` delete (to their current
-    node) would delete their active data, which should be avoided
+    Return True if the generation/client_state matches the active record,
+    in which case issuing a force/override_node delete would delete their
+    active data and should be avoided.
     """
     if override_node and replaced_at_row.node != override_node:
         # NOTE: Users who never connected after being migrated could be
@@ -256,18 +255,20 @@ class HawkAuth(requests.auth.AuthBase):
     """Hawk-signing auth helper class."""
 
     def __init__(self, token, secret):
+        """Initialize with the Hawk token and signing secret."""
         self.token = token
         self.secret = secret
 
     def __call__(self, req):
+        """Sign the request using Hawk authentication."""
         hawkauthlib.sign_request(req, self.token, self.secret)
         return req
 
 
 def main(args=None):
-    """Main entry-point for running this script.
+    """Run the purge_old_records script with the given arguments.
 
-    This function parses command-line arguments and passes them on
+    Parse command-line arguments and pass them on
     to the purge_old_records() function.
     """
     usage = "usage: %prog [options] secret"

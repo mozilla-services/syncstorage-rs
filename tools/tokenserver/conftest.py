@@ -1,3 +1,5 @@
+"""Pytest configuration for tokenserver tests, setting up the module path."""
+
 import sys
 import os
 

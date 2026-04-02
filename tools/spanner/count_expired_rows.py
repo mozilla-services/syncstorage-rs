@@ -4,13 +4,14 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
+"""Count expired rows in the Spanner database tables."""
 
 import sys
 import logging
 from typing import Any
 from statsd.defaults.env import statsd
 
-from google.cloud import spanner  # type: ignore[attr-defined]
+from google.cloud import spanner
 from tools.spanner.utils import ids_from_env
 
 # set up logger
@@ -25,9 +26,9 @@ client: Any = spanner.Client()
 
 
 def spanner_read_data(query: str, table: str) -> None:
-    """
-    Executes a query on the specified Spanner table to count expired rows,
-    logs the result, and sends metrics to statsd.
+    """Execute a query on the specified Spanner table to count expired rows.
+
+    Log the result and send metrics to statsd.
 
     Args:
         query (str): The SQL query to execute.
@@ -54,7 +55,7 @@ if __name__ == "__main__":
     logging.info("Starting count_expired_rows.py")
 
     for table in ["batches", "bsos"]:
-        query = f"SELECT COUNT(*) FROM {table} WHERE expiry < CURRENT_TIMESTAMP()"
+        query = f"SELECT COUNT(*) FROM {table} WHERE expiry < CURRENT_TIMESTAMP()"  # nosec B608
         spanner_read_data(query, table)
 
     logging.info("Completed count_expired_rows.py")

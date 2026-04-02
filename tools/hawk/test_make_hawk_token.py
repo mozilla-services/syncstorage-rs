@@ -1,3 +1,5 @@
+"""Tests for the make_hawk_token utility script."""
+
 import argparse
 import time
 from typing import Any

@@ -1,5 +1,6 @@
 #! /usr/bin/env python
-# script to populate the database with records
+"""Script to populate the tokenserver database with test user records."""
+
 import random
 import time
 
@@ -56,6 +57,8 @@ _SERVICE_NAME = "sync-1.5"
 # :param user_range: the number of users to create
 # :param host: the hostname to use when generating users
 class PopulateDatabase:
+    """Create test users associated with the sync-1.5 service for load testing."""
+
     def __init__(self, sqluri, nodes, user_range, host="loadtest.local"):
         engine = create_engine(sqluri)
         self.database = engine.execution_options(isolation_level="AUTOCOMMIT").connect()
@@ -83,6 +86,7 @@ class PopulateDatabase:
         return row.id
 
     def run(self):
+        """Populate the database by assigning each user in the range to a random node."""
         params = {
             "service": self.service_id,
             "timestamp": int(time.time() * 1000),
@@ -98,13 +102,14 @@ class PopulateDatabase:
 
 
 def main():
-    # Read the arguments from the command line and pass them to the
-    # PopulateDb class.
-    #
-    # Example use:
-    #
-    #     python3 populate-db.py sqlite:////tmp/tokenserver\
-    #     node1,node2,node3,node4,node5,node6 100
+    """Run the populate_db script, reading args from the command line.
+    Read the arguments from the command line and pass them to the
+    PopulateDb class.
+    
+    Example use:
+    python3 populate-db.py sqlite:////tmp/tokenserver\
+    node1,node2,node3,node4,node5,node6 100
+    """
     import sys
 
     if len(sys.argv) < 4:

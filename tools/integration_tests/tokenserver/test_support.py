@@ -1,6 +1,8 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
+"""Test support utilities for tokenserver integration tests."""
+
 from base64 import urlsafe_b64encode as b64encode
 import binascii
 import json
@@ -18,6 +20,8 @@ DEFAULT_OAUTH_SCOPE = "https://identity.mozilla.com/apps/oldsync"
 
 
 class TestCase:
+    """Base test case for tokenserver integration tests."""
+
     FXA_EMAIL_DOMAIN = "api-accounts.stage.mozaws.net"
     FXA_METRICS_HASH_SECRET = os.environ.get("SYNC_MASTER_SECRET", "secret0")
     NODE_ID = 800
@@ -27,9 +31,11 @@ class TestCase:
 
     @classmethod
     def setUpClass(cls):
+        """Set up class-level fixtures for the tokenserver test case."""
         cls._build_auth_headers = cls._build_oauth_headers
 
     def setUp(self):
+        """Set up test fixtures including database connection and test node."""
         db_url = os.environ["SYNC_TOKENSERVER__DATABASE_URL"]
         # SQLAlchemy 1.4+ wants postgresql
         if db_url.startswith("postgres://"):
@@ -70,6 +76,7 @@ class TestCase:
         self._add_node(capacity=100, node=self.NODE_URL, id=self.NODE_ID)
 
     def tearDown(self):
+        """Tear down test fixtures and clean up the database."""
         # And clean up at the end, for good measure.
         self._clear_db()
         self.database.close()
@@ -362,11 +369,14 @@ class TestCase:
         return count
 
     def _execute_sql(self, *args, **kwds):
-        """Execute SQL statement. *args is the query and **kwds are the keyword
-        argument parameters."""
+        """Execute SQL statement.
+
+        *args is the query and **kwds are the keyword argument parameters.
+        """
         cursor = self.database.execute(*args, **kwds)
         return cursor
 
     def unsafelyParseToken(self, token):
+        """Parse a token without verifying its HMAC signature."""
         # For testing purposes, don't check HMAC or anything...
         return json.loads(decode_token_bytes(token)[:-32].decode("utf8"))

@@ -1,6 +1,8 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
+"""Tests for the tokenserver purge_old_records script."""
+
 import pytest
 
 import hawkauthlib
@@ -15,8 +17,11 @@ from purge_old_records import purge_old_records
 
 
 class PurgeOldRecordsTestCase(unittest.TestCase):
+    """Test case for the purge_old_records functionality."""
+
     @classmethod
     def setUpClass(cls):
+        """Set up class-level test fixtures."""
         cls.service_requests = []
         cls.service = make_server("localhost", 0, cls._service_app)
         host, port = cls.service.server_address
@@ -31,6 +36,7 @@ class PurgeOldRecordsTestCase(unittest.TestCase):
         cls.service.RequestHandlerClass.log_request = lambda *a: None
 
     def setUp(self):
+        """Set up test fixtures."""
         super().setUp()
 
         # Configure the node-assignment backend to talk to our test service.
@@ -39,6 +45,7 @@ class PurgeOldRecordsTestCase(unittest.TestCase):
         self.database.add_node(self.service_node, 100)
 
     def tearDown(self):
+        """Tear down test fixtures."""
         cursor = self.database._execute_sql("DELETE FROM users")
         cursor.close()
 
@@ -52,6 +59,7 @@ class PurgeOldRecordsTestCase(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        """Tear down class-level test fixtures."""
         cls.service.shutdown()
         cls.service_thread.join()
 
@@ -71,6 +79,7 @@ class TestPurgeOldRecords(PurgeOldRecordsTestCase):
     """
 
     def test_purging_of_old_user_records(self):
+        """Test purging of old user records."""
         # Make some old user records.
         email = "test@mozilla.com"
         user = self.database.allocate_user(email, client_state="aa", generation=123)
@@ -119,6 +128,7 @@ class TestPurgeOldRecords(PurgeOldRecordsTestCase):
         self.assertEqual(len(user["old_client_states"]), 0)
 
     def test_purging_is_not_done_on_downed_nodes(self):
+        """Test purging is not done on downed nodes."""
         # Make some old user records.
         node_secret = "SECRET"
         email = "test@mozilla.com"
@@ -142,6 +152,7 @@ class TestPurgeOldRecords(PurgeOldRecordsTestCase):
         self.assertEqual(len(self.service_requests), 1)
 
     def test_force(self):
+        """Test force."""
         # Make some old user records.
         node_secret = "SECRET"
         email = "test@mozilla.com"
@@ -160,6 +171,7 @@ class TestPurgeOldRecords(PurgeOldRecordsTestCase):
         self.assertEqual(len(self.service_requests), 1)
 
     def test_dry_run(self):
+        """Test dry run."""
         # Make some old user records.
         node_secret = "SECRET"
         email = "test@mozilla.com"
@@ -180,12 +192,11 @@ class TestPurgeOldRecords(PurgeOldRecordsTestCase):
 
 @pytest.mark.migration_records
 class TestMigrationRecords(PurgeOldRecordsTestCase):
-    """Test user records that were migrated from the old MySQL cluster of
-    syncstorage nodes to a single Spanner node
-    """
+    """Test user records migrated from old MySQL syncstorage nodes to Spanner."""
 
     @classmethod
     def setUpClass(cls):
+        """Set up class-level test fixtures."""
         super().setUpClass()
         cls.spanner_service = make_server("localhost", 0, cls._service_app)
         host, port = cls.spanner_service.server_address
@@ -196,16 +207,19 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
 
     @classmethod
     def tearDownClass(cls):
+        """Tear down class-level test fixtures."""
         super().tearDownClass()
         cls.spanner_service.shutdown()
         cls.spanner_thread.join()
 
     def setUp(self):
+        """Set up test fixtures."""
         super().setUp()
         self.database.add_node(self.downed_node, 100, downed=True)
         self.database.add_node(self.spanner_node, 100)
 
     def test_purging_replaced_at(self):
+        """Test purging replaced at."""
         node_secret = "SECRET"
         email = "test@mozilla.com"
         user = self.database.allocate_user(email, client_state="aa")
@@ -217,6 +231,7 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
         self.assertEqual(len(self.service_requests), 1)
 
     def test_purging_no_override(self):
+        """Test purging no override."""
         node_secret = "SECRET"
         email = "test@mozilla.com"
         user = self.database.allocate_user(email, client_state="aa")
@@ -231,6 +246,7 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
         self.assertEqual(len(self.service_requests), 1)
 
     def test_purging_override_with_migrated(self):
+        """Test purging override with migrated."""
         node_secret = "SECRET"
         email = "test@mozilla.com"
 
@@ -267,6 +283,7 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
         self.assertEqual(len(self.service_requests), 0)
 
     def test_purging_override_with_migrated_password_change(self):
+        """Test purging override with migrated password change."""
         node_secret = "SECRET"
         email = "test@mozilla.com"
 
@@ -293,6 +310,7 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
         self.assertEqual(len(self.service_requests), 2)
 
     def test_purging_override_null_keys_changed_at(self):
+        """Test purging override null keys changed at."""
         # Same as test_purging_override_with_migrated but with a null
         # keys_changed_at
         node_secret = "SECRET"

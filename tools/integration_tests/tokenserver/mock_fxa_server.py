@@ -1,3 +1,5 @@
+"""Mock FxA OAuth server for integration testing."""
+
 from wsgiref.simple_server import make_server as _make_server
 from pyramid.config import Configurator
 from pyramid.response import Response
@@ -24,6 +26,7 @@ def _mock_oauth_jwk(request):
 
 
 def make_server(host, port):
+    """Create and return a mock FxA OAuth WSGI server bound to host and port."""
     with Configurator() as config:
         config.add_route("mock_oauth_verify", "/v1/verify")
         config.add_view(

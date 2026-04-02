@@ -1,11 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-"""
-
-Script to emit total-user-count metrics for exec dashboard.
-
-"""
+"""Script to emit total-user-count metrics for exec dashboard."""
 
 import json
 import logging
@@ -25,13 +21,18 @@ ZERO = timedelta(0)
 
 
 class UTC(tzinfo):
+    """UTC timezone implementation."""
+
     def utcoffset(self, dt):
+        """Return the UTC offset, which is zero."""
         return ZERO
 
     def tzname(self, dt):
+        """Return the timezone name string."""
         return "UTC"
 
     def dst(self, dt):
+        """Return the DST offset, which is zero."""
         return ZERO
 
 
@@ -39,6 +40,7 @@ utc = UTC()
 
 
 def count_users(outfile, timestamp=None):
+    """Count total users and write a JSON metrics record to outfile."""
     if timestamp is None:
         ts = time.gmtime()
         midnight = (ts[0], ts[1], ts[2], 0, 0, 0, ts[6], ts[7], ts[8])
@@ -62,10 +64,10 @@ def count_users(outfile, timestamp=None):
 
 
 def main(args=None):
-    """Main entry-point for running this script.
+    """Run the count_users script with the given arguments.
 
-    This function parses command-line arguments and passes them on
-    to the add_node() function.
+    Parse command-line arguments and pass them on
+    to the count_users() function.
     """
     usage = "usage: %prog [options]"
     descr = "Count total users in the tokenserver database"

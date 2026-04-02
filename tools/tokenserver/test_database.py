@@ -1,6 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
+"""Tests for the tokenserver database module."""
 
 import time
 import unittest
@@ -11,7 +12,10 @@ from util import get_timestamp
 
 
 class TestDatabase(unittest.TestCase):
+    """Tests for the tokenserver Database class."""
+
     def setUp(self):
+        """Set up test fixtures."""
         super(TestDatabase, self).setUp()
         self.database = Database()
         # Start each test with a blank slate.
@@ -28,6 +32,7 @@ class TestDatabase(unittest.TestCase):
         self.database.add_node("https://phx12", 100)
 
     def tearDown(self):
+        """Tear down test fixtures."""
         super(TestDatabase, self).tearDown()
         # And clean up at the end, for good measure.
         cursor = self.database._execute_sql(("DELETE FROM users"), ())
@@ -42,6 +47,7 @@ class TestDatabase(unittest.TestCase):
         self.database.close()
 
     def test_node_allocation(self):
+        """Test node allocation."""
         user = self.database.get_user("test1@example.com")
         self.assertEqual(user, None)
 
@@ -53,22 +59,26 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(user["node"], wanted)
 
     def test_allocation_to_least_loaded_node(self):
+        """Test allocation to least loaded node."""
         self.database.add_node("https://phx13", 100)
         user1 = self.database.allocate_user("test1@mozilla.com")
         user2 = self.database.allocate_user("test2@mozilla.com")
         self.assertNotEqual(user1["node"], user2["node"])
 
     def test_allocation_is_not_allowed_to_downed_nodes(self):
+        """Test allocation is not allowed to downed nodes."""
         self.database.update_node("https://phx12", downed=True)
         with self.assertRaises(Exception):
             self.database.allocate_user("test1@mozilla.com")
 
     def test_allocation_is_not_allowed_to_backoff_nodes(self):
+        """Test allocation is not allowed to backoff nodes."""
         self.database.update_node("https://phx12", backoff=True)
         with self.assertRaises(Exception):
             self.database.allocate_user("test1@mozilla.com")
 
     def test_update_generation_number(self):
+        """Test update generation number."""
         user = self.database.allocate_user("test1@example.com")
         self.assertEqual(user["generation"], 0)
         self.assertEqual(user["client_state"], "")
@@ -102,6 +112,7 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(user["client_state"], "")
 
     def test_update_client_state(self):
+        """Test update client state."""
         user = self.database.allocate_user("test1@example.com")
         self.assertEqual(user["generation"], 0)
         self.assertEqual(user["client_state"], "")
@@ -154,6 +165,7 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(set(user["old_client_states"]), set(("", "aaaa")))
 
     def test_user_retirement(self):
+        """Test user retirement."""
         self.database.allocate_user("test@mozilla.com")
         user1 = self.database.get_user("test@mozilla.com")
         self.database.retire_user("test@mozilla.com")
@@ -161,6 +173,7 @@ class TestDatabase(unittest.TestCase):
         self.assertTrue(user2["generation"] > user1["generation"])
 
     def test_cleanup_of_old_records(self):
+        """Test cleanup of old records."""
         # Create 6 user records for the first user.
         # Do a sleep halfway through so we can test use of grace period.
         email1 = "test1@mozilla.com"
@@ -215,6 +228,7 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(len(old_records), 4)
 
     def test_node_reassignment_when_records_are_replaced(self):
+        """Test node reassignment when records are replaced."""
         self.database.allocate_user(
             "test@mozilla.com", generation=42, keys_changed_at=12, client_state="aaaa"
         )
@@ -229,6 +243,7 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(user2["client_state"], user1["client_state"])
 
     def test_node_reassignment_not_done_for_retired_users(self):
+        """Test node reassignment not done for retired users."""
         self.database.allocate_user(
             "test@mozilla.com", generation=42, client_state="aaaa"
         )
@@ -240,6 +255,7 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(user2["client_state"], user2["client_state"])
 
     def test_recovery_from_racy_record_creation(self):
+        """Test recovery from racy record creation."""
         timestamp = get_timestamp()
         # Simulate race for forcing creation of two rows with same timestamp.
         user1 = self.database.allocate_user("test@mozilla.com", timestamp=timestamp)
@@ -254,6 +270,7 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(len(old_records), 1)
 
     def test_that_race_recovery_respects_generation_number_monotonicity(self):
+        """Test that race recovery respects generation number monotonicity."""
         timestamp = get_timestamp()
         # Simulate race between clients with different generation numbers,
         # in which the out-of-date client gets a higher timestamp.
@@ -273,6 +290,7 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(len(old_records), 1)
 
     def test_node_reassignment_and_removal(self):
+        """Test node reassignment and removal."""
         NODE1 = "https://phx12"
         NODE2 = "https://phx13"
         # note that NODE1 is created by default for all tests.
@@ -315,6 +333,7 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(null_node_count, 3)
 
     def test_that_race_recovery_respects_generation_after_reassignment(self):
+        """Test that race recovery respects generation after reassignment."""
         timestamp = get_timestamp()
         # Simulate race between clients with different generation numbers,
         # in which the out-of-date client gets a higher timestamp.
@@ -335,6 +354,7 @@ class TestDatabase(unittest.TestCase):
         self.assertNotEqual(user["uid"], user2["uid"])
 
     def test_that_we_can_allocate_users_to_a_specific_node(self):
+        """Test that we can allocate users to a specific node."""
         node = "https://phx13"
         self.database.add_node(node, 50)
         # The new node is not selected by default, because of lower capacity.
@@ -345,6 +365,7 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(user["node"], node)
 
     def test_that_we_can_move_users_to_a_specific_node(self):
+        """Test that we can move users to a specific node."""
         node = "https://phx13"
         self.database.add_node(node, 50)
         # The new node is not selected by default, because of lower capacity.
@@ -374,6 +395,7 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(sorted(user["old_client_states"]), ["", "XXX"])
 
     def test_that_record_cleanup_frees_slots_on_the_node(self):
+        """Test that record cleanup frees slots on the node."""
         node = "https://phx12"
         self.database.update_node(node, capacity=10, available=1, current_load=9)
         # We should only be able to allocate one more user to that node.
@@ -388,6 +410,7 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(user["node"], node)
 
     def test_gradual_release_of_node_capacity(self):
+        """Test gradual release of node capacity."""
         node1 = "https://phx12"
         self.database.update_node(node1, capacity=8, available=1, current_load=4)
         node2 = "https://phx13"
@@ -413,6 +436,7 @@ class TestDatabase(unittest.TestCase):
             self.database.allocate_user("test7@mozilla.com")
 
     def test_count_users(self):
+        """Test count users."""
         user = self.database.allocate_user("test1@example.com")
         self.assertEqual(self.database.count_users(), 1)
         old_timestamp = get_timestamp()
@@ -430,6 +454,7 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(self.database.count_users(), 1)
 
     def test_first_seen_at(self):
+        """Test first seen at."""
         EMAIL = "test1@example.com"
         user0 = self.database.allocate_user(EMAIL)
         user1 = self.database.get_user(EMAIL)
@@ -448,6 +473,7 @@ class TestDatabase(unittest.TestCase):
         self.assertNotEqual(user3["first_seen_at"], user2["first_seen_at"])
 
     def test_build_old_range(self):
+        """Test build old range."""
         params = dict()
         sql = self.database._build_old_user_query(None, params)
         self.assertTrue(sql.text.find("uid > :start") < 0)

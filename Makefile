@@ -284,6 +284,18 @@ py-deps-latest: $(INSTALL_STAMP)  ##  Checks latest versions in PyPI
 py-deps-outdated: $(INSTALL_STAMP)  ##  Checks for outdated Python packages
 	$(POETRY) show --outdated $(TOOLS_DIR)
 
+.PHONY: bandit
+bandit: $(INSTALL_STAMP)  ##  Run bandit
+	$(POETRY) run bandit --quiet -r -c $(ROOT_PYPROJECT_TOML) $(TOOLS_DIR)
+
+.PHONY: mypy
+mypy: $(INSTALL_STAMP)  ##  Run mypy
+	$(POETRY) run mypy --config-file=$(ROOT_PYPROJECT_TOML) $(TOOLS_DIR)
+ 
+.PHONY: pydocstyle
+pydocstyle: $(INSTALL_STAMP)  ##  Run pydocstyle
+	$(POETRY) run pydocstyle -es --count --config=$(ROOT_PYPROJECT_TOML) $(TOOLS_DIR)
+
 # Documentation utilities
 .PHONY: doc-install-deps
 doc-install-deps:  ## Install the dependencies for doc generation
