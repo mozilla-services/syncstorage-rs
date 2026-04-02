@@ -31,7 +31,7 @@ using the correct MySQL or PostgreSQL build for the database.
 ```yaml
 services:
   syncserver:
-    image: ghcr.io/mozilla-services/syncstorage-rs/syncstorage-rs-mysql:${SYNCSERVER_VERSION:-b16ef5064b}
+    image: ghcr.io/mozilla-services/syncstorage-rs/syncstorage-rs-mysql:${SYNCSERVER_VERSION:-latest}
     platform: linux/amd64
     container_name: syncserver
     ports:
@@ -83,7 +83,7 @@ Save the yaml below into a file, e.g. `docker-compose.one-shot.yaml`.
 ```yaml
 services:
   syncserver:
-    image: ghcr.io/mozilla-services/syncstorage-rs/syncserver-postgres:${SYNCSERVER_VERSION:-11659d98f9}
+    image: ghcr.io/mozilla-services/syncstorage-rs/syncserver-postgres:${SYNCSERVER_VERSION:-latest}
     platform: linux/amd64
     container_name: syncserver
     ports:
@@ -137,8 +137,6 @@ volumes:
 Next, start the service with `docker compose`:
 
 ```sh
-SYNC_MASTER_SECRET=use_your_own_secret_4d3d3d3d \
-SYNC_TOKENSERVER__INIT_NODE_URL=http://localhost:8000 \
 docker compose -f docker-compose.one-shot.yaml up -d
 ```
 
