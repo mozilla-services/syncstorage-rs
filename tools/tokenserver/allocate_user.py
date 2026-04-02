@@ -1,15 +1,12 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-"""
+"""Script to allocate a specific user to a node.
 
-Script to allocate a specific user to a node.
-
-This script allocates the specified user to a node.  A particular node
+Allocate the specified user to a node.  A particular node
 may be specified, or the best available node used by default.
 
 The allocated node is printed to stdout.
-
 """
 
 import logging
@@ -23,6 +20,7 @@ logger = logging.getLogger("tokenserver.scripts.allocate_user")
 
 
 def allocate_user(email, node=None):
+    """Allocate a node for the given user, or update the user's existing node."""
     logger.info("Allocating node for user %s", email)
     try:
         database = Database()
@@ -40,9 +38,9 @@ def allocate_user(email, node=None):
 
 
 def main(args=None):
-    """Main entry-point for running this script.
+    """Run the allocate_user script with the given arguments.
 
-    This function parses command-line arguments and passes them on
+    Parse command-line arguments and pass them on
     to the allocate_user() function.
     """
     usage = "usage: %prog [options] email [node_name]"

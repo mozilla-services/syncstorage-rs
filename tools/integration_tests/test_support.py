@@ -49,9 +49,11 @@ class Secrets(object):
             self.load(filename)
 
     def keys(self):
+        """Return all node keys stored in secrets."""
         return self._secrets.keys()
 
     def load(self, filename):
+        """Load secrets from the given filename or list of filenames."""
         if not isinstance(filename, (list, tuple)):
             filename = [filename]
 
@@ -74,6 +76,7 @@ class Secrets(object):
                     self._secrets[node] = secrets
 
     def save(self, filename):
+        """Save secrets to the given filename in CSV format."""
         with open(filename, "wb") as f:
             writer = csv.writer(f, delimiter=",")
             for node, secrets in self._secrets.items():
@@ -84,9 +87,11 @@ class Secrets(object):
                 writer.writerow(secrets)
 
     def get(self, node):
+        """Return list of secrets for the given node."""
         return [secret for timestamp, secret in self._secrets[node]]
 
     def add(self, node, size=256):
+        """Add a new randomly generated secret for the given node."""
         timestamp = str(int(time.time()))
         secret = binascii.b2a_hex(os.urandom(size))[:size]
         # The new secret *must* sort at the end of the list.
@@ -114,9 +119,11 @@ class FixedSecrets(object):
         self._secrets = secrets
 
     def get(self, node):
+        """Return the fixed list of secrets for any node."""
         return list(self._secrets)
 
     def keys(self):
+        """Return an empty list since all nodes use the same fixed secrets."""
         return []
 
 
@@ -204,7 +211,7 @@ def get_configurator(global_config, **settings):
 
 
 def restore_env(*keys):
-    """Decorator that ensures os.environ gets restored after a test.
+    """Decorate a test to ensure os.environ gets restored after the call.
 
     Given a list of environment variable keys, this decorator will save the
     current values of those environment variables at the start of the call
@@ -233,10 +240,12 @@ class TestCase(unittest.TestCase):
     """TestCase with some generic helper methods."""
 
     def setUp(self):
+        """Set up test fixtures."""
         super(TestCase, self).setUp()
         self.config = self.get_configurator()
 
     def tearDown(self):
+        """Tear down test fixtures."""
         self.config.end()
         super(TestCase, self).tearDown()
 
@@ -267,6 +276,7 @@ class StorageTestCase(TestCase):
 
     @restore_env("MOZSVC_TEST_INI_FILE")
     def setUp(self):
+        """Set up test fixtures with fresh environment variables."""
         # Put a fresh UUID into the environment.
         # This can be used in e.g. config files to create unique paths.
         os.environ["MOZSVC_UUID"] = str(uuid.uuid4())
@@ -288,6 +298,7 @@ class StorageTestCase(TestCase):
         super(StorageTestCase, self).setUp()
 
     def tearDown(self):
+        """Tear down test fixtures and clean up databases."""
         self._cleanup_test_databases()
         # clear the pyramid threadlocals
         self.config.end()
@@ -295,6 +306,7 @@ class StorageTestCase(TestCase):
         del os.environ["MOZSVC_UUID"]
 
     def get_configurator(self):
+        """Return the test configurator with storage settings applied."""
         config = super(StorageTestCase, self).get_configurator()
         # config.include("syncstorage")
         return config
@@ -337,6 +349,7 @@ class FunctionalTestCase(TestCase):
     """
 
     def setUp(self):
+        """Set up the functional test app and host URL."""
         super(FunctionalTestCase, self).setUp()
 
         # now that we're testing against a rust server, we're always distant.
@@ -366,6 +379,7 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
     """Abstract base class for functional testing of a storage API."""
 
     def setUp(self):
+        """Set up storage functional test with authentication credentials."""
         super(StorageFunctionalTestCase, self).setUp()
 
         # Generate userid and auth token crednentials.
@@ -382,6 +396,7 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
         self.app.do_request = new_do_request
 
     def basic_testing_authenticate(self):
+        """Authenticate using a random uid for basic testing."""
         # For basic testing, use a random uid and sign our own tokens.
         # Subclasses might like to override this and use a live tokenserver.
         pass

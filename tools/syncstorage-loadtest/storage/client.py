@@ -65,7 +65,7 @@ class StorageClient(object):
         url = self.endpoint_url + path
         if params is not None:
             url += "?" + urlencode(params)
-        return url
+        return str(url)
 
     def __repr__(self):
         """Return string representation of the client.

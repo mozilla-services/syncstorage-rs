@@ -1,3 +1,5 @@
+"""Locust load test file for the tokenserver OAuth endpoints."""
+
 import binascii
 import os
 from base64 import urlsafe_b64encode as b64encode
@@ -33,6 +35,8 @@ VALID_OAUTH_PRIVATE_KEY = private_key = serialization.load_pem_private_key(
 
 
 class TokenserverTestUser(HttpUser):
+    """Simulate a single Tokenserver user making sporadic requests during a load test."""
+
     # An instance of this class represents a single Tokenserver user. Instances
     # will live for the entire duration of the load test. Based on the
     # `wait_time` class variable and the `@task` decorators, each user will
@@ -41,6 +45,7 @@ class TokenserverTestUser(HttpUser):
     wait_time = between(1, 5)
 
     def __init__(self, *args, **kwargs):
+        """Initialize the test user with a unique FxA UID and client state."""
         super().__init__(*args, **kwargs)
         # Keep track of this user's generation number.
         self.generation_counter = 0
@@ -54,18 +59,21 @@ class TokenserverTestUser(HttpUser):
 
     @task(3000)
     def test_oauth_success(self):
+        """Test a successful OAuth token exchange."""
         token = self._make_oauth_token(self.email)
 
         self._do_token_exchange_via_oauth(token)
 
     @task(100)
     def test_invalid_oauth(self):
+        """Test that an invalid OAuth token returns a 401 error."""
         token = self._make_oauth_token(self.email, key=INVALID_OAUTH_PRIVATE_KEY)
 
         self._do_token_exchange_via_oauth(token, status=401)
 
     @task(100)
     def test_invalid_oauth_scope(self):
+        """Test that an OAuth token with an invalid scope returns a 401 error."""
         token = self._make_oauth_token(
             self.email,
             scope="unrelated scopes",
@@ -75,6 +83,7 @@ class TokenserverTestUser(HttpUser):
 
     @task(20)
     def test_encryption_key_change(self):
+        """Test token exchange after an encryption key change."""
         # When a user's encryption keys change, the generation number and
         # keys_changed_at for the user both increase.
         self.generation_counter += 1
@@ -87,6 +96,7 @@ class TokenserverTestUser(HttpUser):
 
     @task(20)
     def test_password_change(self):
+        """Test token exchange after a password change."""
         # When a user's password changes, the generation number increases.
         self.generation_counter += 1
         token = self._make_oauth_token(self.email)
@@ -94,9 +104,11 @@ class TokenserverTestUser(HttpUser):
         self._do_token_exchange_via_oauth(token)
 
     def _make_oauth_token(self, email, key=VALID_OAUTH_PRIVATE_KEY, **fields):
-        # For mock oauth tokens, we bundle the desired status code
-        # and response body into a JSON blob for the mock verifier
-        # to echo back to us.
+        """Create OAuth Token.
+        For mock oauth tokens, we bundle the desired status code
+        and response body into a JSON blob for the mock verifier
+        to echo back to us.
+        """
         body = {}
         if "scope" not in fields:
             fields["scope"] = DEFAULT_OAUTH_SCOPE
@@ -113,9 +125,11 @@ class TokenserverTestUser(HttpUser):
         )
 
     def _make_x_key_id_header(self):
-        # In practice, the generation number and keys_changed_at may not be
-        # the same, but for our purposes, making this assumption is sufficient:
-        # the accuracy of the load test is unaffected.
+        """Generate the x-key-id header.
+        In practice, the generation number and keys_changed_at may not be
+        the same, but for our purposes, making this assumption is sufficient:
+        the accuracy of the load test is unaffected.
+        """
         keys_changed_at = self.generation_counter
         raw_client_state = binascii.unhexlify(self.client_state)
         client_state = b64encode(raw_client_state).strip(b"=").decode("utf-8")

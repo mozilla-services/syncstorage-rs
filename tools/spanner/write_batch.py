@@ -8,6 +8,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
+"""Script to preload batch data into the Spanner database for optimization."""
 
 import random
 import string
@@ -79,6 +80,7 @@ PAYLOAD = "".join(
 
 
 def load(instance, db, coll_id, name):
+    """Load a batch of test records into Spanner for the given user and collection."""
     fxa_uid = "DEADBEEF" + uuid.uuid4().hex[8:]
     fxa_kid = "{:013d}-{}".format(22, fxa_uid)
     print(f"{name} -> Loading {fxa_uid} {fxa_kid}")
@@ -177,6 +179,7 @@ def load(instance, db, coll_id, name):
 
 
 def loader():
+    """Load records into Spanner for the current thread's user."""
     # Prefix uaids for easy filtering later
     # Each loader thread gets it's own fake user to prevent some hotspot
     # issues.
@@ -187,6 +190,7 @@ def loader():
 
 
 def main():
+    """Start all loader threads to populate the Spanner database."""
     for c in range(THREAD_COUNT):
         print(f"Starting thread {c}")
         t = threading.Thread(name=f"loader_{c}", target=loader)
