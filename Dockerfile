@@ -130,7 +130,8 @@ RUN apt-get -q update && \
     # we have to remove the python3-cryptography package here.
     apt-get -q remove -y python3-cryptography 2>/dev/null || true && \
     apt-get -q autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    python3 --version
 
 WORKDIR /app
 
@@ -157,6 +158,7 @@ COPY --from=builder /app/version.json /app
 COPY --from=builder /app/tools/spanner /app/tools/spanner
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
 COPY --from=builder /app/tools/tokenserver /app/tools/tokenserver
+COPY --from=builder /app/tools/postgres /app/tools/postgres
 COPY --from=builder --chmod=0755 /app/scripts/prepare-spanner.sh /app/scripts/prepare-spanner.sh
 COPY --from=builder --chmod=0755 /app/scripts/start_mock_fxa_server.sh /app/scripts/start_mock_fxa_server.sh
 COPY --from=builder /app/syncstorage-spanner/src/schema.ddl /app/schema.ddl
