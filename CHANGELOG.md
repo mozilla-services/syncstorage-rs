@@ -1,3 +1,22 @@
+<a name="0.22.2"></a>
+## 0.22.2 (2026-04-03)
+
+
+#### Chore
+
+* **deps:**  bump pygments in /tools/tokenserver/loadtests (#2185) ([b72fa527](https://github.com/mozilla-services/syncstorage-rs/commit/b72fa527689996cc31cfea58700ff27c4a25eb58))
+
+#### Bug Fixes
+
+*   install all the pg tools dependencies (#2189) ([6363d68a](https://github.com/mozilla-services/syncstorage-rs/commit/6363d68a1182595475cf14dc8fe32dbdc31e48ef))
+
+#### Features
+
+*   include the postgres tools in the final Docker (#2188) ([184de7c5](https://github.com/mozilla-services/syncstorage-rs/commit/184de7c52d0c587f9e35f2c60580b685fee2ba24))
+*   add python utils and integrate into workflow (#2176) ([af1c5fb6](https://github.com/mozilla-services/syncstorage-rs/commit/af1c5fb68a68bf092e1dae9e5d2ab3ee03c4ef8e))
+
+
+
 <a name="0.22.1"></a>
 ## 0.22.1 (2026-04-01)
 
