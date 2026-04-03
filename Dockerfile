@@ -130,7 +130,8 @@ RUN apt-get -q update && \
     # we have to remove the python3-cryptography package here.
     apt-get -q remove -y python3-cryptography 2>/dev/null || true && \
     apt-get -q autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    python3 --version
 
 WORKDIR /app
 
