@@ -157,8 +157,8 @@ COPY --from=builder /app/version.json /app
 COPY --from=builder /app/tools/spanner /app/tools/spanner
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
 COPY --from=builder /app/tools/tokenserver /app/tools/tokenserver
-if [ "$SYNCSTORAGE_DATABASE_BACKEND" = "postgres" ]; then
-    COPY --from=builder /app/tools/postgres /app/tools/postgres
+RUN if [ "$SYNCSTORAGE_DATABASE_BACKEND" = "postgres" ]; then \
+    COPY --from=builder /app/tools/postgres /app/tools/postgres; \
 fi
 COPY --from=builder --chmod=0755 /app/scripts/prepare-spanner.sh /app/scripts/prepare-spanner.sh
 COPY --from=builder --chmod=0755 /app/scripts/start_mock_fxa_server.sh /app/scripts/start_mock_fxa_server.sh
