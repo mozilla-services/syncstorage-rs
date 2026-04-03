@@ -1,10 +1,12 @@
+"""Pytest configuration and fixtures for integration tests."""
+
 import os
 import psutil
 import signal
 import subprocess
 import time
 import pytest
-import requests
+import requests  # type: ignore[import-untyped]
 import logging
 
 DEBUG_BUILD = "target/debug/syncserver"
@@ -19,9 +21,7 @@ logger = logging.getLogger("tokenserver.scripts.conftest")
 
 
 def _terminate_process(process):
-    """
-    Gracefully terminate the process and its children.
-    """
+    """Gracefully terminate the process and its children."""
     proc = psutil.Process(pid=process.pid)
     child_proc = proc.children(recursive=True)
     for p in [proc] + child_proc:
@@ -30,10 +30,10 @@ def _terminate_process(process):
 
 
 def _wait_for_server_startup(max_attempts=SYNC_SERVER_STARTUP_MAX_ATTEMPTS):
-    """
-    Waits for the __heartbeat__ endpoint to return a 200, pausing for 1 second
-    between attempts. Raises a RuntimeError if the server does not start after
-    the specific number of attempts.
+    """Wait for the __heartbeat__ endpoint to return a 200.
+
+    Pause for 1 second between attempts. Raise a RuntimeError if the server
+    does not start after the specific number of attempts.
     """
     itter = 0
     while True:
@@ -50,10 +50,7 @@ def _wait_for_server_startup(max_attempts=SYNC_SERVER_STARTUP_MAX_ATTEMPTS):
 
 
 def _start_server():
-    """
-    Starts the syncserver process, waits for it to be running,
-    and return the process handle.
-    """
+    """Start the syncserver process, wait for it to be running, and return the handle."""
     target_binary = None
     if os.path.exists(DEBUG_BUILD):
         target_binary = DEBUG_BUILD
@@ -63,8 +60,7 @@ def _start_server():
         raise RuntimeError("Neither {DEBUG_BUILD} nor {RELEASE_BUILD} were found.")
 
     server_proc = subprocess.Popen(
-        target_binary,
-        shell=True,
+        [target_binary],
         text=True,
         env=os.environ,
     )
@@ -75,9 +71,7 @@ def _start_server():
 
 
 def _server_manager():
-    """
-    Context manager to gracefully start and stop the server.
-    """
+    """Gracefully start and stop the server as a context manager."""
     server_process = _start_server()
     try:
         yield server_process
@@ -86,8 +80,8 @@ def _server_manager():
 
 
 def _set_local_test_env_vars():
-    """
-    Set environment variables for local testing.
+    """Set environment variables for local testing.
+
     This function sets the necessary environment variables for the syncserver.
     """
     os.environ.setdefault("SYNC_MASTER_SECRET", "secret0")
@@ -104,8 +98,8 @@ def _set_local_test_env_vars():
 
 @pytest.fixture(scope="session")
 def setup_server_local_testing():
-    """
-    Fixture to set up the server for local testing.
+    """Set up the server for local testing.
+
     This fixture sets the necessary environment variables and
     starts the server.
     """
@@ -115,8 +109,8 @@ def setup_server_local_testing():
 
 @pytest.fixture(scope="session")
 def setup_server_end_to_end_testing():
-    """
-    Fixture to set up the server for end-to-end testing.
+    """Set up the server for end-to-end testing.
+
     This fixture sets the necessary environment variables and
     starts the server.
     """

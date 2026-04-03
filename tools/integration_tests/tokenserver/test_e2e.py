@@ -1,6 +1,8 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
+"""End-to-end integration tests for the tokenserver."""
+
 from base64 import urlsafe_b64decode
 import hmac
 import json
@@ -36,14 +38,19 @@ SCOPE = "https://identity.mozilla.com/apps/oldsync"
 
 @pytest.mark.usefixtures("setup_server_end_to_end_testing")
 class TestE2e(TestCase, unittest.TestCase):
+    """End-to-end integration tests using real FxA accounts."""
+
     def setUp(self):
+        """Set up test fixtures."""
         super(TestE2e, self).setUp()
 
     def tearDown(self):
+        """Tear down test fixtures."""
         super(TestE2e, self).tearDown()
 
     @classmethod
     def setUpClass(cls):
+        """Set up class-level test fixtures."""
         # Create an ephemeral email account to use to create an FxA account
         cls.acct = TestEmailAccount()
         cls.client = Client(FXA_ACCOUNT_STAGE_HOST)
@@ -67,6 +74,7 @@ class TestE2e(TestCase, unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        """Tear down class-level test fixtures."""
         cls.acct.clear()
         # A teardown of some of the tests can produce a 401 error because
         # of a race condition, where the record had already been removed.
@@ -131,6 +139,7 @@ class TestE2e(TestCase, unittest.TestCase):
         return hasher.hexdigest()
 
     def test_unauthorized_oauth_error_status(self):
+        """Test unauthorized oauth error status."""
         # Totally busted auth -> generic error.
         headers = {
             "Authorization": "Unsupported-Auth-Scheme IHACKYOU",
@@ -158,6 +167,7 @@ class TestE2e(TestCase, unittest.TestCase):
         self.assertEqual(res.json, expected_error_response)
 
     def test_valid_oauth_request(self):
+        """Test valid oauth request."""
         oauth_token = self.oauth_token
         headers = {"Authorization": f"Bearer {oauth_token}", "X-KeyID": "1234-qqo"}
         # Send a valid request, allocating a new user

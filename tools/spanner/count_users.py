@@ -4,6 +4,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
+"""Count distinct users in the Spanner database."""
 
 import sys
 import logging
@@ -24,12 +25,11 @@ client = spanner.Client()
 
 
 def spanner_read_data() -> None:
-    """
-    Reads data from a Google Cloud Spanner database to count the number of distinct users.
+    """Read data from Spanner to count the number of distinct users.
 
-    This function connects to a Spanner instance and database using environment variables,
-    executes a SQL query to count the number of distinct `fxa_uid` entries in the `user_collections` table,
-    and logs the result. It also records the duration of the operation and the user count using statsd metrics.
+    Connect to a Spanner instance and database using environment variables,
+    execute a SQL query to count distinct `fxa_uid` entries in the
+    `user_collections` table, and log the result with statsd metrics.
 
     Args:
         None

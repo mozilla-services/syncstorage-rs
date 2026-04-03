@@ -1,11 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-"""
-
-Admin/managment scripts for TokenServer.
-
-"""
+"""Admin/management scripts for TokenServer."""
 
 import sys
 import time
@@ -20,11 +16,12 @@ from datadog import initialize, statsd
 
 
 def encode_bytes_b64(value):
+    """Encode bytes to a URL-safe base64 string without padding."""
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
 
 def run_script(main):
-    """Simple wrapper for running scripts in __main__ section."""
+    """Run a script's main function and exit with the returned code."""
     try:
         exitcode = main()
     except KeyboardInterrupt:
@@ -39,7 +36,6 @@ def configure_script_logging(opts=None, logger_name=""):
     formatting that's more for human readability than machine parsing.
     It also takes care of the --verbosity command-line option.
     """
-
     verbosity = (opts and getattr(opts, "verbosity", logging.NOTSET)) or logging.NOTSET
     logger = logging.getLogger(logger_name)
     level = (
@@ -72,7 +68,10 @@ def configure_script_logging(opts=None, logger_name=""):
 # This includes "escaping" the message as well as converting the timestamp
 # into a parsable format.
 class GCP_JSON_Formatter(logging.Formatter):
+    """JSON log formatter compatible with Google Cloud Platform logging."""
+
     def format(self, record):
+        """Format a log record as a GCP-compatible JSON string."""
         return json.dumps(
             {
                 "severity": record.levelname,
@@ -98,6 +97,8 @@ def get_timestamp():
 
 
 class Metrics:
+    """Wrapper for sending statsd metrics with a configured namespace."""
+
     def __init__(self, opts, namespace=""):
         options = dict(
             namespace=namespace,
@@ -109,6 +110,7 @@ class Metrics:
         initialize(**options)
 
     def incr(self, label, tags=None):
+        """Increment a statsd counter with the given label and optional tags."""
         statsd.increment(label, tags=tags)
 
 

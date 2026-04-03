@@ -1,3 +1,5 @@
+"""Tests for the Spanner count_expired_rows module."""
+
 import logging
 from unittest.mock import MagicMock
 
