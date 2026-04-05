@@ -433,14 +433,14 @@ This requires access to [Google Cloud Rust (raw)](https://crates.io/crates/googl
 
 1. Make sure you have [Docker installed](https://docs.docker.com/install/) locally.
 2. Copy the contents of mozilla-rust-sdk into top level root dir here.
-3. Comment out the `image` value under `syncserver` in either docker-compose.mysql.yml or docker-compose.spanner.yml (depending on which database backend you want to run), and add this instead:
+3. Comment out the `image` value under `syncserver` in either docker/docker-compose.mysql.yaml or docker/docker-compose.spanner.yaml (depending on which database backend you want to run), and add this instead:
 
     ```yml
       build:
         context: .
     ```
 
-4. If you are using MySQL, adjust the MySQL db credentials in docker-compose.mysql.yml to match your local setup.
+4. If you are using MySQL, adjust the MySQL db credentials in docker/docker-compose.mysql.yaml to match your local setup.
 5. `make docker_start_mysql` or `make docker_start_spanner` - You can verify it's working by visiting [localhost:8000/\_\_heartbeat\_\_](http://localhost:8000/__heartbeat__)
 
 ### Connecting to Firefox
@@ -477,76 +477,6 @@ If you see a problem related to `libssl` you may need to specify the `cargo` opt
 
 - If you're having trouble working with Sentry to create releases, try authenticating using their self hosted server option that's outlined [here](https://docs.sentry.io/product/cli/configuration/) Ie, `sentry-cli --url https://selfhosted.url.com/ login`. It's also recommended to create a `.sentryclirc` config file. See [this example](https://github.com/mozilla-services/syncstorage-rs/blob/master/.sentryclirc.example) for the config values you'll need.
 
-## Tests
-
-### Unit tests
-
-Run unit tests for a specific database backend using one of the following make targets:
-
-- MySQL: `make test` or `make test_with_coverage`
-- Postgres: `make postgres_test_with_coverage`
-- Spanner: `make spanner_test_with_coverage`
-
-These commands will run the Rust test suite using cargo-nextest and generate coverage reports using cargo-llvm-cov.
-
-### End-to-End tests
-
-End-to-end (E2E) tests validate the complete integration of syncstorage-rs with a real database backend and mock Firefox Accounts server. These tests run the full Python integration test suite located in [tools/integration_tests/](../../tools/integration_tests/).
-
-#### Running E2E Tests Locally
-
-To run E2E tests, you'll need to:
-
-1. Build a Docker image for your target backend using the appropriate Makefile target
-2. Run the E2E test suite using docker-compose
-
-The E2E tests are available for three database backends:
-
-**MySQL:**
-```bash
-make docker_run_mysql_e2e_tests
-```
-
-**Postgres:**
-```bash
-make docker_run_postgres_e2e_tests
-```
-
-**Spanner:**
-```bash
-make docker_run_spanner_e2e_tests
-```
-
-Each E2E test run:
-1. Starts the required services (database, mock FxA server, syncserver) using docker-compose
-2. Runs the Python integration tests with JWK caching enabled
-3. Runs the tests again with JWK caching disabled
-4. Outputs JUnit XML test results
-
-The E2E test configurations are defined in:
-- [docker-compose.e2e.mysql.yaml](../../docker-compose.e2e.mysql.yaml)
-- [docker-compose.e2e.postgres.yaml](../../docker-compose.e2e.postgres.yaml)
-- [docker-compose.e2e.spanner.yaml](../../docker-compose.e2e.spanner.yaml)
-
-These compose files extend the base service definitions from their corresponding `docker-compose.<backend>.yaml` files.
-
-#### How E2E Tests Work
-
-The E2E tests:
-- Run in a containerized environment with all dependencies (database, syncserver, mock FxA)
-- Execute integration tests from [tools/integration_tests/](../../tools/integration_tests/) using pytest
-- Test OAuth token validation with both cached and non-cached JWKs
-- Validate tokenserver functionality, including user allocation and token generation
-- Test syncstorage operations like BSO creation, retrieval, and deletion
-
-#### CI/CD
-
-In GitHub Actions, E2E tests run as part of the CI/CD pipeline for each backend:
-- [.github/workflows/mysql.yml](../../.github/workflows/mysql.yml) - `mysql-e2e-tests` job
-- [.github/workflows/postgres.yml](../../.github/workflows/postgres.yml) - `postgres-e2e-tests` job
-- [.github/workflows/spanner.yml](../../.github/workflows/spanner.yml) - `spanner-e2e-tests` job
-
-Each workflow builds a Docker image, runs unit tests, then executes E2E tests using the same make targets described above.
 
 - [System Requirements](#system-requirements)
 - [Local Setup](#local-setup)

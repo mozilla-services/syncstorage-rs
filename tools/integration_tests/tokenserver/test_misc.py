@@ -3,7 +3,6 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 """Miscellaneous integration tests for the tokenserver."""
 
-import pytest
 import unittest
 
 from integration_tests.tokenserver.test_support import TestCase
@@ -11,7 +10,6 @@ from integration_tests.tokenserver.test_support import TestCase
 MAX_GENERATION = 9223372036854775807
 
 
-@pytest.mark.usefixtures("setup_server_local_testing")
 class TestMisc(TestCase, unittest.TestCase):
     """Miscellaneous tokenserver integration tests."""
 

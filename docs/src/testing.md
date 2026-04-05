@@ -73,18 +73,23 @@ make docker_run_postgres_e2e_tests
 make docker_run_spanner_e2e_tests
 ```
 
-Each E2E test run:
-1. Starts the required services (database, mock FxA server, syncserver) using docker-compose
-2. Runs the Python integration tests with JWK caching enabled
-3. Runs the tests again with JWK caching disabled
-4. Outputs JUnit XML test results
+Each E2E test run performs two separate docker-compose invocations:
+1. **No Local JWK run**: starts services with no local JWK configured, runs only `test_e2e.py` against FxA stage
+2. **Local JWK & Mocked FxA run**: runs all integration tests using a mocked local FxA server and local JWK; the local JWK affects only the tests in `test_e2e.py`
+3. Outputs JUnit XML test results for each run
 
 The E2E test configurations are defined in:
-- [docker-compose.e2e.mysql.yaml](../../docker-compose.e2e.mysql.yaml)
-- [docker-compose.e2e.postgres.yaml](../../docker-compose.e2e.postgres.yaml)
-- [docker-compose.e2e.spanner.yaml](../../docker-compose.e2e.spanner.yaml)
+- [docker/docker-compose.e2e.mysql.yaml](../../docker/docker-compose.e2e.mysql.yaml) - base
+- [docker/docker-compose.e2e.mysql.jwk-cache.yaml](../../docker/docker-compose.e2e.mysql.jwk-cache.yaml) - JWK + mock FxA overlay
+- [docker/docker-compose.e2e.mysql.no-jwk-cache.yaml](../../docker/docker-compose.e2e.mysql.no-jwk-cache.yaml) - FxA stage overlay
+- [docker/docker-compose.e2e.postgres.yaml](../../docker/docker-compose.e2e.postgres.yaml)
+- [docker/docker-compose.e2e.postgres.jwk-cache.yaml](../../docker/docker-compose.e2e.postgres.jwk-cache.yaml)
+- [docker/docker-compose.e2e.postgres.no-jwk-cache.yaml](../../docker/docker-compose.e2e.postgres.no-jwk-cache.yaml)
+- [docker/docker-compose.e2e.spanner.yaml](../../docker/docker-compose.e2e.spanner.yaml)
+- [docker/docker-compose.e2e.spanner.jwk-cache.yaml](../../docker/docker-compose.e2e.spanner.jwk-cache.yaml)
+- [docker/docker-compose.e2e.spanner.no-jwk-cache.yaml](../../docker/docker-compose.e2e.spanner.no-jwk-cache.yaml)
 
-These compose files extend the base service definitions from their corresponding `docker-compose.<backend>.yaml` files.
+These compose files extend the base service definitions from their corresponding `docker/docker-compose.<backend>.yaml` files. Syncserver configuration (JWK, FxA OAuth URL, CORS) is defined in the `syncserver` block of the e2e overlays.
 
 #### How E2E Tests Work
 
