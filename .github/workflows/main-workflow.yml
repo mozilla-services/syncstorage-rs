@@ -46,7 +46,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Cache pip and Poetry virtualenv
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: |
             ~/.cache/pip
@@ -71,7 +71,7 @@ jobs:
     steps:
       - name: Cache Rust toolchain
         id: cache-rust-toolchain
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: |
             ~/.rustup/toolchains
@@ -106,7 +106,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Restore pip and Poetry virtualenv
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: |
             ~/.cache/pip
@@ -142,7 +142,7 @@ jobs:
           persist-credentials: false
 
       - name: Restore Rust toolchain
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: |
             ~/.rustup/toolchains
@@ -154,7 +154,7 @@ jobs:
 
       - name: Cache cargo-audit
         id: cache-cargo-audit
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: ~/.cargo/bin/cargo-audit
           key: ${{ runner.os }}-cargo-audit-${{ hashFiles('.github/workflows/main-workflow.yml') }}
@@ -165,7 +165,7 @@ jobs:
 
       - name: Cache mdbook
         id: cache-mdbook
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: |
             ~/.cargo/bin/mdbook
@@ -199,7 +199,7 @@ jobs:
           persist-credentials: false
 
       - name: Restore Rust toolchain
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: |
             ~/.rustup/toolchains
@@ -249,7 +249,7 @@ jobs:
           persist-credentials: false
 
       - name: Restore Rust toolchain
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: |
             ~/.rustup/toolchains
@@ -260,7 +260,7 @@ jobs:
         run: rustup default ${{ env.RUST_VERSION }}
 
       - name: Restore pip and Poetry virtualenv
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: |
             ~/.cache/pip
@@ -268,7 +268,7 @@ jobs:
           key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
 
       - name: Cache Cargo build artifacts
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: |
             ~/.cargo/registry/index/
@@ -303,7 +303,7 @@ jobs:
 
       - name: Cache cargo-nextest
         id: cache-cargo-nextest-postgres
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: ~/.cargo/bin/cargo-nextest
           key: ${{ runner.os }}-cargo-nextest-${{ hashFiles('**/Cargo.lock') }}
@@ -314,7 +314,7 @@ jobs:
 
       - name: Cache cargo-llvm-cov
         id: cache-cargo-llvm-cov-postgres
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: ~/.cargo/bin/cargo-llvm-cov
           key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('**/Cargo.lock') }}
@@ -344,7 +344,7 @@ jobs:
           SYNC_SYNCSTORAGE__DATABASE_URL: postgresql://test:test@127.0.0.1/syncstorage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        uses: dorny/test-reporter@9c68bf6253df71e8dc6d80e6fb9b223481fd5a33
         if: always()
         with:
           name: Postgres Unit Tests
@@ -354,7 +354,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: postgres-test-results
           path: workflow/test-results/
@@ -368,7 +368,7 @@ jobs:
 
       - name: Upload JUnit results to GCS
         if: github.ref == 'refs/heads/master'
-        uses: google-github-actions/upload-cloud-storage@c0f6160ff80057923ff50e5e567695cea181ec23 # v2
+        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
         with:
           path: workflow/test-results
           destination: ecosystem-test-eng-metrics/syncstorage-rs/junit
@@ -378,7 +378,7 @@ jobs:
 
       - name: Upload coverage results to GCS
         if: github.ref == 'refs/heads/master'
-        uses: google-github-actions/upload-cloud-storage@c0f6160ff80057923ff50e5e567695cea181ec23 # v2
+        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
         with:
           path: workflow/test-results
           destination: ecosystem-test-eng-metrics/syncstorage-rs/coverage
@@ -412,7 +412,7 @@ jobs:
 
       - name: Cache Docker image tar
         id: cache-postgres-image
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: /tmp/postgres-image.tar
           key: ${{ runner.os }}-postgres-image-${{ hashFiles('Dockerfile', 'Cargo.lock', '**/*.rs', '**/Cargo.toml', 'tools/**', 'scripts/**') }}
@@ -436,7 +436,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: postgres-docker-image
           path: /tmp/postgres-image.tar
@@ -455,7 +455,7 @@ jobs:
           persist-credentials: false
 
       - name: Download Docker image
-        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: postgres-docker-image
           path: /tmp
@@ -472,7 +472,7 @@ jobs:
           SYNCSTORAGE_RS_IMAGE: app:build
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        uses: dorny/test-reporter@9c68bf6253df71e8dc6d80e6fb9b223481fd5a33
         if: always()
         with:
           name: Postgres E2E Tests
@@ -482,7 +482,7 @@ jobs:
 
       - name: Upload e2e test results
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: postgres-e2e-test-results
           path: workflow/test-results/
@@ -496,7 +496,7 @@ jobs:
 
       - name: Upload e2e test results to GCS
         if: github.ref == 'refs/heads/master'
-        uses: google-github-actions/upload-cloud-storage@c0f6160ff80057923ff50e5e567695cea181ec23 # v2
+        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
         with:
           path: workflow/test-results
           destination: ecosystem-test-eng-metrics/syncstorage-rs/junit
@@ -542,7 +542,7 @@ jobs:
           persist-credentials: false
 
       - name: Restore Rust toolchain
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: |
             ~/.rustup/toolchains
@@ -553,7 +553,7 @@ jobs:
         run: rustup default ${{ env.RUST_VERSION }}
 
       - name: Restore pip and Poetry virtualenv
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: |
             ~/.cache/pip
@@ -561,7 +561,7 @@ jobs:
           key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
 
       - name: Cache Cargo build artifacts
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: |
             ~/.cargo/registry/index/
@@ -597,7 +597,7 @@ jobs:
 
       - name: Cache cargo-nextest
         id: cache-cargo-nextest-mysql
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: ~/.cargo/bin/cargo-nextest
           key: ${{ runner.os }}-cargo-nextest-${{ hashFiles('**/Cargo.lock') }}
@@ -608,7 +608,7 @@ jobs:
 
       - name: Cache cargo-llvm-cov
         id: cache-cargo-llvm-cov-mysql
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: ~/.cargo/bin/cargo-llvm-cov
           key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('**/Cargo.lock') }}
@@ -626,7 +626,7 @@ jobs:
           SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        uses: dorny/test-reporter@9c68bf6253df71e8dc6d80e6fb9b223481fd5a33
         if: always()
         with:
           name: MySQL Unit Tests
@@ -636,7 +636,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: mysql-test-results
           path: workflow/test-results/
@@ -650,7 +650,7 @@ jobs:
 
       - name: Upload JUnit results to GCS
         if: github.ref == 'refs/heads/master'
-        uses: google-github-actions/upload-cloud-storage@c0f6160ff80057923ff50e5e567695cea181ec23 # v2
+        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
         with:
           path: workflow/test-results
           destination: ecosystem-test-eng-metrics/syncstorage-rs/junit
@@ -660,7 +660,7 @@ jobs:
 
       - name: Upload coverage results to GCS
         if: github.ref == 'refs/heads/master'
-        uses: google-github-actions/upload-cloud-storage@c0f6160ff80057923ff50e5e567695cea181ec23 # v2
+        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
         with:
           path: workflow/test-results
           destination: ecosystem-test-eng-metrics/syncstorage-rs/coverage
@@ -695,7 +695,7 @@ jobs:
 
       - name: Cache Docker image tar
         id: cache-mysql-image
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: /tmp/mysql-image.tar
           key: ${{ runner.os }}-mysql-image-${{ hashFiles('Dockerfile', 'Cargo.lock', '**/*.rs', '**/Cargo.toml', 'tools/**', 'scripts/**') }}
@@ -719,7 +719,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: mysql-docker-image
           path: /tmp/mysql-image.tar
@@ -738,7 +738,7 @@ jobs:
           persist-credentials: false
 
       - name: Download Docker image
-        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: mysql-docker-image
           path: /tmp
@@ -755,7 +755,7 @@ jobs:
           SYNCSTORAGE_RS_IMAGE: app:build
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        uses: dorny/test-reporter@9c68bf6253df71e8dc6d80e6fb9b223481fd5a33
         if: always()
         with:
           name: MySQL E2E Tests
@@ -765,7 +765,7 @@ jobs:
 
       - name: Upload e2e test results
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: mysql-e2e-test-results
           path: workflow/test-results/
@@ -779,7 +779,7 @@ jobs:
 
       - name: Upload e2e test results to GCS
         if: github.ref == 'refs/heads/master'
-        uses: google-github-actions/upload-cloud-storage@c0f6160ff80057923ff50e5e567695cea181ec23 # v2
+        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
         with:
           path: workflow/test-results
           destination: ecosystem-test-eng-metrics/syncstorage-rs/junit
@@ -830,7 +830,7 @@ jobs:
           persist-credentials: false
 
       - name: Restore Rust toolchain
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: |
             ~/.rustup/toolchains
@@ -841,7 +841,7 @@ jobs:
         run: rustup default ${{ env.RUST_VERSION }}
 
       - name: Restore pip and Poetry virtualenv
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: |
             ~/.cache/pip
@@ -849,7 +849,7 @@ jobs:
           key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
 
       - name: Cache Cargo build artifacts
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: |
             ~/.cargo/registry/index/
@@ -877,7 +877,7 @@ jobs:
 
       - name: Cache cargo-nextest
         id: cache-cargo-nextest-spanner
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: ~/.cargo/bin/cargo-nextest
           key: ${{ runner.os }}-cargo-nextest-${{ hashFiles('**/Cargo.lock') }}
@@ -888,7 +888,7 @@ jobs:
 
       - name: Cache cargo-llvm-cov
         id: cache-cargo-llvm-cov-spanner
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: ~/.cargo/bin/cargo-llvm-cov
           key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('**/Cargo.lock') }}
@@ -943,7 +943,7 @@ jobs:
         run: make spanner_test_with_coverage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        uses: dorny/test-reporter@9c68bf6253df71e8dc6d80e6fb9b223481fd5a33
         if: always()
         with:
           name: Spanner Unit Tests
@@ -953,7 +953,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: spanner-test-results
           path: workflow/test-results/
@@ -967,7 +967,7 @@ jobs:
 
       - name: Upload JUnit results to GCS
         if: github.ref == 'refs/heads/master'
-        uses: google-github-actions/upload-cloud-storage@c0f6160ff80057923ff50e5e567695cea181ec23 # v2
+        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
         with:
           path: workflow/test-results
           destination: ecosystem-test-eng-metrics/syncstorage-rs/junit
@@ -977,7 +977,7 @@ jobs:
 
       - name: Upload coverage results to GCS
         if: github.ref == 'refs/heads/master'
-        uses: google-github-actions/upload-cloud-storage@c0f6160ff80057923ff50e5e567695cea181ec23 # v2
+        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
         with:
           path: workflow/test-results
           destination: ecosystem-test-eng-metrics/syncstorage-rs/coverage
@@ -1012,7 +1012,7 @@ jobs:
 
       - name: Cache Docker image tar
         id: cache-spanner-image
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
           path: /tmp/spanner-image.tar
           key: ${{ runner.os }}-spanner-image-${{ hashFiles('Dockerfile', 'Cargo.lock', '**/*.rs', '**/Cargo.toml', 'tools/**', 'scripts/**') }}
@@ -1036,7 +1036,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: spanner-docker-image
           path: /tmp/spanner-image.tar
@@ -1056,7 +1056,7 @@ jobs:
           persist-credentials: false
 
       - name: Download Docker image
-        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: spanner-docker-image
           path: /tmp
@@ -1073,7 +1073,7 @@ jobs:
           SYNCSTORAGE_RS_IMAGE: app:build
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        uses: dorny/test-reporter@9c68bf6253df71e8dc6d80e6fb9b223481fd5a33
         if: always()
         with:
           name: Spanner E2E Tests
@@ -1083,7 +1083,7 @@ jobs:
 
       - name: Upload e2e test results
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: spanner-e2e-test-results
           path: workflow/test-results/
@@ -1097,7 +1097,7 @@ jobs:
 
       - name: Upload e2e test results to GCS
         if: github.ref == 'refs/heads/master'
-        uses: google-github-actions/upload-cloud-storage@c0f6160ff80057923ff50e5e567695cea181ec23 # v2
+        uses: google-github-actions/upload-cloud-storage@6397bd7208e18d13ba2619ee21b9873edc94427a # v3.0.0
         with:
           path: workflow/test-results
           destination: ecosystem-test-eng-metrics/syncstorage-rs/junit
