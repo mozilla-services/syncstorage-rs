@@ -192,7 +192,7 @@ where
     and downed = 0
     and backoff = 0
 order by
-    log(current_load) / log(capacity)
+    log(GREATEST(current_load, 1)) / log(capacity)
 limit 1
 """)
 
@@ -616,11 +616,14 @@ class Database:
             pattern=pattern,
             **kwds,
         )
-        res.close()
         if self.db_mode == "postgresql":
-            return res.fetchone()[0]
+            row = res.fetchone()[0]
+            res.close()
+            return row
         else:
-            return res.lastrowid
+            lastrowid = res.lastrowid
+            res.close()
+            return lastrowid
 
     def add_node(self, node, capacity, **kwds):
         """Add definition for a new node."""
