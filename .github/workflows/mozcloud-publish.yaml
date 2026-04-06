@@ -135,7 +135,7 @@ jobs:
           token_format: access_token
 
       - name: Log in to enterprise GAR
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: us-docker.pkg.dev
           username: oauth2accesstoken
@@ -264,7 +264,7 @@ jobs:
           token_format: access_token
 
       - name: Log in to enterprise GAR
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: us-docker.pkg.dev
           username: oauth2accesstoken
