@@ -46,6 +46,7 @@ POSTGRES_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)postgres_integr
 POSTGRES_NO_JWK_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)postgres_no_oauth_integration__results.xml
 MYSQL_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)mysql_integration__results.xml
 MYSQL_NO_JWK_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)mysql_no_oauth_integration__results.xml
+TOKENSERVER_UTILS_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)tokenserver_utils__results.xml
 
 LOCAL_INTEGRATION_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)local_integration__results.xml
 SYNC_SYNCSTORAGE__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/syncstorage_rs
