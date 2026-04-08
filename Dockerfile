@@ -33,7 +33,7 @@ RUN apt-get -q update && \
             apt-get -q update ; \
         fi; \
     fi && \
-    if [ "$TOKENSERVER_DATABASE_BACKEND" = "postgres" ]; then \
+    if [ "$SYNCSTORAGE_DATABASE_BACKEND" = "postgres" ] || [ "$TOKENSERVER_DATABASE_BACKEND" = "postgres" ]; then \
         POSTGRES_DEV_PKG="libpq-dev"; \
     fi && \
     apt-get -q install -y --no-install-recommends $MYSQL_PKG $POSTGRES_DEV_PKG cmake python3-dev python3-pip python3-setuptools python3-wheel python3-venv pkg-config && \
@@ -45,11 +45,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/app/target,sharing=locked \
     set -x && \
-    TOKENSERVER_FEATURES="" && \
-    if [ "$TOKENSERVER_DATABASE_BACKEND" = "postgres" ]; then \
-        TOKENSERVER_FEATURES="--features=tokenserver-db/postgres"; \
-    fi && \
-    cargo chef cook --release --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND $TOKENSERVER_FEATURES --features=py_verifier --recipe-path recipe.json
+    cargo chef cook --release --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND --features=tokenserver-db/$TOKENSERVER_DATABASE_BACKEND --features=py_verifier --recipe-path recipe.json
 
 ENV POETRY_HOME="/opt/poetry" \
     POETRY_VIRTUALENVS_IN_PROJECT=1 \
@@ -96,13 +92,9 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/app/target,sharing=locked \
     set -x && \
-    TOKENSERVER_FEATURES="" && \
-    if [ "$TOKENSERVER_DATABASE_BACKEND" = "postgres" ]; then \
-        TOKENSERVER_FEATURES="--features=tokenserver-db/postgres"; \
-    fi && \
     cargo --version && \
     rustc --version && \
-    cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND $TOKENSERVER_FEATURES --features=py_verifier --locked --root /app
+    cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND --features=tokenserver-db/$TOKENSERVER_DATABASE_BACKEND --features=py_verifier --locked --root /app
 
 FROM docker.io/library/debian:bookworm-slim
 ARG SYNCSTORAGE_DATABASE_BACKEND
