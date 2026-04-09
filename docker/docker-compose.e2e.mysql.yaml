@@ -1,8 +1,6 @@
 services:
   syncserver:
     environment:
-      SYNC_CORS_MAX_AGE: "555"
-      SYNC_CORS_ALLOWED_ORIGIN: "*"
       SYNC_TOKENSERVER__ENABLED: "true"
       SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: api-accounts.stage.mozaws.net
       SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: secret0
