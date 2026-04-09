@@ -22,13 +22,9 @@ services:
     environment:
       SYNC_SERVER_URL: http://syncserver:8000
       TOKENSERVER_HOST: http://syncserver:8000
-      SYNC_HOST: 0.0.0.0
       SYNC_MASTER_SECRET: secret0
       SYNC_SYNCSTORAGE__DATABASE_URL: mysql://test:test@sync-db:3306/syncstorage
       SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
-      SYNC_TOKENSERVER__NODE_TYPE: mysql
-      SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: api-accounts.stage.mozaws.net
-      SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: secret0
       SQLALCHEMY_SILENCE_UBER_WARNING: 1
       RESULTS_FILENAME: ${RESULTS_FILENAME:-mysql_integration_results.xml}
     entrypoint:
