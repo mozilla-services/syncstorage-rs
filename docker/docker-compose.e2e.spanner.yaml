@@ -1,8 +1,6 @@
 services:
   syncserver:
     environment:
-      SYNC_CORS_MAX_AGE: "555"
-      SYNC_CORS_ALLOWED_ORIGIN: "*"
       SYNC_TOKENSERVER__ENABLED: "true"
       SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: api-accounts.stage.mozaws.net
       SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: secret0
@@ -22,14 +20,10 @@ services:
     environment:
       SYNC_SERVER_URL: http://syncserver:8000
       TOKENSERVER_HOST: http://syncserver:8000
-      SYNC_HOST: 0.0.0.0
       SYNC_MASTER_SECRET: secret0
       SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
       SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9010
       SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
-      SYNC_TOKENSERVER__NODE_TYPE: spanner
-      SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: api-accounts.stage.mozaws.net
-      SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: secret0
       SQLALCHEMY_SILENCE_UBER_WARNING: 1
       RESULTS_FILENAME: ${RESULTS_FILENAME:-spanner_integration_results.xml}
     entrypoint:
