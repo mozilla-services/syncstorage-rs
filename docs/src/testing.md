@@ -108,3 +108,58 @@ In GitHub Actions, E2E tests run as part of the CI/CD pipeline for each backend:
 - [.github/workflows/spanner.yml](../../.github/workflows/spanner.yml) - `spanner-e2e-tests` job
 
 Each workflow builds a Docker image, runs unit tests, then executes E2E tests using the same make targets described above.
+
+### Running E2E Tests Against a Local Server
+
+You can run the integration tests against a locally running Sync server.  Start your server, then use the `run_local_e2e_tests` make target:
+
+```bash
+SYNC_SYNCSTORAGE__DATABASE_URL="postgres://user:pass@localhost/syncstorage" \
+SYNC_TOKENSERVER__DATABASE_URL="postgres://user:pass@localhost/tokenserver" \
+make run_local_e2e_tests
+```
+
+The target uses the following env vars:
+- `SYNC_SERVER_URL` (default: `http://localhost:8000`)
+- `TOKENSERVER_HOST` (default: `http://localhost:8000`)
+- `SYNC_MASTER_SECRET` (default: `secret0`)
+- `SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL` (default: `http://localhost:6000`)
+
+`SYNC_SYNCSTORAGE__DATABASE_URL` and `SYNC_TOKENSERVER__DATABASE_URL` must be set when `make` is invoked.
+
+To run a specific test by name:
+
+```bash
+SYNC_SYNCSTORAGE__DATABASE_URL="..." \
+SYNC_TOKENSERVER__DATABASE_URL="..." \
+PYTHONPATH=/path/to/syncstorage-rs/tools \
+TOKENSERVER_HOST=http://localhost:8000 \
+poetry -C /path/to/syncstorage-rs/tools/integration_tests \
+  run pytest . -k test_meta_global_sanity
+```
+
+Or by full module path:
+
+```bash
+SYNC_SYNCSTORAGE__DATABASE_URL="..." \
+SYNC_TOKENSERVER__DATABASE_URL="..." \
+PYTHONPATH=/path/to/syncstorage-rs/tools \
+TOKENSERVER_HOST=http://localhost:8000 \
+poetry -C /path/to/syncstorage-rs/tools/integration_tests \
+  run pytest tokenserver/test_authorization.py::TestAuthorization::test_authorized_request
+```
+
+#### HTTP Request and Response Logging
+
+Set `SYNC_TEST_LOG_HTTP=1` and pass `--log-cli-level=INFO` to pytest log HTTP requests and responses to stdout:
+
+```bash
+SYNC_SYNCSTORAGE__DATABASE_URL="..." \
+SYNC_TOKENSERVER__DATABASE_URL="..." \
+PYTHONPATH=/path/to/syncstorage-rs/tools \
+TOKENSERVER_HOST=http://localhost:8000 \
+SYNC_TEST_LOG_HTTP=1 \
+poetry -C /path/to/syncstorage-rs/tools/integration_tests \
+  run pytest . -k test_meta_global_sanity --log-cli-level=INFO
+```
+
