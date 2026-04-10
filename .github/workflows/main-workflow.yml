@@ -443,7 +443,7 @@ jobs:
           poetry run pytest tools/tokenserver/test_database.py tools/tokenserver/test_process_account_events.py tools/tokenserver/test_purge_old_records.py tools/tokenserver/test_scripts.py -v --junit-xml="workflow/test-results/${GITHUB_RUN_NUMBER}__$(date +%s)__$(basename ${GITHUB_REPOSITORY})__${WORKFLOW}__tokenserver_unit__results.xml"
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@a810f9bf83f2344124a920a7a0a85a6716e791f0
+        uses: dorny/test-reporter@9c68bf6253df71e8dc6d80e6fb9b223481fd5a33
         if: always()
         with:
           name: Tokenserver Unit Tests
