@@ -5,7 +5,7 @@ services:
       SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: api-accounts.stage.mozaws.net
       SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: secret0
       SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
-  spanner-e2e-tests:
+  e2e-tests:
     container_name: spanner-e2e-tests
     depends_on:
       mock-fxa-server:

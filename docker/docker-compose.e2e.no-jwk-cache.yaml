@@ -1,5 +1,5 @@
 services:
-  postgres-e2e-tests:
+  e2e-tests:
     entrypoint:
       - /bin/sh
       - -c
@@ -7,4 +7,3 @@ services:
         PYTHONPATH=/app
         pytest /app/tools/integration_tests/tokenserver/test_e2e.py
         --junit-xml=/${RESULTS_FILENAME}
-      

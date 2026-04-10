@@ -100,17 +100,17 @@ docker_run_mysql_e2e_tests:
 	docker compose \
 		-f docker/docker-compose.mysql.yaml \
 		-f docker/docker-compose.e2e.mysql.yaml \
-		-f docker/docker-compose.e2e.mysql.no-jwk-cache.yaml \
+		-f docker/docker-compose.e2e.no-jwk-cache.yaml \
 	 	up \
-	 	--exit-code-from mysql-e2e-tests \
+	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
 	docker cp mysql-e2e-tests:/mysql_no_jwk_integration_results.xml ${MYSQL_NO_JWK_INT_JUNIT_XML}
 	RESULTS_FILENAME=mysql_integration_results.xml docker compose \
 		-f docker/docker-compose.mysql.yaml \
 		-f docker/docker-compose.e2e.mysql.yaml \
-		-f docker/docker-compose.e2e.mysql.jwk-cache.yaml \
+		-f docker/docker-compose.e2e.jwk-cache.yaml \
 	 	up \
-	 	--exit-code-from mysql-e2e-tests \
+	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
 	docker cp mysql-e2e-tests:/mysql_integration_results.xml ${MYSQL_INT_JUNIT_XML}
 	docker compose \
@@ -133,17 +133,17 @@ docker_run_postgres_e2e_tests:
 	docker compose \
 		-f docker/docker-compose.postgres.yaml \
 		-f docker/docker-compose.e2e.postgres.yaml \
-		-f docker/docker-compose.e2e.postgres.no-jwk-cache.yaml \
+		-f docker/docker-compose.e2e.no-jwk-cache.yaml \
 	 	up \
-	 	--exit-code-from postgres-e2e-tests \
+	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
 	docker cp postgres-e2e-tests:/postgres_no_jwk_integration_results.xml ${POSTGRES_NO_JWK_INT_JUNIT_XML}
 	RESULTS_FILENAME=postgres_integration_results.xml docker compose \
 		-f docker/docker-compose.postgres.yaml \
 		-f docker/docker-compose.e2e.postgres.yaml \
-		-f docker/docker-compose.e2e.postgres.jwk-cache.yaml \
+		-f docker/docker-compose.e2e.jwk-cache.yaml \
 	 	up \
-	 	--exit-code-from postgres-e2e-tests \
+	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
 	docker cp postgres-e2e-tests:/postgres_integration_results.xml ${POSTGRES_INT_JUNIT_XML}
 	docker compose \
@@ -166,17 +166,17 @@ docker_run_spanner_e2e_tests:
 	docker compose \
 		-f docker/docker-compose.spanner.yaml \
 		-f docker/docker-compose.e2e.spanner.yaml \
-		-f docker/docker-compose.e2e.spanner.no-jwk-cache.yaml \
+		-f docker/docker-compose.e2e.no-jwk-cache.yaml \
 	 	up \
-	 	--exit-code-from spanner-e2e-tests \
+	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
 	docker cp spanner-e2e-tests:/spanner_no_jwk_integration_results.xml ${SPANNER_NO_JWK_INT_JUNIT_XML}
 	RESULTS_FILENAME=spanner_integration_results.xml docker compose \
 		-f docker/docker-compose.spanner.yaml \
 		-f docker/docker-compose.e2e.spanner.yaml \
-		-f docker/docker-compose.e2e.spanner.jwk-cache.yaml \
+		-f docker/docker-compose.e2e.jwk-cache.yaml \
 	 	up \
-	 	--exit-code-from spanner-e2e-tests \
+	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
 	docker cp spanner-e2e-tests:/spanner_integration_results.xml ${SPANNER_INT_JUNIT_XML}
 	docker compose \
