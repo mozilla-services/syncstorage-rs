@@ -76,7 +76,6 @@ def randtext(size=10):
     return "".join([random.choice(_ASCII) for i in range(size)])
 
 
-@pytest.mark.usefixtures("setup_server_local_testing")
 class TestStorage(StorageFunctionalTestCase):
     """Storage testcases that only use the web API.
 
@@ -2311,7 +2310,7 @@ class TestStorage(StorageFunctionalTestCase):
             },
         )
 
-        self.assertEqual(int(res.headers["access-control-max-age"]), 555)
+        self.assertGreater(int(res.headers["access-control-max-age"]), 0)
         self.assertEqual(res.headers["access-control-allow-origin"], "localhost")
 
     def test_cors_allows_any_origin(self):

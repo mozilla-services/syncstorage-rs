@@ -1,0 +1,35 @@
+services:
+  syncserver:
+    environment:
+      SYNC_TOKENSERVER__ENABLED: "true"
+      SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: api-accounts.stage.mozaws.net
+      SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: secret0
+      SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
+  e2e-tests:
+    container_name: spanner-e2e-tests
+    depends_on:
+      mock-fxa-server:
+        condition: service_started
+      syncserver:
+        condition: service_healthy
+      tokenserver-db:
+        condition: service_healthy
+    image: app:build
+    privileged: true
+    user: root
+    environment:
+      SYNC_SERVER_URL: http://syncserver:8000
+      TOKENSERVER_HOST: http://syncserver:8000
+      SYNC_MASTER_SECRET: secret0
+      SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+      SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9010
+      SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
+      SQLALCHEMY_SILENCE_UBER_WARNING: 1
+      RESULTS_FILENAME: ${RESULTS_FILENAME:-spanner_integration_results.xml}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        PYTHONPATH=/app
+        pytest /app/tools/integration_tests/
+        --junit-xml=/${RESULTS_FILENAME}
