@@ -43,8 +43,18 @@ impl Clone for Box<dyn DbPool> {
     }
 }
 
+#[cfg(debug_assertions)]
+pub trait Db: BaseDb + TestDb {}
+#[cfg(debug_assertions)]
+impl<T: BaseDb + TestDb> Db for T {}
+
+#[cfg(not(debug_assertions))]
+pub trait Db: BaseDb {}
+#[cfg(not(debug_assertions))]
+impl<T: BaseDb> Db for T {}
+
 #[async_trait(?Send)]
-pub trait Db {
+pub trait BaseDb {
     /// Return the Db instance timeout duration.
     fn timeout(&self) -> Option<Duration> {
         None
@@ -279,50 +289,44 @@ pub trait Db {
             created_at,
         })
     }
+}
 
-    // Internal methods used by the db tests
-
-    #[cfg(debug_assertions)]
+#[cfg(debug_assertions)]
+#[async_trait(?Send)]
+/// Internal methods used by the db tests
+pub trait TestDb {
     async fn set_user_created_at(
         &mut self,
         params: params::SetUserCreatedAt,
     ) -> DbResult<results::SetUserCreatedAt>;
 
     /// Update users replaced_at attribute based on user uid.
-    #[cfg(debug_assertions)]
     async fn set_user_replaced_at(
         &mut self,
         params: params::SetUserReplacedAt,
     ) -> DbResult<results::SetUserReplacedAt>;
 
     /// Get full user object based on passed user ID.
-    #[cfg(debug_assertions)]
     async fn get_user(&mut self, params: params::GetUser) -> DbResult<results::GetUser>;
 
     /// Create a complete node and return insert id from node.
-    #[cfg(debug_assertions)]
     async fn post_node(&mut self, params: params::PostNode) -> DbResult<results::PostNode>;
 
     /// Get complete node entry based on passed id.
-    #[cfg(debug_assertions)]
     async fn get_node(&mut self, params: params::GetNode) -> DbResult<results::GetNode>;
 
     /// Based on Node ID, unassign node from `users`.
-    #[cfg(debug_assertions)]
     async fn unassign_node(
         &mut self,
         params: params::UnassignNode,
     ) -> DbResult<results::UnassignNode>;
 
     /// Remove Node based on Node ID
-    #[cfg(debug_assertions)]
     async fn remove_node(&mut self, params: params::RemoveNode) -> DbResult<results::RemoveNode>;
 
-    #[cfg(debug_assertions)]
     /// Creates new service and returns new service_id.
     async fn post_service(&mut self, params: params::PostService)
     -> DbResult<results::PostService>;
 
-    #[cfg(debug_assertions)]
     fn set_spanner_node_id(&mut self, params: params::SpannerNodeId);
 }
