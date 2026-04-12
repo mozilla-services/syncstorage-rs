@@ -32,4 +32,7 @@ services:
       - >-
         PYTHONPATH=/app
         pytest /app/tools/integration_tests/
-        --junit-xml=/${RESULTS_FILENAME}
+        --junit-xml=/${RESULTS_FILENAME};
+        cd /app/tools/tokenserver &&
+        pytest . -v
+        --junit-xml=/spanner_tokenserver_utils_results.xml
