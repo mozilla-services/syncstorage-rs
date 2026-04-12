@@ -198,9 +198,10 @@ order by
 limit 1
 """)
 
-# PostgreSQL: log(0) raises InvalidArgumentForLogarithm, so we use NULLIF
-# to convert zero to NULL explicitly. NULLS FIRST replicates MySQL's default
-# NULL-first ASC sort order, ensuring zero-load nodes are always preferred.
+# PostgreSQL: ln() is the natural log equivalent of MySQL's log(). NULLIF
+# converts zero to NULL to avoid InvalidArgumentForLogarithm. NULLS FIRST
+# replicates MySQL's default NULL-first ASC sort order, ensuring zero-load
+# nodes are always preferred.
 _GET_BEST_NODE_POSTGRES = sqltext("""\
 select
     id, node
@@ -213,7 +214,7 @@ where
     and downed = 0
     and backoff = 0
 order by
-    log(NULLIF(current_load, 0)) / log(capacity) NULLS FIRST
+    ln(NULLIF(current_load, 0)) / ln(capacity) NULLS FIRST
 limit 1
 """)
 
