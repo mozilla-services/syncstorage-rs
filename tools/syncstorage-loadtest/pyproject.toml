@@ -19,7 +19,7 @@ dependencies = [
     "aiodogstatsd>=0.16.0,<0.17.0",
     "PyFxA>=0.7.0",
     "PyJWT>=2.0.0",
-    "cryptography>=46.0.5",
+    "cryptography>=46.0.7",
 ]
 
 [project.optional-dependencies]
