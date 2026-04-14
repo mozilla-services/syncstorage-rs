@@ -114,6 +114,7 @@ docker_run_mysql_e2e_tests:
 	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
 	docker cp mysql-e2e-tests:/mysql_integration_results.xml ${MYSQL_INT_JUNIT_XML}
+	docker cp mysql-e2e-tests:/tokenserver_utils_results.xml ${TOKENSERVER_UTILS_JUNIT_XML}
 	docker compose \
 		-f docker/docker-compose.mysql.yaml \
 		-f docker/docker-compose.e2e.mysql.yaml \
@@ -147,6 +148,7 @@ docker_run_postgres_e2e_tests:
 	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
 	docker cp postgres-e2e-tests:/postgres_integration_results.xml ${POSTGRES_INT_JUNIT_XML}
+	docker cp postgres-e2e-tests:/tokenserver_utils_results.xml ${TOKENSERVER_UTILS_JUNIT_XML}
 	docker compose \
 		-f docker/docker-compose.postgres.yaml \
 		-f docker/docker-compose.e2e.postgres.yaml \
@@ -180,6 +182,7 @@ docker_run_spanner_e2e_tests:
 	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
 	docker cp spanner-e2e-tests:/spanner_integration_results.xml ${SPANNER_INT_JUNIT_XML}
+	docker cp spanner-e2e-tests:/tokenserver_utils_results.xml ${TOKENSERVER_UTILS_JUNIT_XML}
 	docker compose \
 		-f docker/docker-compose.spanner.yaml \
 		-f docker/docker-compose.e2e.spanner.yaml \
