@@ -32,8 +32,5 @@ services:
       - -c
       - >-
         PYTHONPATH=/app
-        pytest /app/tools/integration_tests/
-        --junit-xml=/${RESULTS_FILENAME};
-        cd /app/tools/tokenserver &&
-        pytest . -v
-        --junit-xml=/mysql_tokenserver_utils_results.xml
+        pytest /app/tools/integration_tests/ /app/tools/tokenserver/
+        --junit-xml=/${RESULTS_FILENAME}
