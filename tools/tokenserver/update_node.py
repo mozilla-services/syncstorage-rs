@@ -83,9 +83,9 @@ def main(args=None):
     if opts.current_load is not None:
         kwds["current_load"] = opts.current_load
     if opts.backoff is not None:
-        kwds["backoff"] = opts.backoff
+        kwds["backoff"] = int(opts.backoff)
     if opts.downed is not None:
-        kwds["downed"] = opts.downed
+        kwds["downed"] = int(opts.downed)
 
     update_node(node_name, **kwds)
     return 0

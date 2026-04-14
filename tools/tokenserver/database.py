@@ -180,7 +180,9 @@ where
 """)
 
 
-_GET_BEST_NODE = sqltext("""\
+# MySQL: log(0) returns NULL, and NULLs sort first with ASC — zero-load
+# nodes naturally win. Original query unchanged.
+_GET_BEST_NODE_MYSQL = sqltext("""\
 select
     id, node
 from
@@ -193,6 +195,26 @@ where
     and backoff = 0
 order by
     log(current_load) / log(capacity)
+limit 1
+""")
+
+# PostgreSQL: ln() is the natural log equivalent of MySQL's log(). NULLIF
+# converts zero to NULL to avoid InvalidArgumentForLogarithm. NULLS FIRST
+# replicates MySQL's default NULL-first ASC sort order, ensuring zero-load
+# nodes are always preferred.
+_GET_BEST_NODE_POSTGRES = sqltext("""\
+select
+    id, node
+from
+    nodes
+where
+    service = :service
+    and available > 0
+    and capacity > current_load
+    and downed = 0
+    and backoff = 0
+order by
+    ln(NULLIF(current_load, 0)) / ln(capacity) NULLS FIRST
 limit 1
 """)
 
@@ -616,11 +638,14 @@ class Database:
             pattern=pattern,
             **kwds,
         )
-        res.close()
         if self.db_mode == "postgresql":
-            return res.fetchone()[0]
+            row = res.fetchone()[0]
+            res.close()
+            return row
         else:
-            return res.lastrowid
+            lastrowid = res.lastrowid
+            res.close()
+            return lastrowid
 
     def add_node(self, node, capacity, **kwds):
         """Add definition for a new node."""
@@ -653,8 +678,10 @@ class Database:
             capacity=capacity,
             available=available,
             current_load=kwds.get("current_load", 0),
-            downed=kwds.get("downed", 0),
-            backoff=kwds.get("backoff", 0),
+            # Cast to int: optparse action="store_true" produces Python bools,
+            # which postgres rejects for INTEGER columns (MySQL coerces silently).
+            downed=int(kwds.get("downed", 0)),
+            backoff=int(kwds.get("backoff", 0)),
         )
         res.close()
 
@@ -676,6 +703,11 @@ class Database:
         query += """
             where service = :service and node = :node
         """
+        # Cast boolean fields to int: Python bools are rejected by postgres
+        # INTEGER columns. MySQL coerces silently; postgres does not.
+        for field in ("downed", "backoff"):
+            if field in values:
+                values[field] = int(values[field])
         values["service"] = self._get_service_id(SERVICE_NAME)
         values["node"] = node
         if kwds:
@@ -747,8 +779,16 @@ class Database:
             # capacity.  This loop allows a maximum of five retries before
             # bailing out.
             for _ in range(5):
+                # Select the appropriate query variant — postgres requires
+                # explicit NULL handling for log(0) and NULL sort order that
+                # MySQL handles implicitly.
+                best_node_query = (
+                    _GET_BEST_NODE_POSTGRES
+                    if self.db_mode == "postgresql"
+                    else _GET_BEST_NODE_MYSQL
+                )
                 res = self._execute_sql(
-                    _GET_BEST_NODE, service=self._get_service_id(SERVICE_NAME)
+                    best_node_query, service=self._get_service_id(SERVICE_NAME)
                 )
                 row = res.fetchone()
                 res.close()
