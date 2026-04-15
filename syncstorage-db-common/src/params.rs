@@ -60,7 +60,7 @@ uid_data! {
     DeleteStorage,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
 pub struct Offset {
     pub timestamp: Option<SyncTimestamp>,
     pub offset: u64,

@@ -311,7 +311,7 @@ pub async fn get_collection(
                 older: coll.query.older,
                 sort: coll.query.sort,
                 limit: coll.query.limit,
-                offset: coll.query.offset.map(Into::into),
+                offset: coll.query.offset,
                 ids: coll.query.ids.clone(),
                 full: coll.query.full,
                 collection: coll.collection.clone(),

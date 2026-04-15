@@ -662,7 +662,7 @@ impl Db for SpannerDb {
                AND collection_id = @collection_id
                AND expiry > CURRENT_TIMESTAMP()";
         let limit = params.limit.map(i64::from).unwrap_or(-1);
-        let params::Offset { offset, timestamp } = params.offset.clone().unwrap_or_default();
+        let params::Offset { offset, timestamp } = params.offset.unwrap_or_default();
         let sort = params.sort;
 
         let mut streaming = self.bsos_query(query, params).await?;
@@ -694,7 +694,7 @@ impl Db for SpannerDb {
 
     async fn get_bso_ids(&mut self, params: params::GetBsos) -> DbResult<results::GetBsoIds> {
         let limit = params.limit.map(i64::from).unwrap_or(-1);
-        let params::Offset { offset, timestamp } = params.offset.clone().unwrap_or_default();
+        let params::Offset { offset, timestamp } = params.offset.unwrap_or_default();
         let sort = params.sort;
 
         let query = "\
