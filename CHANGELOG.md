@@ -1,3 +1,24 @@
+<a name="0.22.3"></a>
+## 0.22.3 (2026-04-15)
+
+
+#### Chore
+
+*   re-gen server_events.rs with glean_parser 19.0.0 (#2224) ([fe8d8807](https://github.com/mozilla-services/syncstorage-rs/commit/fe8d88076a4d975a8f40082035ca5f647d49b4f2))
+*   add group-by for python deps (#2206) ([918b12fd](https://github.com/mozilla-services/syncstorage-rs/commit/918b12fdd8873b05b8f92144d3c72a5087d13df8))
+* **deps:**  bump the actions-deps group with 8 updates (#2167) ([41e813e5](https://github.com/mozilla-services/syncstorage-rs/commit/41e813e590ea5ade27aa2f31da8fd5ced9742c7f))
+* **deps-dev:**  bump pytest from 9.0.2 to 9.0.3 in /tools/hawk (#2219) ([18cf87c2](https://github.com/mozilla-services/syncstorage-rs/commit/18cf87c2c393661504a7e0cf1787ccdb586155fd))
+
+#### Test
+
+*   add optional req/resp logging to integration tests and update docs (#2196) ([2eddf6de](https://github.com/mozilla-services/syncstorage-rs/commit/2eddf6de6cc5d439289ae897f1a2860d20bc7ea2))
+
+#### Refactor
+
+*   use configurable running service for Python integration tests (#2186) ([9e89b602](https://github.com/mozilla-services/syncstorage-rs/commit/9e89b6025ee55edcb1830bb9dd47e32deecb0de6))
+
+
+
 <a name="0.22.2"></a>
 ## 0.22.2 (2026-04-03)
 
