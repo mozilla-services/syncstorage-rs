@@ -1,4 +1,4 @@
-use std::{num::ParseIntError, str::FromStr};
+use std::str::FromStr;
 
 use actix_web::{Error, FromRequest, HttpRequest, dev::Payload, web::Query};
 use futures::future::{LocalBoxFuture, TryFutureExt};
@@ -12,45 +12,6 @@ use syncstorage_db::{Sorting, SyncTimestamp, params};
 
 use super::{BATCH_MAX_IDS, RequestErrorLocation, VALID_ID_REGEX, request_error};
 use crate::web::error::ValidationErrorKind;
-
-#[derive(Debug, Default, Clone, Copy, Deserialize, Eq, PartialEq, Validate)]
-#[serde(default)]
-pub struct Offset {
-    pub timestamp: Option<SyncTimestamp>,
-    pub offset: u64,
-}
-
-impl From<Offset> for params::Offset {
-    fn from(offset: Offset) -> Self {
-        Self {
-            timestamp: offset.timestamp,
-            offset: offset.offset,
-        }
-    }
-}
-
-impl FromStr for Offset {
-    type Err = ParseIntError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let result = match s.chars().position(|c| c == ':') {
-            None => Offset {
-                timestamp: None,
-                offset: s.parse::<u64>()?,
-            },
-            Some(_colon_position) => {
-                let mut parts = s.split(':');
-                let timestamp_string = parts.next().unwrap_or("0");
-                let timestamp = SyncTimestamp::from_milliseconds(timestamp_string.parse::<u64>()?);
-                let offset = parts.next().unwrap_or("0").parse::<u64>()?;
-                Offset {
-                    timestamp: Some(timestamp),
-                    offset,
-                }
-            }
-        };
-        Ok(result)
-    }
-}
 
 /// Verifies that the list of id's is not too long and that the ids are valid
 pub fn validate_qs_ids(ids: &[String]) -> Result<(), ValidationError> {
@@ -87,13 +48,15 @@ where
     }
 }
 
-pub fn deserialize_offset<'de, D>(deserializer: D) -> Result<Option<Offset>, D::Error>
+pub fn deserialize_offset<'de, D>(deserializer: D) -> Result<Option<params::Offset>, D::Error>
 where
     D: Deserializer<'de>,
 {
     let maybe_str: Option<String> = Deserialize::deserialize(deserializer)?;
     if let Some(val) = maybe_str {
-        return Ok(Some(Offset::from_str(&val).map_err(SerdeError::custom)?));
+        return Ok(Some(
+            params::Offset::from_str(&val).map_err(SerdeError::custom)?,
+        ));
     }
     Ok(None)
 }
@@ -154,7 +117,7 @@ pub struct BsoQueryParams {
 
     /// position at which to restart search (string)
     #[serde(deserialize_with = "deserialize_offset")]
-    pub offset: Option<Offset>,
+    pub offset: Option<params::Offset>,
 
     /// a comma-separated list of BSO ids (list of strings)
     #[serde(deserialize_with = "deserialize_comma_sep_string", default)]
@@ -235,7 +198,7 @@ mod tests {
 
     use syncstorage_db::{Sorting, SyncTimestamp, params};
 
-    use super::{BsoQueryParams, Offset};
+    use super::{BsoQueryParams, params::Offset};
     use crate::web::extractors::test_utils::{extract_body_as_str, make_state};
 
     #[test]
