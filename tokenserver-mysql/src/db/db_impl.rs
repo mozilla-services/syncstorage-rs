@@ -9,12 +9,14 @@ use diesel::{
 use diesel_async::RunQueryDsl;
 use http::StatusCode;
 use syncserver_common::Metrics;
-use tokenserver_db_common::{Db, DbError, DbResult, params, results};
+#[cfg(debug_assertions)]
+use tokenserver_db_common::TestDb;
+use tokenserver_db_common::{BaseDb, DbError, DbResult, params, results};
 
 use super::TokenserverDb;
 
 #[async_trait(?Send)]
-impl Db for TokenserverDb {
+impl BaseDb for TokenserverDb {
     async fn get_node_id(&mut self, params: params::GetNodeId) -> DbResult<results::GetNodeId> {
         const QUERY: &str = r#"
             SELECT id
@@ -375,57 +377,6 @@ impl Db for TokenserverDb {
         self.timeout
     }
 
-    #[cfg(debug_assertions)]
-    async fn set_user_created_at(
-        &mut self,
-        params: params::SetUserCreatedAt,
-    ) -> DbResult<results::SetUserCreatedAt> {
-        const QUERY: &str = r#"
-            UPDATE users
-               SET created_at = ?
-             WHERE uid = ?
-        "#;
-        diesel::sql_query(QUERY)
-            .bind::<Bigint, _>(params.created_at)
-            .bind::<Bigint, _>(&params.uid)
-            .execute(&mut self.conn)
-            .await?;
-        Ok(())
-    }
-
-    #[cfg(debug_assertions)]
-    async fn set_user_replaced_at(
-        &mut self,
-        params: params::SetUserReplacedAt,
-    ) -> DbResult<results::SetUserReplacedAt> {
-        const QUERY: &str = r#"
-            UPDATE users
-               SET replaced_at = ?
-             WHERE uid = ?
-        "#;
-        diesel::sql_query(QUERY)
-            .bind::<Bigint, _>(params.replaced_at)
-            .bind::<Bigint, _>(&params.uid)
-            .execute(&mut self.conn)
-            .await?;
-        Ok(())
-    }
-
-    #[cfg(debug_assertions)]
-    async fn get_user(&mut self, params: params::GetUser) -> DbResult<results::GetUser> {
-        const QUERY: &str = r#"
-            SELECT service, email, generation, client_state, replaced_at, nodeid, keys_changed_at
-              FROM users
-             WHERE uid = ?
-        "#;
-
-        let result = diesel::sql_query(QUERY)
-            .bind::<Bigint, _>(params.id)
-            .get_result::<results::GetUser>(&mut self.conn)
-            .await?;
-        Ok(result)
-    }
-
     async fn insert_sync15_node(&mut self, params: params::Sync15Node) -> DbResult<bool> {
         let query = format!(
             r#"
@@ -447,8 +398,59 @@ impl Db for TokenserverDb {
 
         Ok(affected_rows == 1)
     }
+}
 
-    #[cfg(debug_assertions)]
+#[cfg(debug_assertions)]
+#[async_trait(?Send)]
+impl TestDb for TokenserverDb {
+    async fn set_user_created_at(
+        &mut self,
+        params: params::SetUserCreatedAt,
+    ) -> DbResult<results::SetUserCreatedAt> {
+        const QUERY: &str = r#"
+            UPDATE users
+               SET created_at = ?
+             WHERE uid = ?
+        "#;
+        diesel::sql_query(QUERY)
+            .bind::<Bigint, _>(params.created_at)
+            .bind::<Bigint, _>(&params.uid)
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
+    }
+
+    async fn set_user_replaced_at(
+        &mut self,
+        params: params::SetUserReplacedAt,
+    ) -> DbResult<results::SetUserReplacedAt> {
+        const QUERY: &str = r#"
+            UPDATE users
+               SET replaced_at = ?
+             WHERE uid = ?
+        "#;
+        diesel::sql_query(QUERY)
+            .bind::<Bigint, _>(params.replaced_at)
+            .bind::<Bigint, _>(&params.uid)
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
+    }
+
+    async fn get_user(&mut self, params: params::GetUser) -> DbResult<results::GetUser> {
+        const QUERY: &str = r#"
+            SELECT service, email, generation, client_state, replaced_at, nodeid, keys_changed_at
+              FROM users
+             WHERE uid = ?
+        "#;
+
+        let result = diesel::sql_query(QUERY)
+            .bind::<Bigint, _>(params.id)
+            .get_result::<results::GetUser>(&mut self.conn)
+            .await?;
+        Ok(result)
+    }
+
     async fn post_node(&mut self, params: params::PostNode) -> DbResult<results::PostNode> {
         const QUERY: &str = r#"
             INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
@@ -471,7 +473,6 @@ impl Db for TokenserverDb {
         Ok(result)
     }
 
-    #[cfg(debug_assertions)]
     async fn get_node(&mut self, params: params::GetNode) -> DbResult<results::GetNode> {
         const QUERY: &str = r#"
             SELECT *
@@ -486,7 +487,6 @@ impl Db for TokenserverDb {
         Ok(result)
     }
 
-    #[cfg(debug_assertions)]
     async fn unassign_node(
         &mut self,
         params: params::UnassignNode,
@@ -507,7 +507,6 @@ impl Db for TokenserverDb {
         Ok(())
     }
 
-    #[cfg(debug_assertions)]
     async fn remove_node(&mut self, params: params::RemoveNode) -> DbResult<results::RemoveNode> {
         const QUERY: &str = "DELETE FROM nodes WHERE id = ?";
 
@@ -518,7 +517,6 @@ impl Db for TokenserverDb {
         Ok(())
     }
 
-    #[cfg(debug_assertions)]
     async fn post_service(
         &mut self,
         params: params::PostService,
@@ -540,7 +538,6 @@ impl Db for TokenserverDb {
         Ok(result)
     }
 
-    #[cfg(debug_assertions)]
     fn set_spanner_node_id(&mut self, params: params::SpannerNodeId) {
         self.spanner_node_id = params;
     }
