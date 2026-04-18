@@ -385,6 +385,79 @@ jobs:
           glob: "*.json"
           parent: false
           process_gcloudignore: false
+  # Tokenserver Python unit tests ======
+  tokenserver-unit-tests:
+    needs: python-env
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+          MYSQL_DATABASE: tokenserver
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -ppassword"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@127.0.0.1/tokenserver
+      SYNC_TOKENSERVER__NODE_TYPE: mysql
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Restore pip and Poetry virtualenv
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
+
+      - name: Install Poetry
+        run: pip3 install poetry
+
+      - name: Create test results directory
+        run: mkdir -p workflow/test-results
+
+      - name: Run Tokenserver unit tests
+        run: |
+          WORKFLOW=$(echo "${GITHUB_WORKFLOW}" | tr ' ' '-' | tr '[:upper:]' '[:lower:]')
+          poetry run pytest tools/tokenserver/test_database.py tools/tokenserver/test_process_account_events.py tools/tokenserver/test_purge_old_records.py tools/tokenserver/test_scripts.py -v --junit-xml="workflow/test-results/${GITHUB_RUN_NUMBER}__$(date +%s)__$(basename ${GITHUB_REPOSITORY})__${WORKFLOW}__tokenserver_unit__results.xml"
+
+      - name: Publish Test Report
+        uses: dorny/test-reporter@9c68bf6253df71e8dc6d80e6fb9b223481fd5a33
+        if: always()
+        with:
+          name: Tokenserver Unit Tests
+          path: workflow/test-results/*.xml
+          reporter: java-junit
+          fail-on-error: false
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: tokenserver-unit-test-results
+          path: workflow/test-results/
+
   # Docker build Postgres Image ======
   build-postgres-image:
     runs-on: ubuntu-latest
