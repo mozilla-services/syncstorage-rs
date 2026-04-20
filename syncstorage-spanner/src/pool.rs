@@ -190,6 +190,7 @@ impl CollectionCache {
         (names, missing)
     }
 
+    #[allow(dead_code)]
     pub async fn clear(&self) {
         self.by_name.write().await.clear();
         self.by_id.write().await.clear();

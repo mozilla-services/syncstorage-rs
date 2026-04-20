@@ -20,6 +20,7 @@ impl TokenserverDb {
     // most recently-inserted record *for a given connection*. If connections were shared across
     // requests, using this function would introduce a race condition, as we could potentially
     // get IDs from records created during other requests.
+    #[allow(dead_code)]
     const LAST_INSERT_ID_QUERY: &'static str = "SELECT LAST_INSERT_ID() AS id";
     const LAST_INSERT_UID_QUERY: &'static str = "SELECT LAST_INSERT_ID() AS uid";
 
