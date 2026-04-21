@@ -24,12 +24,10 @@ RUN apt-get -q update && \
         MYSQL_PKG="$MYSQLCLIENT_PKG"; \
         if [ "$MYSQLCLIENT_PKG" = libmysqlclient-dev ] ; then \
             # First install gnupg and setup MySQL repo
-            # Key ID A8D3785C from https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
-            apt-get -q install -y --no-install-recommends gnupg ca-certificates && \
-            echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list && \
-            # Fetch and install the MySQL public key
-            gpg --batch --keyserver hkp://keyserver.ubuntu.com --recv-keys A8D3785C && \
-            gpg --batch --armor --export A8D3785C | tee /etc/apt/trusted.gpg.d/mysql.asc && \
+            apt-get -q install -y --no-install-recommends gnupg ca-certificates wget && \
+            # Fetch MySQL public key bundle and scope it to the MySQL repo only
+            wget -q -O /etc/apt/keyrings/mysql.asc https://repo.mysql.com/RPM-GPG-KEY-mysql && \
+            echo "deb [signed-by=/etc/apt/keyrings/mysql.asc] https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list && \
             apt-get -q update ; \
         fi; \
     fi && \
@@ -117,10 +115,9 @@ RUN apt-get -q update && \
     if [ "$MYSQLCLIENT_PKG" = libmysqlclient-dev ] ; then \
         # First install gnupg and setup MySQL repo
         apt-get install -y --no-install-recommends gnupg ca-certificates wget && \
-        echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list && \
-        # Fetch and install the MySQL public key
-        gpg --batch --keyserver hkp://keyserver.ubuntu.com --recv-keys A8D3785C && \
-        gpg --batch --armor --export A8D3785C | tee /etc/apt/trusted.gpg.d/mysql.asc && \
+        # Fetch MySQL public key bundle and scope it to the MySQL repo only
+        wget -q -O /etc/apt/keyrings/mysql.asc https://repo.mysql.com/RPM-GPG-KEY-mysql && \
+        echo "deb [signed-by=/etc/apt/keyrings/mysql.asc] https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list && \
         apt-get -q update ; \
     fi && \
     POSTGRES_PKG="libpq5" && \
