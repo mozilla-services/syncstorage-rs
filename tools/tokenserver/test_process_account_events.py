@@ -45,7 +45,7 @@ class ProcessAccountEventsTestCase(unittest.TestCase):
         testing.tearDown()
 
         cursor = self.database._execute_sql("DELETE FROM users")
-        cursor.close
+        cursor.close()
 
         cursor = self.database._execute_sql("DELETE FROM nodes")
         cursor.close()

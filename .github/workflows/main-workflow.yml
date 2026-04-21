@@ -1030,7 +1030,6 @@ jobs:
           tags: app:build
           build-args: |
             SYNCSTORAGE_DATABASE_BACKEND=spanner
-            MYSQLCLIENT_PKG=libmysqlclient-dev
           outputs: type=docker,dest=/tmp/spanner-image.tar
           cache-from: type=gha
           cache-to: type=gha,mode=max
