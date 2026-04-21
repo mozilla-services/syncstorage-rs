@@ -154,11 +154,11 @@ def add_node(
 
     result: int
     if db_mode == "postgres":
-        sql = sqltext(f"insert into nodes ({cols}) values ({vals}) RETURNING id")
+        sql = sqltext(f"insert into nodes ({cols}) values ({vals}) RETURNING id")  # nosec B608 - cols/vals are hardcoded literals, not user input
         cursor = execute_sql(conn, sql, params)
         result = cursor.fetchone()[0]
     else:
-        sql = sqltext(f"insert into nodes ({cols}) values ({vals})")
+        sql = sqltext(f"insert into nodes ({cols}) values ({vals})")  # nosec B608
         cursor = execute_sql(conn, sql, params)
         result = cursor.lastrowid
     cursor.close()
