@@ -3,7 +3,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 """Fixtures and helpers for tokenserver integration tests.
 
-All helper functions are module-level so that Phase 5 test functions can
+All helper functions are module-level so that test functions can
 import and call them directly without going through a class instance.
 
 Fixture hierarchy
@@ -397,7 +397,7 @@ def ts_ctx(ts_db_conn, ts_app, ts_service_id):
     """Full per-test tokenserver context.
 
     Clears the database, seeds the default service and node, then yields
-    a dict that Phase 5 test functions can destructure:
+    a dict that test functions can destructure (pytest):
 
         def test_foo(ts_ctx):
             app = ts_ctx["app"]
