@@ -5,9 +5,9 @@ import os
 
 import pytest
 
-from database import Database
-
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
+from database import Database
 
 # Default node used across tokenserver tests.
 NODE_URL = "https://phx12"
