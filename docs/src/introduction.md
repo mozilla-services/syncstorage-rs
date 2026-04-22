@@ -357,10 +357,10 @@ Google supports an in-memory Spanner emulator, which can run on your local machi
 
 **Updating the emulator version:** The emulator version is pinned in two places, each marked with `SPANNER_EMULATOR_VER`:
 
-- `docker/docker-compose.spanner.yaml` — used for e2e/integration tests (currently pinned to a specific version to avoid ZetaSQL query engine errors; see the comment there before bumping)
+- `docker/docker-compose.spanner.yaml` — used for e2e/integration tests
 - `.github/workflows/main-workflow.yml` — used for CI unit tests
 
-When upgrading, update both and verify that neither the ZetaSQL issue nor any new regressions appear in CI.
+Both should always be set to the same version. When upgrading, update both and verify no regressions appear in CI.
 
 ##### Quick Setup Using prepare-spanner.sh
 
