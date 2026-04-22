@@ -66,6 +66,18 @@ clippy_spanner:
 	# Matches what's run in circleci
 	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- -D clippy::dbg_macro -D warnings
 
+clippy_release_mysql:
+	# Release mode clippy — catches dead code and issues only visible with optimizations
+	cargo clippy --release --workspace --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- -D warnings
+
+clippy_release_postgres:
+	# Release mode clippy — catches dead code and issues only visible with optimizations
+	cargo clippy --release --workspace --no-default-features --features=syncstorage-db/postgres --features=tokenserver-db/postgres --features=py_verifier -- -D warnings
+
+clippy_release_spanner:
+	# Release mode clippy — catches dead code and issues only visible with optimizations
+	cargo clippy --release --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- -D warnings
+
 clean:
 	cargo clean
 

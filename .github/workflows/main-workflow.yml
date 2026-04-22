@@ -212,6 +212,45 @@ jobs:
       - name: Rust Clippy ${{ matrix.target }}
         run: make clippy_${{ matrix.target }}
 
+  # Rust clippy release mode lint checker
+  clippy-release:
+    needs: rust-env
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        target: [spanner, mysql, postgres]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Restore Rust toolchain
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: |
+            ~/.rustup/toolchains
+            ~/.rustup/update-hashes
+          key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
+
+      - name: Restore Rust cache
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-release-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-${{ matrix.target }}-
+
+      - name: Set Rust toolchain
+        run: rustup default ${{ env.RUST_VERSION }}
+
+      - name: Rust Clippy release ${{ matrix.target }}
+        run: make clippy_release_${{ matrix.target }}
+
   # Postgres unit tests ======
   build-and-unit-test-postgres:
     needs: [rust-env, python-env]

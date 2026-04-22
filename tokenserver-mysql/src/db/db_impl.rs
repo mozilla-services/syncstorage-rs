@@ -97,7 +97,7 @@ impl Db for TokenserverDb {
                AND replaced_at IS NULL
         "#;
 
-        let now = chrono::Utc::now().timestamp_millis();
+        let now = Utc::now().timestamp_millis();
 
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(tokenserver_db_common::MAX_GENERATION)

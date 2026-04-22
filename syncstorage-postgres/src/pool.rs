@@ -212,6 +212,7 @@ impl CollectionCache {
             .cloned())
     }
 
+    #[allow(dead_code)]
     pub fn clear(&self) {
         self.by_name.write().expect("by_name write").clear();
         self.by_id.write().expect("by_id write").clear();
