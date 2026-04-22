@@ -355,6 +355,13 @@ Note, that unlike MySQL, there is no automatic migrations facility. Currently, t
 
 Google supports an in-memory Spanner emulator, which can run on your local machine for development purposes. You can install the emulator via the gcloud CLI or Docker by following the instructions [here](https://cloud.google.com/spanner/docs/emulator#installing_and_running_the_emulator). Once the emulator is running, you'll need to create a new instance and a new database.
 
+**Updating the emulator version:** The emulator version is pinned in two places, each marked with `SPANNER_EMULATOR_VER`:
+
+- `docker/docker-compose.spanner.yaml` — used for e2e/integration tests (currently pinned to a specific version to avoid ZetaSQL query engine errors; see the comment there before bumping)
+- `.github/workflows/main-workflow.yml` — used for CI unit tests
+
+When upgrading, update both and verify that neither the ZetaSQL issue nor any new regressions appear in CI.
+
 ##### Quick Setup Using prepare-spanner.sh
 
 The easiest way to set up a Spanner emulator database is to use the `prepare-spanner.sh` script:

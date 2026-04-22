@@ -7,6 +7,8 @@ services:
     # I believe come from the SQL parser, but am not sure. I am
     # unable to produce these errors locally, and am using the cited
     # version.
+    # SPANNER_EMULATOR_VER (e2e/integration tests) — keep in sync with .github/workflows/main-workflow.yml
+    # Pinned to 1.5.13 (not 1.4.0) to avoid sporadic "INTERNAL: ZETASQL_RET_CHECK failure" errors.
     image: gcr.io/cloud-spanner-emulator/emulator:1.5.13
     ports:
       - "9010:9010"
