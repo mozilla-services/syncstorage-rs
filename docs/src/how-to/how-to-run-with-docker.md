@@ -12,9 +12,11 @@ and
 as the database.  Differences in configuration or deployment steps will be
 noted. 
 
-> **Note:** At the time of writing, there are no tagged release builds
-> available on ghcr.io.  This guide will use a build from the main development
-> branch.
+Tagged release builds are available on ghcr.io. To pin to a specific version,
+set `SYNCSERVER_VERSION` to the desired release tag (e.g., `SYNCSERVER_VERSION=v1.45.0`)
+before running `docker compose`. Available releases can be found on the
+[syncstorage-rs releases page](https://github.com/mozilla-services/syncstorage-rs/releases).
+If `SYNCSERVER_VERSION` is not set, the compose files below default to `latest`.
 
 ## Prerequisites and Presumptions
 - The reader is familiar with the command line interface and `docker`.
