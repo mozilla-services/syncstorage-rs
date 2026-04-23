@@ -486,7 +486,7 @@ impl Db for TokenserverPgDb {
                AND replaced_at IS NULL
         "#;
 
-        let now = chrono::Utc::now().timestamp_millis();
+        let now = Utc::now().timestamp_millis();
 
         diesel::sql_query(QUERY)
             .bind::<BigInt, _>(tokenserver_db_common::MAX_GENERATION)
