@@ -379,7 +379,7 @@ def logs():
 
 @pytest.fixture(scope="function")
 def db_spanner(db):
-    """db fixture with spanner_node_id set to the default node."""
+    """DB fixture with spanner_node_id set to the default node."""
     db.spanner_node_id = db.get_node_id("https://phx12")
     return db
 
