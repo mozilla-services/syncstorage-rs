@@ -3,7 +3,6 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 """Miscellaneous integration tests for the tokenserver."""
 
-
 from integration_tests.tokenserver.conftest import (
     FXA_EMAIL_DOMAIN,
     NODE_ID,

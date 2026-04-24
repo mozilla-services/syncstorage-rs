@@ -3,7 +3,6 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 """Authorization integration tests for the tokenserver."""
 
-
 from integration_tests.tokenserver.conftest import (
     add_user,
     build_oauth_headers,
