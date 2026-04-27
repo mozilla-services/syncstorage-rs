@@ -383,7 +383,7 @@ jobs:
           SYNC_SYNCSTORAGE__DATABASE_URL: postgresql://test:test@127.0.0.1/syncstorage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@724024e7cfbe0a21f9668fbfe46d47cb9da63140
+        uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996
         if: always()
         with:
           name: Postgres Unit Tests
@@ -511,7 +511,7 @@ jobs:
           SYNCSTORAGE_RS_IMAGE: app:build
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@724024e7cfbe0a21f9668fbfe46d47cb9da63140
+        uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996
         if: always()
         with:
           name: Postgres E2E Tests
@@ -665,7 +665,7 @@ jobs:
           SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@724024e7cfbe0a21f9668fbfe46d47cb9da63140
+        uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996
         if: always()
         with:
           name: MySQL Unit Tests
@@ -794,7 +794,7 @@ jobs:
           SYNCSTORAGE_RS_IMAGE: app:build
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@724024e7cfbe0a21f9668fbfe46d47cb9da63140
+        uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996
         if: always()
         with:
           name: MySQL E2E Tests
@@ -982,7 +982,7 @@ jobs:
         run: make spanner_test_with_coverage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@724024e7cfbe0a21f9668fbfe46d47cb9da63140
+        uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996
         if: always()
         with:
           name: Spanner Unit Tests
@@ -1111,7 +1111,7 @@ jobs:
           SYNCSTORAGE_RS_IMAGE: app:build
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@724024e7cfbe0a21f9668fbfe46d47cb9da63140
+        uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996
         if: always()
         with:
           name: Spanner E2E Tests
