@@ -178,14 +178,23 @@ impl ReportableError for DbError {
     }
 }
 
-/// Whether to ignore a 13 - INTERNAL error based on its status
+/// Whether to ignore a 13 - INTERNAL error based on its status message.
+///
+/// These errors are transient gRPC/HTTP2 transport errors that should be
+/// emitted as metrics rather than reported to Sentry. The RST_STREAM variants
+/// are safe to suppress because the server resets the stream before any
+/// application state is changed, making them candidates for client retry.
+/// Due to gPRC libs being a bit inconsistent with formatting, the array covers
+/// possible variants.
 fn is_ignored_internal(status: &grpcio::RpcStatus) -> bool {
+    let msg = status.message().to_lowercase();
     [
         "rst_stream",
         "rst stream",
         "received unexpected eos on data frame from server",
     ]
-    .contains(&status.message().to_lowercase().as_str())
+    .iter()
+    .any(|s| msg.contains(s))
 }
 
 impl InternalError for DbError {
