@@ -20,10 +20,7 @@ import time
 import random
 import string
 import urllib
-import webtest
-import contextlib
 
-# import math
 import simplejson  # type: ignore[import-untyped]
 
 from pyramid.interfaces import IAuthenticationPolicy
