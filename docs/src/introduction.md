@@ -355,6 +355,13 @@ Note, that unlike MySQL, there is no automatic migrations facility. Currently, t
 
 Google supports an in-memory Spanner emulator, which can run on your local machine for development purposes. You can install the emulator via the gcloud CLI or Docker by following the instructions [here](https://cloud.google.com/spanner/docs/emulator#installing_and_running_the_emulator). Once the emulator is running, you'll need to create a new instance and a new database.
 
+**Updating the emulator version:** The emulator version is pinned in two places, each marked with `SPANNER_EMULATOR_VER`:
+
+- `docker/docker-compose.spanner.yaml` — used for e2e/integration tests
+- `.github/workflows/main-workflow.yml` — used for CI unit tests
+
+Both should always be set to the same version. When upgrading, update both and verify no regressions appear in CI.
+
 ##### Quick Setup Using prepare-spanner.sh
 
 The easiest way to set up a Spanner emulator database is to use the `prepare-spanner.sh` script:
