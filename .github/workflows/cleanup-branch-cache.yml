@@ -14,21 +14,21 @@ jobs:
       - name: Delete caches for closed branch
         run: |
           CACHE_IDS=$(gh cache list \
-            --repo "${{ github.repository }}" \
-            --ref "refs/heads/${{ github.head_ref }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "refs/heads/$GITHUB_HEAD_REF" \
             --limit 100 \
             --json id \
             --jq '.[].id') || true
 
           if [ -z "$CACHE_IDS" ]; then
-            echo "No caches found for branch ${{ github.head_ref }}"
+            echo "No caches found for branch $GITHUB_HEAD_REF"
             exit 0
           fi
 
-          echo "Deleting caches for closed branch: ${{ github.head_ref }}"
+          echo "Deleting caches for closed branch: $GITHUB_HEAD_REF"
           echo "$CACHE_IDS" | while IFS= read -r id; do
             echo "  Deleting cache ID: $id"
-            gh cache delete "$id" --repo "${{ github.repository }}" || true
+            gh cache delete "$id" --repo "$GITHUB_REPOSITORY" || true
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
