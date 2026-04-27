@@ -184,6 +184,8 @@ impl ReportableError for DbError {
 /// emitted as metrics rather than reported to Sentry. The RST_STREAM variants
 /// are safe to suppress because the server resets the stream before any
 /// application state is changed, making them candidates for client retry.
+/// Due to gPRC libs being a bit inconsistent with formatting, the array covers
+/// possible variants.
 fn is_ignored_internal(status: &grpcio::RpcStatus) -> bool {
     let msg = status.message().to_lowercase();
     [
