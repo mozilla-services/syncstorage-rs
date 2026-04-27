@@ -32,9 +32,9 @@ services:
       MYSQL_USER: test
       MYSQL_PASSWORD: test
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin -uroot -p$${MYSQL_ROOT_PASSWORD} version"]
+      test: ["CMD-SHELL", "mysqladmin -h 127.0.0.1 -P 3306 -uroot -p$${MYSQL_ROOT_PASSWORD} ping"]
       interval: 2s
-      retries: 10
+      retries: 15
       start_period: 20s
       timeout: 2s
   mock-fxa-server:
