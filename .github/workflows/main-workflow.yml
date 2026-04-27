@@ -836,7 +836,8 @@ jobs:
 
     services:
       spanner-emulator:
-        image: gcr.io/cloud-spanner-emulator/emulator:1.4.0
+        # SPANNER_EMULATOR_VER (unit tests) — keep in sync with docker/docker-compose.spanner.yaml
+        image: gcr.io/cloud-spanner-emulator/emulator:1.5.52
         ports:
           - 9010:9010
           - 9020:9020
