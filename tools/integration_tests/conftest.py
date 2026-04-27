@@ -10,7 +10,6 @@ import uuid
 import hawkauthlib
 import pytest
 import webtest
-from pyramid.authorization import ACLAuthorizationPolicy
 from pyramid.interfaces import IAuthenticationPolicy
 from pyramid.request import Request
 from webtest import TestApp
@@ -117,8 +116,6 @@ def st_ctx():
     # Locate tests.ini relative to test_storage.py
     this_dir = os.path.dirname(os.path.abspath(__file__))
     config = get_test_configurator(this_dir, ini_file)
-    authz_policy = ACLAuthorizationPolicy()
-    config.set_authorization_policy(authz_policy)
     config.commit()
     config.make_wsgi_app()
 
