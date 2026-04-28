@@ -52,6 +52,7 @@ jobs:
             ~/.cache/pip
             ~/.cache/pypoetry/virtualenvs
           key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
+          lookup-only: true
 
       - name: Install Poetry
         run: pip3 install poetry
@@ -77,10 +78,11 @@ jobs:
             ~/.rustup/toolchains
             ~/.rustup/update-hashes
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
+          lookup-only: true
 
       - name: Install Rust toolchain
         if: steps.cache-rust-toolchain.outputs.cache-hit != 'true'
-        run: rustup toolchain install ${{ env.RUST_VERSION }} --component rustfmt --component clippy --component llvm-tools-preview --no-self-update && rustup default ${{ env.RUST_VERSION }}
+        run: rustup toolchain install ${RUST_VERSION} --component rustfmt --component clippy --component llvm-tools-preview --no-self-update && rustup default ${RUST_VERSION}
 
       - name: Display Rust Version Info
         shell: bash
@@ -150,7 +152,7 @@ jobs:
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
 
       - name: Set Rust toolchain
-        run: rustup default ${{ env.RUST_VERSION }}
+        run: rustup default ${RUST_VERSION}
 
       - name: Cache cargo-audit
         id: cache-cargo-audit
@@ -207,7 +209,7 @@ jobs:
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
 
       - name: Set Rust toolchain
-        run: rustup default ${{ env.RUST_VERSION }}
+        run: rustup default ${RUST_VERSION}
 
       - name: Rust Clippy ${{ matrix.target }}
         run: make clippy_${{ matrix.target }}
@@ -246,7 +248,7 @@ jobs:
             ${{ runner.os }}-cargo-release-${{ matrix.target }}-
 
       - name: Set Rust toolchain
-        run: rustup default ${{ env.RUST_VERSION }}
+        run: rustup default ${RUST_VERSION}
 
       - name: Rust Clippy release ${{ matrix.target }}
         run: make clippy_release_${{ matrix.target }}
@@ -296,7 +298,7 @@ jobs:
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
 
       - name: Set Rust toolchain
-        run: rustup default ${{ env.RUST_VERSION }}
+        run: rustup default ${RUST_VERSION}
 
       - name: Restore pip and Poetry virtualenv
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -589,7 +591,7 @@ jobs:
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
 
       - name: Set Rust toolchain
-        run: rustup default ${{ env.RUST_VERSION }}
+        run: rustup default ${RUST_VERSION}
 
       - name: Restore pip and Poetry virtualenv
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -878,7 +880,7 @@ jobs:
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
 
       - name: Set Rust toolchain
-        run: rustup default ${{ env.RUST_VERSION }}
+        run: rustup default ${RUST_VERSION}
 
       - name: Restore pip and Poetry virtualenv
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
