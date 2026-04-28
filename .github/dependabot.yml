@@ -58,6 +58,8 @@ updates:
       - dependency-name: slog-scope
         versions:
           - 4.4.0
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "pip" # Applies for poetry deps as well
     directories:
@@ -80,6 +82,8 @@ updates:
         group-by: dependency-name
         patterns:
           - "*"
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -93,3 +97,5 @@ updates:
       actions-deps:
         patterns:
           - "*"
+    cooldown:
+      default-days: 7

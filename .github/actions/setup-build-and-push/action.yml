@@ -31,7 +31,9 @@ runs:
           "$GITHUB_SHA" "$GITHUB_REF_NAME" \
           "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
           "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-          > ${{ inputs.version_json_path }}
+          > ${JSON_PATH}
+      env:
+        JSON_PATH: ${{ inputs.version_json_path }}
 
     - name: Compute image tag
       id: tag

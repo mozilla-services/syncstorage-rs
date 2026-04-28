@@ -56,11 +56,11 @@ jobs:
       - name: Compute tags
         run: |
           TAGS=$(cat <<EOF
-          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncstorage-rs:${{ steps.setup.outputs.image_tag }}
-          ghcr.io/${{ github.repository }}/syncstorage-rs:${{ steps.setup.outputs.image_tag }}
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncstorage-rs:${IMAGE_TAG}
+          ghcr.io/${{ github.repository }}/syncstorage-rs:${IMAGE_TAG}
           EOF
           )
-          if [[ "${{ steps.setup.outputs.push_latest }}" == "true" ]]; then
+          if [[ "${PUSH_LATEST}" == "true" ]]; then
             TAGS="$TAGS
           us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncstorage-rs:latest
           ghcr.io/${{ github.repository }}/syncstorage-rs:latest"
@@ -68,6 +68,9 @@ jobs:
           echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
           echo "$TAGS" >> "$GITHUB_ENV"
           echo "EOF" >> "$GITHUB_ENV"
+        env:
+          IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
+          PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
         with:
@@ -101,11 +104,11 @@ jobs:
       - name: Compute tags
         run: |
           TAGS=$(cat <<EOF
-          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-postgres:${{ steps.setup.outputs.image_tag }}
-          ghcr.io/${{ github.repository }}/syncserver-postgres:${{ steps.setup.outputs.image_tag }}
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-postgres:${IMAGE_TAG}
+          ghcr.io/${{ github.repository }}/syncserver-postgres:${IMAGE_TAG}
           EOF
           )
-          if [[ "${{ steps.setup.outputs.push_latest }}" == "true" ]]; then
+          if [[ "${PUSH_LATEST}" == "true" ]]; then
             TAGS="$TAGS
           us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-postgres:latest
           ghcr.io/${{ github.repository }}/syncserver-postgres:latest"
@@ -113,6 +116,9 @@ jobs:
           echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
           echo "$TAGS" >> "$GITHUB_ENV"
           echo "EOF" >> "$GITHUB_ENV"
+        env:
+          IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
+          PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - name: Build and push to prod GAR and ghcr
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
@@ -143,14 +149,17 @@ jobs:
 
       - name: Compute enterprise tags
         run: |
-          TAGS="us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres:${{ steps.setup.outputs.image_tag }}"
-          if [[ "${{ steps.setup.outputs.push_latest }}" == "true" ]]; then
+          TAGS="us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres:${IMAGE_TAG}"
+          if [[ "${PUSH_LATEST}" == "true" ]]; then
             TAGS="$TAGS
           us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres:latest"
           fi
           echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
           echo "$TAGS" >> "$GITHUB_ENV"
           echo "EOF" >> "$GITHUB_ENV"
+        env:
+          IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
+          PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - name: Build and push to enterprise GAR
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
@@ -188,11 +197,11 @@ jobs:
       - name: Compute tags
         run: |
           TAGS=$(cat <<EOF
-          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncstorage-rs-spanner-python-utils:${{ steps.setup.outputs.image_tag }}
-          ghcr.io/${{ github.repository }}/syncstorage-rs-spanner-python-utils:${{ steps.setup.outputs.image_tag }}
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncstorage-rs-spanner-python-utils:${IMAGE_TAG}
+          ghcr.io/${{ github.repository }}/syncstorage-rs-spanner-python-utils:${IMAGE_TAG}
           EOF
           )
-          if [[ "${{ steps.setup.outputs.push_latest }}" == "true" ]]; then
+          if [[ "${PUSH_LATEST}" == "true" ]]; then
             TAGS="$TAGS
           us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncstorage-rs-spanner-python-utils:latest
           ghcr.io/${{ github.repository }}/syncstorage-rs-spanner-python-utils:latest"
@@ -200,6 +209,9 @@ jobs:
           echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
           echo "$TAGS" >> "$GITHUB_ENV"
           echo "EOF" >> "$GITHUB_ENV"
+        env:
+          IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
+          PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
         with:
@@ -232,11 +244,11 @@ jobs:
       - name: Compute tags
         run: |
           TAGS=$(cat <<EOF
-          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-postgres-python-utils:${{ steps.setup.outputs.image_tag }}
-          ghcr.io/${{ github.repository }}/syncserver-postgres-python-utils:${{ steps.setup.outputs.image_tag }}
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-postgres-python-utils:${IMAGE_TAG}
+          ghcr.io/${{ github.repository }}/syncserver-postgres-python-utils:${IMAGE_TAG}
           EOF
           )
-          if [[ "${{ steps.setup.outputs.push_latest }}" == "true" ]]; then
+          if [[ "${PUSH_LATEST}" == "true" ]]; then
             TAGS="$TAGS
           us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-postgres-python-utils:latest
           ghcr.io/${{ github.repository }}/syncserver-postgres-python-utils:latest"
@@ -244,6 +256,9 @@ jobs:
           echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
           echo "$TAGS" >> "$GITHUB_ENV"
           echo "EOF" >> "$GITHUB_ENV"
+        env:
+          IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
+          PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - name: Build and push to prod GAR and ghcr
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
@@ -272,14 +287,17 @@ jobs:
 
       - name: Compute enterprise tags
         run: |
-          TAGS="us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres-python-utils:${{ steps.setup.outputs.image_tag }}"
-          if [[ "${{ steps.setup.outputs.push_latest }}" == "true" ]]; then
+          TAGS="us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres-python-utils:${IMAGE_TAG}"
+          if [[ "${PUSH_LATEST}" == "true" ]]; then
             TAGS="$TAGS
           us-docker.pkg.dev/moz-fx-fx-enterprise-prod/fx-enterprise-private/syncserver-postgres-python-utils:latest"
           fi
           echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
           echo "$TAGS" >> "$GITHUB_ENV"
           echo "EOF" >> "$GITHUB_ENV"
+        env:
+          IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
+          PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - name: Build and push to enterprise GAR
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
@@ -311,11 +329,11 @@ jobs:
       - name: Compute tags
         run: |
           TAGS=$(cat <<EOF
-          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-mysql:${{ steps.setup.outputs.image_tag }}
-          ghcr.io/${{ github.repository }}/syncserver-mysql:${{ steps.setup.outputs.image_tag }}
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-mysql:${IMAGE_TAG}
+          ghcr.io/${{ github.repository }}/syncserver-mysql:${IMAGE_TAG}
           EOF
           )
-          if [[ "${{ steps.setup.outputs.push_latest }}" == "true" ]]; then
+          if [[ "${PUSH_LATEST}" == "true" ]]; then
             TAGS="$TAGS
           us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-mysql:latest
           ghcr.io/${{ github.repository }}/syncserver-mysql:latest"
@@ -323,6 +341,9 @@ jobs:
           echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
           echo "$TAGS" >> "$GITHUB_ENV"
           echo "EOF" >> "$GITHUB_ENV"
+        env:
+          IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
+          PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
         with:
