@@ -114,7 +114,6 @@ jobs:
             ~/.cache/pip
             ~/.cache/pypoetry/virtualenvs
           key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
-          lookup-only: true
 
       - name: Install Poetry
         run: pip3 install poetry
@@ -151,7 +150,6 @@ jobs:
             ~/.rustup/toolchains
             ~/.rustup/update-hashes
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
-          lookup-only: true
 
       - name: Set Rust toolchain
         run: rustup default ${RUST_VERSION}
@@ -162,7 +160,6 @@ jobs:
         with:
           path: ~/.cargo/bin/cargo-audit
           key: ${{ runner.os }}-cargo-audit-${{ hashFiles('.github/workflows/main-workflow.yml') }}
-          lookup-only: true
 
       - name: Install cargo-audit
         if: steps.cache-cargo-audit.outputs.cache-hit != 'true'
@@ -176,7 +173,6 @@ jobs:
             ~/.cargo/bin/mdbook
             ~/.cargo/bin/mdbook-mermaid
           key: ${{ runner.os }}-mdbook-${{ hashFiles('Makefile') }}
-          lookup-only: true
 
       - name: Setup documentation checks
         if: steps.cache-mdbook.outputs.cache-hit != 'true'
@@ -211,7 +207,6 @@ jobs:
             ~/.rustup/toolchains
             ~/.rustup/update-hashes
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
-          lookup-only: true
 
       - name: Set Rust toolchain
         run: rustup default ${RUST_VERSION}
@@ -240,7 +235,6 @@ jobs:
             ~/.rustup/toolchains
             ~/.rustup/update-hashes
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
-          lookup-only: true
 
       - name: Restore Rust cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -252,7 +246,6 @@ jobs:
           key: ${{ runner.os }}-cargo-release-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-release-${{ matrix.target }}-
-          lookup-only: true
 
       - name: Set Rust toolchain
         run: rustup default ${RUST_VERSION}
@@ -303,7 +296,6 @@ jobs:
             ~/.rustup/toolchains
             ~/.rustup/update-hashes
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
-          lookup-only: true
 
       - name: Set Rust toolchain
         run: rustup default ${RUST_VERSION}
@@ -315,7 +307,6 @@ jobs:
             ~/.cache/pip
             ~/.cache/pypoetry/virtualenvs
           key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
-          lookup-only: true
 
       - name: Cache Cargo build artifacts
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -328,7 +319,6 @@ jobs:
           key: ${{ runner.os }}-cargo-postgres-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-postgres-
-          lookup-only: true
 
       - name: Create test results directory
         run: mkdir -p workflow/test-results
@@ -358,7 +348,6 @@ jobs:
         with:
           path: ~/.cargo/bin/cargo-nextest
           key: ${{ runner.os }}-cargo-nextest-${{ hashFiles('**/Cargo.lock') }}
-          lookup-only: true
 
       - name: Install cargo-nextest
         if: steps.cache-cargo-nextest-postgres.outputs.cache-hit != 'true'
@@ -370,7 +359,6 @@ jobs:
         with:
           path: ~/.cargo/bin/cargo-llvm-cov
           key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('**/Cargo.lock') }}
-          lookup-only: true
 
       - name: Install cargo-llvm-cov
         if: steps.cache-cargo-llvm-cov-postgres.outputs.cache-hit != 'true'
@@ -469,7 +457,6 @@ jobs:
         with:
           path: /tmp/postgres-image.tar
           key: ${{ runner.os }}-postgres-image-${{ hashFiles('Dockerfile', 'Cargo.lock', '**/*.rs', '**/Cargo.toml', 'tools/**', 'scripts/**') }}
-          lookup-only: true
 
       - name: Set up Docker Buildx
         if: steps.cache-postgres-image.outputs.cache-hit != 'true'
@@ -602,7 +589,6 @@ jobs:
             ~/.rustup/toolchains
             ~/.rustup/update-hashes
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
-          lookup-only: true
 
       - name: Set Rust toolchain
         run: rustup default ${RUST_VERSION}
@@ -614,7 +600,6 @@ jobs:
             ~/.cache/pip
             ~/.cache/pypoetry/virtualenvs
           key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
-          lookup-only: true
 
       - name: Cache Cargo build artifacts
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -627,7 +612,6 @@ jobs:
           key: ${{ runner.os }}-cargo-mysql-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-mysql-
-          lookup-only: true
 
       - name: Create test results directory
         run: mkdir -p workflow/test-results
@@ -658,7 +642,6 @@ jobs:
         with:
           path: ~/.cargo/bin/cargo-nextest
           key: ${{ runner.os }}-cargo-nextest-${{ hashFiles('**/Cargo.lock') }}
-          lookup-only: true
 
       - name: Install cargo-nextest
         if: steps.cache-cargo-nextest-mysql.outputs.cache-hit != 'true'
@@ -670,7 +653,6 @@ jobs:
         with:
           path: ~/.cargo/bin/cargo-llvm-cov
           key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('**/Cargo.lock') }}
-          lookup-only: true
 
       - name: Install cargo-llvm-cov
         if: steps.cache-cargo-llvm-cov-mysql.outputs.cache-hit != 'true'
@@ -758,7 +740,6 @@ jobs:
         with:
           path: /tmp/mysql-image.tar
           key: ${{ runner.os }}-mysql-image-${{ hashFiles('Dockerfile', 'Cargo.lock', '**/*.rs', '**/Cargo.toml', 'tools/**', 'scripts/**') }}
-          lookup-only: true
 
       - name: Set up Docker Buildx
         if: steps.cache-mysql-image.outputs.cache-hit != 'true'
@@ -897,7 +878,6 @@ jobs:
             ~/.rustup/toolchains
             ~/.rustup/update-hashes
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
-          lookup-only: true
 
       - name: Set Rust toolchain
         run: rustup default ${RUST_VERSION}
@@ -909,7 +889,6 @@ jobs:
             ~/.cache/pip
             ~/.cache/pypoetry/virtualenvs
           key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
-          lookup-only: true
 
       - name: Cache Cargo build artifacts
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -922,7 +901,6 @@ jobs:
           key: ${{ runner.os }}-cargo-spanner-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-spanner-
-          lookup-only: true
 
       - name: Create test results directory
         run: mkdir -p workflow/test-results
@@ -945,7 +923,6 @@ jobs:
         with:
           path: ~/.cargo/bin/cargo-nextest
           key: ${{ runner.os }}-cargo-nextest-${{ hashFiles('**/Cargo.lock') }}
-          lookup-only: true
 
       - name: Install cargo-nextest
         if: steps.cache-cargo-nextest-spanner.outputs.cache-hit != 'true'
@@ -957,7 +934,6 @@ jobs:
         with:
           path: ~/.cargo/bin/cargo-llvm-cov
           key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('**/Cargo.lock') }}
-          lookup-only: true
 
       - name: Install cargo-llvm-cov
         if: steps.cache-cargo-llvm-cov-spanner.outputs.cache-hit != 'true'
@@ -1082,7 +1058,6 @@ jobs:
         with:
           path: /tmp/spanner-image.tar
           key: ${{ runner.os }}-spanner-image-${{ hashFiles('Dockerfile', 'Cargo.lock', '**/*.rs', '**/Cargo.toml', 'tools/**', 'scripts/**') }}
-          lookup-only: true
 
       - name: Set up Docker Buildx
         if: steps.cache-spanner-image.outputs.cache-hit != 'true'
