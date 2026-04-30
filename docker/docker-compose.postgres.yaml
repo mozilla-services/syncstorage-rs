@@ -15,7 +15,7 @@ services:
       interval: 2s
       retries: 10
       start_period: 20s
-      timeout: 2s
+      timeout: 3s
 
   sync-db-setup:
     image: app:build
@@ -46,7 +46,7 @@ services:
       interval: 2s
       retries: 10
       start_period: 20s
-      timeout: 2s
+      timeout: 3s
 
   mock-fxa-server:
     image: app:build
