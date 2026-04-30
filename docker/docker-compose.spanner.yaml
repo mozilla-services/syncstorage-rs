@@ -36,7 +36,7 @@ services:
       interval: 2s
       retries: 15
       start_period: 20s
-      timeout: 2s
+      timeout: 3s
   mock-fxa-server:
     image: app:build
     restart: "no"

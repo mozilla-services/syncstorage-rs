@@ -28,7 +28,7 @@ services:
       interval: 2s
       retries: 15
       start_period: 20s
-      timeout: 2s
+      timeout: 3s
 
   tokenserver-db:
     image: docker.io/library/mysql:8.0
@@ -49,7 +49,7 @@ services:
       interval: 2s
       retries: 15
       start_period: 20s
-      timeout: 2s
+      timeout: 3s
 
   mock-fxa-server:
     image: app:build
