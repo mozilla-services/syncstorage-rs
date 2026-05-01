@@ -5,7 +5,9 @@ use std::sync::{Arc, LazyLock, Mutex};
 use async_trait::async_trait;
 use syncserver_common::Metrics;
 use syncserver_db_common::GetPoolStatus;
-use tokenserver_db_common::{Db, DbError, DbPool, params, results};
+#[cfg(debug_assertions)]
+use tokenserver_db_common::TestDb;
+use tokenserver_db_common::{BaseDb, Db, DbError, DbPool, params, results};
 
 #[derive(Clone, Default)]
 pub struct CallLog {
@@ -70,7 +72,7 @@ impl MockDb {
 }
 
 #[async_trait(?Send)]
-impl Db for MockDb {
+impl BaseDb for MockDb {
     async fn replace_user(
         &mut self,
         _params: params::ReplaceUser,
@@ -164,7 +166,11 @@ impl Db for MockDb {
         static METRICS: LazyLock<Metrics> = LazyLock::new(Metrics::noop);
         &METRICS
     }
+}
 
+#[cfg(debug_assertions)]
+#[async_trait(?Send)]
+impl TestDb for MockDb {
     #[cfg(debug_assertions)]
     async fn set_user_created_at(
         &mut self,

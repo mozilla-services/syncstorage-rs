@@ -13,12 +13,14 @@ use diesel_async::RunQueryDsl;
 use http::StatusCode;
 
 use syncserver_common::Metrics;
-use tokenserver_db_common::{Db, DbError, DbResult, params, results};
+#[cfg(debug_assertions)]
+use tokenserver_db_common::TestDb;
+use tokenserver_db_common::{BaseDb, DbError, DbResult, params, results};
 
 use super::TokenserverPgDb;
 
 #[async_trait(?Send)]
-impl Db for TokenserverPgDb {
+impl BaseDb for TokenserverPgDb {
     // Services Table Methods
 
     /// Acquire service_id through passed in service string.
@@ -41,27 +43,6 @@ impl Db for TokenserverPgDb {
                 .await?;
             Ok(result)
         }
-    }
-
-    // Create a new service, given a provided service string and pattern.
-    // Returns a service_id.
-    #[cfg(debug_assertions)]
-    async fn post_service(
-        &mut self,
-        params: params::PostService,
-    ) -> DbResult<results::PostService> {
-        const INSERT_SERVICE_QUERY: &str = r#"
-            INSERT INTO services (service, pattern)
-            VALUES ($1, $2)
-            RETURNING id
-        "#;
-
-        let result = diesel::sql_query(INSERT_SERVICE_QUERY)
-            .bind::<Text, _>(&params.service)
-            .bind::<Text, _>(&params.pattern)
-            .get_result::<results::PostService>(&mut self.conn)
-            .await?;
-        Ok(result)
     }
 
     // Nodes Table Methods
@@ -87,24 +68,6 @@ impl Db for TokenserverPgDb {
             .await?;
 
         Ok(affected_rows == 1)
-    }
-
-    /// Get Node with complete metadata, given a provided Node ID.
-    /// Returns a complete Node, including id, service_id, node string identifier
-    /// availability, and current load.
-    #[cfg(debug_assertions)]
-    async fn get_node(&mut self, params: params::GetNode) -> DbResult<results::GetNode> {
-        const QUERY: &str = r#"
-            SELECT *
-              FROM nodes
-             WHERE id = $1
-            "#;
-
-        let result = diesel::sql_query(QUERY)
-            .bind::<BigInt, _>(params.id)
-            .get_result::<results::GetNode>(&mut self.conn)
-            .await?;
-        Ok(result)
     }
 
     /// Get the specific Node ID, given a provided service string and node.
@@ -221,28 +184,6 @@ impl Db for TokenserverPgDb {
         }
     }
 
-    /// Create and Insert a new node.
-    /// Returns the last inserted `id` of the newly created node.
-    #[cfg(debug_assertions)]
-    async fn post_node(&mut self, params: params::PostNode) -> DbResult<results::PostNode> {
-        const QUERY: &str = r#"
-            INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING id
-        "#;
-        let result = diesel::sql_query(QUERY)
-            .bind::<Integer, _>(params.service_id)
-            .bind::<Text, _>(params.node)
-            .bind::<Integer, _>(params.available)
-            .bind::<Integer, _>(params.current_load)
-            .bind::<Integer, _>(params.capacity)
-            .bind::<Integer, _>(params.downed)
-            .bind::<Integer, _>(params.backoff)
-            .get_result::<results::PostNode>(&mut self.conn)
-            .await?;
-        Ok(result)
-    }
-
     /// Update the current load count of a node, passing in the service string and node string.
     /// This represents the addition of a user to a node, while not defining which user specifically.
     /// Does not return anything.
@@ -283,36 +224,7 @@ impl Db for TokenserverPgDb {
         Ok(())
     }
 
-    /// Remove a node given the node ID.
-    #[cfg(debug_assertions)]
-    async fn remove_node(&mut self, params: params::RemoveNode) -> DbResult<results::RemoveNode> {
-        const QUERY: &str = "DELETE FROM nodes WHERE id = $1";
-
-        diesel::sql_query(QUERY)
-            .bind::<BigInt, _>(params.node_id)
-            .execute(&mut self.conn)
-            .await?;
-        Ok(())
-    }
-
     // Users Table Methods
-
-    /// Given a user id, return a single user (GetUser) struct.
-    /// Contains all data relevant to particular user.
-    #[cfg(debug_assertions)]
-    async fn get_user(&mut self, params: params::GetUser) -> DbResult<results::GetUser> {
-        const QUERY: &str = r#"
-            SELECT service, email, generation, client_state, replaced_at, nodeid, keys_changed_at
-              FROM users
-             WHERE uid = $1
-        "#;
-
-        let result = diesel::sql_query(QUERY)
-            .bind::<BigInt, _>(params.id)
-            .get_result::<results::GetUser>(&mut self.conn)
-            .await?;
-        Ok(result)
-    }
 
     /// Given a service_id and email, return all matching users (up to 20).
     /// Returns vector of matching `GetUser` structs, a type alias for `GetRawUsers`
@@ -498,32 +410,28 @@ impl Db for TokenserverPgDb {
         Ok(())
     }
 
-    /// Given ONLY a particular `node_id`, update the users table to indicate an unassigned
-    /// node by updating the `replaced_at` field with the current time since Unix Epoch.
-    #[cfg(debug_assertions)]
-    async fn unassign_node(
-        &mut self,
-        params: params::UnassignNode,
-    ) -> DbResult<results::UnassignNode> {
-        const QUERY: &str = r#"
-            UPDATE users
-               SET replaced_at = $1
-             WHERE nodeid = $2
-        "#;
-
-        let current_time = Utc::now().timestamp_millis();
-
-        diesel::sql_query(QUERY)
-            .bind::<BigInt, _>(current_time)
-            .bind::<BigInt, _>(params.node_id)
+    /// Simple check function to ensure database liveliness.
+    async fn check(&mut self) -> DbResult<results::Check> {
+        diesel::sql_query("SELECT 1")
             .execute(&mut self.conn)
             .await?;
-        Ok(())
+        Ok(true)
     }
 
+    fn timeout(&self) -> Option<Duration> {
+        self.timeout
+    }
+
+    fn metrics(&self) -> &Metrics {
+        &self.metrics
+    }
+}
+
+#[cfg(debug_assertions)]
+#[async_trait(?Send)]
+impl TestDb for TokenserverPgDb {
     /// Given ONLY a particular `uid`, update the users table `created_at` value
     /// with the passed parameter.
-    #[cfg(debug_assertions)]
     async fn set_user_created_at(
         &mut self,
         params: params::SetUserCreatedAt,
@@ -544,7 +452,6 @@ impl Db for TokenserverPgDb {
 
     /// Given ONLY a particular `uid`, update the users table `replaced_at` value
     /// with the passed parameter.
-    #[cfg(debug_assertions)]
     async fn set_user_replaced_at(
         &mut self,
         params: params::SetUserReplacedAt,
@@ -563,24 +470,113 @@ impl Db for TokenserverPgDb {
         Ok(())
     }
 
-    /// Simple check function to ensure database liveliness.
-    async fn check(&mut self) -> DbResult<results::Check> {
-        diesel::sql_query("SELECT 1")
+    /// Given a user id, return a single user (GetUser) struct.
+    /// Contains all data relevant to particular user.
+    async fn get_user(&mut self, params: params::GetUser) -> DbResult<results::GetUser> {
+        const QUERY: &str = r#"
+            SELECT service, email, generation, client_state, replaced_at, nodeid, keys_changed_at
+              FROM users
+             WHERE uid = $1
+        "#;
+
+        let result = diesel::sql_query(QUERY)
+            .bind::<BigInt, _>(params.id)
+            .get_result::<results::GetUser>(&mut self.conn)
+            .await?;
+        Ok(result)
+    }
+
+    /// Create and Insert a new node.
+    /// Returns the last inserted `id` of the newly created node.
+    async fn post_node(&mut self, params: params::PostNode) -> DbResult<results::PostNode> {
+        const QUERY: &str = r#"
+            INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id
+        "#;
+        let result = diesel::sql_query(QUERY)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<Text, _>(params.node)
+            .bind::<Integer, _>(params.available)
+            .bind::<Integer, _>(params.current_load)
+            .bind::<Integer, _>(params.capacity)
+            .bind::<Integer, _>(params.downed)
+            .bind::<Integer, _>(params.backoff)
+            .get_result::<results::PostNode>(&mut self.conn)
+            .await?;
+        Ok(result)
+    }
+
+    /// Get Node with complete metadata, given a provided Node ID.
+    /// Returns a complete Node, including id, service_id, node string identifier
+    /// availability, and current load.
+    async fn get_node(&mut self, params: params::GetNode) -> DbResult<results::GetNode> {
+        const QUERY: &str = r#"
+            SELECT *
+              FROM nodes
+             WHERE id = $1
+            "#;
+
+        let result = diesel::sql_query(QUERY)
+            .bind::<BigInt, _>(params.id)
+            .get_result::<results::GetNode>(&mut self.conn)
+            .await?;
+        Ok(result)
+    }
+
+    /// Given ONLY a particular `node_id`, update the users table to indicate an unassigned
+    /// node by updating the `replaced_at` field with the current time since Unix Epoch.
+    async fn unassign_node(
+        &mut self,
+        params: params::UnassignNode,
+    ) -> DbResult<results::UnassignNode> {
+        const QUERY: &str = r#"
+            UPDATE users
+               SET replaced_at = $1
+             WHERE nodeid = $2
+        "#;
+
+        let current_time = Utc::now().timestamp_millis();
+
+        diesel::sql_query(QUERY)
+            .bind::<BigInt, _>(current_time)
+            .bind::<BigInt, _>(params.node_id)
             .execute(&mut self.conn)
             .await?;
-        Ok(true)
+        Ok(())
     }
 
-    fn timeout(&self) -> Option<Duration> {
-        self.timeout
+    /// Remove a node given the node ID.
+    async fn remove_node(&mut self, params: params::RemoveNode) -> DbResult<results::RemoveNode> {
+        const QUERY: &str = "DELETE FROM nodes WHERE id = $1";
+
+        diesel::sql_query(QUERY)
+            .bind::<BigInt, _>(params.node_id)
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
     }
 
-    fn metrics(&self) -> &Metrics {
-        &self.metrics
+    /// Create a new service, given a provided service string and pattern.
+    /// Returns a service_id.
+    async fn post_service(
+        &mut self,
+        params: params::PostService,
+    ) -> DbResult<results::PostService> {
+        const INSERT_SERVICE_QUERY: &str = r#"
+            INSERT INTO services (service, pattern)
+            VALUES ($1, $2)
+            RETURNING id
+        "#;
+
+        let result = diesel::sql_query(INSERT_SERVICE_QUERY)
+            .bind::<Text, _>(&params.service)
+            .bind::<Text, _>(&params.pattern)
+            .get_result::<results::PostService>(&mut self.conn)
+            .await?;
+        Ok(result)
     }
 
-    #[allow(dead_code)]
-    #[cfg(debug_assertions)]
     fn set_spanner_node_id(&mut self, params: params::SpannerNodeId) {
         self.spanner_node_id = params;
     }
