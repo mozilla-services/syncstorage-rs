@@ -65,9 +65,10 @@ Follow the commit message format defined in [CONTRIBUTING.md](CONTRIBUTING.md) G
   `style`, `refactor`, `perf`, `test`, `chore`
 - Subject: imperative present tense, no capital first letter, no trailing period
 - Body: explain motivation and contrast with previous behavior
-- Footer: `Closes #N` or `Issue #N` for GitHub issues; `BREAKING CHANGE:` for
-  breaking changes
-- Branch naming (Mozilla engineers): `type/description-STOR-1234`
+- Footer: `Closes STOR-1234` (Mozilla engineers — matches the Jira ticket) or
+  `Closes #N` / `Issue #N` (community contributors — matches the GitHub issue number);
+  `BREAKING CHANGE:` for breaking changes
+- Branch naming (Mozilla engineers): `type/description-STOR-1234` where `1234` must match the numeric suffix of the associated Jira ticket
 - Branch naming (community): `type/description-1112`
 - All commits must be GPG/SSH signed (enforced by CI)
 
