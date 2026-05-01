@@ -48,10 +48,10 @@ services:
       SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
       SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: "api.accounts.firefox.com"
       SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: "https://oauth.accounts.firefox.com"
-      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:8000}"
+      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:${SYNC_PORT}}"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/__heartbeat__"]
+      test: ["CMD", "curl", "-f", "http://localhost:${SYNC_PORT}/__heartbeat__"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -102,13 +102,13 @@ services:
       SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: "https://oauth.accounts.firefox.com"
       SYNC_HUMAN_LOGS: "${SYNC_HUMAN_LOGS:-false}"
       RUST_LOG: "${RUST_LOG:-info}"
-      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:8000}"
+      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:${SYNC_PORT}}"
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/__heartbeat__"]
+      test: ["CMD", "curl", "-f", "http://localhost:${SYNC_PORT}/__heartbeat__"]
       interval: 30s
       timeout: 10s
       retries: 3
