@@ -3,7 +3,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 """Node assignment integration tests for the tokenserver."""
 
-from integration_tests.tokenserver.conftest import (
+from integration_tests.tokenserver.helpers import (
     NODE_ID,
     add_node,
     build_oauth_headers,

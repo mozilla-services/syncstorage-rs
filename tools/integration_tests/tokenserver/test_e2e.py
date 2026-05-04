@@ -15,7 +15,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from integration_tests.tokenserver.conftest import (
+from integration_tests.tokenserver.helpers import (
     FXA_METRICS_HASH_SECRET,
     TOKEN_SIGNING_SECRET,
     unsafe_parse_token,

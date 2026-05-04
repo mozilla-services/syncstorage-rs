@@ -28,7 +28,7 @@ from webtest.app import AppError
 
 import tokenlib
 
-from tools.integration_tests.conftest import (
+from tools.integration_tests.helpers import (
     switch_user,
     retry_post_json,
     retry_put_json,
