@@ -133,7 +133,9 @@ def add_node(
         vals = ":service, :node, :available, :capacity, :current_load, :backoff, :downed, :id"
     else:
         cols = "service, node, available, capacity, current_load, backoff, downed"
-        vals = ":service, :node, :available, :capacity, :current_load, :backoff, :downed"
+        vals = (
+            ":service, :node, :available, :capacity, :current_load, :backoff, :downed"
+        )
 
     result: int
     if db_mode == "postgres":

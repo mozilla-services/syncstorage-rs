@@ -21,8 +21,6 @@ from pyramid.interfaces import IAuthenticationPolicy
 from pyramid.request import Request
 from webtest import TestApp
 
-from tools.integration_tests.test_support import get_test_configurator
-
 # max number of attempts to check server heartbeat
 SYNC_SERVER_STARTUP_MAX_ATTEMPTS = 35
 SYNC_SERVER_URL = os.environ.get("SYNC_SERVER_URL", "http://localhost:8000")
