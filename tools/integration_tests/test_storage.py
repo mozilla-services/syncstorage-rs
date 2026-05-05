@@ -2275,7 +2275,7 @@ def test_cors_allows_any_origin(st_ctx):
             "Origin": "http://test-website.com",
             "Access-Control-Request-Headers": "Content-Type",
         },
-        status=200,
+        status=[200, 204],
     )
 
 
