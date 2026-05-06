@@ -92,7 +92,7 @@ impl From<DbErrorKind> for DbError {
         Self {
             kind,
             status,
-            backtrace: Box::new(Backtrace::new()),
+            backtrace: Box::new(Backtrace::new_unresolved()),
         }
     }
 }

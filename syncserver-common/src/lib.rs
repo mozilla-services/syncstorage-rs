@@ -73,7 +73,7 @@ pub trait ReportableError: std::fmt::Display + std::fmt::Debug {
         None
     }
 
-    /// Return a `Backtrace` for this Error if one was captured
+    /// Return an unresolved `Backtrace` for this Error if one was captured
     fn backtrace(&self) -> Option<&Backtrace>;
 
     /// Whether this error is reported to Sentry

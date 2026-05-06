@@ -4,6 +4,7 @@ use actix_web::{
     Error,
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
 };
+use backtrace::Backtrace;
 use cadence::{CountedExt, StatsdClient};
 use futures::{FutureExt, future::LocalBoxFuture};
 use futures_util::future::{Ready, ok};
@@ -286,8 +287,8 @@ pub fn exception_from_reportable_error(err: &dyn ReportableError) -> sentry::pro
     sentry::protocol::Exception {
         ty: sentry::parse_type_from_debug(&dbg).to_owned(),
         value: Some(err.to_string()),
-        stacktrace: err
-            .backtrace()
+        stacktrace: resolved_backtrace(err)
+            .as_ref()
             .map(sentry_backtrace::backtrace_to_stacktrace)
             .unwrap_or_default(),
         ..Default::default()
@@ -311,7 +312,7 @@ fn log_event<E>(
     let backtrace = if backtrace_enabled {
         error
             .as_error::<E>()
-            .and_then(|e| e.backtrace())
+            .and_then(|e| resolved_backtrace(e))
             .map(|bt| format!("\n{bt:?}"))
             .unwrap_or_default()
     } else {
@@ -331,4 +332,15 @@ fn log_event<E>(
             .and_then(|r| r.method.as_deref())
             .unwrap_or(""),
     );
+}
+
+/// Return a resolved `Backtrace` from `ReportableError`.
+///
+/// `Backtrace::resolve` requires mutability so this clones the original `Backtrace`.
+fn resolved_backtrace(err: &dyn ReportableError) -> Option<Backtrace> {
+    let mut backtrace = err.backtrace().cloned();
+    if let Some(backtrace) = &mut backtrace {
+        backtrace.resolve();
+    }
+    backtrace
 }

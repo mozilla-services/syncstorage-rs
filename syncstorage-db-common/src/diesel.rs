@@ -71,7 +71,7 @@ impl From<DbErrorKind> for DbError {
             _ => Self {
                 kind,
                 status: StatusCode::INTERNAL_SERVER_ERROR,
-                backtrace: Box::new(Backtrace::new()),
+                backtrace: Box::new(Backtrace::new_unresolved()),
             },
         }
     }
