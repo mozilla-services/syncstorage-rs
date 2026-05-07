@@ -8,11 +8,9 @@ import functools
 from konfig import Config, SettingsDict
 import hawkauthlib
 import os
-from pyramid.authorization import ACLAuthorizationPolicy
 from pyramid.config import Configurator
 from pyramid.interfaces import IAuthenticationPolicy
 from pyramid.request import Request
-from pyramid.util import DottedNameResolver
 from pyramid_hawkauth import HawkAuthenticationPolicy
 import random
 import re
@@ -127,16 +125,6 @@ class FixedSecrets(object):
         return []
 
 
-def resolve_name(name, package=None):
-    """Resolve dotted name into a python object.
-    This function resolves a dotted name as a reference to a python object,
-    returning whatever object happens to live at that path.  It's a simple
-    convenience wrapper around pyramid's DottedNameResolver.
-    The optional argument 'package' specifies the package name for relative
-    imports.  If not specified, only absolute paths will be supported.
-    """
-    return DottedNameResolver(package).resolve(name)
-
 
 def load_into_settings(filename, settings):
     """Load config file contents into a Pyramid settings dict.
@@ -183,8 +171,6 @@ def get_test_configurator(root, ini_file="tests.ini"):
         ini_dir = os.path.split(ini_dir)[0]
     # print("finding configurator for", ini_path)
     config = get_configurator({"__file__": ini_path})
-    authz_policy = ACLAuthorizationPolicy()
-    config.set_authorization_policy(authz_policy)
     authn_policy = TokenServerAuthenticationPolicy.from_settings(config.get_settings())
     config.set_authentication_policy(authn_policy)
     return config
@@ -359,9 +345,6 @@ class FunctionalTestCase(TestCase):
         # with the need for self.distant.
         self.distant = False
         self.host_url = os.environ.get("SYNC_SERVER_URL", "http://localhost:8000")
-        # This call implicitly commits the configurator. We probably still
-        # want it for the side effects.
-        self.config.make_wsgi_app()
         host_url = urlparse.urlparse(self.host_url)
         self.app = TestApp(
             self.host_url,
@@ -384,7 +367,6 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
 
         # Generate userid and auth token crednentials.
         # This can be overridden by subclasses.
-        self.config.commit()
         self._authenticate()
 
         # Monkey-patch the app to sign all requests with the token.
@@ -528,7 +510,7 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
         elif isinstance(secrets, (str, list)):
             secrets = FixedSecrets(secrets)
         elif isinstance(secrets, dict):
-            secrets = resolve_name(secrets.pop("backend"))(**secrets)
+            secrets = FixedSecrets(secrets.pop("secrets", []))
         self.secrets = secrets
         if kwds.get("nonce_cache") is None:
             kwds["nonce_cache"] = PermissiveNonceCache()

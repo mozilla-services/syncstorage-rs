@@ -46,8 +46,6 @@ def st_ctx():
     # Locate tests.ini relative to this file
     this_dir = os.path.dirname(os.path.abspath(__file__))
     config = get_test_configurator(this_dir, ini_file)
-    config.commit()
-    config.make_wsgi_app()
 
     host_url = os.environ.get("SYNC_SERVER_URL", "http://localhost:8000")
 
