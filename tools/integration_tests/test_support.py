@@ -9,7 +9,6 @@ from konfig import Config, SettingsDict
 import hawkauthlib
 import os
 from types import SimpleNamespace
-from pyramid.config import Configurator
 from pyramid_hawkauth import HawkAuthenticationPolicy
 import random
 import re
@@ -28,6 +27,40 @@ from webtest import TestApp
 
 
 VALID_FXA_ID_REGEX = re.compile("^[A-Za-z0-9=\\-_]{1,64}$")
+
+
+class TestConfig:
+    """Lightweight replacement for Pyramid's Configurator.
+
+    Holds the settings dict and auth policy without pulling in the full
+    Pyramid framework. Provides the same interface used by test fixtures:
+    get_settings(), set_authentication_policy(), begin(), end().
+    """
+
+    class _Registry:
+        """Minimal registry stub — holds auth_policy as a plain attribute."""
+
+        def __init__(self):
+            self.settings = {}
+            self.auth_policy = None
+
+    def __init__(self, settings=None):
+        self.registry = self._Registry()
+        self.registry.settings = settings or {}
+
+    def get_settings(self):
+        """Return the settings dict."""
+        return self.registry.settings
+
+    def set_authentication_policy(self, policy):
+        """Store the auth policy for later retrieval."""
+        self.registry.auth_policy = policy
+
+    def begin(self):
+        """No-op — Pyramid threadlocal setup no longer needed."""
+
+    def end(self):
+        """No-op — Pyramid threadlocal teardown no longer needed."""
 
 
 class Secrets(object):
@@ -123,7 +156,6 @@ class FixedSecrets(object):
         return []
 
 
-
 def load_into_settings(filename, settings):
     """Load config file contents into a Pyramid settings dict.
     This is a helper function for initialising a Pyramid settings dict from
@@ -176,22 +208,14 @@ def get_test_configurator(root, ini_file="tests.ini"):
 
 
 def get_configurator(global_config, **settings):
-    """Create a pyramid Configurator and populate it with sensible defaults.
-    This function is a helper to create and pre-populate a Configurator
-    object using the given paste-deploy settings dicts.  It uses the
-    mozsvc.config module to flatten the config paste-deploy config file
-    into the settings dict so that non-mozsvc pyramid apps can read values
-    from it easily.
-    """
-    # Populate a SettingsDict with settings from the deployment file.
-    settings = SettingsDict(settings)
+    """Create a TestConfig and populate it from the given config file."""
     config_file = global_config.get("__file__")
     if config_file is not None:
-        load_into_settings(config_file, settings)
-    # Update with default pyramid settings, and then insert for all to use.
-    config = Configurator(settings={})
-    settings.setdefaults(config.registry.settings)
-    config.registry.settings = settings
+        settings_dict = SettingsDict(settings)
+        load_into_settings(config_file, settings_dict)
+    else:
+        settings_dict = SettingsDict(settings)
+    config = TestConfig(settings=settings_dict)
     return config
 
 
@@ -297,24 +321,7 @@ class StorageTestCase(TestCase):
         return config
 
     def _cleanup_test_databases(self):
-        """Clean up any database used during the tests."""
-        # Find and clean up any in-use databases
-        for key, storage in self.config.registry.items():
-            if not key.startswith("syncstorage:storage:"):
-                continue
-            while hasattr(storage, "storage"):
-                storage = storage.storage
-            # For server-based dbs, drop the tables to clear them.
-            if storage.dbconnector.driver in ("mysql", "postgres"):
-                with storage.dbconnector.connect() as c:
-                    c.execute("DROP TABLE bso")
-                    c.execute("DROP TABLE user_collections")
-                    c.execute("DROP TABLE collections")
-                    c.execute("DROP TABLE batch_uploads")
-                    c.execute("DROP TABLE batch_upload_items")
-            # Explicitly free any pooled connections.
-            storage.dbconnector.engine.dispose()
-        # Find any sqlite database files and delete them.
+        """Clean up any sqlite database files used during the tests."""
         for key, value in self.config.registry.settings.items():
             if key.endswith(".sqluri"):
                 sqluri = urlparse.urlparse(value)

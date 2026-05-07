@@ -51,10 +51,12 @@ def _retry_send(func, *args, **kwargs):
             raise
         time.sleep(0.01)
         return func(*args, **kwargs)
-    
+
+
 def _make_fake_request(host_url):
     """Parse host url and provide a SimpleNamespace repr of the host_url and script name path."""
     import urllib.parse as urlparse
+
     parsed = urlparse.urlparse(host_url)
     return SimpleNamespace(
         host_url=f"{parsed.scheme}://{parsed.netloc}",
