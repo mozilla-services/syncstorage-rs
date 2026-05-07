@@ -9,7 +9,6 @@ from konfig import Config, SettingsDict
 import hawkauthlib
 import os
 from types import SimpleNamespace
-from pyramid_hawkauth import HawkAuthenticationPolicy
 import random
 import re
 import csv
@@ -491,11 +490,12 @@ class PermissiveNonceCache(object):
         return True
 
 
-class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
-    """Pyramid authentication policy for use with Tokenserver auth tokens.
-    This class provides an IAuthenticationPolicy implementation based on
-    the Mozilla TokenServer authentication tokens as described here:
-        https://docs.services.mozilla.com/token/
+class TokenServerAuthenticationPolicy:
+    """Authentication policy for use with Tokenserver auth tokens.
+
+    This class provides token-based authentication using Mozilla Tokenserver
+    authentication tokens as described. See our Tokenserver docs for more information.
+
     For verification of token signatures, this plugin can use either a
     single fixed secret (via the argument 'secret') or a file mapping
     node hostnames to secrets (via the argument 'secrets_file').  The
@@ -521,17 +521,45 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
         elif isinstance(secrets, dict):
             secrets = FixedSecrets(secrets.pop("secrets", []))
         self.secrets = secrets
-        if kwds.get("nonce_cache") is None:
-            kwds["nonce_cache"] = PermissiveNonceCache()
-        super(TokenServerAuthenticationPolicy, self).__init__(**kwds)
+        self.nonce_cache = kwds.get("nonce_cache") or PermissiveNonceCache()
+
+    @classmethod
+    def from_settings(cls, settings=None, prefix="hawkauth.", **extra):
+        """Construct a policy instance from deployment settings.
+
+        Extracts settings with the given prefix, strips the prefix, parses
+        them via _parse_settings, and passes the result to the constructor.
+        """
+        if settings is None:
+            settings = {}
+        hawkauth_settings = {}
+        for name in settings:
+            if name.startswith(prefix):
+                hawkauth_settings[name[len(prefix) :]] = settings[name]
+        hawkauth_settings.update(extra)
+        kwds = cls._parse_settings(hawkauth_settings)
+        for unknown_setting in hawkauth_settings:
+            raise ValueError("unknown hawkauth setting: %s" % unknown_setting)
+        return cls(**kwds)
 
     @classmethod
     def _parse_settings(cls, settings):
         """Parse settings for an instance of this class."""
-        supercls = super(TokenServerAuthenticationPolicy, cls)
-        kwds = supercls._parse_settings(settings)
+        kwds = {}
+        # Consume base hawk settings that are no longer used by this standalone
+        # class, but may appear in the settings dict from legacy configuration.
+        for key in (
+            "find_groups",
+            "master_secret",
+            "nonce_cache",
+            "decode_hawk_id",
+            "encode_hawk_id",
+        ):
+            val = settings.pop(key, None)
+            if val is not None:
+                kwds[key] = val
         # collect leftover settings into a config for a Secrets object,
-        # wtih some b/w compat for old-style secret-handling settings.
+        # with some b/w compat for old-style secret-handling settings.
         secrets_prefix = "secrets."
         secrets = {}
         if "secrets_file" in settings:
@@ -542,7 +570,7 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
         elif "secret" in settings:
             secrets["backend"] = "tools.integration_tests.test_support.FixedSecrets"
             secrets["secrets"] = settings.pop("secret")
-        for name in settings.keys():
+        for name in list(settings.keys()):
             if name.startswith(secrets_prefix):
                 secrets[name[len(secrets_prefix) :]] = settings.pop(name)
         kwds["secrets"] = secrets

@@ -82,7 +82,7 @@ def retry_delete(app, *args, **kwargs):
 def make_auth_state(config, host_url):
     """Generate hawk credentials for a new random user."""
     global_secret = os.environ.get("SYNC_MASTER_SECRET")
-    policy = config.auth_policy
+    policy = config.registry.auth_policy
     if global_secret is not None:
         policy.secrets._secrets = [global_secret]
     user_id = random.randint(1, 100000)
