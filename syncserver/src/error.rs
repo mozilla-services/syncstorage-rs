@@ -180,7 +180,7 @@ impl From<ApiErrorKind> for ApiError {
 
         Self {
             kind,
-            backtrace: Box::new(Backtrace::new()),
+            backtrace: Box::new(Backtrace::new_unresolved()),
             status,
         }
     }

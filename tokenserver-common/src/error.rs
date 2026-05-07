@@ -59,7 +59,7 @@ impl Default for TokenserverError {
             description: "Unauthorized".to_owned(),
             http_status: StatusCode::UNAUTHORIZED,
             context: "Unauthorized".to_owned(),
-            backtrace: Box::new(Backtrace::new()),
+            backtrace: Box::new(Backtrace::new_unresolved()),
             tags: None,
             source: None,
         }

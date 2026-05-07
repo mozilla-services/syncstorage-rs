@@ -158,7 +158,7 @@ impl From<SyncstorageDbErrorKind> for SyncstorageDbError {
         Self {
             kind,
             status,
-            backtrace: Backtrace::new(),
+            backtrace: Backtrace::new_unresolved(),
         }
     }
 }

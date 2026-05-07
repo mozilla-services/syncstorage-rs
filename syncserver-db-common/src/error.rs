@@ -41,7 +41,7 @@ impl From<SqlErrorKind> for SqlError {
         Self {
             kind,
             status: StatusCode::INTERNAL_SERVER_ERROR,
-            backtrace: Backtrace::new(),
+            backtrace: Backtrace::new_unresolved(),
         }
     }
 }
