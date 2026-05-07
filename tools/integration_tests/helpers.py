@@ -13,12 +13,11 @@ import logging
 import os
 import random
 import time
+from types import SimpleNamespace
 import uuid
 
 import hawkauthlib
 import webtest
-from pyramid.interfaces import IAuthenticationPolicy
-from pyramid.request import Request
 from webtest import TestApp
 
 # max number of attempts to check server heartbeat
@@ -52,6 +51,15 @@ def _retry_send(func, *args, **kwargs):
             raise
         time.sleep(0.01)
         return func(*args, **kwargs)
+    
+def _make_fake_request(host_url):
+    """Parse host url and provide a SimpleNamespace repr of the host_url and script name path."""
+    import urllib.parse as urlparse
+    parsed = urlparse.urlparse(host_url)
+    return SimpleNamespace(
+        host_url=f"{parsed.scheme}://{parsed.netloc}",
+        script_name=parsed.path,
+    )
 
 
 def retry_post_json(app, *args, **kwargs):
@@ -72,14 +80,14 @@ def retry_delete(app, *args, **kwargs):
 def make_auth_state(config, host_url):
     """Generate hawk credentials for a new random user."""
     global_secret = os.environ.get("SYNC_MASTER_SECRET")
-    policy = config.registry.getUtility(IAuthenticationPolicy)
+    policy = config.auth_policy
     if global_secret is not None:
         policy.secrets._secrets = [global_secret]
     user_id = random.randint(1, 100000)
     fxa_uid = "DECAFBAD" + str(uuid.uuid4().hex)[8:]
     hashed_fxa_uid = str(uuid.uuid4().hex)
     fxa_kid = "0000000000000-DECAFBAD" + str(uuid.uuid4().hex)[8:]
-    req = Request.blank(host_url)
+    req = _make_fake_request(host_url)
     creds = policy.encode_hawk_id(
         req,
         user_id,

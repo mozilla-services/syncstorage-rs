@@ -8,9 +8,8 @@ import functools
 from konfig import Config, SettingsDict
 import hawkauthlib
 import os
+from types import SimpleNamespace
 from pyramid.config import Configurator
-from pyramid.interfaces import IAuthenticationPolicy
-from pyramid.request import Request
 from pyramid_hawkauth import HawkAuthenticationPolicy
 import random
 import re
@@ -26,7 +25,6 @@ import urllib.parse as urlparse
 import unittest
 import uuid
 from webtest import TestApp
-from zope.interface import implementer
 
 
 VALID_FXA_ID_REGEX = re.compile("^[A-Za-z0-9=\\-_]{1,64}$")
@@ -173,6 +171,7 @@ def get_test_configurator(root, ini_file="tests.ini"):
     config = get_configurator({"__file__": ini_path})
     authn_policy = TokenServerAuthenticationPolicy.from_settings(config.get_settings())
     config.set_authentication_policy(authn_policy)
+    setattr(config.registry, "auth_policy", authn_policy)
     return config
 
 
@@ -384,7 +383,7 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
         pass
 
     def _authenticate(self):
-        policy = self.config.registry.getUtility(IAuthenticationPolicy)
+        policy = getattr(self.config.registry, "auth_policy")
         global_secret = os.environ.get("SYNC_MASTER_SECRET")
         if global_secret is not None:
             policy.secrets._secrets = [global_secret]
@@ -392,8 +391,12 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
         self.fxa_uid = "DECAFBAD" + str(uuid.uuid4().hex)[8:]
         self.hashed_fxa_uid = str(uuid.uuid4().hex)
         self.fxa_kid = "0000000000000-DECAFBAD" + str(uuid.uuid4().hex)[8:]
-        auth_policy = self.config.registry.getUtility(IAuthenticationPolicy)
-        req = Request.blank(self.host_url)
+        auth_policy = getattr(self.config.registry, "auth_policy")
+        parsed = urlparse.urlparse(self.host_url)
+        req = SimpleNamespace(
+            host_url=f"{parsed.scheme}://{parsed.netloc}",
+            script_name=parsed.path,
+        )
         creds = auth_policy.encode_hawk_id(
             req,
             self.user_id,
@@ -481,7 +484,6 @@ class PermissiveNonceCache(object):
         return True
 
 
-@implementer(IAuthenticationPolicy)
 class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
     """Pyramid authentication policy for use with Tokenserver auth tokens.
     This class provides an IAuthenticationPolicy implementation based on
@@ -603,7 +605,6 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
         return self.secrets.get(node_name)
 
 
-@implementer(IAuthenticationPolicy)
 class SyncStorageAuthenticationPolicy(TokenServerAuthenticationPolicy):
     """Pyramid authentication policy with special handling of expired tokens.
 
