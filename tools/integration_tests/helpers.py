@@ -13,17 +13,13 @@ import logging
 import os
 import random
 import time
+from types import SimpleNamespace
 import uuid
 
 import hawkauthlib
 import webtest
-from pyramid.interfaces import IAuthenticationPolicy
-from pyramid.request import Request
 from webtest import TestApp
 
-# max number of attempts to check server heartbeat
-SYNC_SERVER_STARTUP_MAX_ATTEMPTS = 35
-SYNC_SERVER_URL = os.environ.get("SYNC_SERVER_URL", "http://localhost:8000")
 
 logger = logging.getLogger("tools.integration-tests")
 
@@ -54,6 +50,17 @@ def _retry_send(func, *args, **kwargs):
         return func(*args, **kwargs)
 
 
+def _make_fake_request(host_url):
+    """Parse host url and provide a SimpleNamespace repr of the host_url and script name path."""
+    import urllib.parse as urlparse
+
+    parsed = urlparse.urlparse(host_url)
+    return SimpleNamespace(
+        host_url=f"{parsed.scheme}://{parsed.netloc}",
+        script_name=parsed.path,
+    )
+
+
 def retry_post_json(app, *args, **kwargs):
     """POST JSON with retry on transient errors."""
     return _retry_send(app.post_json, *args, **kwargs)
@@ -69,17 +76,17 @@ def retry_delete(app, *args, **kwargs):
     return _retry_send(app.delete, *args, **kwargs)
 
 
-def make_auth_state(config, host_url):
+def make_auth_state(auth_policy, host_url):
     """Generate hawk credentials for a new random user."""
     global_secret = os.environ.get("SYNC_MASTER_SECRET")
-    policy = config.registry.getUtility(IAuthenticationPolicy)
+    policy = auth_policy
     if global_secret is not None:
         policy.secrets._secrets = [global_secret]
     user_id = random.randint(1, 100000)
     fxa_uid = "DECAFBAD" + str(uuid.uuid4().hex)[8:]
     hashed_fxa_uid = str(uuid.uuid4().hex)
     fxa_kid = "0000000000000-DECAFBAD" + str(uuid.uuid4().hex)[8:]
-    req = Request.blank(host_url)
+    req = _make_fake_request(host_url)
     creds = policy.encode_hawk_id(
         req,
         user_id,
@@ -148,12 +155,12 @@ def switch_user(st_ctx):
     orig_auth_token = st_ctx["auth_state"]["auth_token"]
     orig_auth_secret = st_ctx["auth_state"]["auth_secret"]
 
-    config = st_ctx["config"]
+    auth_policy = st_ctx["auth_policy"]
     host_url = st_ctx["host_url"]
     app = st_ctx["app"]
 
     for _ in range(10):
-        new_auth = make_auth_state(config, host_url)
+        new_auth = make_auth_state(auth_policy, host_url)
         if new_auth["user_id"] != orig_user_id:
             break
     else:

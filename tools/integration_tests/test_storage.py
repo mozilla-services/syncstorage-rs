@@ -23,7 +23,6 @@ import urllib
 
 import simplejson  # type: ignore[import-untyped]
 
-from pyramid.interfaces import IAuthenticationPolicy
 from webtest.app import AppError
 
 import tokenlib
@@ -42,9 +41,20 @@ WEAVE_SIZE_LIMIT_EXCEEDED = 17  # Size limit exceeded
 BATCH_MAX_IDS = 100
 
 
-def get_limit_config(request, limit):
-    """Get the configured value for the named size limit."""
-    return request.registry.settings["storage." + limit]
+def get_limit_config(limit):
+    """Get a default value for the named size limit.
+
+    This fallback is only reached when the server's /info/configuration
+    endpoint does not return the requested limit key.
+    """
+    defaults = {
+        "max_post_bytes": 2097152,
+        "max_post_records": 100,
+        "max_request_bytes": 2101248,
+    }
+    if limit not in defaults:
+        raise KeyError(f"unknown limit: {limit}")
+    return defaults[limit]
 
 
 def json_dumps(value):
@@ -894,9 +904,9 @@ def test_multi_item_post_limits(st_ctx):
         max_count = res.json["max_post_records"]
         max_req_bytes = res.json["max_request_bytes"]
     except KeyError:
-        max_bytes = get_limit_config(st_ctx["config"], "max_post_bytes")
-        max_count = get_limit_config(st_ctx["config"], "max_post_records")
-        max_req_bytes = get_limit_config(st_ctx["config"], "max_request_bytes")
+        max_bytes = get_limit_config("max_post_bytes")
+        max_count = get_limit_config("max_post_records")
+        max_req_bytes = get_limit_config("max_request_bytes")
 
     # Uploading max_count-5 small objects should succeed.
     bsos = [{"id": str(i).zfill(2), "payload": "X"} for i in range(max_count - 5)]
@@ -1518,7 +1528,7 @@ def test_accessing_info_collections_with_an_expired_token(st_ctx):
     assert resp.json["xxx_col1"] == ts
 
     # Forge an expired token to use for the test.
-    auth_policy = st_ctx["config"].registry.getUtility(IAuthenticationPolicy)
+    auth_policy = st_ctx["auth_policy"]
     secret = auth_policy._get_token_secrets(st_ctx["host_url"])[-1]
     tm = tokenlib.TokenManager(secret=secret)
     exp = time.time() - 60
