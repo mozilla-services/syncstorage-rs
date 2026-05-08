@@ -1517,7 +1517,7 @@ def test_accessing_info_collections_with_an_expired_token(st_ctx):
     assert resp.json["xxx_col1"] == ts
 
     # Forge an expired token to use for the test.
-    auth_policy = getattr(st_ctx["config"].registry, "auth_policy")
+    auth_policy = st_ctx["config"].auth_policy
     secret = auth_policy._get_token_secrets(st_ctx["host_url"])[-1]
     tm = tokenlib.TokenManager(secret=secret)
     exp = time.time() - 60

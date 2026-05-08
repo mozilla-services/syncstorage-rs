@@ -3,11 +3,10 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 """Support utilities for storage integration tests.
 
-Provides TestConfig, auth policy classes, secrets management, and INI
-file loading used by conftest.py fixtures.
+Provides AuthConfig, auth policy classes, and secrets management
+used by conftest.py fixtures.
 """
 
-import configparser
 import csv
 import binascii
 from collections import defaultdict
@@ -20,38 +19,17 @@ import tokenlib
 VALID_FXA_ID_REGEX = re.compile("^[A-Za-z0-9=\\-_]{1,64}$")
 
 
-class TestConfig:
-    """Lightweight replacement for Pyramid's Configurator.
+class AuthConfig:
+    """Minimal config holder for test fixtures.
 
-    Holds the settings dict and auth policy without pulling in the full
-    Pyramid framework. Provides the same interface used by test fixtures:
-    get_settings(), set_authentication_policy(), begin(), end().
+    Holds the auth policy used for hawk token signing/verification.
     """
 
-    class _Registry:
-        """Minimal registry stub — holds auth_policy as a plain attribute."""
-
-        def __init__(self):
-            self.settings = {}
-            self.auth_policy = None
-
-    def __init__(self, settings=None):
-        self.registry = self._Registry()
-        self.registry.settings = settings or {}
-
-    def get_settings(self):
-        """Return the settings dict."""
-        return self.registry.settings
-
-    def set_authentication_policy(self, policy):
-        """Store the auth policy for later retrieval."""
-        self.registry.auth_policy = policy
-
-    def begin(self):
-        """No-op — Pyramid threadlocal setup no longer needed."""
+    def __init__(self, auth_policy=None):
+        self.auth_policy = auth_policy
 
     def end(self):
-        """No-op — Pyramid threadlocal teardown no longer needed."""
+        """No-op."""
 
 
 class Secrets(object):
@@ -147,60 +125,15 @@ class FixedSecrets(object):
         return []
 
 
-def load_into_settings(filename, settings):
-    """Load config file contents into a settings dict.
+def get_test_configurator():
+    """Build a AuthConfig with an auth policy using the configured secret.
 
-    Flattens INI sections into dotted settings names
-    (e.g. ``[hawkauth]`` key ``secret`` → ``hawkauth.secret``)
-    and updates the given dictionary in place.
+    The secret is read from SYNC_MASTER_SECRET if set, otherwise falls back
+    to the well-known local development default.
     """
-    filename = os.path.expandvars(os.path.expanduser(filename))
-    filename = os.path.abspath(os.path.normpath(filename))
-    config = configparser.ConfigParser()
-    config.read(filename)
-
-    # These were legacy konfig-specific directives; skip them for compatibility if
-    # they somehow appear in the file.
-    skip_keys = {"extends", "overrides"}
-
-    for section in config.sections():
-        setting_prefix = section.replace(":", ".")
-        for name, value in config.items(section):
-            if name not in skip_keys:
-                # configparser lowercases keys; expand any ${ENV_VAR} values.
-                settings[setting_prefix + "." + name] = os.path.expandvars(value)
-
-    return config
-
-
-def get_test_configurator(root, ini_file="tests.ini"):
-    """Find a file with testing settings, turn it into a configurator."""
-    ini_dir = root
-    while True:
-        ini_path = os.path.join(ini_dir, ini_file)
-        if os.path.exists(ini_path):
-            break
-        if ini_path == ini_file or ini_path == "/" + ini_file:
-            raise RuntimeError("cannot locate " + ini_file)
-        ini_dir = os.path.split(ini_dir)[0]
-    # print("finding configurator for", ini_path)
-    config = get_configurator({"__file__": ini_path})
-    authn_policy = TokenServerAuthenticationPolicy.from_settings(config.get_settings())
-    config.set_authentication_policy(authn_policy)
-    setattr(config.registry, "auth_policy", authn_policy)
-    return config
-
-
-def get_configurator(global_config, **settings):
-    """Create a TestConfig and populate it from the given config file."""
-    config_file = global_config.get("__file__")
-    settings_dict = dict(settings)
-    if config_file is not None:
-        load_into_settings(config_file, settings_dict)
-    config = TestConfig(settings=settings_dict)
-    return config
-
-
+    secret = os.environ.get("SYNC_MASTER_SECRET", "TED KOPPEL IS A ROBOT")
+    policy = TokenServerAuthenticationPolicy(secrets=secret)
+    return AuthConfig(auth_policy=policy)
 
 
 class PermissiveNonceCache(object):
@@ -378,13 +311,12 @@ class TokenServerAuthenticationPolicy:
 
 
 class SyncStorageAuthenticationPolicy(TokenServerAuthenticationPolicy):
-    """Pyramid authentication policy with special handling of expired tokens.
+    """Authentication policy with special handling of expired tokens.
 
-    This class extends the standard mozsvc TokenServerAuthenticationPolicy
-    to (carefully) allow some access by holders of expired tokens.  Presenting
-    an expired token will result in a principal of "expired:<uid>" rather than
-    just "<uid>", allowing this case to be specially detected and handled for
-    some resources without interfering with the usual authentication rules.
+    Extends TokenServerAuthenticationPolicy to allow limited access by holders
+    of expired tokens. Presenting an expired token results in a userid of
+    "expired:<uid>" rather than just "<uid>", allowing calling code to detect
+    and handle this case explicitly.
     """
 
     def __init__(self, secrets=None, **kwds):

@@ -57,4 +57,3 @@ def st_ctx():
         "host_url": host_url,
     }
 
-    config.end()
