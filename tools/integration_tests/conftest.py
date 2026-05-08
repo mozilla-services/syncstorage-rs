@@ -21,7 +21,10 @@ from tools.integration_tests.helpers import (
     make_test_app,
     retry_delete,
 )
-from tools.integration_tests.test_support import get_test_configurator
+from tools.integration_tests.test_support import (
+    FixedSecrets,
+    TokenServerAuthenticationPolicy,
+)
 
 
 @pytest.fixture(scope="function")
@@ -31,10 +34,11 @@ def st_ctx():
     Creates a TestApp with hawk signing, authenticates a random user,
     clears that user's data, and yields a context dict.
     """
-    config = get_test_configurator()
+    secret = os.environ.get("SYNC_MASTER_SECRET", "TED KOPPEL IS A ROBOT")
+    auth_policy = TokenServerAuthenticationPolicy(secrets=FixedSecrets(secret))
     host_url = os.environ.get("SYNC_SERVER_URL", "http://localhost:8000")
 
-    auth = make_auth_state(config, host_url)
+    auth = make_auth_state(auth_policy, host_url)
     auth_state = {
         "auth_token": auth["auth_token"],
         "auth_secret": auth["auth_secret"],
@@ -53,6 +57,6 @@ def st_ctx():
         "hashed_fxa_uid": auth["hashed_fxa_uid"],
         "fxa_kid": auth["fxa_kid"],
         "auth_state": auth_state,
-        "config": config,
+        "auth_policy": auth_policy,
         "host_url": host_url,
     }

@@ -20,9 +20,6 @@ import hawkauthlib
 import webtest
 from webtest import TestApp
 
-# max number of attempts to check server heartbeat
-SYNC_SERVER_STARTUP_MAX_ATTEMPTS = 35
-SYNC_SERVER_URL = os.environ.get("SYNC_SERVER_URL", "http://localhost:8000")
 
 logger = logging.getLogger("tools.integration-tests")
 
@@ -79,10 +76,10 @@ def retry_delete(app, *args, **kwargs):
     return _retry_send(app.delete, *args, **kwargs)
 
 
-def make_auth_state(config, host_url):
+def make_auth_state(auth_policy, host_url):
     """Generate hawk credentials for a new random user."""
     global_secret = os.environ.get("SYNC_MASTER_SECRET")
-    policy = config.auth_policy
+    policy = auth_policy
     if global_secret is not None:
         policy.secrets._secrets = [global_secret]
     user_id = random.randint(1, 100000)
@@ -158,12 +155,12 @@ def switch_user(st_ctx):
     orig_auth_token = st_ctx["auth_state"]["auth_token"]
     orig_auth_secret = st_ctx["auth_state"]["auth_secret"]
 
-    config = st_ctx["config"]
+    auth_policy = st_ctx["auth_policy"]
     host_url = st_ctx["host_url"]
     app = st_ctx["app"]
 
     for _ in range(10):
-        new_auth = make_auth_state(config, host_url)
+        new_auth = make_auth_state(auth_policy, host_url)
         if new_auth["user_id"] != orig_user_id:
             break
     else:
