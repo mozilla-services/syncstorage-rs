@@ -28,9 +28,6 @@ class AuthConfig:
     def __init__(self, auth_policy=None):
         self.auth_policy = auth_policy
 
-    def end(self):
-        """No-op."""
-
 
 class Secrets(object):
     """Load node-specific secrets from a file.
