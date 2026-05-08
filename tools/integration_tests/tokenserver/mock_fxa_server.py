@@ -1,43 +1,51 @@
 """Mock FxA OAuth server for integration testing."""
 
-from wsgiref.simple_server import make_server as _make_server
-from pyramid.config import Configurator
-from pyramid.response import Response
-from pyramid.view import view_config
 import json
 import os
+from wsgiref.simple_server import make_server as _make_server
 
 
-@view_config(route_name="mock_oauth_verify", renderer="json")
-def _mock_oauth_verify(request):
-    body = json.loads(request.json_body["token"])
+def _mock_oauth_verify(environ, start_response):
+    try:
+        length = int(environ.get("CONTENT_LENGTH") or 0)
+        body = json.loads(environ["wsgi.input"].read(length))
+        payload = json.loads(body["token"])
+        status = "%d OK" % payload["status"]
+        response_body = json.dumps(payload["body"]).encode()
+    except Exception as exc:
+        status = "400 Bad Request"
+        response_body = json.dumps({"error": str(exc)}).encode()
+    start_response(status, [("Content-Type", "application/json")])
+    return [response_body]
 
-    return Response(
-        json=body["body"], content_type="application/json", status=body["status"]
-    )
+
+def _mock_oauth_jwk(environ, start_response):
+    # The PyFxA OAuth client makes a request to the FxA OAuth server for its
+    # current public RSA key. While the client allows us to pass in a JWK to
+    # prevent this request from happening, mocking the endpoint is simpler.
+    response_body = json.dumps({"keys": [{"fake": "RSA key"}]}).encode()
+    start_response("200 OK", [("Content-Type", "application/json")])
+    return [response_body]
 
 
-# The PyFxA OAuth client makes a request to the FxA OAuth server for its
-# current public RSA key. While the client allows us to pass in a JWK to
-# prevent this request from happening, mocking the endpoint is simpler.
-@view_config(route_name="mock_oauth_jwk", renderer="json")
-def _mock_oauth_jwk(request):
-    return {"keys": [{"fake": "RSA key"}]}
+_ROUTES = {
+    "/v1/verify": _mock_oauth_verify,
+    "/v1/jwks": _mock_oauth_jwk,
+}
+
+
+def _app(environ, start_response):
+    path = environ.get("PATH_INFO", "")
+    handler = _ROUTES.get(path)
+    if handler is None:
+        start_response("404 Not Found", [("Content-Type", "application/json")])
+        return [json.dumps({"error": "not found"}).encode()]
+    return handler(environ, start_response)
 
 
 def make_server(host, port):
     """Create and return a mock FxA OAuth WSGI server bound to host and port."""
-    with Configurator() as config:
-        config.add_route("mock_oauth_verify", "/v1/verify")
-        config.add_view(
-            _mock_oauth_verify, route_name="mock_oauth_verify", renderer="json"
-        )
-
-        config.add_route("mock_oauth_jwk", "/v1/jwks")
-        config.add_view(_mock_oauth_jwk, route_name="mock_oauth_jwk", renderer="json")
-        app = config.make_wsgi_app()
-
-    return _make_server(host, port, app)
+    return _make_server(host, port, _app)
 
 
 if __name__ == "__main__":
