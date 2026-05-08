@@ -3,9 +3,9 @@ ARG TOKENSERVER_DATABASE_BACKEND=mysql
 # Alternatively MYSQLCLIENT_PKG=libmysqlclient-dev for the Oracle/MySQL official client
 ARG MYSQLCLIENT_PKG=libmariadb-dev-compat
 
-# NOTE: Ensure builder's Rust version matches CI's in .circleci/config.yml
+# NOTE: Ensure builder's Rust version matches CI's in .github/workflows/main-workflow.yml
 # RUST_VER
-FROM docker.io/lukemathwalker/cargo-chef:0.1.73-rust-1.91.1-bookworm AS chef
+FROM docker.io/lukemathwalker/cargo-chef:0.1.73-rust-1.91.1-trixie AS chef
 WORKDIR /app
 
 FROM chef AS planner
@@ -26,7 +26,7 @@ RUN apt-get -q update && \
             # First install gnupg and setup MySQL repo
             # Key ID A8D3785C from https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
             apt-get -q install -y --no-install-recommends gnupg ca-certificates && \
-            echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list && \
+            echo "deb https://repo.mysql.com/apt/debian/ trixie mysql-8.0" >> /etc/apt/sources.list && \
             # Fetch and install the MySQL public key
             gpg --batch --keyserver hkp://keyserver.ubuntu.com --recv-keys A8D3785C && \
             gpg --batch --armor --export A8D3785C | tee /etc/apt/trusted.gpg.d/mysql.asc && \
@@ -104,7 +104,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     rustc --version && \
     cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND $TOKENSERVER_FEATURES --features=py_verifier --locked --root /app
 
-FROM docker.io/library/debian:bookworm-slim
+FROM docker.io/library/debian:trixie-slim
 ARG SYNCSTORAGE_DATABASE_BACKEND
 ARG TOKENSERVER_DATABASE_BACKEND
 ARG MYSQLCLIENT_PKG
@@ -117,7 +117,7 @@ RUN apt-get -q update && \
     if [ "$MYSQLCLIENT_PKG" = libmysqlclient-dev ] ; then \
         # First install gnupg and setup MySQL repo
         apt-get install -y --no-install-recommends gnupg ca-certificates wget && \
-        echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list && \
+        echo "deb https://repo.mysql.com/apt/debian/ trixie mysql-8.0" >> /etc/apt/sources.list && \
         # Fetch and install the MySQL public key
         # Key ID A8D3785C from https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
         gpg --batch --keyserver hkp://keyserver.ubuntu.com --recv-keys A8D3785C && \
@@ -125,7 +125,7 @@ RUN apt-get -q update && \
         apt-get -q update ; \
     fi && \
     POSTGRES_PKG="libpq5" && \
-    apt-get -q install -y --no-install-recommends $MYSQL_PKG $POSTGRES_PKG libssl3 libffi8 libpython3.11 python3 python3-pip python3-venv curl jq && \
+    apt-get -q install -y --no-install-recommends $MYSQL_PKG $POSTGRES_PKG libssl3 libffi8 libpython3.13 python3 python3-pip python3-setuptools python3-venv curl jq && \
     # The python3-cryptography debian package installs version 2.6.1, but we
     # we want to use the version specified in requirements.txt. To do this,
     # we have to remove the python3-cryptography package here.
@@ -146,11 +146,11 @@ COPY --from=builder /app/wheels /tmp/wheels
 RUN groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app
 
-RUN pip3 install --break-system-packages --no-cache-dir --no-index --find-links=/tmp/wheels -r /app/requirements.txt && \
-    pip3 install --break-system-packages --no-cache-dir --no-index --find-links=/tmp/wheels -r /app/tools/integration_tests/requirements.txt && \
-    pip3 install --break-system-packages --no-cache-dir --no-index --find-links=/tmp/wheels -r /app/tools/tokenserver/requirements.txt && \
+RUN pip3 install --break-system-packages --no-cache-dir --no-index --ignore-installed --find-links=/tmp/wheels -r /app/requirements.txt && \
+    pip3 install --break-system-packages --no-cache-dir --no-index --ignore-installed --find-links=/tmp/wheels -r /app/tools/integration_tests/requirements.txt && \
+    pip3 install --break-system-packages --no-cache-dir --no-index --ignore-installed --find-links=/tmp/wheels -r /app/tools/tokenserver/requirements.txt && \
     if [ "$SYNCSTORAGE_DATABASE_BACKEND" = "postgres" ] && [ -f /app/tools/postgres/requirements.txt ]; then \
-        pip3 install --break-system-packages --no-cache-dir --no-index --find-links=/tmp/wheels -r /app/tools/postgres/requirements.txt; \
+        pip3 install --break-system-packages --no-cache-dir --no-index --ignore-installed --find-links=/tmp/wheels -r /app/tools/postgres/requirements.txt; \
     fi && \
     rm -rf /tmp/wheels /root/.cache/pip
 

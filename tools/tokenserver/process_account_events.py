@@ -28,11 +28,7 @@ import json
 import logging
 import optparse
 
-import boto
-import boto.ec2
-import boto.sqs
-import boto.sqs.message
-import boto.utils
+import boto3
 
 import util
 from database import Database
@@ -58,25 +54,26 @@ def process_account_events(
     database = Database()
     try:
         # Connect to the SQS queue.
-        # If no region is given, infer it from the instance metadata.
-        if aws_region is None:
-            logger.debug("Finding default region from instance metadata")
-            aws_info = boto.utils.get_instance_metadata()
-            aws_region = aws_info["placement"]["availability-zone"][:-1]
-        logger.debug("Connecting to queue %r in %r", queue_name, aws_region)
-        conn = boto.sqs.connect_to_region(aws_region)
-        queue = conn.get_queue(queue_name)
-        # We must force boto not to b64-decode the message contents, ugh.
-        queue.set_message_class(boto.sqs.message.RawMessage)
+        # If no region is given, boto3 auto-detects from instance metadata /
+        # environment variables.
+        if aws_region is not None:
+            logger.debug("Connecting to queue %r in %r", queue_name, aws_region)
+        else:
+            logger.debug("Connecting to queue %r (region auto-detected)", queue_name)
+        sqs = boto3.resource("sqs", region_name=aws_region)
+        queue = sqs.get_queue_by_name(QueueName=queue_name)
         # Poll for messages indefinitely.
         while True:
-            msg = queue.read(wait_time_seconds=queue_wait_time)
-            if msg is None:
+            messages = queue.receive_messages(
+                WaitTimeSeconds=queue_wait_time, MaxNumberOfMessages=1
+            )
+            if not messages:
                 continue
-            process_account_event(database, msg.get_body(), metrics=metrics)
+            msg = messages[0]
+            process_account_event(database, msg.body, metrics=metrics)
             # This intentionally deletes the event even if it was some
             # unrecognized type.  Not point leaving a backlog.
-            queue.delete_message(msg)
+            msg.delete()
     except Exception:
         logger.exception("Error while processing account events")
         raise

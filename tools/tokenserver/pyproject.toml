@@ -14,7 +14,7 @@ license = "Mozilla Public License Version 2.0"
 package-mode = false 
 
 [tool.poetry.dependencies]
-boto = "2.49.0"
+boto3 = "1.43.6"
 hawkauthlib = "2.0.0"
 mysqlclient = "^2.1.8"
 sqlalchemy = "^1.4.46"
