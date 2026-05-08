@@ -5,7 +5,7 @@
 
 import contextlib
 import functools
-from konfig import Config, SettingsDict
+import configparser
 import hawkauthlib
 import os
 from types import SimpleNamespace
@@ -156,35 +156,28 @@ class FixedSecrets(object):
 
 
 def load_into_settings(filename, settings):
-    """Load config file contents into a Pyramid settings dict.
-    This is a helper function for initialising a Pyramid settings dict from
-    a config file.  It flattens the config file sections into dotted settings
-    names and updates the given dictionary in place.
-    You would typically use this when constructing a Pyramid Configurator
-    object, like so::
-        def main(global_config, **settings):
-            config_file = global_config['__file__']
-            load_info_settings(config_file, settings)
-            config = Configurator(settings=settings)
+    """Load config file contents into a settings dict.
+
+    Flattens INI sections into dotted settings names
+    (e.g. ``[hawkauth]`` key ``secret`` → ``hawkauth.secret``)
+    and updates the given dictionary in place.
     """
     filename = os.path.expandvars(os.path.expanduser(filename))
     filename = os.path.abspath(os.path.normpath(filename))
-    config = Config(filename)
+    config = configparser.ConfigParser()
+    config.read(filename)
 
-    # Konfig keywords are added to every section when present, we have to
-    # filter them out, otherwise plugin.load_from_config and
-    # plugin.load_from_settings are unable to create instances.
-    konfig_keywords = ["extends", "overrides"]
+    # These were legacy konfig-specific directives; skip them for compatibility if
+    # they somehow appear in the file.
+    skip_keys = {"extends", "overrides"}
 
-    # Put values from the config file into the pyramid settings dict.
     for section in config.sections():
         setting_prefix = section.replace(":", ".")
-        for name, value in config.get_map(section).items():
-            if name not in konfig_keywords:
-                settings[setting_prefix + "." + name] = value
+        for name, value in config.items(section):
+            if name not in skip_keys:
+                # configparser lowercases keys; expand any ${ENV_VAR} values.
+                settings[setting_prefix + "." + name] = os.path.expandvars(value)
 
-    # Store a reference to the Config object itself for later retrieval.
-    settings["config"] = config
     return config
 
 
@@ -209,11 +202,9 @@ def get_test_configurator(root, ini_file="tests.ini"):
 def get_configurator(global_config, **settings):
     """Create a TestConfig and populate it from the given config file."""
     config_file = global_config.get("__file__")
+    settings_dict = dict(settings)
     if config_file is not None:
-        settings_dict = SettingsDict(settings)
         load_into_settings(config_file, settings_dict)
-    else:
-        settings_dict = SettingsDict(settings)
     config = TestConfig(settings=settings_dict)
     return config
 
