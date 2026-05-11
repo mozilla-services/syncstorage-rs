@@ -17,4 +17,4 @@ jobs:
     permissions:
       contents: read
       checks: write
-    uses: mozilla/probe-scraper/.github/workflows/glean.yaml@2214f8a993af6bd87b7e79da4ad4452a3ba263da # v1.0
+    uses: mozilla/probe-scraper/.github/workflows/glean.yaml@03e58b1f634585f79c89321b835952a179a05a93 # v1.0
