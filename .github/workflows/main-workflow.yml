@@ -13,14 +13,14 @@ on:
       python-version:
         description: "Python version to use"
         required: false
-        default: "3.12" # PY_VER
+        default: "3.13" # PY_VER
       rust-version:
         description: "Rust version to use"
         required: false
         default: "1.91" # RUST_VER
 
 env:
-  PYTHON_VERSION: ${{ inputs.python-version || '3.12' }} # PY_VER
+  PYTHON_VERSION: ${{ inputs.python-version || '3.13' }} # PY_VER
   RUST_VERSION: ${{ inputs.rust-version || '1.91' }} # RUST_VER
 
 concurrency:
