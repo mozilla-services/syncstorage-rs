@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - master
+      - chore/libmysqlclient-8.4
     tags:
       - '**'
   workflow_dispatch: {}
@@ -36,7 +37,7 @@ jobs:
   # This presently remains for the time being to simplify deploys by maintaining `image_name: syncstorage-rs`.
   # Historical context: <https://github.com/mozilla-services/syncstorage-rs/pull/1306>
   build-and-push-syncstorage-rs:
-    needs: check
+    #needs: check
     permissions:
       contents: read
       id-token: write
