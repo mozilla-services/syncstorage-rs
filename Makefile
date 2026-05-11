@@ -24,6 +24,11 @@ LOAD_TEST_DIR := $(TOOLS_DIR)/tokenserver/loadtests
 SYNCSTORAGE_LOAD_TEST_DIR := $(TOOLS_DIR)/syncstorage-loadtest
 RUST_LOG ?= debug
 
+SYNC_SYNCSTORAGE__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/syncstorage_rs
+SYNC_TOKENSERVER__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/tokenserver_rs
+
+PYTHON_SITE_PACKAGES = $(shell poetry run python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
+
 # In order to be consumed by the ETE Test Metric Pipeline, files need to follow a strict naming
 # convention: {job_number}__{utc_epoch_datetime}__{repository}__{workflow}__{test_suite}__results{-index}.xml
 EPOCH_TIME := $(shell date +"%s")
@@ -31,29 +36,20 @@ WORKFLOW := $(shell echo "$(GITHUB_WORKFLOW)" | tr ' ' '-' | tr '[:upper:]' '[:l
 TEST_RESULTS_DIR ?= workflow/test-results
 TEST_PROFILE := $(if $(or $(CIRCLECI),$(GITHUB_ACTIONS)),ci,default)
 TEST_FILE_PREFIX := $(if $(GITHUB_ACTIONS),$(GITHUB_RUN_NUMBER)__$(EPOCH_TIME)__$(notdir $(GITHUB_REPOSITORY))__$(WORKFLOW)__)
-UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__results.xml
-MYSQL_UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)mysql_unit__results.xml
-POSTGRES_UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)postgres_unit__results.xml
-SPANNER_UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)spanner_unit__results.xml
-MYSQL_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)mysql_unit__coverage.json
-POSTGRES_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)postgres_unit__coverage.json
-SPANNER_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)spanner_unit__coverage.json
-UNIT_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__coverage.json
 
-SPANNER_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)spanner_integration__results.xml
-SPANNER_NO_JWK_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)spanner_no_jwk_integration__results.xml
-POSTGRES_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)postgres_integration__results.xml
-POSTGRES_NO_JWK_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)postgres_no_jwk_integration__results.xml
-MYSQL_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)mysql_integration__results.xml
-MYSQL_NO_JWK_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)mysql_no_jwk_integration__results.xml
-TOKENSERVER_UTILS_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)tokenserver_utils__results.xml
+UNIT_MYSQL_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__mysql-results.xml
+UNIT_POSTGRES_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__postgres-results.xml
+UNIT_SPANNER_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__spanner-results.xml
+UNIT_COVERAGE_MYSQL_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__mysql-coverage.json
+UNIT_COVERAGE_POSTGRES_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__postgres-coverage.json
+UNIT_COVERAGE_SPANNER_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__spanner-coverage.json
 
-LOCAL_INTEGRATION_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)local_integration__results.xml
-SYNC_SYNCSTORAGE__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/syncstorage_rs
-SYNC_TOKENSERVER__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/tokenserver_rs
-
-SRC_ROOT = $(shell pwd)
-PYTHON_SITE_PACKAGES = $(shell poetry run python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
+INT_SPANNER_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__spanner-results.xml
+INT_SPANNER_NO_JWK_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__spanner-no-jwk-results.xml
+INT_POSTGRES_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__postgres-results.xml
+INT_POSTGRES_NO_JWK_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__postgres-no-jwk-results.xml
+INT_MYSQL_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__mysql-results.xml
+INT_MYSQL_NO_JWK_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__mysql-no-jwk-results.xml
 
 clippy_mysql:
 	# Matches what's run in circleci
@@ -117,7 +113,7 @@ docker_run_mysql_e2e_tests:
 	 	up \
 	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
-	docker cp mysql-e2e-tests:/mysql_no_jwk_integration_results.xml ${MYSQL_NO_JWK_INT_JUNIT_XML}
+	docker cp mysql-e2e-tests:/mysql_no_jwk_integration_results.xml ${INT_MYSQL_NO_JWK_JUNIT_XML}
 	RESULTS_FILENAME=mysql_integration_results.xml docker compose \
 		-f docker/docker-compose.mysql.yaml \
 		-f docker/docker-compose.e2e.mysql.yaml \
@@ -125,8 +121,7 @@ docker_run_mysql_e2e_tests:
 	 	up \
 	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
-	docker cp mysql-e2e-tests:/mysql_integration_results.xml ${MYSQL_INT_JUNIT_XML}
-	docker cp mysql-e2e-tests:/tokenserver_utils_results.xml ${TOKENSERVER_UTILS_JUNIT_XML}
+	docker cp mysql-e2e-tests:/mysql_integration_results.xml ${INT_MYSQL_JUNIT_XML}
 	docker compose \
 		-f docker/docker-compose.mysql.yaml \
 		-f docker/docker-compose.e2e.mysql.yaml \
@@ -151,7 +146,7 @@ docker_run_postgres_e2e_tests:
 	 	up \
 	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
-	docker cp postgres-e2e-tests:/postgres_no_jwk_integration_results.xml ${POSTGRES_NO_JWK_INT_JUNIT_XML}
+	docker cp postgres-e2e-tests:/postgres_no_jwk_integration_results.xml ${INT_POSTGRES_NO_JWK_JUNIT_XML}
 	RESULTS_FILENAME=postgres_integration_results.xml docker compose \
 		-f docker/docker-compose.postgres.yaml \
 		-f docker/docker-compose.e2e.postgres.yaml \
@@ -159,8 +154,7 @@ docker_run_postgres_e2e_tests:
 	 	up \
 	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
-	docker cp postgres-e2e-tests:/postgres_integration_results.xml ${POSTGRES_INT_JUNIT_XML}
-	docker cp postgres-e2e-tests:/tokenserver_utils_results.xml ${TOKENSERVER_UTILS_JUNIT_XML}
+	docker cp postgres-e2e-tests:/postgres_integration_results.xml ${INT_POSTGRES_JUNIT_XML}
 	docker compose \
 		-f docker/docker-compose.postgres.yaml \
 		-f docker/docker-compose.e2e.postgres.yaml \
@@ -185,7 +179,7 @@ docker_run_spanner_e2e_tests:
 	 	up \
 	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
-	docker cp spanner-e2e-tests:/spanner_no_jwk_integration_results.xml ${SPANNER_NO_JWK_INT_JUNIT_XML}
+	docker cp spanner-e2e-tests:/spanner_no_jwk_integration_results.xml ${INT_SPANNER_NO_JWK_JUNIT_XML}
 	RESULTS_FILENAME=spanner_integration_results.xml docker compose \
 		-f docker/docker-compose.spanner.yaml \
 		-f docker/docker-compose.e2e.spanner.yaml \
@@ -193,8 +187,7 @@ docker_run_spanner_e2e_tests:
 	 	up \
 	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
-	docker cp spanner-e2e-tests:/spanner_integration_results.xml ${SPANNER_INT_JUNIT_XML}
-	docker cp spanner-e2e-tests:/tokenserver_utils_results.xml ${TOKENSERVER_UTILS_JUNIT_XML}
+	docker cp spanner-e2e-tests:/spanner_integration_results.xml ${INT_SPANNER_JUNIT_XML}
 	docker compose \
 		-f docker/docker-compose.spanner.yaml \
 		-f docker/docker-compose.e2e.spanner.yaml \
@@ -231,23 +224,23 @@ test_with_coverage:
 	SYNC_SYNCSTORAGE__DATABASE_URL=${SYNC_SYNCSTORAGE__DATABASE_URL} \
 	SYNC_TOKENSERVER__DATABASE_URL=${SYNC_TOKENSERVER__DATABASE_URL} \
 	RUST_TEST_THREADS=1 \
-	cargo llvm-cov --summary-only --json --output-path ${MYSQL_COVERAGE_JSON} \
+	cargo llvm-cov --summary-only --json --output-path ${UNIT_COVERAGE_MYSQL_JSON} \
 		nextest --workspace --profile ${TEST_PROFILE}; exit_code=$$?
-	mv target/nextest/${TEST_PROFILE}/junit.xml ${MYSQL_UNIT_JUNIT_XML}
+	mv target/nextest/${TEST_PROFILE}/junit.xml ${UNIT_MYSQL_JUNIT_XML}
 	exit $$exit_code
 
 .ONESHELL:
 spanner_test_with_coverage:
-	cargo llvm-cov --summary-only --json --output-path ${SPANNER_COVERAGE_JSON} \
+	cargo llvm-cov --summary-only --json --output-path ${UNIT_COVERAGE_SPANNER_JSON} \
 		nextest --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier --profile ${TEST_PROFILE}; exit_code=$$?
-	mv target/nextest/${TEST_PROFILE}/junit.xml ${SPANNER_UNIT_JUNIT_XML}
+	mv target/nextest/${TEST_PROFILE}/junit.xml ${UNIT_SPANNER_JUNIT_XML}
 	exit $$exit_code
 
 .ONESHELL:
 postgres_test_with_coverage:
-	cargo llvm-cov --summary-only --json --output-path ${POSTGRES_COVERAGE_JSON} \
+	cargo llvm-cov --summary-only --json --output-path ${UNIT_COVERAGE_POSTGRES_JSON} \
 		nextest --workspace --no-default-features --features=syncstorage-db/postgres --features=tokenserver-db/postgres --features=py_verifier --profile ${TEST_PROFILE}; exit_code=$$?
-	mv target/nextest/${TEST_PROFILE}/junit.xml ${POSTGRES_UNIT_JUNIT_XML}
+	mv target/nextest/${TEST_PROFILE}/junit.xml ${UNIT_POSTGRES_JUNIT_XML}
 	exit $$exit_code
 
 .ONESHELL:
