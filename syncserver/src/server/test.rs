@@ -12,7 +12,7 @@ use actix_web::{
 use base64::{Engine, engine};
 use chrono::offset::Utc;
 use hawk::{self, Credentials, Key, RequestBuilder};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use http::StatusCode;
 use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;

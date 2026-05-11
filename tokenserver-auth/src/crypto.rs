@@ -1,5 +1,5 @@
 use hkdf::Hkdf;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, errors::ErrorKind, jwk::Jwk};
 use ring::rand::{SecureRandom, SystemRandom};
 use serde::de::DeserializeOwned;

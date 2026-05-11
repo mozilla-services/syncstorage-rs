@@ -12,7 +12,7 @@ use base64::{Engine, engine};
 use futures::executor::block_on;
 use glean::server_events::GleanEventsLogger;
 use hawk::{Credentials, Key, RequestBuilder};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use lazy_static::lazy_static;
 use sha2::Sha256;
 use tokio::sync::RwLock;

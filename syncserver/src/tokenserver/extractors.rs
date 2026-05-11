@@ -15,7 +15,7 @@ use actix_web::{
 use base64::{Engine, engine};
 use futures::future::LocalBoxFuture;
 use hex;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use http::StatusCode;
 use lazy_static::lazy_static;
 use regex::Regex;
