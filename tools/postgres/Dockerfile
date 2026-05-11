@@ -1,4 +1,4 @@
-FROM python:3.14-bookworm
+FROM python:3.14-trixie
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

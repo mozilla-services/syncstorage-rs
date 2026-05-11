@@ -65,7 +65,7 @@ add-ignore = ["D105","D107","D203", "D205", "D400"]
 skips = ["B101", "B104", "B105", "B106", "B311", "B404", "B603"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 disable_error_code = "attr-defined"
 disallow_untyped_calls = false
 follow_imports = "normal"
