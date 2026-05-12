@@ -86,6 +86,10 @@ where
 """)
 
 
+# No ORDER BY: pruning is destructive and `purge_old_records.py` uses a random
+# offset for sharding, so stable pagination is not required. Avoiding the sort
+# lets this stop after LIMIT+OFFSET qualifying rows instead of
+# sorting the entire matching set.
 _GET_OLD_USER_RECORDS_FOR_SERVICE = sqltext("""\
 select
     uid, email, generation, keys_changed_at, client_state,
@@ -96,14 +100,14 @@ where
     users.service = :service
 and
     replaced_at is not null and replaced_at < :timestamp
-order by
-    replaced_at desc, uid desc
 limit
     :limit
 offset
     :offset
 """)
 
+# See note on _GET_OLD_USER_RECORDS_FOR_SERVICE for why this query intentionally
+# has no ORDER BY.
 _GET_OLD_USER_RECORDS_FOR_SERVICE_RANGE = """\
 select
     uid, email, generation, keys_changed_at, client_state,
@@ -116,8 +120,6 @@ and
     ::RANGE::
 and
     replaced_at is not null and replaced_at < :timestamp
-order by
-    replaced_at desc, uid desc
 limit
     :limit
 offset
