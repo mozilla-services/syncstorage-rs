@@ -9,7 +9,7 @@
 use base64::{Engine, engine};
 use chrono::{TimeDelta, offset::Utc};
 use hawk::{self, Header as HawkHeader, Key, RequestBuilder};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use syncserver_common;
@@ -201,7 +201,7 @@ impl HawkPayload {
 fn verify_hmac(info: &[u8], key: &[u8], expected: &[u8]) -> ApiResult<()> {
     let mut hmac = Hmac::<Sha256>::new_from_slice(key)?;
     hmac.update(info);
-    hmac.verify(expected.into()).map_err(From::from)
+    hmac.verify_slice(expected).map_err(From::from)
 }
 
 #[cfg(test)]
