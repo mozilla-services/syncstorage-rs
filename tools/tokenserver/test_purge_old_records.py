@@ -135,8 +135,11 @@ def test_purging_of_old_user_records(purge_db, mock_service_server):
     assert len(service_requests) == 2
 
     # Check that the proper delete requests were made to the service.
-    expected_kids = ["0000000000450-uw", "0000000000123-qg"]
-    for i, environ in enumerate(service_requests):
+    # Order is not asserted: the underlying query intentionally has no ORDER BY
+    # (see _GET_OLD_USER_RECORDS_FOR_SERVICE), so kids are compared as a set.
+    expected_kids = {"0000000000450-uw", "0000000000123-qg"}
+    actual_kids = set()
+    for environ in service_requests:
         # They must be to the correct path.
         assert environ["REQUEST_METHOD"] == "DELETE"
         assert re.match("/1.5/[0-9]+", environ["PATH_INFO"])
@@ -148,7 +151,8 @@ def test_purging_of_old_user_records(purge_db, mock_service_server):
         assert "uid" in userdata
         assert "node" in userdata
         assert userdata["fxa_uid"] == "test"
-        assert userdata["fxa_kid"] == expected_kids[i]
+        actual_kids.add(userdata["fxa_kid"])
+    assert actual_kids == expected_kids
 
     # Check that the user's current state is unaffected
     user = database.get_user(email)
