@@ -1051,7 +1051,7 @@ dependencies = [
  "downcast-rs",
  "itoa",
  "pq-sys",
- "uuid 0.8.2",
+ "uuid 1.22.0",
 ]
 
 [[package]]
