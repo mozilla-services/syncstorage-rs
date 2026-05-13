@@ -354,12 +354,12 @@ impl SpannerDb {
              AND collection_id = @collection_id
            GROUP BY fxa_uid"
         } else {
-            "SELECT COUNT(*)
+            "SELECT 1
             FROM bsos
            WHERE fxa_uid = @fxa_uid
              AND fxa_kid = @fxa_kid
              AND collection_id = @collection_id
-           GROUP BY fxa_uid"
+           LIMIT 1"
         };
 
         let result = {
