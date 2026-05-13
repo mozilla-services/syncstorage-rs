@@ -34,6 +34,7 @@ pub struct ServerState {
     pub token_duration: u64,
     pub set_verifiers: Vec<SETVerifierImpl>,
     pub fxa_webhook_enabled: bool,
+    pub allow_new_users: bool,
 }
 
 impl ServerState {
@@ -115,6 +116,7 @@ impl ServerState {
             token_duration: settings.token_duration,
             set_verifiers,
             fxa_webhook_enabled: settings.fxa_webhook_enabled,
+            allow_new_users: settings.allow_new_users,
         })
     }
 
