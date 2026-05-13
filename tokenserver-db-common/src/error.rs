@@ -22,8 +22,17 @@ impl DbError {
         DbErrorKind::Internal(msg).into()
     }
 
+    pub fn user_not_created(user: String) -> Self {
+        DbErrorKind::UserNotCreated(user).into()
+    }
+
     pub fn pool_timeout(timeout_type: deadpool::managed::TimeoutType) -> Self {
         DbErrorKind::PoolTimeout(timeout_type).into()
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn is_user_not_created(&self) -> bool {
+        matches!(&self.kind, DbErrorKind::UserNotCreated(_))
     }
 
     #[cfg(debug_assertions)]
@@ -59,6 +68,9 @@ impl ReportableError for DbError {
 
 #[derive(Debug, Error)]
 enum DbErrorKind {
+    #[error("Specified user does not exist (new users are disallowed): {}", _0)]
+    UserNotCreated(String),
+
     #[error("{}", _0)]
     Sql(SqlError),
 
@@ -72,6 +84,11 @@ enum DbErrorKind {
 impl From<DbErrorKind> for DbError {
     fn from(kind: DbErrorKind) -> Self {
         match kind {
+            DbErrorKind::UserNotCreated(_) => Self {
+                kind,
+                status: StatusCode::FORBIDDEN,
+                backtrace: Box::new(Backtrace::new_unresolved()),
+            },
             DbErrorKind::Sql(ref sqle) => Self {
                 status: sqle.status,
                 backtrace: Box::new(sqle.backtrace.clone()),
@@ -98,6 +115,9 @@ impl From<DbError> for TokenserverError {
                 // Use the status code from the DbError if it already suggests an internal error;
                 // it might be more specific than `StatusCode::SERVICE_UNAVAILABLE`
                 db_error.status
+            } else if db_error.is_user_not_created() {
+                // Throw a proper 403 Forbidden HTTP error if user creation is disabled
+                StatusCode::FORBIDDEN
             } else {
                 StatusCode::SERVICE_UNAVAILABLE
             },
