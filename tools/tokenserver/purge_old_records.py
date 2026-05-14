@@ -64,7 +64,7 @@ def purge_old_records(
     logger.info("Purging old user records")
     try:
         database = Database()
-        previous_list = []
+        previous_uids = set()
         # Process batches of <max_per_loop> items, until we run out.
         while True:
             offset = random.randint(0, max_offset)
@@ -78,9 +78,10 @@ def purge_old_records(
             if not rows:
                 logger.info("No more data")
                 break
-            if rows == previous_list:
+            current_uids = {row.uid for row in rows}
+            if current_uids == previous_uids:
                 raise Exception("Loop detected")
-            previous_list = rows
+            previous_uids = current_uids
             range_msg = ""
             if uid_range:
                 range_msg = (
