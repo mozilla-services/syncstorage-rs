@@ -284,3 +284,21 @@ make api-prev                    # generate OpenAPI spec + serve Swagger UI on :
 - `tools/integration_tests/tokenserver/conftest.py` — tokenserver fixtures only
 - `tools/integration_tests/tokenserver/helpers.py` — tokenserver DB/auth helpers
 - `tools/integration_tests/tokenserver/test_*.py` — tokenserver tests
+
+## MCP integrations
+
+Two MCP servers are configured for this repository: **Atlassian Jira** (`mcp__atlassian__`) and **Sentry** (`mcp__sentry__`).
+
+Use the skills below to query them. Do not call MCP tools ad-hoc without reading the shared context first.
+
+| Skill | Invocation | Purpose |
+|---|---|---|
+| Jira status | `/jira-status [me\|epic KEY\|epics\|sprint\|summary ...\|create ...\|update STOR-#### ...]` | Task landscape, epics, personal view, summaries, create/edit tickets |
+| Sentry health | `/sentry-health [new\|regressions\|volume\|full]` | Production error trends, regressions, new issues |
+
+**Shared context:** `.claude/mcp-context.md` contains project IDs, JQL patterns, Sentry project slug, what to flag, and known noise. Skills read this at runtime. Read it before any ad-hoc MCP query.
+
+**Identity when using these tools:** You are acting as both engineer and engineering manager. Surface patterns, not just raw lists. Distinguish "needs action now" from "worth monitoring". Do not fabricate data — if a query returns nothing, say so.
+
+**Jira project:** `STOR` — `https://mozilla-hub.atlassian.net`
+**Sentry project:** `syncstorage-prod` — org `mozilla`
