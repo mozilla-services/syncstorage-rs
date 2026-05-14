@@ -60,10 +60,6 @@ CREATE TABLE batches (
 )    PRIMARY KEY(fxa_uid, fxa_kid, collection_id, batch_id),
   INTERLEAVE IN PARENT user_collections ON DELETE CASCADE;
 
-    CREATE INDEX BatchExpireId
-        ON batches(fxa_uid, fxa_kid, collection_id, expiry),
-INTERLEAVE IN user_collections;
-
 CREATE TABLE batch_bsos (
   fxa_uid STRING(MAX)      NOT NULL,
   fxa_kid STRING(MAX)      NOT NULL,
