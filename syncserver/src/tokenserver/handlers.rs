@@ -444,6 +444,7 @@ mod tests {
             token_duration: 3600,
             set_verifiers,
             fxa_webhook_enabled: true,
+            allow_new_users: true,
         }
     }
 

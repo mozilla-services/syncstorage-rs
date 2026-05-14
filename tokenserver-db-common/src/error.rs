@@ -18,12 +18,20 @@ pub struct DbError {
 }
 
 impl DbError {
+    pub fn user_not_found(user: String) -> Self {
+        DbErrorKind::UserNotFound(user).into()
+    }
+
     pub fn internal(msg: String) -> Self {
         DbErrorKind::Internal(msg).into()
     }
 
     pub fn pool_timeout(timeout_type: deadpool::managed::TimeoutType) -> Self {
         DbErrorKind::PoolTimeout(timeout_type).into()
+    }
+
+    pub fn is_user_not_found(&self) -> bool {
+        matches!(&self.kind, DbErrorKind::UserNotFound(_))
     }
 
     #[cfg(debug_assertions)]
@@ -59,6 +67,9 @@ impl ReportableError for DbError {
 
 #[derive(Debug, Error)]
 enum DbErrorKind {
+    #[error("Specified user does not exist: {}", _0)]
+    UserNotFound(String),
+
     #[error("{}", _0)]
     Sql(SqlError),
 
@@ -72,6 +83,11 @@ enum DbErrorKind {
 impl From<DbErrorKind> for DbError {
     fn from(kind: DbErrorKind) -> Self {
         match kind {
+            DbErrorKind::UserNotFound(_) => Self {
+                kind,
+                status: StatusCode::NOT_FOUND,
+                backtrace: Box::new(Backtrace::new_unresolved()),
+            },
             DbErrorKind::Sql(ref sqle) => Self {
                 status: sqle.status,
                 backtrace: Box::new(sqle.backtrace.clone()),

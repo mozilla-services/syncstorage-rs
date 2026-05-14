@@ -66,6 +66,9 @@ pub struct Settings {
     /// Whether to enable the FxA webhook endpoint.
     /// Defaults to false.
     pub fxa_webhook_enabled: bool,
+    /// Whether new users may register to the Tokenserver.
+    /// Defaults to true.
+    pub allow_new_users: bool,
 }
 
 impl Default for Settings {
@@ -93,6 +96,7 @@ impl Default for Settings {
             init_node_url: None,
             init_node_capacity: 100000,
             fxa_webhook_enabled: false,
+            allow_new_users: true,
         }
     }
 }
