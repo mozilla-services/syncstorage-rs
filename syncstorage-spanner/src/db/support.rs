@@ -9,9 +9,7 @@ use protobuf::{
     RepeatedField,
     well_known_types::{ListValue, NullValue, Struct, Value},
 };
-use syncstorage_db_common::{
-    DEFAULT_BSO_TTL, UserIdentifier, params, results, util::SyncTimestamp, util::to_rfc3339,
-};
+use syncstorage_db_common::{results, util::SyncTimestamp};
 
 pub use super::stream::StreamedResultSetAsync;
 use crate::{DbResult, error::DbError, pool::Conn};
@@ -199,69 +197,4 @@ pub fn bso_from_row(mut row: Vec<Value>) -> DbResult<results::GetBso> {
             .map_err(|e| DbError::integrity(e.to_string()))?
             .as_i64(),
     })
-}
-
-pub fn bso_to_insert_row(
-    user_id: &UserIdentifier,
-    collection_id: i32,
-    bso: params::PostCollectionBso,
-    now: SyncTimestamp,
-) -> DbResult<ListValue> {
-    let sortindex = bso
-        .sortindex
-        .map(|sortindex| sortindex.into_spanner_value())
-        .unwrap_or_else(null_value);
-    let ttl = bso.ttl.unwrap_or(DEFAULT_BSO_TTL);
-    let expiry = to_rfc3339(now.as_i64() + (i64::from(ttl) * 1000))?;
-
-    let mut row = ListValue::new();
-    row.set_values(RepeatedField::from_vec(vec![
-        user_id.fxa_uid.clone().into_spanner_value(),
-        user_id.fxa_kid.clone().into_spanner_value(),
-        collection_id.into_spanner_value(),
-        bso.id.into_spanner_value(),
-        sortindex,
-        bso.payload.unwrap_or_default().into_spanner_value(),
-        now.as_rfc3339()?.into_spanner_value(),
-        expiry.into_spanner_value(),
-    ]));
-    Ok(row)
-}
-
-pub fn bso_to_update_row(
-    user_id: &UserIdentifier,
-    collection_id: i32,
-    bso: params::PostCollectionBso,
-    now: SyncTimestamp,
-) -> DbResult<(Vec<&'static str>, ListValue)> {
-    let mut columns = vec!["fxa_uid", "fxa_kid", "collection_id", "bso_id"];
-    let mut values = vec![
-        user_id.fxa_uid.clone().into_spanner_value(),
-        user_id.fxa_kid.clone().into_spanner_value(),
-        collection_id.into_spanner_value(),
-        bso.id.into_spanner_value(),
-    ];
-
-    let modified = bso.payload.is_some() || bso.sortindex.is_some();
-    if let Some(sortindex) = bso.sortindex {
-        columns.push("sortindex");
-        values.push(sortindex.into_spanner_value());
-    }
-    if let Some(payload) = bso.payload {
-        columns.push("payload");
-        values.push(payload.into_spanner_value());
-    }
-    if modified {
-        columns.push("modified");
-        values.push(now.as_rfc3339()?.into_spanner_value());
-    }
-    if let Some(ttl) = bso.ttl {
-        columns.push("expiry");
-        let expiry = now.as_i64() + (i64::from(ttl) * 1000);
-        values.push(to_rfc3339(expiry)?.into_spanner_value());
-    }
-
-    let mut row = ListValue::new();
-    row.set_values(RepeatedField::from_vec(values));
-    Ok((columns, row))
 }

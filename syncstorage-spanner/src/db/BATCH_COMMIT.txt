@@ -9,7 +9,7 @@ those with NULL values won't be touched. When INSERTing bsos, columns with NULL
 values recieve defaults.
 
 The entire move (batch commit) happens in one single transaction. Spanner
-limits the number of writes (or "mutations") within a transaction to 20000
+limits the number of writes (or "mutations") within a transaction to 80000
 total mutations. A mutation is a write to an individual column. Any writes
 requiring modifications to secondary indices also incur additional mutations.
 DELETEs are generally cheaper (incurring one mutation per DELETE, not including
@@ -30,7 +30,7 @@ The batch commit mutations are as follows:
 - Possibly direct inserts via post_bsos (but these only reduce total mutations
   by avoiding writing to the batch table, so not included here)
 
-- Write 1664 (MAX_TOTAL_RECORDS) to `bsos`: max 19968 (1664 * 12) mutations
+- Write 6665 (MAX_TOTAL_RECORDS) to `bsos`: max 79980 (6665 * 12) mutations
   - INSERT takes 10 mutations:
     - 4 key columns
     - 4 non key columns
@@ -52,7 +52,7 @@ The batch commit mutations are as follows:
 
 Totals:
 - quota: False
-  4 + 19968 + 1 = 19973
+  4 + 79980 + 1 = 79985
 
 - quota: True
-  6 + 19968 + 1 + 6 = 19981
+  6 + 79980 + 1 + 6 = 79993
