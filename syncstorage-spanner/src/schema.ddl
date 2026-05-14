@@ -81,3 +81,11 @@ CREATE TABLE batch_bsos (
 -- *NOTE*:
 -- Newly created Spanner instances should pre-populate the `collections` table by
 -- running the content of `insert_standard_collections.sql `
+
+
+-- Have Spanner manage ttl based deletion.
+ALTER TABLE bsos
+    ADD ROW DELETION POLICY (OLDER_THAN(expiry, INTERVAL 0 DAY));
+ALTER TABLE batches
+    ADD ROW DELETION POLICY (OLDER_THAN(expiry, INTERVAL 0 DAY));
+
