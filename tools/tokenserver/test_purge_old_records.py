@@ -15,6 +15,24 @@ from database import Database
 from purge_old_records import purge_old_records
 
 
+class _RecordingMetrics:
+    """In-test stand-in for util.Metrics that records every call."""
+
+    def __init__(self):
+        self.incrs = []  # (label, value, tags)
+        self.gauges = []  # (label, value, tags)
+        self.timings = []  # (label, value_ms, tags)
+
+    def incr(self, label, value=1, tags=None):
+        self.incrs.append((label, value, tags))
+
+    def gauge(self, label, value, tags=None):
+        self.gauges.append((label, value, tags))
+
+    def timing(self, label, value_ms, tags=None):
+        self.timings.append((label, value_ms, tags))
+
+
 def _make_service_app(service_requests, failure_uids):
     """Return a WSGI app that records each request into the given list.
 
@@ -386,13 +404,6 @@ def test_failed_service_delete_does_not_abort_batch(purge_db, mock_service_serve
     failure_uids.add(broken_old.uid)
     original_replaced_at = broken_old.replaced_at
 
-    class _RecordingMetrics:
-        def __init__(self):
-            self.calls = []
-
-        def incr(self, label, tags=None):
-            self.calls.append((label, tags))
-
     metrics = _RecordingMetrics()
     assert purge_old_records(node_secret, grace_period=0, metrics=metrics) is True
 
@@ -408,9 +419,63 @@ def test_failed_service_delete_does_not_abort_batch(purge_db, mock_service_serve
     assert bumped.replaced_at > original_replaced_at
 
     # The failure was reported with a stable error-class tag.
-    failure_calls = [c for c in metrics.calls if c[0] == "row_failure"]
+    failure_calls = [c for c in metrics.incrs if c[0] == "row_failure"]
     assert len(failure_calls) == 1
-    assert failure_calls[0][1] == {"reason": "http_5xx"}
+    assert failure_calls[0][2] == {"reason": "http_5xx"}
+
+
+def test_run_level_metrics_are_emitted(purge_db, mock_service_server):
+    """purge.backlog.size, batch.fetched, run.success and run.duration_ms emit."""
+    database = purge_db
+    node_secret = "SECRET"
+
+    # Seed two old records so backlog.size > 0 and batch.fetched > 0.
+    for email in ("a@mozilla.com", "b@mozilla.com"):
+        user = database.allocate_user(email, client_state="aa", generation=1)
+        database.update_user(user, client_state="bb", generation=2)
+
+    metrics = _RecordingMetrics()
+    assert purge_old_records(node_secret, grace_period=0, metrics=metrics) is True
+
+    # Backlog gauge: emitted once, equals the number of eligible old rows.
+    backlog = [g for g in metrics.gauges if g[0] == "purge.backlog.size"]
+    assert len(backlog) == 1
+    assert backlog[0][1] == 2
+
+    # Batch.fetched: one batch of two rows.
+    fetched = [i for i in metrics.incrs if i[0] == "purge.batch.fetched"]
+    assert len(fetched) == 1
+    assert fetched[0][1] == 2
+
+    # Run success counter + duration timing emit on the success path.
+    success = [i for i in metrics.incrs if i[0] == "purge.run.success"]
+    assert len(success) == 1
+    failure = [i for i in metrics.incrs if i[0] == "purge.run.failure"]
+    assert failure == []
+    timings = [t for t in metrics.timings if t[0] == "purge.run.duration_ms"]
+    assert len(timings) == 1
+    assert timings[0][1] >= 0
+
+
+def test_run_failure_metric_emits_on_unhandled_error(purge_db, monkeypatch):
+    """When the outer try catches, purge.run.failure and duration are emitted."""
+    node_secret = "SECRET"
+
+    # The fresh Database() built inside purge_old_records inherits this patch.
+    def _explode(*_args, **_kwargs):
+        raise RuntimeError("simulated DB failure")
+
+    monkeypatch.setattr(Database, "get_old_user_records", _explode)
+
+    metrics = _RecordingMetrics()
+    assert purge_old_records(node_secret, grace_period=0, metrics=metrics) is False
+
+    failure = [i for i in metrics.incrs if i[0] == "purge.run.failure"]
+    assert len(failure) == 1
+    success = [i for i in metrics.incrs if i[0] == "purge.run.success"]
+    assert success == []
+    timings = [t for t in metrics.timings if t[0] == "purge.run.duration_ms"]
+    assert len(timings) == 1
 
 
 @pytest.mark.migration_records
