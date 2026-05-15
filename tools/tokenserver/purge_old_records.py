@@ -62,9 +62,16 @@ def purge_old_records(
     """
     logger = logging.getLogger(LOGGER)
     logger.info("Purging old user records")
+    start = time.monotonic()
+    success = False
     try:
         database = Database()
         previous_uids = set()
+        if metrics:
+            metrics.gauge(
+                "purge.backlog.size", database.count_old_user_records(grace_period)
+            )
+        previous_list = []
         # Process batches of <max_per_loop> items, until we run out.
         while True:
             offset = random.randint(0, max_offset)
@@ -89,6 +96,8 @@ def purge_old_records(
                     f" to {uid_range[1] or 'End'}"
                 )
             logger.info(f"Fetched {len(rows)} rows at offset {offset}{range_msg}")
+            if metrics:
+                metrics.incr("purge.batch.fetched", value=len(rows))
             counter = 0
             for row in rows:
                 try:
@@ -185,15 +194,22 @@ def purge_old_records(
                     logger.info("Reached max_records, exiting")
                     if metrics:
                         metrics.incr("max_records")
+                    success = True
                     return True
             if len(rows) < max_per_loop:
                 break
+        logger.info("Finished purging old user records")
+        success = True
+        return True
     except Exception:
         logger.exception("Error while purging old user records")
         return False
-    else:
-        logger.info("Finished purging old user records")
-        return True
+    finally:
+        if metrics:
+            metrics.timing(
+                "purge.run.duration_ms", int((time.monotonic() - start) * 1000)
+            )
+            metrics.incr("purge.run.success" if success else "purge.run.failure")
 
 
 def delete_service_data(
