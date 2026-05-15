@@ -71,7 +71,6 @@ def purge_old_records(
             metrics.gauge(
                 "purge.backlog.size", database.count_old_user_records(grace_period)
             )
-        previous_list = []
         # Process batches of <max_per_loop> items, until we run out.
         while True:
             offset = random.randint(0, max_offset)
