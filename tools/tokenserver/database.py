@@ -182,6 +182,18 @@ where
 """)
 
 
+_COUNT_OLD_USER_RECORDS = sqltext("""\
+select
+    count(*)
+from
+    users
+where
+    users.service = :service
+    and replaced_at is not null
+    and replaced_at < :timestamp
+""")
+
+
 # MySQL: log(0) returns NULL, and NULLs sort first with ASC — zero-load
 # nodes naturally win. Original query unchanged.
 _GET_BEST_NODE_MYSQL = sqltext("""\
@@ -509,6 +521,24 @@ class Database:
         if timestamp is None:
             timestamp = get_timestamp()
         res = self._execute_sql(_COUNT_USER_RECORDS, timestamp=timestamp)
+        row = res.fetchone()
+        res.close()
+        return row[0]
+
+    def count_old_user_records(self, grace_period=-1):
+        """Return the count of user records currently eligible for purging.
+
+        Uses the same `grace_period` semantics as `get_old_user_records`:
+        a negative value defaults to one week.
+        """
+        if grace_period < 0:
+            grace_period = 60 * 60 * 24 * 7
+        grace_period = int(grace_period * 1000)
+        params = {
+            "service": self._get_service_id(SERVICE_NAME),
+            "timestamp": get_timestamp() - grace_period,
+        }
+        res = self._execute_sql(_COUNT_OLD_USER_RECORDS, **params)
         row = res.fetchone()
         res.close()
         return row[0]
