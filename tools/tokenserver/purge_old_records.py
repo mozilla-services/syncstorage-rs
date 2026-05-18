@@ -62,9 +62,15 @@ def purge_old_records(
     """
     logger = logging.getLogger(LOGGER)
     logger.info("Purging old user records")
+    start = time.monotonic()
+    success = False
     try:
         database = Database()
         previous_uids = set()
+        if metrics:
+            metrics.gauge(
+                "purge.backlog.size", database.count_old_user_records(grace_period)
+            )
         # Process batches of <max_per_loop> items, until we run out.
         while True:
             offset = random.randint(0, max_offset)
@@ -89,85 +95,120 @@ def purge_old_records(
                     f" to {uid_range[1] or 'End'}"
                 )
             logger.info(f"Fetched {len(rows)} rows at offset {offset}{range_msg}")
+            if metrics:
+                metrics.incr("purge.batch.fetched", value=len(rows))
             counter = 0
             for row in rows:
-                # Don't attempt to purge data from downed nodes.
-                # Instead wait for them to either come back up or to be
-                # completely removed from service.
-                if row.node is None:
-                    logger.info(f"Deleting user record for uid {row.uid} on row.node")
-                    if not dryrun:
-                        if metrics:
-                            metrics.incr("delete_user", tags={"type": "nodeless"})
-                        retryable(database.delete_user_record, row.uid)
-                    # NOTE: only delete_user+service_data calls count
-                    # against the counter
-                elif not row.downed:
-                    logger.info(f"Purging uid {row.uid} on {row.node}")
-                    if not dryrun:
-                        retryable(
-                            delete_service_data,
-                            row,
-                            secret,
-                            timeout=request_timeout,
-                            dryrun=dryrun,
-                            metrics=metrics,
+                try:
+                    # Don't attempt to purge data from downed nodes.
+                    # Instead wait for them to either come back up or to be
+                    # completely removed from service.
+                    if row.node is None:
+                        logger.info(
+                            f"Deleting user record for uid {row.uid} on row.node"
                         )
-                        if metrics:
-                            metrics.incr("delete_data")
-                        retryable(database.delete_user_record, row.uid)
-                        if metrics:
-                            metrics.incr("delete_user", tags={"type": "not_down"})
-                    counter += 1
-                elif force:
-                    delete_sd = not points_to_active(
-                        database, row, override_node, metrics=metrics
-                    )
-                    logger.info(
-                        "Forcing tokenserver record delete: "
-                        f"{row.uid} on {row.node} "
-                        f"(deleting service data: {delete_sd})"
-                    )
-                    if not dryrun:
-                        if delete_sd:
-                            # Attempt to delete the user information from
-                            # the existing data set. This may fail, either
-                            # because the HawkAuth is referring to an
-                            # invalid node, or because the corresponding
-                            # request refers to a node not contained by
-                            # the existing data set.
-                            # (The call mimics a user DELETE request.)
+                        if not dryrun:
+                            if metrics:
+                                metrics.incr("delete_user", tags={"type": "nodeless"})
+                            retryable(database.delete_user_record, row.uid)
+                        # NOTE: only delete_user+service_data calls count
+                        # against the counter
+                    elif not row.downed:
+                        logger.info(f"Purging uid {row.uid} on {row.node}")
+                        if not dryrun:
                             retryable(
                                 delete_service_data,
                                 row,
                                 secret,
                                 timeout=request_timeout,
                                 dryrun=dryrun,
-                                # if an override was specifed,
-                                # use that node ID
-                                override_node=override_node,
                                 metrics=metrics,
                             )
                             if metrics:
-                                metrics.incr("delete_data", tags={"type": "force"})
+                                metrics.incr("delete_data")
+                            retryable(database.delete_user_record, row.uid)
+                            if metrics:
+                                metrics.incr("delete_user", tags={"type": "not_down"})
+                        counter += 1
+                    elif force:
+                        delete_sd = not points_to_active(
+                            database, row, override_node, metrics=metrics
+                        )
+                        logger.info(
+                            "Forcing tokenserver record delete: "
+                            f"{row.uid} on {row.node} "
+                            f"(deleting service data: {delete_sd})"
+                        )
+                        if not dryrun:
+                            if delete_sd:
+                                # Attempt to delete the user information from
+                                # the existing data set. This may fail, either
+                                # because the HawkAuth is referring to an
+                                # invalid node, or because the corresponding
+                                # request refers to a node not contained by
+                                # the existing data set.
+                                # (The call mimics a user DELETE request.)
+                                retryable(
+                                    delete_service_data,
+                                    row,
+                                    secret,
+                                    timeout=request_timeout,
+                                    dryrun=dryrun,
+                                    # if an override was specifed,
+                                    # use that node ID
+                                    override_node=override_node,
+                                    metrics=metrics,
+                                )
+                                if metrics:
+                                    metrics.incr("delete_data", tags={"type": "force"})
 
-                        retryable(database.delete_user_record, row.uid)
-                        if metrics:
-                            metrics.incr("delete_data", tags={"type": "force"})
-                    counter += 1
+                            retryable(database.delete_user_record, row.uid)
+                            if metrics:
+                                metrics.incr("delete_data", tags={"type": "force"})
+                        counter += 1
+                except Exception as exc:
+                    # Isolate per-row failures so a single bad row does not
+                    # abort the batch (STOR-70). Bumping replaced_at moves
+                    # the row to the back of the queue: it
+                    # leaves the eligible set for `grace_period` seconds,
+                    # giving healthy rows a chance to clear.
+                    reason = _classify_failure(exc)
+                    logger.exception(
+                        f"Failed to purge uid {row.uid}; "
+                        f"deferring retry (reason={reason})"
+                    )
+                    if metrics:
+                        metrics.incr("row_failure", tags={"reason": reason})
+                    if not dryrun:
+                        try:
+                            database.replace_user_record(row.uid)
+                        except Exception:
+                            logger.exception(
+                                f"Failed to bump replaced_at for uid {row.uid}"
+                            )
+                            if metrics:
+                                metrics.incr("row_failure_bump_failed")
+                    continue
                 if max_records and counter >= max_records:
                     logger.info("Reached max_records, exiting")
                     if metrics:
                         metrics.incr("max_records")
+                    success = True
                     return True
             if len(rows) < max_per_loop:
                 break
+        logger.info("Finished purging old user records")
+        success = True
+        return True
     except Exception:
         logger.exception("Error while purging old user records")
         return False
-    else:
-        logger.info("Finished purging old user records")
-        return True
+    finally:
+        if metrics:
+            metrics.timing(
+                "purge.run.duration_ms", int((time.monotonic() - start) * 1000)
+            )
+            metrics.incr("purge.run.success" if success else "purge.run.failure")
 
 
 def delete_service_data(
@@ -216,6 +257,26 @@ def retry_giveup(e):
 def retryable(fn, *args, **kwargs):
     """Call fn with args, retrying on HTTP errors with exponential backoff."""
     fn(*args, **kwargs)
+
+
+def _classify_failure(exc):
+    """Map a per-row failure to a stable metric tag value.
+
+    Returns one of a small fixed set of strings to keep the metric's tag
+    cardinality bounded.
+    """
+    if isinstance(exc, requests.HTTPError) and exc.response is not None:
+        code = exc.response.status_code
+        if 500 <= code < 600:
+            return "http_5xx"
+        if 400 <= code < 500:
+            return "http_4xx"
+        return "http_other"
+    if isinstance(exc, requests.Timeout):
+        return "timeout"
+    if isinstance(exc, requests.ConnectionError):
+        return "connect"
+    return "unknown"
 
 
 def points_to_active(database, replaced_at_row, override_node, metrics=None):

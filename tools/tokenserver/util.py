@@ -109,9 +109,17 @@ class Metrics:
         self.prefix = options.get("namespace")
         initialize(**options)
 
-    def incr(self, label, tags=None):
+    def incr(self, label, value=1, tags=None):
         """Increment a statsd counter with the given label and optional tags."""
-        statsd.increment(label, tags=tags)
+        statsd.increment(label, value=value, tags=tags)
+
+    def gauge(self, label, value, tags=None):
+        """Record a point-in-time gauge value."""
+        statsd.gauge(label, value, tags=tags)
+
+    def timing(self, label, value_ms, tags=None):
+        """Record a timing value in milliseconds."""
+        statsd.timing(label, value_ms, tags=tags)
 
 
 def add_metric_options(parser: optparse.OptionParser):
