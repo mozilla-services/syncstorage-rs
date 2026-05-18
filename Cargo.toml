@@ -35,13 +35,13 @@ docopt = "1.1"
 base64 = "0.22"
 
 diesel = "2.3"
-diesel-async = { version = "0.7", features = ["mysql", "deadpool", "migrations", "async-connection-wrapper"] } # worth checking when updating deadpool
+diesel-async = { version = "0.9", features = ["mysql", "deadpool", "migrations", "async-connection-wrapper"] } # worth checking when updating deadpool
 diesel_migrations = "2.3"
 
-cadence = "1.7"
+cadence = "1.8"
 backtrace = "0.3"
 chrono = "0.4"
-deadpool = { version = "0.12", features = ["rt_tokio_1"] } # deps related to diesel-async, have to wait for them to update version to upgrade
+deadpool = { version = "0.13", features = ["rt_tokio_1"] } # deps related to diesel-async, have to wait for them to update version to upgrade
 env_logger = "0.11"
 futures = { version = "0.3", features = ["compat"] }
 futures-util = { version = "0.3", features = [
@@ -63,7 +63,7 @@ log = { version = "0.4", features = [
 ] }
 rand = "0.10"
 regex = "1.12"
-reqwest = { version = "0.13.2", default-features = false, features = [
+reqwest = { version = "0.13.3", default-features = false, features = [
   "rustls",
 ] }
 sentry = { version = "0.46.2" }
@@ -86,9 +86,9 @@ slog-term = "2.9"
 temp-env = { version = "0.3", features = ["async_closure"] }
 tokio = "1"
 thiserror = "2.0.18"
-utoipa = "5.4.0"
+utoipa = "5.5.0"
 utoipa-swagger-ui = { version = "9", features = ["actix-web"] }
-uuid = { version = "1.20", features = ["serde", "v4"] }
+uuid = { version = "1.23", features = ["serde", "v4"] }
 
 [profile.release]
 # Enables line numbers in Sentry reporting
