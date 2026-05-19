@@ -267,9 +267,9 @@ def _classify_failure(exc):
     """
     if isinstance(exc, requests.HTTPError) and exc.response is not None:
         code = exc.response.status_code
-        if 500 <= code < 600:
+        if code >= 500:
             return "http_5xx"
-        if 400 <= code < 500:
+        if code >= 400:
             return "http_4xx"
         return "http_other"
     if isinstance(exc, requests.Timeout):
