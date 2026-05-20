@@ -8,7 +8,7 @@
 1. Bump the version number in [Cargo.toml](https://github.com/mozilla-services/syncstorage-rs/blob/master/Cargo.toml) (this new version number will be designated as `<version>` in this checklist)
 1. create a git branch for the new version `git checkout -b release/<version>`
 1. `cargo build --release` - Build with the release profile [release mode](https://doc.rust-lang.org/book/ch14-01-release-profiles.html).
-1. `clog -C CHANGELOG.md` - Generate release notes. We're using [clog](https://github.com/clog-tool/clog-cli) for release notes. Add a `-p`, `-m` or `-M` flag to denote major/minor/patch version, ie `clog -C CHANGELOG.md -p`.
+1. `clog --setversion <version>` - Generate release notes. We're using [clog](https://github.com/clog-tool/clog-cli) for release notes.
 1. Review the `CHANGELOG.md` file and ensure all relevant changes since the last tag are included.
 1. Create a new [release in Sentry](https://docs.sentry.io/product/releases/#create-release): `VERSION={release-version-here} bash scripts/sentry-release.sh`. If you're doing this for the first time, checkout the [tips below](https://github.com/mozilla-services/syncstorage-rs#troubleshooting) for troubleshooting sentry cli access.
 1. `git commit -am "chore: tag <version>"` to commit the new version and changes
