@@ -1,3 +1,85 @@
+<a name="0.23.0"></a>
+## 0.23.0 (2026-05-21)
+
+
+#### Bug Fixes
+
+*   purge old record storage node err handling (#2313) ([c004d82f](https://github.com/mozilla-services/syncstorage-rs/commit/c004d82f433bc96cf4300c660b2ccda32646ecc3))
+*   apply zizmor autofixes (#2253) ([0794dd54](https://github.com/mozilla-services/syncstorage-rs/commit/0794dd548828c3b6595bec90ec231501c7cffba6))
+*   api db error metric  (#2245) ([bb0a8dec](https://github.com/mozilla-services/syncstorage-rs/commit/bb0a8dec796f5aff109b4e9c77846590b7a00fe2))
+*   resolve template injected rce vuln in cache deletion action (#2242) ([63697740](https://github.com/mozilla-services/syncstorage-rs/commit/636977406aa522a4065b062b37976b394196512f))
+
+#### Performance
+
+*   drop unused ORDER BY in old-user-record pruning queries (#2302) ([218f5a36](https://github.com/mozilla-services/syncstorage-rs/commit/218f5a3617609b12b1d0933efd0a19fe770ecc6d))
+*   stop count(*) when count is not used (#2303) ([3963171b](https://github.com/mozilla-services/syncstorage-rs/commit/3963171b19a777e85db5fe466bd784497f38bb5d))
+
+#### Features
+
+*   MCP server skills for Jira and Sentry (#2309) ([0397f436](https://github.com/mozilla-services/syncstorage-rs/commit/0397f43630badea84a31a11c6518af8cce8e4552))
+*   lazily resolve Backtrace symbols (#2283) ([c00fcb36](https://github.com/mozilla-services/syncstorage-rs/commit/c00fcb36a3115ef68773c2deb78488c56c8a81d8))
+*   claude skills (#2278) ([3ab30585](https://github.com/mozilla-services/syncstorage-rs/commit/3ab305858a21d8e169bb0b6cff75024cb4833606))
+*   pin spanner docker  (#2236) ([e85b08bd](https://github.com/mozilla-services/syncstorage-rs/commit/e85b08bd73c69c2f09a4245463686f11ed00a471))
+
+#### Test
+
+*   fix test metric filenames (#2291) ([473a4531](https://github.com/mozilla-services/syncstorage-rs/commit/473a453132509ef4b093fd4a99602a1dbb0f325c))
+*   segment away util helpers conftest (#2274) ([102733f3](https://github.com/mozilla-services/syncstorage-rs/commit/102733f3e7796e0864b54796b2f9f2c46aeb4a4e))
+*   test_storage test_support pytest refactor (#2239) ([6476f5b4](https://github.com/mozilla-services/syncstorage-rs/commit/6476f5b47ad485efe1a8b4b1380c1bcaffe569da))
+*   fix the no-jwk report name (#2261) ([aea42fac](https://github.com/mozilla-services/syncstorage-rs/commit/aea42facd456a71f2c0dc172ae33e26f74745a59))
+*   modernize tests to use pytest (#2192) ([4283c36c](https://github.com/mozilla-services/syncstorage-rs/commit/4283c36c647d432e2cce575d872eeef0f30bd311))
+*   add tokenserver util tests (#2195) ([b295c151](https://github.com/mozilla-services/syncstorage-rs/commit/b295c151acb87ad14bc805b83a67686b5d037ab2))
+* **integration:**  allow 204 (from nginx) on options req (#2277) ([4880e31e](https://github.com/mozilla-services/syncstorage-rs/commit/4880e31ed167fcf3bf41fc361151f7388c852fc6))
+
+#### Refactor
+
+*   remove pyramid (#2289) ([b3771c23](https://github.com/mozilla-services/syncstorage-rs/commit/b3771c239c4d3fef6adc11e3ec0a82898dab6d09))
+*   kill dupe Offset type (#2230) ([fd1ea294](https://github.com/mozilla-services/syncstorage-rs/commit/fd1ea294191efa0be3899f6add5c15dc8ab687a5))
+
+#### Chore
+
+*   bump to latest pyfxa (#2324) ([b557af89](https://github.com/mozilla-services/syncstorage-rs/commit/b557af89c155bdc0da1f53248c2ba255d8d6e3c9))
+*   add Spanner ttl based deletion policy DDL to schema.ddl (#2311) ([9727a4b0](https://github.com/mozilla-services/syncstorage-rs/commit/9727a4b0bb3fa41ec4572221cfd5636223160742))
+*   remove references to the long gone batch expiry index (#2310) ([03046160](https://github.com/mozilla-services/syncstorage-rs/commit/030461608cc6045cfcf59bbe1a982c6e5716dbd1))
+*   updates for cargo release (#2234) ([3202c1f7](https://github.com/mozilla-services/syncstorage-rs/commit/3202c1f70ecdd64cae57578fa9a43641ffa6eeb9))
+*   tag 0.22.3 (#2227) ([99625bb0](https://github.com/mozilla-services/syncstorage-rs/commit/99625bb0ed80ba751b87588a7ee2f64f7ff1d12d))
+*   bump rustls-webpki per new RUSTSECs (#2228) ([bc1b51cf](https://github.com/mozilla-services/syncstorage-rs/commit/bc1b51cf6905002556a17dd61a6563ec100906d1))
+* **build:**
+  *  upgrade libmysqlclient to 8.4-lts (#2295) ([55170dd5](https://github.com/mozilla-services/syncstorage-rs/commit/55170dd5bba4b197946087bd0db6f12d350cee71))
+  *  upgrade bookworm -> trixie (and thus python 3.13) (#2290) ([7a158efe](https://github.com/mozilla-services/syncstorage-rs/commit/7a158efe8f99d4fcd64966204c1038fa375f4cd4))
+* **claude:**  create Claude.md (#2270) ([cd7847d4](https://github.com/mozilla-services/syncstorage-rs/commit/cd7847d471eadbad18aef7be2c90038fb98114a1))
+* **deps:**
+  *  bump urllib3 in /tools/syncstorage-loadtest (#2297) ([a8be4fe1](https://github.com/mozilla-services/syncstorage-rs/commit/a8be4fe1115f4d02e7171f462f864e163db48135))
+  *  bump authlib in /tools/tokenserver/loadtests (#2307) ([11c9794c](https://github.com/mozilla-services/syncstorage-rs/commit/11c9794c2f2c2ebf925c8b2edf4ac398ecbbac14))
+  *  upgrade diesel to 2.3.8 (#2306) ([d6ece85b](https://github.com/mozilla-services/syncstorage-rs/commit/d6ece85b7b4ecc1785d45674c9be9b7011dcbe88))
+  *  bump urllib3 from 2.6.3 to 2.7.0 in /tools/spanner (#2296) ([7b37f220](https://github.com/mozilla-services/syncstorage-rs/commit/7b37f220c0db1bd69b3d12ac0fe9de6a44bb476d))
+  *  bump urllib3 in /tools/tokenserver/loadtests (#2294) ([e3228c5a](https://github.com/mozilla-services/syncstorage-rs/commit/e3228c5a5c0e5ba0fc9d68bee155ac66ddfb5cf2))
+  *  upgrade hmac and related deps (#2300) ([391addb0](https://github.com/mozilla-services/syncstorage-rs/commit/391addb02e0775de89f50113afcabccd75e313aa))
+  *  bump mozilla/probe-scraper/.github/workflows/glean.yaml (#2254) ([e0ea07d8](https://github.com/mozilla-services/syncstorage-rs/commit/e0ea07d859dbfefe55ee76fee598d461f082d336))
+  *  bump openssl from 0.10.78 to 0.10.79 (#2281) ([2fbbd961](https://github.com/mozilla-services/syncstorage-rs/commit/2fbbd96192d3f90c4113d81f3249539881b59be6))
+  *  bump openssl from 0.10.75 to 0.10.78 (#2237) ([36382c69](https://github.com/mozilla-services/syncstorage-rs/commit/36382c692c9b2cb99bdee293a8c0ce822d23a36b))
+  *  bump the actions-deps group with 2 updates (#2243) ([030288ea](https://github.com/mozilla-services/syncstorage-rs/commit/030288eae4b58f0b33ac49ce2ee5f07696ff9b41))
+  *  bump rand from 0.10.0 to 0.10.1 (#2216) ([7dc53b9d](https://github.com/mozilla-services/syncstorage-rs/commit/7dc53b9d70f716db0e21ca8d63cadf17d8785d57))
+  *  bump the actions-deps group across 1 directory with 6 updates (#2235) ([4c5090cc](https://github.com/mozilla-services/syncstorage-rs/commit/4c5090cc5b186a517c2b2f39f7cf565263051abf))
+  *  bump cryptography from 46.0.6 to 46.0.7 in /tools/spanner (#2223) ([525dba3a](https://github.com/mozilla-services/syncstorage-rs/commit/525dba3a9758556b07a7b5f98028c1c735b77e87))
+  *  bump pytest from 9.0.2 to 9.0.3 in /tools/tokenserver (#2218) ([33c92e13](https://github.com/mozilla-services/syncstorage-rs/commit/33c92e136175e4d587247ac2af8c414ca355b7e1))
+  *  bump authlib in /tools/tokenserver/loadtests (#2231) ([5cc4a98e](https://github.com/mozilla-services/syncstorage-rs/commit/5cc4a98e96e711517f8c5cb2500d662d18af19a9))
+  *  bump pytest in /tools/tokenserver/loadtests (#2220) ([93680fac](https://github.com/mozilla-services/syncstorage-rs/commit/93680fac87a2050dc263e17eb70357780ef14467))
+  *  bump pytest from 9.0.2 to 9.0.3 in /tools/integration_tests (#2229) ([3f0edf32](https://github.com/mozilla-services/syncstorage-rs/commit/3f0edf325c26b486baeb74379a8035bce6ab95db))
+* **deps-dev:**
+  *  bump requests in / (#2255) ([33539738](https://github.com/mozilla-services/syncstorage-rs/commit/335397384bbc9110c67f307e5775ed5433649bf5))
+  *  bump pygments from 2.19.2 to 2.20.0 (#2177) ([2fc40ea9](https://github.com/mozilla-services/syncstorage-rs/commit/2fc40ea92d3ecc349c55c2225851608455c6534e))
+  *  bump pytest from 8.4.2 to 9.0.3 (#2217) ([c05d8a31](https://github.com/mozilla-services/syncstorage-rs/commit/c05d8a31d801636ba3e13fa7a4646f66f1ce56d7))
+  *  bump pytest from 9.0.2 to 9.0.3 in /tools/spanner (#2221) ([e32579f2](https://github.com/mozilla-services/syncstorage-rs/commit/e32579f251bf648e7a87d75e66d83b1f949c9f94))
+  *  bump pytest from 9.0.2 to 9.0.3 in /tools/postgres (#2222) ([d74f45d0](https://github.com/mozilla-services/syncstorage-rs/commit/d74f45d0403c9760893c4147805951ed87b3685b))
+
+#### Doc
+
+*   Docker HEALTHCHECK honors `SYNC_PORT` from environment (#2266) ([96030a3a](https://github.com/mozilla-services/syncstorage-rs/commit/96030a3a491c9e20ee3b7d3d13edb20c76c5794d))
+*   update outdated notes (#2241) ([00354dea](https://github.com/mozilla-services/syncstorage-rs/commit/00354deadc9905ff01a12d12e58747b9e4eccaa5))
+
+
+
 <a name="0.22.3"></a>
 ## 0.22.3 (2026-04-15)
 
