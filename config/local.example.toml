@@ -15,7 +15,7 @@ syncstorage.enable_quota = 0
 # set the quota limit to 2GB.
 # max_quota_limit = 200000000
 syncstorage.enabled = true
-syncstorage.limits.max_total_records = 1666 # See issues #298/#333
+syncstorage.limits.max_total_records = 6656 # See docs/src/syncstorage/syncstorage-spanner-db.md
 
 # Example Tokenserver settings:
 # database_url is required when tokenserver is enabled; there is no default,
