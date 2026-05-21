@@ -17,7 +17,7 @@ dependencies = [
     "hawkauthlib>=2.0.0,<3.0.0",
     "tokenlib>=2.0.0",
     "aiodogstatsd>=0.16.0,<0.17.0",
-    "PyFxA>=0.7.0",
+    "PyFxA>=0.8.2",
     "PyJWT>=2.0.0",
     "cryptography>=46.0.5",
 ]
