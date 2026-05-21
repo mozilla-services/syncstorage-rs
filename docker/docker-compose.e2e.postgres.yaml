@@ -27,6 +27,7 @@ services:
       SYNC_TOKENSERVER__DATABASE_URL: postgres://test:test@tokenserver-db:5432/tokenserver
       SQLALCHEMY_SILENCE_UBER_WARNING: 1
       RESULTS_FILENAME: ${RESULTS_FILENAME:-postgres_integration_results.xml}
+      CI_WAF_TOKEN:
     entrypoint:
       - /bin/sh
       - -c
