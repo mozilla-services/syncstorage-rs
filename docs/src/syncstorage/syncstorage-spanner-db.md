@@ -7,12 +7,12 @@ Spanner is the production backend for Syncstorage-rs. This page documents the sc
 | Table              | Description                                                                                                  |
 | ------------------ | ------------------------------------------------------------------------------------------------------------ |
 | `user_collections` | Per-user metadata about each collection (modified time, record count, total bytes). Parent of `bsos`/`batches` via `INTERLEAVE IN PARENT`. |
-| `bsos`             | Stores Basic Storage Objects (BSOs) the synced records. Interleaved in `user_collections`.                |
+| `bsos`             | Stores Basic Storage Objects, (BSOs) the synced records. Interleaved in `user_collections`.                |
 | `collections`      | Maps collection names to stable IDs.                                                                         |
 | `batches`          | Temporary staging row per in-progress batch upload. Interleaved in `user_collections`.                       |
 | `batch_bsos`       | BSOs belonging to a batch, pending commit. Interleaved in `batches`.                                         |
 
-All `bsos` and `batches` rows are physically co-located with their `user_collections` parent Spanner's interleaving puts a user's collection metadata, BSOs, and pending batches on the same split. `ON DELETE CASCADE` from `batches` to `batch_bsos` and `user_collections` `bsos`/`batches` means parent deletes wipe descendants atomically.
+All `bsos` and `batches` rows are physically co-located with their `user_collections` parent. Spanner's interleaving puts a user's collection metadata, BSOs, and pending batches on the same split. `ON DELETE CASCADE` from `batches` to `batch_bsos` and `user_collections` `bsos`/`batches` means parent deletes wipe descendants atomically.
 
 ## Configuration
 
@@ -230,7 +230,7 @@ Solving `12N + 13 <= 80,000` (quota on, the binding constraint) gives `N <= 6,66
 
 ### Env var
 
-`max_total_records` is set in production via the `SYNC_SYNCSTORAGE__LIMITS__MAX_TOTAL_RECORDS` environment variable with no redeploy required to change it. The standalone-server default in `syncstorage-settings/src/lib.rs` is 10,000 and applies to non-Spanner backends; the Spanner production deployment always overrides it.
+`max_total_records` is set in production via the `SYNC_SYNCSTORAGE__LIMITS__MAX_TOTAL_RECORDS` environment variable.  The standalone-server default in `syncstorage-settings/src/lib.rs` is 10,000 and applies to non-Spanner backends; the Spanner production deployment always overrides it.
 
 `config/local.example.toml` carries the recommended Spanner dev value for the local emulator stack.
 
