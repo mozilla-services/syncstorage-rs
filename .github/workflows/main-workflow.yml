@@ -511,6 +511,7 @@ jobs:
         run: make docker_run_postgres_e2e_tests
         env:
           SYNCSTORAGE_RS_IMAGE: app:build
+          CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
         uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996
@@ -794,6 +795,7 @@ jobs:
         run: make docker_run_mysql_e2e_tests
         env:
           SYNCSTORAGE_RS_IMAGE: app:build
+          CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
         uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996
@@ -1112,6 +1114,7 @@ jobs:
         run: make docker_run_spanner_e2e_tests
         env:
           SYNCSTORAGE_RS_IMAGE: app:build
+          CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
         uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996

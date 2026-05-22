@@ -1537,7 +1537,7 @@ checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
 
 [[package]]
 name = "glean"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "chrono",
  "serde",
@@ -4216,7 +4216,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "actix-cors",
  "actix-http",
@@ -4273,7 +4273,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver-common"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "actix-web",
  "backtrace",
@@ -4292,7 +4292,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver-db-common"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "backtrace",
  "deadpool",
@@ -4308,7 +4308,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver-settings"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "config",
  "num_cpus",
@@ -4323,7 +4323,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-db"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "async-trait",
  "deadpool",
@@ -4345,7 +4345,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-db-common"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -4364,7 +4364,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-mysql"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -4385,7 +4385,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-postgres"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -4404,7 +4404,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-settings"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "rand 0.10.1",
  "serde",
@@ -4413,7 +4413,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-spanner"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "actix-web",
  "async-trait",
@@ -4625,7 +4625,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokenserver-auth"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -4651,7 +4651,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-common"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "actix-web",
  "backtrace",
@@ -4664,7 +4664,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-db"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -4684,7 +4684,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-db-common"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -4704,7 +4704,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-mysql"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -4723,7 +4723,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-postgres"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -4742,7 +4742,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-settings"
-version = "0.22.3"
+version = "0.23.0"
 dependencies = [
  "jsonwebtoken",
  "serde",

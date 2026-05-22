@@ -15,11 +15,38 @@ from database import Database
 from purge_old_records import purge_old_records
 
 
-def _make_service_app(service_requests):
-    """Return a WSGI app that records each request into the given list."""
+class _RecordingMetrics:
+    """In-test stand-in for util.Metrics that records every call."""
+
+    def __init__(self):
+        self.incrs = []  # (label, value, tags)
+        self.gauges = []  # (label, value, tags)
+        self.timings = []  # (label, value_ms, tags)
+
+    def incr(self, label, value=1, tags=None):
+        self.incrs.append((label, value, tags))
+
+    def gauge(self, label, value, tags=None):
+        self.gauges.append((label, value, tags))
+
+    def timing(self, label, value_ms, tags=None):
+        self.timings.append((label, value_ms, tags))
+
+
+def _make_service_app(service_requests, failure_uids):
+    """Return a WSGI app that records each request into the given list.
+
+    DELETE requests against `/1.5/{uid}` where `uid` is in `failure_uids`
+    respond with HTTP 500, simulating a broken storage node response. This
+    drives the per-row failure path in purge_old_records (STOR-70).
+    """
 
     def _service_app(environ, start_response):
         service_requests.append(environ)
+        match = re.match(r"^/1\.5/(\d+)", environ.get("PATH_INFO", ""))
+        if match and int(match.group(1)) in failure_uids:
+            start_response("500 Internal Server Error", [])
+            return ""
         start_response("200 OK", [])
         return ""
 
@@ -32,17 +59,24 @@ def mock_service_server():
 
     Module scope is justified: the server is expensive to start (OS port
     allocation + thread) and is stateless between tests — the requests list
-    is cleared in each per-test fixture's teardown.
+    and failure_uids set are cleared in each per-test fixture's teardown.
     """
     service_requests = []
-    server = make_server("localhost", 0, _make_service_app(service_requests))
+    failure_uids = set()
+    server = make_server(
+        "localhost", 0, _make_service_app(service_requests, failure_uids)
+    )
     server.RequestHandlerClass.log_request = lambda *a: None
     host, port = server.server_address
     service_node = f"http://{host}:{port}"
     thread = threading.Thread(target=server.serve_forever)
     thread.daemon = True
     thread.start()
-    yield {"node": service_node, "requests": service_requests}
+    yield {
+        "node": service_node,
+        "requests": service_requests,
+        "failure_uids": failure_uids,
+    }
     server.shutdown()
     thread.join()
 
@@ -56,7 +90,10 @@ def mock_spanner_server(mock_service_server):
     test class behaviour where both servers appended to the same list.
     """
     service_requests = mock_service_server["requests"]
-    server = make_server("localhost", 0, _make_service_app(service_requests))
+    failure_uids = set()
+    server = make_server(
+        "localhost", 0, _make_service_app(service_requests, failure_uids)
+    )
     server.RequestHandlerClass.log_request = lambda *a: None
     host, port = server.server_address
     spanner_node = f"http://{host}:{port}"
@@ -64,7 +101,11 @@ def mock_spanner_server(mock_service_server):
     thread = threading.Thread(target=server.serve_forever)
     thread.daemon = True
     thread.start()
-    yield {"node": spanner_node, "downed_node": downed_node}
+    yield {
+        "node": spanner_node,
+        "downed_node": downed_node,
+        "failure_uids": failure_uids,
+    }
     server.shutdown()
     thread.join()
 
@@ -83,6 +124,7 @@ def purge_db(mock_service_server):
     database._execute_sql("DELETE FROM nodes").close()
     database._execute_sql("DELETE FROM services").close()
     del mock_service_server["requests"][:]
+    mock_service_server["failure_uids"].clear()
     database.close()
 
 
@@ -102,6 +144,8 @@ def migration_db(mock_service_server, mock_spanner_server):
     database._execute_sql("DELETE FROM nodes").close()
     database._execute_sql("DELETE FROM services").close()
     del mock_service_server["requests"][:]
+    mock_service_server["failure_uids"].clear()
+    mock_spanner_server["failure_uids"].clear()
     database.close()
 
 
@@ -330,6 +374,108 @@ def test_purging_override_with_migrated_password_change(
     # Both replaced_at records issued deletes as normal as neither point to
     # their active record
     assert len(service_requests) == 2
+
+
+def test_failed_service_delete_does_not_abort_batch(purge_db, mock_service_server):
+    """A row whose service delete fails should not abort the rest of the batch.
+
+    Regression for STOR-70: a 5xx response from the storage node previously
+    propagated to the outer try/except, returning False and leaving the rest
+    of the batch unprocessed. The failing row's replaced_at is now bumped to
+    defer the retry, and the batch continues with the remaining rows.
+    """
+    database = purge_db
+    failure_uids = mock_service_server["failure_uids"]
+    node_secret = "SECRET"
+
+    # Two old user records share one batch. Assertions below are independent
+    # of processing order — the failing row must be bumped and the healthy
+    # row purged regardless of which is seen first.
+    healthy_email = "healthy@mozilla.com"
+    healthy = database.allocate_user(healthy_email, client_state="aa", generation=1)
+    database.update_user(healthy, client_state="bb", generation=2)
+    broken_email = "broken@mozilla.com"
+    broken = database.allocate_user(broken_email, client_state="aa", generation=1)
+    database.update_user(broken, client_state="bb", generation=2)
+
+    broken_old = next(
+        r for r in database.get_user_records(broken_email) if r.replaced_at
+    )
+    failure_uids.add(broken_old.uid)
+    original_replaced_at = broken_old.replaced_at
+
+    metrics = _RecordingMetrics()
+    assert purge_old_records(node_secret, grace_period=0, metrics=metrics) is True
+
+    # The healthy user's old record was purged in the same batch.
+    healthy_records = list(database.get_user_records(healthy_email))
+    assert len(healthy_records) == 1
+    assert healthy_records[0].replaced_at is None
+
+    # The broken user's old record remains and its replaced_at moved forward.
+    broken_records = list(database.get_user_records(broken_email))
+    assert len(broken_records) == 2
+    bumped = next(r for r in broken_records if r.uid == broken_old.uid)
+    assert bumped.replaced_at > original_replaced_at
+
+    # The failure was reported with a stable error-class tag.
+    failure_calls = [c for c in metrics.incrs if c[0] == "row_failure"]
+    assert len(failure_calls) == 1
+    assert failure_calls[0][2] == {"reason": "http_5xx"}
+
+
+def test_run_level_metrics_are_emitted(purge_db, mock_service_server):
+    """purge.backlog.size, batch.fetched, run.success and run.duration_ms emit."""
+    database = purge_db
+    node_secret = "SECRET"
+
+    # Seed two old records so backlog.size > 0 and batch.fetched > 0.
+    for email in ("a@mozilla.com", "b@mozilla.com"):
+        user = database.allocate_user(email, client_state="aa", generation=1)
+        database.update_user(user, client_state="bb", generation=2)
+
+    metrics = _RecordingMetrics()
+    assert purge_old_records(node_secret, grace_period=0, metrics=metrics) is True
+
+    # Backlog gauge: emitted once, equals the number of eligible old rows.
+    backlog = [g for g in metrics.gauges if g[0] == "purge.backlog.size"]
+    assert len(backlog) == 1
+    assert backlog[0][1] == 2
+
+    # Batch.fetched: one batch of two rows.
+    fetched = [i for i in metrics.incrs if i[0] == "purge.batch.fetched"]
+    assert len(fetched) == 1
+    assert fetched[0][1] == 2
+
+    # Run success counter + duration timing emit on the success path.
+    success = [i for i in metrics.incrs if i[0] == "purge.run.success"]
+    assert len(success) == 1
+    failure = [i for i in metrics.incrs if i[0] == "purge.run.failure"]
+    assert failure == []
+    timings = [t for t in metrics.timings if t[0] == "purge.run.duration_ms"]
+    assert len(timings) == 1
+    assert timings[0][1] >= 0
+
+
+def test_run_failure_metric_emits_on_unhandled_error(purge_db, monkeypatch):
+    """When the outer try catches, purge.run.failure and duration are emitted."""
+    node_secret = "SECRET"
+
+    # The fresh Database() built inside purge_old_records inherits this patch.
+    def _explode(*_args, **_kwargs):
+        raise RuntimeError("simulated DB failure")
+
+    monkeypatch.setattr(Database, "get_old_user_records", _explode)
+
+    metrics = _RecordingMetrics()
+    assert purge_old_records(node_secret, grace_period=0, metrics=metrics) is False
+
+    failure = [i for i in metrics.incrs if i[0] == "purge.run.failure"]
+    assert len(failure) == 1
+    success = [i for i in metrics.incrs if i[0] == "purge.run.success"]
+    assert success == []
+    timings = [t for t in metrics.timings if t[0] == "purge.run.duration_ms"]
+    assert len(timings) == 1
 
 
 @pytest.mark.migration_records
