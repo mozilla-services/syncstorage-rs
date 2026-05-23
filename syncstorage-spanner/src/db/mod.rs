@@ -677,7 +677,7 @@ impl SpannerDb {
                  {modified_expr},
                  {payload_expr},
                  {expiry_expr}{sortindex_expr}
-               FROM UNNEST([1])
+               FROM UNNEST([1]) --  provides a row source for the LEFT JOIN
           LEFT JOIN (
                  SELECT modified, payload, expiry, sortindex
                    FROM bsos
