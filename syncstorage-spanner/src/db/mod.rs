@@ -12,7 +12,9 @@ use protobuf::{
 use syncserver_common::Metrics;
 use syncstorage_db_common::{
     DEFAULT_BSO_TTL, Db, FIRST_CUSTOM_COLLECTION_ID, Sorting, UserIdentifier,
-    error::DbErrorIntrospect, params, util::SyncTimestamp,
+    error::DbErrorIntrospect,
+    params,
+    util::{SyncTimestamp, to_rfc3339},
 };
 use syncstorage_settings::Quota;
 
@@ -621,8 +623,6 @@ impl SpannerDb {
         bso: params::PostCollectionBso,
         timestamp: SyncTimestamp,
     ) -> DbResult<()> {
-        use syncstorage_db_common::util::to_rfc3339;
-
         let has_payload_or_sortindex = bso.payload.is_some() || bso.sortindex.is_some();
 
         let (mut sqlparams, mut sqlparam_types) = params! {
@@ -726,12 +726,7 @@ impl SpannerDb {
                 .unwrap_or_else(null_value);
 
             let mut row = ListValue::new();
-            row.set_values(RepeatedField::from_vec(vec![
-                bso.id.into_spanner_value(),
-                sortindex,
-                payload,
-                ttl,
-            ]));
+            row.set_values(vec![bso.id.into_spanner_value(), sortindex, payload, ttl].into());
             let mut value = Value::new();
             value.set_list_value(row);
             rows.push(value);
