@@ -1,0 +1,19 @@
+name: ssdlc-sbom
+
+on:
+  release:
+    types: [published]
+  push:
+    branches:
+      - 'release/**' #if triggering on branches, update to your specific branch pattern
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  sbom:
+    uses: mozilla/actions/.github/workflows/sbom.yml@5cc2b20e42d53d1643853f12244fbec9ed2f2e0c
+    permissions:
+      actions: read # Required by anchore/sbom-action to read workflow run context.
+      contents: write # Required to upload the SBOM as a release asset.
+
