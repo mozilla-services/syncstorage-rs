@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    str::FromStr,
-};
+use std::{collections::HashMap, str::FromStr};
 
 use async_trait::async_trait;
 use google_cloud_rust_raw::spanner::v1::type_pb::{StructType, Type, TypeCode};
@@ -190,47 +187,25 @@ impl BatchDb for SpannerDb {
             })
             .await?;
 
-        let as_rfc3339 = timestamp.as_rfc3339()?;
         {
-            // First, UPDATE existing rows in the bsos table with any new values
-            // supplied in this batch
             let mut timer2 = self.metrics.clone();
-            timer2.start_timer("storage.spanner.apply_batch_update", None);
+            timer2.start_timer("storage.spanner.apply_batch_upsert", None);
             let (sqlparams, mut sqlparam_types) = params! {
                 "fxa_uid" => params.user_id.fxa_uid.clone(),
                 "fxa_kid" => params.user_id.fxa_kid.clone(),
                 "collection_id" => collection_id,
                 "batch_id" => params.batch.id.clone(),
-                "timestamp" => as_rfc3339.clone(),
-            };
-            sqlparam_types.insert("timestamp".to_owned(), as_type(TypeCode::TIMESTAMP));
-            // NOTE: This write treats both expired and non-expired as existing
-            // bsos. See the note in [SpannerDb::post_bsos_with_mutations]
-            self.sql(include_str!("batch_commit_update.sql"))
-                .await?
-                .params(sqlparams)
-                .param_types(sqlparam_types)
-                .execute_dml(&self.conn)
-                .await?;
-        }
-
-        {
-            // Then INSERT INTO SELECT remaining rows from this batch into the bsos
-            // table (that didn't already exist there)
-            let (sqlparams, mut sqlparam_types) = params! {
-                "fxa_uid" => params.user_id.fxa_uid.clone(),
-                "fxa_kid" => params.user_id.fxa_kid.clone(),
-                "collection_id" => collection_id,
-                "batch_id" => params.batch.id.clone(),
-                "timestamp" => as_rfc3339,
+                "timestamp" => timestamp.as_rfc3339()?,
                 "default_bso_ttl" => DEFAULT_BSO_TTL,
             };
             sqlparam_types.insert("timestamp".to_owned(), as_type(TypeCode::TIMESTAMP));
-            let mut timer3 = self.metrics.clone();
-            timer3.start_timer("storage.spanner.apply_batch_insert", None);
-            // NOTE: This write treats both expired and non-expired as existing
-            // bsos. See the note in [SpannerDb::post_bsos_with_mutations]
-            self.sql(include_str!("batch_commit_insert.sql"))
+            // NOTE: This write treats expired and non-expired as existing bsos. We don't filter on
+            // `expiry > CURRENT_TIMESTAMP()` to avoid having to delete expired rows before
+            // inserting new ones with the same id. Unfortunately, this means updates may resurrect
+            // expired bsos (or at least a subset of their fields), or possibly even write new data
+            // without an associated ttl to an expired record that will be deleted. This in
+            // practice should be a very rare occurrence.
+            self.sql(include_str!("batch_commit_upsert.sql"))
                 .await?
                 .params(sqlparams)
                 .param_types(sqlparam_types)
@@ -263,39 +238,7 @@ pub async fn do_append(
     bsos: Vec<params::PostCollectionBso>,
     collection: &str,
 ) -> DbResult<()> {
-    // Pass an array of struct objects as @values (for UNNEST), e.g.:
-    // [("<fxa_uid>", "<fxa_kid>", 101, "ba1", "bso1", NULL, "payload1", NULL),
-    //  ("<fxa_uid>", "<fxa_kid>", 101, "ba1", "bso2", NULL, "payload2", NULL)]
-    // https://cloud.google.com/spanner/docs/structs#creating_struct_objects
     let mut running_size: usize = 0;
-
-    // problem: Append may try to insert a duplicate record into the batch_bsos table.
-    // this is because spanner doesn't do upserts easily. An upsert like operation can
-    // be performed by carefully crafting a complex protobuf struct. (See
-    // https://github.com/mozilla-services/syncstorage-rs/issues/618#issuecomment-680227710
-    // for details.)
-    // Batch_bso is a temp table and items are eventually rolled into bsos.
-
-    // create a simple key for a HashSet to see if a given record has already been
-    // created
-    fn exist_idx(collection_id: &str, batch_id: &str, bso_id: &str) -> String {
-        format!(
-            "{collection_id}::{batch_id}::{bso_id}",
-            collection_id = collection_id,
-            batch_id = batch_id,
-            bso_id = bso_id,
-        )
-    }
-
-    struct UpdateRecord {
-        bso_id: String,
-        sortindex: Option<i32>,
-        payload: Option<String>,
-        ttl: Option<u32>,
-    }
-
-    //prefetch the existing batch_bsos for this user's batch.
-    let mut existing = HashSet::new();
     let mut tags = HashMap::new();
     tags.insert(
         "collection".to_owned(),
@@ -304,96 +247,40 @@ pub async fn do_append(
             .unwrap_or_else(|| "UNKNOWN".to_string()),
     );
 
-    let bso_ids = bsos
-        .iter()
-        .map(|pbso| pbso.id.clone())
-        .collect::<Vec<String>>();
-    let (sqlparams, sqlparam_types) = params! {
-        "fxa_uid" => user_id.fxa_uid.clone(),
-        "fxa_kid" => user_id.fxa_kid.clone(),
-        "collection_id" => collection_id,
-        "batch_id" => batch.id.clone(),
-        "ids" => bso_ids,
-    };
-    let mut existing_stream = db
-        .sql(
-            "SELECT batch_bso_id
-               FROM batch_bsos
-              WHERE fxa_uid=@fxa_uid
-                AND fxa_kid=@fxa_kid
-                AND collection_id=@collection_id
-                AND batch_id=@batch_id
-                AND batch_bso_id in UNNEST(@ids);",
-        )
-        .await?
-        .params(sqlparams)
-        .param_types(sqlparam_types)
-        .execute(&db.conn)?;
-    while let Some(row) = existing_stream.try_next().await? {
-        existing.insert(exist_idx(
-            &collection_id.to_string(),
-            &batch.id,
-            row[0].get_string_value(),
-        ));
-    }
-
-    db.metrics.count_with_tags(
-        "storage.spanner.batch.pre-existing",
-        existing.len() as i64,
-        tags.clone(),
-    );
-
-    // Approach 1:
-    // iterate and check to see if the record is in batch_bso table already
-    let mut insert: Vec<Value> = Vec::new();
-    let mut update: Vec<UpdateRecord> = Vec::new();
+    // Build an ARRAY<STRUCT> of incoming rows for a `INSERT OR UPDATE`.  COALESCE(new, existing)
+    // is used so an update only overwrites fields the request supplied.
+    let mut rows: Vec<Value> = Vec::with_capacity(bsos.len());
     for bso in bsos {
         if let Some(ref payload) = bso.payload {
             running_size += payload.len();
         }
-        let exist_idx = exist_idx(&collection_id.to_string(), &batch.id, &bso.id);
+        let sortindex = bso
+            .sortindex
+            .map(IntoSpannerValue::into_spanner_value)
+            .unwrap_or_else(null_value);
+        let payload = bso
+            .payload
+            .map(IntoSpannerValue::into_spanner_value)
+            .unwrap_or_else(null_value);
+        let ttl = bso
+            .ttl
+            .map(IntoSpannerValue::into_spanner_value)
+            .unwrap_or_else(null_value);
 
-        if existing.contains(&exist_idx) {
-            // need to update this record
-            // reject this record since you can only have one update per batch
-            update.push(UpdateRecord {
-                bso_id: bso.id,
-                sortindex: bso.sortindex,
-                payload: bso.payload,
-                ttl: bso.ttl,
-            });
-        } else {
-            let sortindex = bso
-                .sortindex
-                .map(IntoSpannerValue::into_spanner_value)
-                .unwrap_or_else(null_value);
-            let payload = bso
-                .payload
-                .map(IntoSpannerValue::into_spanner_value)
-                .unwrap_or_else(null_value);
-            let ttl = bso
-                .ttl
-                .map(IntoSpannerValue::into_spanner_value)
-                .unwrap_or_else(null_value);
-
-            // convert to a protobuf structure for direct insertion to
-            // avoid some mutation limits.
-            let mut row = ListValue::new();
-            row.set_values(RepeatedField::from_vec(vec![
-                user_id.fxa_uid.clone().into_spanner_value(),
-                user_id.fxa_kid.clone().into_spanner_value(),
-                collection_id.into_spanner_value(),
-                batch.id.clone().into_spanner_value(),
-                bso.id.into_spanner_value(),
-                sortindex,
-                payload,
-                ttl,
-            ]));
-            let mut value = Value::new();
-            value.set_list_value(row);
-            insert.push(value);
-            existing.insert(exist_idx.clone());
-        };
+        let mut row = ListValue::new();
+        row.set_values(RepeatedField::from_vec(vec![
+            user_id.fxa_uid.clone().into_spanner_value(),
+            user_id.fxa_kid.clone().into_spanner_value(),
+            collection_id.into_spanner_value(),
+            batch.id.clone().into_spanner_value(),
+            bso.id.into_spanner_value(),
+            sortindex,
+            payload,
+            ttl,
+        ]));
+        let mut value = Value::new();
+        value.set_list_value(row);
+        rows.push(value);
     }
 
     if db.quota.enabled
@@ -405,6 +292,10 @@ pub async fn do_append(
         } else {
             warn!("Quota at limit for user's collection ({} bytes)", size + running_size; "collection"=>collection);
         }
+    }
+
+    if rows.is_empty() {
+        return Ok(());
     }
 
     let fields = vec![
@@ -421,93 +312,53 @@ pub async fn do_append(
     .map(|(name, field_type)| struct_type_field(name, field_type))
     .collect();
 
-    if !insert.is_empty() {
-        let mut list_values = ListValue::new();
-        let count_inserts = insert.len();
-        list_values.set_values(RepeatedField::from_vec(insert));
-        let mut values = Value::new();
-        values.set_list_value(list_values);
+    let row_count = rows.len();
+    let mut list_values = ListValue::new();
+    list_values.set_values(RepeatedField::from_vec(rows));
+    let mut values = Value::new();
+    values.set_list_value(list_values);
 
-        // values' type is an ARRAY of STRUCTs
-        let mut param_type = Type::new();
-        param_type.set_code(TypeCode::ARRAY);
-        let mut array_type = Type::new();
-        array_type.set_code(TypeCode::STRUCT);
+    let mut param_type = Type::new();
+    param_type.set_code(TypeCode::ARRAY);
+    let mut array_type = Type::new();
+    array_type.set_code(TypeCode::STRUCT);
+    let mut struct_type = StructType::new();
+    struct_type.set_fields(RepeatedField::from_vec(fields));
+    array_type.set_struct_type(struct_type);
+    param_type.set_array_element_type(array_type);
 
-        // STRUCT requires definition of all its field types
-        let mut struct_type = StructType::new();
-        struct_type.set_fields(RepeatedField::from_vec(fields));
-        array_type.set_struct_type(struct_type);
-        param_type.set_array_element_type(array_type);
-
-        let mut sqlparams = HashMap::new();
-        sqlparams.insert("values".to_owned(), values);
-        let mut sqlparam_types = HashMap::new();
-        sqlparam_types.insert("values".to_owned(), param_type);
-        db.sql(
-            "INSERT INTO batch_bsos (fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id,
-                                     sortindex, payload, ttl)
-             SELECT * FROM UNNEST(@values)",
-        )
-        .await?
-        .params(sqlparams)
-        .param_types(sqlparam_types)
-        .execute_dml(&db.conn)
-        .await?;
-        db.metrics.count_with_tags(
-            "storage.spanner.batch.insert",
-            count_inserts as i64,
-            tags.clone(),
-        );
-    }
-
-    // assuming that "update" is rarer than an insert, we can try using the standard API for that.
-    if !update.is_empty() {
-        for val in update {
-            let mut fields = Vec::new();
-            let (mut params, mut param_types) = params! {
-                "fxa_uid" => user_id.fxa_uid.clone(),
-                "fxa_kid" => user_id.fxa_kid.clone(),
-                "collection_id" => collection_id,
-                "batch_id" => batch.id.clone(),
-                "batch_bso_id" => val.bso_id,
-            };
-            if let Some(sortindex) = val.sortindex {
-                fields.push("sortindex");
-                param_types.insert("sortindex".to_owned(), sortindex.spanner_type());
-                params.insert("sortindex".to_owned(), sortindex.into_spanner_value());
-            }
-            if let Some(payload) = val.payload {
-                fields.push("payload");
-                param_types.insert("payload".to_owned(), payload.spanner_type());
-                params.insert("payload".to_owned(), payload.into_spanner_value());
-            };
-            if let Some(ttl) = val.ttl {
-                fields.push("ttl");
-                param_types.insert("ttl".to_owned(), ttl.spanner_type());
-                params.insert("ttl".to_owned(), ttl.into_spanner_value());
-            }
-            if fields.is_empty() {
-                continue;
-            };
-            let updatable = fields
-                .iter()
-                .map(|field| format!("{field}=@{field}", field = field))
-                .collect::<Vec<String>>()
-                .join(", ");
-            db.sql(&format!(
-                "UPDATE batch_bsos SET {updatable}
-                WHERE fxa_uid=@fxa_uid AND fxa_kid=@fxa_kid AND collection_id=@collection_id
-                AND batch_id=@batch_id AND batch_bso_id=@batch_bso_id",
-                updatable = updatable
-            ))
-            .await?
-            .params(params)
-            .param_types(param_types.clone())
-            .execute_dml(&db.conn)
-            .await?;
-        }
-    }
+    let mut sqlparams = HashMap::new();
+    sqlparams.insert("values".to_owned(), values);
+    let mut sqlparam_types = HashMap::new();
+    sqlparam_types.insert("values".to_owned(), param_type);
+    db.sql(
+        "INSERT OR UPDATE INTO batch_bsos
+             (fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id,
+              sortindex, payload, ttl)
+         SELECT
+             incoming.fxa_uid,
+             incoming.fxa_kid,
+             incoming.collection_id,
+             incoming.batch_id,
+             incoming.batch_bso_id,
+             COALESCE(incoming.sortindex, existing.sortindex),
+             COALESCE(incoming.payload, existing.payload),
+             COALESCE(incoming.ttl, existing.ttl)
+           FROM UNNEST(@values) AS incoming
+           LEFT JOIN batch_bsos AS existing
+             ON existing.fxa_uid = incoming.fxa_uid
+            AND existing.fxa_kid = incoming.fxa_kid
+            AND existing.collection_id = incoming.collection_id
+            AND existing.batch_id = incoming.batch_id
+            AND existing.batch_bso_id = incoming.batch_bso_id",
+    )
+    .await?
+    .params(sqlparams)
+    .param_types(sqlparam_types)
+    .execute_dml(&db.conn)
+    .await?;
+    db.metrics
+        .count_with_tags("storage.spanner.batch.upsert", row_count as i64, tags);
 
     Ok(())
 }
