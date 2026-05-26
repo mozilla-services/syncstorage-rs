@@ -53,10 +53,6 @@ pub struct SpannerSessionSettings {
     /// The database name
     pub database: String,
 
-    /// Whether [SpannerDb] uses mutations, which should be more efficient for
-    /// some of its bulk operations
-    pub use_mutations: bool,
-
     /// Whether the Leader Aware Routing header should be included in gRPC
     /// metdata
     pub route_to_leader: bool,
@@ -79,14 +75,8 @@ impl SpannerSessionSettings {
             })?
             .to_owned();
 
-        #[cfg(not(debug_assertions))]
-        let use_mutations = true;
-        #[cfg(debug_assertions)]
-        let use_mutations = settings.database_spanner_use_mutations;
-
         Ok(Self {
             database,
-            use_mutations,
             route_to_leader: settings.database_spanner_route_to_leader,
             max_lifespan: settings.database_pool_connection_lifespan,
             max_idle: settings.database_pool_connection_max_idle,

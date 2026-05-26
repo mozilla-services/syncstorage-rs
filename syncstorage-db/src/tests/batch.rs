@@ -376,6 +376,128 @@ async fn test_append_async_w_empty_string() -> Result<(), DbError> {
 }
 
 #[tokio::test]
+async fn test_append_upsert_overwrites_same_batch_bso_id() -> Result<(), DbError> {
+    let settings = Settings::test_settings().syncstorage;
+    with_test_transaction(settings, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = 1;
+        let coll = "clients";
+        let bid = "b0";
+        let first_payload = "wibble";
+        let second_payload = "over 9000";
+
+        let new_batch = db.create_batch(cb(uid, coll, vec![])).await?;
+        db.append_to_batch(ab(
+            uid,
+            coll,
+            new_batch.clone(),
+            vec![postbso(bid, Some(first_payload), Some(10), None)],
+        ))
+        .await?;
+        db.append_to_batch(ab(
+            uid,
+            coll,
+            new_batch.clone(),
+            vec![postbso(bid, Some(second_payload), None, None)],
+        ))
+        .await?;
+
+        let batch = db
+            .get_batch(gb(uid, coll, new_batch.id.clone()))
+            .await?
+            .unwrap();
+        db.commit_batch(params::CommitBatch {
+            user_id: hid(uid),
+            collection: coll.to_owned(),
+            batch,
+        })
+        .await?;
+
+        let bso = db.get_bso(gbso(uid, coll, bid)).await?.unwrap();
+        assert_eq!(bso.payload, second_payload);
+        assert_eq!(bso.sortindex, Some(10));
+        Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_commit_batch_partial_overlap() -> Result<(), DbError> {
+    let settings = Settings::test_settings().syncstorage;
+    with_test_transaction(settings, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = 1;
+        let coll = "clients";
+        let bid_overlap = "b_overlap";
+        let bid_existing_only = "b_existing";
+        let bid_new = "b_new";
+
+        let original_overlap_payload = "fizz";
+        let existing_only_payload = "buzz";
+        let updated_overlap_payload = "quux";
+        let new_payload = "new hotness";
+
+        db.put_bso(pbso(
+            uid,
+            coll,
+            bid_overlap,
+            Some(original_overlap_payload),
+            Some(1),
+            None,
+        ))
+        .await?;
+        db.put_bso(pbso(
+            uid,
+            coll,
+            bid_existing_only,
+            Some(existing_only_payload),
+            Some(2),
+            None,
+        ))
+        .await?;
+
+        let new_batch = db.create_batch(cb(uid, coll, vec![])).await?;
+        db.append_to_batch(ab(
+            uid,
+            coll,
+            new_batch.clone(),
+            vec![
+                postbso(bid_overlap, Some(updated_overlap_payload), None, None),
+                postbso(bid_new, Some(new_payload), Some(3), None),
+            ],
+        ))
+        .await?;
+
+        let batch = db
+            .get_batch(gb(uid, coll, new_batch.id.clone()))
+            .await?
+            .unwrap();
+        db.commit_batch(params::CommitBatch {
+            user_id: hid(uid),
+            collection: coll.to_owned(),
+            batch,
+        })
+        .await?;
+
+        let overlap = db.get_bso(gbso(uid, coll, bid_overlap)).await?.unwrap();
+        assert_eq!(overlap.payload, updated_overlap_payload);
+        assert_eq!(overlap.sortindex, Some(1));
+
+        let existing = db
+            .get_bso(gbso(uid, coll, bid_existing_only))
+            .await?
+            .unwrap();
+        assert_eq!(existing.payload, existing_only_payload);
+        assert_eq!(existing.sortindex, Some(2));
+
+        let new = db.get_bso(gbso(uid, coll, bid_new)).await?.unwrap();
+        assert_eq!(new.payload, new_payload);
+        assert_eq!(new.sortindex, Some(3));
+
+        Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
 async fn pretouch() -> Result<(), DbError> {
     let settings = Settings::test_settings().syncstorage;
     with_test_transaction(settings, async |db: &mut dyn Db<Error = DbError>| {
