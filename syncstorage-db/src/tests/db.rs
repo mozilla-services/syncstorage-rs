@@ -1104,3 +1104,46 @@ async fn heartbeat() -> Result<(), DbError> {
     })
     .await
 }
+
+#[tokio::test]
+async fn put_bso_preserves_payload_on_sortindex_only_update() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+        let bid = "preserve_payload";
+
+        db.put_bso(pbso(uid, coll, bid, Some("quux"), Some(10), None))
+            .await?;
+
+        db.put_bso(pbso(uid, coll, bid, None, Some(20), None))
+            .await?;
+
+        let bso = db.get_bso(gbso(uid, coll, bid)).await?.unwrap();
+        assert_eq!(bso.payload, "quux");
+        assert_eq!(bso.sortindex, Some(20));
+        Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
+async fn put_bso_preserves_expiry_on_partial_update() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+        let bid = "preserve_expiry";
+
+        db.put_bso(pbso(uid, coll, bid, Some("quux"), None, Some(3600)))
+            .await?;
+        let original_expiry = db.get_bso(gbso(uid, coll, bid)).await?.unwrap().expiry;
+
+        db.put_bso(pbso(uid, coll, bid, Some("baz"), None, None))
+            .await?;
+
+        let bso = db.get_bso(gbso(uid, coll, bid)).await?.unwrap();
+        assert_eq!(bso.payload, "baz");
+        assert_eq!(bso.expiry, original_expiry);
+        Ok(())
+    })
+    .await
+}

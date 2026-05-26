@@ -9,11 +9,7 @@ use google_cloud_rust_raw::spanner::v1::{
     },
     type_pb::TypeCode,
 };
-#[allow(unused_imports)]
-use protobuf::{
-    Message, RepeatedField,
-    well_known_types::{ListValue, Value},
-};
+use syncserver_common::MAX_SPANNER_LOAD_SIZE;
 use syncstorage_db_common::{Db, error::DbErrorIntrospect, params, results, util::SyncTimestamp};
 
 use super::{
@@ -163,9 +159,6 @@ impl Db for SpannerDb {
             let mut req = CommitRequest::new();
             req.set_session(spanner.session.get_name().to_owned());
             req.set_transaction_id(transaction.get_id().to_vec());
-            if let Some(mutations) = self.session.mutations.take() {
-                req.set_mutations(RepeatedField::from_vec(mutations));
-            }
             spanner
                 .client
                 .commit_async_opt(&req, spanner.session_opt()?)?
@@ -518,15 +511,6 @@ impl Db for SpannerDb {
         &mut self,
         params: params::UpdateCollection,
     ) -> DbResult<SyncTimestamp> {
-        // NOTE: Spanner supports upserts via its InsertOrUpdate mutation but
-        // lacks a SQL equivalent. This call could be 1 InsertOrUpdate instead
-        // of 2 queries but would require put/post_bsos to also use mutations.
-        // Due to case of when no parent row exists (in user_collections)
-        // before writing to bsos. Spanner requires a parent table row exist
-        // before child table rows are written.
-        // Mutations don't run in the same order as ExecuteSql calls, they are
-        // buffered on the client side and only issued to Spanner in the final
-        // transaction Commit.
         let timestamp = self.checked_timestamp()?;
         if !cfg!(debug_assertions) && self.session.updated_collection {
             // No need to touch it again (except during tests where we
@@ -794,19 +778,79 @@ impl Db for SpannerDb {
     }
 
     async fn put_bso(&mut self, params: params::PutBso) -> DbResult<results::PutBso> {
-        if self.conn.settings.use_mutations {
-            self.put_bso_with_mutations(params).await
-        } else {
-            self.put_bso_without_mutations(params).await
-        }
+        let user_id = params.user_id;
+        let collection_id = self.get_or_create_collection_id(&params.collection).await?;
+
+        self.check_quota(&user_id, &params.collection).await?;
+
+        // Ensure a parent record exists in user_collections before writing to bsos
+        let timestamp = self
+            .update_collection(params::UpdateCollection {
+                user_id: user_id.clone(),
+                collection_id,
+                collection: params.collection,
+            })
+            .await?;
+
+        self.put_bso_dml(
+            &user_id,
+            collection_id,
+            params::PostCollectionBso {
+                id: params.id,
+                sortindex: params.sortindex,
+                payload: params.payload,
+                ttl: params.ttl,
+            },
+            timestamp,
+        )
+        .await?;
+
+        self.update_user_collection_quotas(&user_id, collection_id)
+            .await
     }
 
     async fn post_bsos(&mut self, params: params::PostBsos) -> DbResult<SyncTimestamp> {
-        if self.conn.settings.use_mutations {
-            self.post_bsos_with_mutations(params).await
-        } else {
-            self.post_bsos_without_mutations(params).await
+        let user_id = params.user_id;
+        let collection_id = self.get_or_create_collection_id(&params.collection).await?;
+
+        if !params.for_batch {
+            self.check_quota(&user_id, &params.collection).await?;
         }
+
+        let load_size: usize = params
+            .bsos
+            .iter()
+            .map(|bso| bso.payload.as_ref().map_or(0, String::len))
+            .sum();
+        if load_size > MAX_SPANNER_LOAD_SIZE {
+            self.metrics.clone().incr("error.tooMuchData");
+            trace!(
+                "⚠️Attempted to load too much data into Spanner: {:?} bytes",
+                load_size
+            );
+            return Err(DbError::too_large(format!(
+                "Committed data too large: {}",
+                load_size
+            )));
+        }
+
+        // Ensure a parent record exists in user_collections before writing to bsos
+        let timestamp = self
+            .update_collection(params::UpdateCollection {
+                user_id: user_id.clone(),
+                collection_id,
+                collection: params.collection,
+            })
+            .await?;
+
+        self.post_bsos_dml(&user_id, collection_id, params.bsos, timestamp)
+            .await?;
+
+        if !params.for_batch {
+            self.update_user_collection_quotas(&user_id, collection_id)
+                .await?;
+        }
+        Ok(timestamp)
     }
 
     async fn check(&mut self) -> DbResult<results::Check> {

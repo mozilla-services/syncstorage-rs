@@ -81,8 +81,6 @@ pub struct Settings {
     pub database_pool_sweeper_task_interval: u32,
     #[cfg(debug_assertions)]
     pub database_use_test_transactions: bool,
-    #[cfg(debug_assertions)]
-    pub database_spanner_use_mutations: bool,
     /// Whether leader aware router headers are sent to Spanner
     pub database_spanner_route_to_leader: bool,
 
@@ -119,8 +117,6 @@ impl Default for Settings {
             database_pool_connection_timeout: Some(30),
             #[cfg(debug_assertions)]
             database_use_test_transactions: false,
-            #[cfg(debug_assertions)]
-            database_spanner_use_mutations: true,
             database_spanner_route_to_leader: false,
             limits: ServerLimits::default(),
             statsd_label: "syncstorage".to_string(),

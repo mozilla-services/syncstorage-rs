@@ -1,25 +1,20 @@
-use std::{
-    collections::{HashMap, HashSet},
-    convert::TryInto,
-    fmt,
-    sync::Arc,
-};
+use std::{collections::HashMap, convert::TryInto, fmt, sync::Arc};
 
 use google_cloud_rust_raw::spanner::v1::{
-    mutation::{Mutation, Mutation_Write},
     spanner::ExecuteSqlRequest,
     transaction::TransactionSelector,
-    type_pb::TypeCode,
+    type_pb::{StructType, Type, TypeCode},
 };
-#[allow(unused_imports)]
 use protobuf::{
-    Message, RepeatedField,
+    RepeatedField,
     well_known_types::{ListValue, Value},
 };
-use syncserver_common::{MAX_SPANNER_LOAD_SIZE, Metrics};
+use syncserver_common::Metrics;
 use syncstorage_db_common::{
     DEFAULT_BSO_TTL, Db, FIRST_CUSTOM_COLLECTION_ID, Sorting, UserIdentifier,
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp,
+    error::DbErrorIntrospect,
+    params,
+    util::{SyncTimestamp, to_rfc3339},
 };
 use syncstorage_settings::Quota;
 
@@ -29,8 +24,8 @@ use crate::{
     pool::{CollectionCache, Conn},
 };
 use support::{
-    ExecuteSqlRequestBuilder, IntoSpannerValue, StreamedResultSetAsync, as_type, bso_to_insert_row,
-    bso_to_update_row,
+    ExecuteSqlRequestBuilder, IntoSpannerValue, StreamedResultSetAsync, as_type, null_value,
+    struct_type_field,
 };
 
 mod batch_impl;
@@ -82,9 +77,6 @@ struct SpannerDbSession {
     /// Currently locked collections
     coll_locks: HashMap<(UserIdentifier, i32), CollectionLock>,
     transaction: Option<TransactionSelector>,
-    /// Behind Vec so commit can take() it (maybe commit() should consume self
-    /// instead?)
-    mutations: Option<Vec<Mutation>>,
     in_write_transaction: bool,
     execute_sql_count: u64,
     /// Whether update_collection has already been called
@@ -208,56 +200,6 @@ impl SpannerDb {
 
     pub(super) async fn sql(&mut self, sql: &str) -> DbResult<ExecuteSqlRequestBuilder> {
         Ok(ExecuteSqlRequestBuilder::new(self.sql_request(sql).await?))
-    }
-
-    #[allow(unused)]
-    pub(super) fn insert(&mut self, table: &str, columns: &[&str], values: Vec<ListValue>) {
-        let mut mutation = Mutation::new();
-        mutation.set_insert(self.mutation_write(table, columns, values));
-        self.session
-            .mutations
-            .get_or_insert_with(Vec::new)
-            .push(mutation);
-    }
-
-    #[allow(unused)]
-    pub(super) fn update(&mut self, table: &str, columns: &[&str], values: Vec<ListValue>) {
-        let mut mutation = Mutation::new();
-        mutation.set_update(self.mutation_write(table, columns, values));
-        self.session
-            .mutations
-            .get_or_insert_with(Vec::new)
-            .push(mutation);
-    }
-
-    #[allow(unused)]
-    pub(super) fn insert_or_update(
-        &mut self,
-        table: &str,
-        columns: &[&str],
-        values: Vec<ListValue>,
-    ) {
-        let mut mutation = Mutation::new();
-        mutation.set_insert_or_update(self.mutation_write(table, columns, values));
-        self.session
-            .mutations
-            .get_or_insert_with(Vec::new)
-            .push(mutation);
-    }
-
-    fn mutation_write(
-        &self,
-        table: &str,
-        columns: &[&str],
-        values: Vec<ListValue>,
-    ) -> Mutation_Write {
-        let mut write = Mutation_Write::new();
-        write.set_table(table.to_owned());
-        write.set_columns(RepeatedField::from_vec(
-            columns.iter().map(|&column| column.to_owned()).collect(),
-        ));
-        write.set_values(RepeatedField::from_vec(values));
-        write
     }
 
     fn in_write_transaction(&self) -> bool {
@@ -640,141 +582,6 @@ impl SpannerDb {
         */
     }
 
-    async fn put_bso_with_mutations(
-        &mut self,
-        params: params::PutBso,
-    ) -> DbResult<results::PutBso> {
-        let bsos = vec![params::PostCollectionBso {
-            id: params.id,
-            sortindex: params.sortindex,
-            payload: params.payload,
-            ttl: params.ttl,
-        }];
-        let result = self
-            .post_bsos_with_mutations(params::PostBsos {
-                user_id: params.user_id,
-                collection: params.collection,
-                bsos,
-                for_batch: false,
-            })
-            .await?;
-
-        Ok(result)
-    }
-
-    async fn post_bsos_with_mutations(
-        &mut self,
-        params: params::PostBsos,
-    ) -> DbResult<SyncTimestamp> {
-        let user_id = params.user_id;
-        let collection_id = self.get_or_create_collection_id(&params.collection).await?;
-
-        if !params.for_batch {
-            self.check_quota(&user_id, &params.collection).await?;
-        }
-
-        // Ensure a parent record exists in user_collections before writing to
-        // bsos (INTERLEAVE IN PARENT user_collections)
-        let timestamp = self
-            .update_collection(params::UpdateCollection {
-                user_id: user_id.clone(),
-                collection_id,
-                collection: params.collection,
-            })
-            .await?;
-
-        let (sqlparams, sqlparam_types) = params! {
-            "fxa_uid" => user_id.fxa_uid.clone(),
-            "fxa_kid" => user_id.fxa_kid.clone(),
-            "collection_id" => collection_id,
-            "ids" => params
-                .bsos
-                .iter()
-                .map(|pbso| pbso.id.clone())
-                .collect::<Vec<String>>(),
-        };
-        // Determine what bsos already exist (need to be inserted vs updated)
-        // NOTE: Here and in batch commit we match the original Python
-        // syncstorage's behavior:
-        //  - not specifying "AND expiry > CURRENT_TIMESTAMP()"
-        //  - thus treating existing but expired bsos as existing (and not
-        //  expired)
-        // This simplifies the writes, avoiding the need to delete those
-        // expired bsos before inserting new ones with the same id.
-        // Unfortunately, this means updates may resurrect expired bsos (or at
-        // least a subset of their fields), or possibly even write new data
-        // without an associated ttl to an expired record that will be
-        // deleted. This in practice should be a very rare occurrence
-        let mut streaming = self
-            .sql(
-                "SELECT bso_id
-                   FROM bsos
-                  WHERE fxa_uid = @fxa_uid
-                    AND fxa_kid = @fxa_kid
-                    AND collection_id = @collection_id
-                    AND bso_id IN UNNEST(@ids)",
-            )
-            .await?
-            .params(sqlparams)
-            .param_types(sqlparam_types)
-            .execute(&self.conn)?;
-        let mut existing = HashSet::new();
-        while let Some(mut row) = streaming.try_next().await? {
-            existing.insert(row[0].take_string_value());
-        }
-        let mut inserts = vec![];
-        let mut updates = HashMap::new();
-        let mut load_size: usize = 0;
-        for bso in params.bsos {
-            if existing.contains(&bso.id) {
-                let (columns, values) = bso_to_update_row(&user_id, collection_id, bso, timestamp)?;
-                load_size += values.compute_size() as usize;
-                updates.entry(columns).or_insert_with(Vec::new).push(values);
-            } else {
-                let values = bso_to_insert_row(&user_id, collection_id, bso, timestamp)?;
-                load_size += values.compute_size() as usize;
-                inserts.push(values);
-            }
-        }
-        if load_size > MAX_SPANNER_LOAD_SIZE {
-            self.metrics.clone().incr("error.tooMuchData");
-            trace!(
-                "⚠️Attempted to load too much data into Spanner: {:?} bytes",
-                load_size
-            );
-            return Err(DbError::too_large(format!(
-                "Committed data too large: {}",
-                load_size
-            )));
-        }
-
-        if !inserts.is_empty() {
-            self.insert(
-                "bsos",
-                &[
-                    "fxa_uid",
-                    "fxa_kid",
-                    "collection_id",
-                    "bso_id",
-                    "sortindex",
-                    "payload",
-                    "modified",
-                    "expiry",
-                ],
-                inserts,
-            );
-        }
-        for (columns, values) in updates {
-            self.update("bsos", &columns, values);
-        }
-        if !params.for_batch {
-            // update the quotas
-            self.update_user_collection_quotas(&user_id, collection_id)
-                .await?;
-        };
-        Ok(timestamp)
-    }
-
     pub fn quota_error(&self, collection: &str) -> DbError {
         // return the over quota error.
         let mut tags = HashMap::default();
@@ -808,171 +615,78 @@ impl SpannerDb {
         Ok(Some(usage.total_bytes))
     }
 
-    // NOTE: Currently this put_bso_async_without_mutations impl is only used
-    // during db tests, see the with_mutations impl for the non-tests version
-    async fn put_bso_without_mutations(
+    /// Write a bso using an `INSERT OR UPDATE`.
+    async fn put_bso_dml(
         &mut self,
-        bso: params::PutBso,
-    ) -> DbResult<results::PutBso> {
-        use syncstorage_db_common::util::to_rfc3339;
-        let collection_id = self.get_or_create_collection_id(&bso.collection).await?;
-
-        self.check_quota(&bso.user_id, &bso.collection).await?;
+        user_id: &UserIdentifier,
+        collection_id: i32,
+        bso: params::PostCollectionBso,
+        timestamp: SyncTimestamp,
+    ) -> DbResult<()> {
+        let has_payload_or_sortindex = bso.payload.is_some() || bso.sortindex.is_some();
 
         let (mut sqlparams, mut sqlparam_types) = params! {
-            "fxa_uid" => bso.user_id.fxa_uid.clone(),
-            "fxa_kid" => bso.user_id.fxa_kid.clone(),
+            "fxa_uid" => user_id.fxa_uid.clone(),
+            "fxa_kid" => user_id.fxa_kid.clone(),
             "collection_id" => collection_id,
             "bso_id" => bso.id,
+            "timestamp" => timestamp.as_rfc3339()?,
+            "default_bso_ttl" => DEFAULT_BSO_TTL,
         };
-        // prewarm the collections table by ensuring that the row is added if not present.
-        self.update_collection(params::UpdateCollection {
-            user_id: bso.user_id.clone(),
-            collection_id,
-            collection: bso.collection,
-        })
-        .await?;
-        let timestamp = self.checked_timestamp()?;
+        sqlparam_types.insert("timestamp".to_owned(), as_type(TypeCode::TIMESTAMP));
 
-        let result = self
-            .sql(
-                "SELECT 1 AS count
+        let modified_expr = if has_payload_or_sortindex {
+            "@timestamp"
+        } else {
+            "COALESCE(existing.modified, @timestamp)"
+        };
+
+        let payload_expr = if let Some(payload) = bso.payload {
+            sqlparam_types.insert("payload".to_owned(), payload.spanner_type());
+            sqlparams.insert("payload".to_owned(), payload.into_spanner_value());
+            "@payload"
+        } else {
+            "COALESCE(existing.payload, '')"
+        };
+
+        let expiry_expr = if let Some(ttl) = bso.ttl {
+            let expiry = timestamp.as_i64() + (i64::from(ttl) * 1000);
+            sqlparams.insert(
+                "ttl_expiry".to_owned(),
+                to_rfc3339(expiry)?.into_spanner_value(),
+            );
+            sqlparam_types.insert("ttl_expiry".to_owned(), as_type(TypeCode::TIMESTAMP));
+            "@ttl_expiry"
+        } else {
+            "COALESCE(existing.expiry, TIMESTAMP_ADD(@timestamp, INTERVAL @default_bso_ttl SECOND))"
+        };
+
+        let (sortindex_col, sortindex_expr) = if let Some(sortindex) = bso.sortindex {
+            sqlparam_types.insert("sortindex".to_owned(), sortindex.spanner_type());
+            sqlparams.insert("sortindex".to_owned(), sortindex.into_spanner_value());
+            (", sortindex", ", @sortindex")
+        } else {
+            ("", "")
+        };
+
+        let sql = format!(
+            "INSERT OR UPDATE INTO bsos
+                 (fxa_uid, fxa_kid, collection_id, bso_id, modified, payload, expiry{sortindex_col})
+             SELECT
+                 @fxa_uid, @fxa_kid, @collection_id, @bso_id,
+                 {modified_expr},
+                 {payload_expr},
+                 {expiry_expr}{sortindex_expr}
+               FROM UNNEST([1]) --  provides a row source for the LEFT JOIN
+          LEFT JOIN (
+                 SELECT modified, payload, expiry, sortindex
                    FROM bsos
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
                     AND collection_id = @collection_id
-                    AND bso_id = @bso_id",
-            )
-            .await?
-            .params(sqlparams.clone())
-            .param_types(sqlparam_types.clone())
-            .execute(&self.conn)?
-            .one_or_none()
-            .await?;
-        let exists = result.is_some();
-
-        let sql = if exists {
-            let mut q = "".to_string();
-            let comma = |q: &String| if q.is_empty() { "" } else { ", " };
-
-            q = format!(
-                "{}{}",
-                q,
-                if let Some(sortindex) = bso.sortindex {
-                    sqlparam_types.insert("sortindex".to_string(), sortindex.spanner_type());
-                    sqlparams.insert("sortindex".to_string(), sortindex.into_spanner_value());
-
-                    format!("{}{}", comma(&q), "sortindex = @sortindex")
-                } else {
-                    "".to_string()
-                }
-            );
-
-            q = format!(
-                "{}{}",
-                q,
-                if let Some(ttl) = bso.ttl {
-                    let expiry = timestamp.as_i64() + (i64::from(ttl) * 1000);
-                    sqlparams.insert(
-                        "expiry".to_string(),
-                        to_rfc3339(expiry)?.into_spanner_value(),
-                    );
-                    sqlparam_types.insert("expiry".to_string(), as_type(TypeCode::TIMESTAMP));
-                    format!("{}{}", comma(&q), "expiry = @expiry")
-                } else {
-                    "".to_string()
-                }
-            );
-
-            q = format!(
-                "{}{}",
-                q,
-                if bso.payload.is_some() || bso.sortindex.is_some() {
-                    sqlparams.insert(
-                        "modified".to_string(),
-                        timestamp.as_rfc3339()?.into_spanner_value(),
-                    );
-                    sqlparam_types.insert("modified".to_string(), as_type(TypeCode::TIMESTAMP));
-                    format!("{}{}", comma(&q), "modified = @modified")
-                } else {
-                    "".to_string()
-                }
-            );
-
-            q = format!(
-                "{}{}",
-                q,
-                if let Some(payload) = bso.payload {
-                    sqlparam_types.insert("payload".to_string(), payload.spanner_type());
-                    sqlparams.insert("payload".to_string(), payload.into_spanner_value());
-                    format!("{}{}", comma(&q), "payload = @payload")
-                } else {
-                    "".to_string()
-                }
-            );
-
-            if q.is_empty() {
-                // Nothing to update
-                return Ok(timestamp);
-            }
-
-            format!(
-                "UPDATE bsos SET {}{}",
-                q,
-                " WHERE fxa_uid = @fxa_uid
-                    AND fxa_kid = @fxa_kid
-                    AND collection_id = @collection_id
-                    AND bso_id = @bso_id"
-            )
-        } else {
-            let use_sortindex = bso
-                .sortindex
-                .map(|sortindex| sortindex.to_string())
-                .unwrap_or_else(|| "NULL".to_owned())
-                != "NULL";
-            let sql = if use_sortindex {
-                "INSERT INTO bsos
-                        (fxa_uid, fxa_kid, collection_id, bso_id, sortindex, payload, modified,
-                         expiry)
-                 VALUES
-                        (@fxa_uid, @fxa_kid, @collection_id, @bso_id, @sortindex, @payload,
-                         @modified, @expiry)"
-            } else {
-                "INSERT INTO bsos (fxa_uid, fxa_kid, collection_id, bso_id, payload, modified,
-                                   expiry)
-                 VALUES (@fxa_uid, @fxa_kid, @collection_id, @bso_id, @payload, @modified,
-                         @expiry)"
-            };
-
-            if use_sortindex {
-                use support::null_value;
-                let sortindex = bso
-                    .sortindex
-                    .map(|sortindex| sortindex.into_spanner_value())
-                    .unwrap_or_else(null_value);
-                sqlparams.insert("sortindex".to_string(), sortindex);
-                sqlparam_types.insert("sortindex".to_string(), as_type(TypeCode::INT64));
-            }
-            let payload = bso.payload.unwrap_or_else(|| "".to_owned());
-            sqlparam_types.insert("payload".to_owned(), payload.spanner_type());
-            sqlparams.insert("payload".to_string(), payload.into_spanner_value());
-            let now_millis = timestamp.as_i64();
-            let ttl = bso.ttl.map_or(i64::from(DEFAULT_BSO_TTL), |ttl| ttl.into()) * 1000;
-            let expirystring = to_rfc3339(now_millis + ttl)?;
-            debug!(
-                "!!!!! [test] INSERT expirystring:{:?}, timestamp:{:?}, ttl:{:?}",
-                &expirystring, timestamp, ttl
-            );
-            sqlparams.insert("expiry".to_string(), expirystring.into_spanner_value());
-            sqlparam_types.insert("expiry".to_string(), as_type(TypeCode::TIMESTAMP));
-
-            sqlparams.insert(
-                "modified".to_string(),
-                timestamp.as_rfc3339()?.into_spanner_value(),
-            );
-            sqlparam_types.insert("modified".to_string(), as_type(TypeCode::TIMESTAMP));
-            sql.to_owned()
-        };
+                    AND bso_id = @bso_id
+             ) AS existing ON TRUE"
+        );
 
         self.sql(&sql)
             .await?
@@ -980,34 +694,110 @@ impl SpannerDb {
             .param_types(sqlparam_types)
             .execute_dml(&self.conn)
             .await?;
-        // update the counts for the user_collections table.
-        self.update_user_collection_quotas(&bso.user_id, collection_id)
-            .await
+        Ok(())
     }
 
-    // NOTE: Currently this post_bsos_without_mutations impl is only used
-    // during db tests, see the with_mutations impl for the non-tests version
-    async fn post_bsos_without_mutations(
+    /// Write N bsos to the same `(fxa_uid, fxa_kid, collection_id)` in an `INSERT OR UPDATE`
+    async fn post_bsos_dml(
         &mut self,
-        input: params::PostBsos,
-    ) -> DbResult<SyncTimestamp> {
-        let collection_id = self.get_or_create_collection_id(&input.collection).await?;
-        let modified = self.checked_timestamp()?;
-
-        for pbso in input.bsos {
-            let id = pbso.id;
-            self.put_bso_without_mutations(params::PutBso {
-                user_id: input.user_id.clone(),
-                collection: input.collection.clone(),
-                id: id.clone(),
-                payload: pbso.payload,
-                sortindex: pbso.sortindex,
-                ttl: pbso.ttl,
-            })
-            .await?;
+        user_id: &UserIdentifier,
+        collection_id: i32,
+        bsos: Vec<params::PostCollectionBso>,
+        timestamp: SyncTimestamp,
+    ) -> DbResult<()> {
+        if bsos.is_empty() {
+            return Ok(());
         }
-        self.update_user_collection_quotas(&input.user_id, collection_id)
-            .await?;
-        Ok(modified)
+
+        let mut rows: Vec<Value> = Vec::with_capacity(bsos.len());
+        for bso in bsos {
+            // Optional columns are encoded as NULL when the request omitted them
+            let sortindex = bso
+                .sortindex
+                .map(IntoSpannerValue::into_spanner_value)
+                .unwrap_or_else(null_value);
+            let payload = bso
+                .payload
+                .map(IntoSpannerValue::into_spanner_value)
+                .unwrap_or_else(null_value);
+            let ttl = bso
+                .ttl
+                .map(IntoSpannerValue::into_spanner_value)
+                .unwrap_or_else(null_value);
+
+            let mut row = ListValue::new();
+            row.set_values(vec![bso.id.into_spanner_value(), sortindex, payload, ttl].into());
+            let mut value = Value::new();
+            value.set_list_value(row);
+            rows.push(value);
+        }
+
+        let fields = vec![
+            ("bso_id", TypeCode::STRING),
+            ("sortindex", TypeCode::INT64),
+            ("payload", TypeCode::STRING),
+            ("ttl", TypeCode::INT64),
+        ]
+        .into_iter()
+        .map(|(name, field_type)| struct_type_field(name, field_type))
+        .collect();
+
+        let mut list_values = ListValue::new();
+        list_values.set_values(RepeatedField::from_vec(rows));
+        let mut values = Value::new();
+        values.set_list_value(list_values);
+
+        let mut param_type = Type::new();
+        param_type.set_code(TypeCode::ARRAY);
+        let mut array_type = Type::new();
+        array_type.set_code(TypeCode::STRUCT);
+        let mut struct_type = StructType::new();
+        struct_type.set_fields(RepeatedField::from_vec(fields));
+        array_type.set_struct_type(struct_type);
+        param_type.set_array_element_type(array_type);
+
+        let (mut sqlparams, mut sqlparam_types) = params! {
+            "fxa_uid" => user_id.fxa_uid.clone(),
+            "fxa_kid" => user_id.fxa_kid.clone(),
+            "collection_id" => collection_id,
+            "timestamp" => timestamp.as_rfc3339()?,
+            "default_bso_ttl" => DEFAULT_BSO_TTL,
+        };
+        sqlparam_types.insert("timestamp".to_owned(), as_type(TypeCode::TIMESTAMP));
+        sqlparams.insert("bsos".to_owned(), values);
+        sqlparam_types.insert("bsos".to_owned(), param_type);
+
+        self.sql(
+            "INSERT OR UPDATE INTO bsos
+                 (fxa_uid, fxa_kid, collection_id, bso_id,
+                  sortindex, payload, modified, expiry)
+             SELECT
+                 @fxa_uid,
+                 @fxa_kid,
+                 @collection_id,
+                 incoming.bso_id,
+                 COALESCE(incoming.sortindex, existing.sortindex),
+                 COALESCE(incoming.payload, existing.payload, ''),
+                 IF(incoming.payload IS NOT NULL OR incoming.sortindex IS NOT NULL,
+                    @timestamp,
+                    COALESCE(existing.modified, @timestamp)),
+                 COALESCE(
+                     TIMESTAMP_ADD(@timestamp, INTERVAL incoming.ttl SECOND),
+                     existing.expiry,
+                     TIMESTAMP_ADD(@timestamp, INTERVAL @default_bso_ttl SECOND)
+                 )
+               FROM UNNEST(@bsos) AS incoming
+               LEFT JOIN bsos AS existing
+                 ON existing.fxa_uid = @fxa_uid
+                AND existing.fxa_kid = @fxa_kid
+                AND existing.collection_id = @collection_id
+                AND existing.bso_id = incoming.bso_id",
+        )
+        .await?
+        .params(sqlparams)
+        .param_types(sqlparam_types)
+        .execute_dml(&self.conn)
+        .await?;
+        Ok(())
     }
 }
