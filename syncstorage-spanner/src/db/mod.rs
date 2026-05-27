@@ -297,8 +297,6 @@ impl SpannerDb {
                 "fxa_kid" => user.fxa_kid.clone(),
                 "collection_id" => collection_id,
             };
-            // SUM/COUNT without GROUP BY always returns one row; COALESCE
-            // covers the empty-bsos case (collection just emptied 0, 0).
             let mut result = self
                 .sql(
                     "SELECT COALESCE(SUM(BYTE_LENGTH(payload)), 0), COUNT(*)
