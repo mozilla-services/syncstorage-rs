@@ -199,8 +199,12 @@ Create a new Jira issue in STOR from natural language.
 1. Parse the description to infer:
    - **Summary** — one clear sentence (≤ 100 chars)
    - **Issue type** — Bug / Task / Story / Spike (infer from language; ask if ambiguous)
-   - **Priority** — infer from language ("critical", "blocking" → Critical; "nice to have" → Minor; default → Major)
-   - **Description body** — expand the user's language into a structured description:
+   - **Priority** — infer from language ("critical", "blocking" → Critical; "nice to have" → Minor; default → Major). Valid STOR priorities: `Blocker`, `Critical`, `Major`, `Minor`. `Trivial` is rejected by the project — do not use it.
+   - **Work category** — `Feature Engineering` / `Engineering Excellence` / `Operational Excellence`. See [Work categories](#work-categories) below for definitions and inference rules. Always classify; if unsure between EE and OpEx, the planned/reactive distinction decides it.
+   - **Assignee** — if this `create` invocation is part of the same workflow that opens a GitHub PR for the work, set the assignee to the current user. Look up their accountId via `mcp__atlassian__lookupJiraAccountId` using the email from the runtime `userEmail` context. Otherwise leave unassigned unless the user named a specific person.
+   - **Parent** — if the description references an epic (e.g. "under STOR-506", "in STOR-506", "linked to <epic>"), set `parent` to that key when calling `createJiraIssue`.
+   - **Description body** — expand the user's language into a structured description, leading with the category:
+     - **Category:** {one of the three categories} — *one-sentence rationale*
      - **Background:** why this is needed
      - **Acceptance Criteria:** observable, testable outcomes
      - **Notes:** any constraints or references mentioned
@@ -208,9 +212,13 @@ Create a new Jira issue in STOR from natural language.
 2. Show the draft to the user before creating:
    ```
    Ready to create:
-   Type: {type}
-   Summary: {summary}
+   Type:     {type}
+   Project:  STOR
+   Parent:   {parent key or none}
    Priority: {priority}
+   Category: {category}
+   Assignee: {display name or "unassigned"}
+   Summary:  {summary}
    Description:
    {description}
 
@@ -218,11 +226,13 @@ Create a new Jira issue in STOR from natural language.
    ```
 
 3. On confirmation, call `mcp__atlassian__createJiraIssue` with:
-   - `project: STOR`
-   - `issuetype: {type}`
+   - `projectKey: STOR`
+   - `issueTypeName: {type}`
    - `summary: {summary}`
-   - `priority: {priority}`
-   - `description: {description}`
+   - `description: {description}` with `contentFormat: markdown`
+   - `additional_fields: { "priority": { "name": "{priority}" } }`
+   - `assignee_account_id: {accountId}` — only when auto-assignment applies or the user named an assignee
+   - `parent: {epic_key}` — only when a parent epic was identified
 
 4. Return the created issue key and direct link: `[STOR-####](JIRA_BASE/browse/STOR-####)`
 
@@ -265,3 +275,37 @@ Modify an existing issue. Changes can be natural language.
 - **Confirm before write operations**: always show a draft before calling `createJiraIssue`, `editJiraIssue`, `transitionJiraIssue`, or `addCommentToJiraIssue`
 - **Permissions**: create/edit/transition operations require the user's Jira account to have project contributor access to STOR; if a call fails with 403, report it clearly and do not retry
 - **Issue type inference**: "bug" → Bug; "task"/"chore" → Task; "feature"/"story"/"as a user" → Story; "investigate"/"explore"/"spike" → Spike
+- **Classify every ticket**: when creating or summarizing, identify the [work category](#work-categories) (Feature Engineering / Engineering Excellence / Operational Excellence). Include it as the leading line of the description body for created tickets.
+- **Auto-assign when PR-bundled**: if a `create` invocation is part of the same workflow that opens a GitHub PR for the same work, set the assignee to the current user (look up their accountId with `mcp__atlassian__lookupJiraAccountId`). Setting an assignee may transition the issue to In Progress via Jira workflow rules — that's expected.
+
+---
+
+## Work categories
+
+Per [Feature Engineering, Engineering Excellence, and Operational Excellence](https://mozilla-hub.atlassian.net/wiki/spaces/IP/pages/1397817345). Classify every STOR ticket into one of three categories. Target distribution per quarter: ≤ 50% Feature Engineering, ≤ 30% Engineering Excellence, ≤ 20% Operational Excellence.
+
+### Feature Engineering — *build & deliver new things*
+
+Planned work that changes what a customer (internal or external) sees beyond speed, reliability, or bugfixes.
+
+Examples: new API endpoints, new auth methods (passkeys), launching a region or platform, UI/UX redesigns, A/B testing, expanded user-configuration options, changes to core business logic, bug fixes against unlaunched feature work.
+
+### Engineering Excellence — *sustain & improve velocity*
+
+Planned work that improves code maintainability, reduces tech debt, or boosts engineering velocity. Most non-hotfix bug fixes land here. "Keeping the lights on" proactively.
+
+Examples: refactors, test-coverage improvements, observability and monitoring, CI/CD tooling, dependency upgrades, removing dead code, fixing flaky tests, reducing on-call toil, automating manual deployments, fixes for issues in already-released features.
+
+### Operational Excellence — *react & keep production healthy*
+
+Unplanned work. Reliability, stability, security, and operational efficiency in the production environment. "Keeping the lights on" reactively.
+
+Examples: security patches and CVE remediations, manual scaling under load, incident response and postmortems, hotfix patches for production incidents, resolving performance issues impacting SLAs.
+
+### Inference rules
+
+- **Planned vs. unplanned** decides EE vs. OpEx: if it was on a roadmap/sprint plan, it's EE; if it interrupted planned work to keep prod healthy, it's OpEx.
+- **Customer-visible change** decides FE vs. EE: if the customer sees something new (beyond speed/reliability/bugfix), it's FE.
+- **Dependency upgrades, CI/CD tooling, refactors, test improvements** → Engineering Excellence (unless the upgrade is a CVE remediation, then OpEx).
+- **Security patches and CVEs** → Operational Excellence.
+- **Bug fixes**: pre-launch → FE; against released features, planned → EE; via hotfix → OpEx.
