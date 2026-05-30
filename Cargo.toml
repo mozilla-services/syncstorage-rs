@@ -1,4 +1,7 @@
 [workspace]
+# Virtual workspaces don't inherit the resolver from member editions, so v3
+# (the edition 2024 default) must be set explicitly here. See:
+# https://doc.rust-lang.org/cargo/reference/resolver.html#resolver-versions
 resolver = "3"
 members = [
   "syncserver-common",
