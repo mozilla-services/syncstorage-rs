@@ -72,7 +72,7 @@ jobs:
           IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
-      - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
           context: .
           push: true
@@ -121,7 +121,7 @@ jobs:
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - name: Build and push to prod GAR and ghcr
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
           context: .
           push: true
@@ -141,7 +141,7 @@ jobs:
           token_format: access_token
 
       - name: Log in to enterprise GAR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: us-docker.pkg.dev
           username: oauth2accesstoken
@@ -162,7 +162,7 @@ jobs:
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - name: Build and push to enterprise GAR
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
           context: .
           push: true
@@ -213,7 +213,7 @@ jobs:
           IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
-      - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
           context: tools/spanner
           file: tools/spanner/Dockerfile
@@ -261,7 +261,7 @@ jobs:
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - name: Build and push to prod GAR and ghcr
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
           context: tools/postgres
           file: tools/postgres/Dockerfile
@@ -279,7 +279,7 @@ jobs:
           token_format: access_token
 
       - name: Log in to enterprise GAR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: us-docker.pkg.dev
           username: oauth2accesstoken
@@ -300,7 +300,7 @@ jobs:
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - name: Build and push to enterprise GAR
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
           context: tools/postgres
           file: tools/postgres/Dockerfile
@@ -345,7 +345,7 @@ jobs:
           IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
-      - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
           context: .
           push: true
