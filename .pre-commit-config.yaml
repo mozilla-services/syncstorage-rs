@@ -4,12 +4,12 @@
 # machine. Keeps trivial issues (formatting, lint nits, clippy warnings) off PRs
 # and breaks CI less often.
 #
-# Setup:
-#   pip install pre-commit        # or: uv tool install pre-commit
-#   make install-hooks            # or: pre-commit install --install-hooks
+# Setup (pre-commit is a poetry dev dependency):
+#   make install                  # installs dev deps, incl. pre-commit, via poetry
+#   make install-hooks            # or: poetry run pre-commit install --install-hooks
 #
 # Run manually against everything:
-#   pre-commit run --all-files
+#   poetry run pre-commit run --all-files
 #
 # Two tiers, by stage:
 #   pre-commit  -> fast checks, run on every commit (hygiene, fmt, ruff)

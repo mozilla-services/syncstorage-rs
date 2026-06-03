@@ -265,12 +265,8 @@ $(INSTALL_STAMP): pyproject.toml poetry.lock
 	touch $(INSTALL_STAMP)
 
 .PHONY: install-hooks
-install-hooks:  ##  Install git pre-commit/pre-push hooks (requires pre-commit).
-	@if ! command -v pre-commit >/dev/null 2>&1; then \
-		echo "pre-commit not found. Install it with 'pip install pre-commit' or 'uv tool install pre-commit'."; \
-		exit 2; \
-	fi
-	pre-commit install --install-hooks
+install-hooks: $(INSTALL_STAMP)  ##  Install git pre-commit/pre-push hooks (via poetry).
+	$(POETRY) run pre-commit install --install-hooks
 
 hawk:
 	# install dependencies for hawk token utility.
@@ -376,7 +372,7 @@ bandit: $(INSTALL_STAMP)  ##  Run bandit
 .PHONY: mypy
 mypy: $(INSTALL_STAMP)  ##  Run mypy
 	$(POETRY) run mypy --config-file=$(ROOT_PYPROJECT_TOML) $(TOOLS_DIR)
- 
+
 .PHONY: pydocstyle
 pydocstyle: $(INSTALL_STAMP)  ##  Run pydocstyle
 	$(POETRY) run pydocstyle -es --count --config=$(ROOT_PYPROJECT_TOML) $(TOOLS_DIR)
