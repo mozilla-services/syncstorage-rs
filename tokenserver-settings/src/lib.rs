@@ -6,6 +6,11 @@ use tokenserver_common::NodeType;
 #[serde(default)]
 pub struct Settings {
     /// The URL of the Tokenserver MySQL database.
+    ///
+    /// Has no usable default: when unset (and Tokenserver is enabled) this is
+    /// left empty so the server fails fast at startup (see
+    /// `syncserver_settings::Settings::validate`) rather than silently
+    /// connecting to a default host.
     pub database_url: String,
     /// The max size of the database connection pool.
     pub database_pool_max_size: u32,
@@ -71,7 +76,9 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Settings {
         Settings {
-            database_url: "mysql://root@127.0.0.1/tokenserver".to_owned(),
+            // Intentionally empty: a missing DATABASE_URL must fail fast at
+            // startup rather than fall back to a default connection string.
+            database_url: String::new(),
             database_pool_max_size: 10,
             database_pool_connection_timeout: Some(30),
             database_request_timeout: None,

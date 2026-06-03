@@ -4,6 +4,8 @@ master_secret = "INSERT_SECRET_KEY_HERE"
 human_logs = 1
 
 # Example Syncstorage settings:
+# database_url is required when syncstorage is enabled; there is no default,
+# and the server fails to start if it is unset.
 # Example MySQL DSN:
 syncstorage.database_url = "mysql://sample_user:sample_password@localhost/syncstorage_rs"
 # Example Spanner DSN:
@@ -16,6 +18,8 @@ syncstorage.enabled = true
 syncstorage.limits.max_total_records = 1666 # See issues #298/#333
 
 # Example Tokenserver settings:
+# database_url is required when tokenserver is enabled; there is no default,
+# and the server fails to start if it is unset.
 tokenserver.database_url = "mysql://sample_user:sample_password@localhost/tokenserver_rs"
 tokenserver.enabled = true
 tokenserver.fxa_email_domain = "api-accounts.stage.mozaws.net"

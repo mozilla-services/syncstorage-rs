@@ -69,6 +69,11 @@ impl From<&Settings> for Deadman {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default)]
 pub struct Settings {
+    /// The syncstorage database connection string.
+    ///
+    /// Has no usable default: when unset this is left empty so the server
+    /// fails fast at startup (see `syncserver_settings::Settings::validate`)
+    /// rather than silently connecting to a default host.
     pub database_url: String,
     pub database_pool_max_size: u32,
     /// Pool timeout when waiting for a slot to become available, in seconds
@@ -109,7 +114,9 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Settings {
         Settings {
-            database_url: "mysql://root@127.0.0.1/syncstorage".to_string(),
+            // Intentionally empty: a missing DATABASE_URL must fail fast at
+            // startup rather than fall back to a default connection string.
+            database_url: String::new(),
             database_pool_max_size: 10,
             database_pool_connection_lifespan: None,
             database_pool_connection_max_idle: None,
