@@ -1,0 +1,94 @@
+# Pre-commit hooks for syncstorage-rs.
+#
+# Runs the same fast lint/format checks as CI, locally, before code leaves your
+# machine. Keeps trivial issues (formatting, lint nits, clippy warnings) off PRs
+# and breaks CI less often.
+#
+# Setup:
+#   pip install pre-commit        # or: uv tool install pre-commit
+#   make install-hooks            # or: pre-commit install --install-hooks
+#
+# Run manually against everything:
+#   pre-commit run --all-files
+#
+# Two tiers, by stage:
+#   pre-commit  -> fast checks, run on every commit (hygiene, fmt, ruff)
+#   pre-push    -> heavier checks, run before pushing (clippy, mypy, bandit, pydocstyle)
+#
+# The Rust/Python hooks shell out to the existing Makefile targets so there is a
+# single source of truth with CI and no drift.
+
+default_install_hook_types: [pre-commit, pre-push]
+
+repos:
+  # --- General hygiene (external) -----------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  # --- Rust + Python (local; mirror the Makefile / CI) --------------------
+  - repo: local
+    hooks:
+      # Fast: every commit
+      - id: cargo-fmt
+        name: cargo fmt (check)
+        entry: cargo fmt --all -- --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: ruff-lint
+        name: ruff check (tools/)
+        entry: make ruff-lint
+        language: system
+        files: ^tools/.*\.py$
+        pass_filenames: false
+
+      - id: ruff-fmt-chk
+        name: ruff format check (tools/)
+        entry: make ruff-fmt-chk
+        language: system
+        files: ^tools/.*\.py$
+        pass_filenames: false
+
+      # Heavier: before push
+      - id: cargo-clippy
+        name: cargo clippy (mysql)
+        entry: make clippy_mysql
+        language: system
+        types: [rust]
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: mypy
+        name: mypy (tools/)
+        entry: make mypy
+        language: system
+        files: ^tools/.*\.py$
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: bandit
+        name: bandit (tools/)
+        entry: make bandit
+        language: system
+        files: ^tools/.*\.py$
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: pydocstyle
+        name: pydocstyle (tools/)
+        entry: make pydocstyle
+        language: system
+        files: ^tools/.*\.py$
+        pass_filenames: false
+        stages: [pre-push]
