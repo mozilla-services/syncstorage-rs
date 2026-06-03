@@ -20,6 +20,18 @@
 
 default_install_hook_types: [pre-commit, pre-push]
 
+# Never modify published migrations, the Spanner schema, or generated artifacts
+# (see CLAUDE.md do-not-touch paths). Keeps the hygiene hooks off them.
+exclude: |
+  (?x)^(
+    .*/migrations/.*|
+    syncstorage-spanner/src/schema\.ddl|
+    Cargo\.lock|
+    poetry\.lock|
+    openapi\.json|
+    CHANGELOG\.md
+  )$
+
 repos:
   # --- General hygiene (external) -----------------------------------------
   - repo: https://github.com/pre-commit/pre-commit-hooks
