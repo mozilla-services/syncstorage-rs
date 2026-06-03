@@ -59,7 +59,18 @@ Hooks run automatically on `git commit` and `git push`. They are split by stage:
 
 - **commit** (fast): general hygiene (trailing whitespace, EOF, merge-conflict,
   YAML/TOML checks), `cargo fmt --check`, and `ruff` lint + format checks on `tools/`.
-- **push** (heavier): `cargo clippy` (mysql), `mypy`, `bandit`, and `pydocstyle`.
+- **push** (heavier): `cargo clippy` (mysql always; postgres/spanner only when
+  their backend crates change), `cargo audit` (only when `Cargo.lock`/`Cargo.toml`
+  change), `mypy`, `bandit`, and `pydocstyle`.
+
+Backend clippy is scoped this way because the backends are mutually-exclusive
+features and each variant is a near-full workspace recompile. Shared-crate
+changes are covered by the mysql baseline locally and the full matrix in CI. To
+run every backend's clippy on demand:
+
+```bash
+make clippy-all
+```
 
 The Rust/Python hooks call the existing `Makefile` targets, so they stay in sync
 with CI. Run everything on demand with:

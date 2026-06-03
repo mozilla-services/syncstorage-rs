@@ -22,11 +22,12 @@ default_install_hook_types: [pre-commit, pre-push]
 
 # Never modify published migrations, the Spanner schema, or generated artifacts
 # (see CLAUDE.md do-not-touch paths). Keeps the hygiene hooks off them.
+# NOTE: Cargo.lock is intentionally NOT excluded globally so cargo-audit can
+# trigger on it; the file-modifying hygiene hooks exclude it individually below.
 exclude: |
   (?x)^(
     .*/migrations/.*|
     syncstorage-spanner/src/schema\.ddl|
-    Cargo\.lock|
     poetry\.lock|
     openapi\.json|
     CHANGELOG\.md
@@ -38,7 +39,9 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^Cargo\.lock$
       - id: end-of-file-fixer
+        exclude: ^Cargo\.lock$
       - id: check-merge-conflict
       - id: check-yaml
       - id: check-toml
@@ -46,6 +49,7 @@ repos:
         args: ["--maxkb=1024"]
       - id: mixed-line-ending
         args: ["--fix=lf"]
+        exclude: ^Cargo\.lock$
 
   # --- Rust + Python (local; mirror the Makefile / CI) --------------------
   - repo: local
@@ -72,12 +76,41 @@ repos:
         files: ^tools/.*\.py$
         pass_filenames: false
 
-      # Heavier: before push
-      - id: cargo-clippy
+      # Heavier: before push.
+      # clippy_mysql is the always-on baseline (mysql is the default feature set
+      # and most code is backend-agnostic). The postgres/spanner variants only
+      # fire when their backend crates change, since backends are mutually
+      # exclusive features and each variant is a near-full workspace recompile.
+      # Shared-crate changes are covered by mysql here and the full matrix in CI.
+      - id: cargo-clippy-mysql
         name: cargo clippy (mysql)
         entry: make clippy_mysql
         language: system
         types: [rust]
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: cargo-clippy-postgres
+        name: cargo clippy (postgres)
+        entry: make clippy_postgres
+        language: system
+        files: ^(syncstorage-postgres|tokenserver-postgres)/.*\.rs$
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: cargo-clippy-spanner
+        name: cargo clippy (spanner)
+        entry: make clippy_spanner
+        language: system
+        files: ^syncstorage-spanner/.*\.rs$
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: cargo-audit
+        name: cargo audit (dependency CVEs)
+        entry: make audit
+        language: system
+        files: ^(Cargo\.lock|Cargo\.toml)$
         pass_filenames: false
         stages: [pre-push]
 
