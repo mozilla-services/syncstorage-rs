@@ -41,6 +41,33 @@ When submitting a PR:
 See the main [README.md](/README.md) for information on prerequisites,
 installing, running and testing.
 
+## Pre-commit Hooks
+
+This repo ships a [pre-commit](https://pre-commit.com/) configuration
+(`.pre-commit-config.yaml`) that runs the same fast lint/format checks as CI,
+locally, so trivial issues stay off PRs and CI breaks less often.
+
+Install once (per clone):
+
+```bash
+pip install pre-commit        # or: uv tool install pre-commit
+make install-hooks            # or: pre-commit install --install-hooks
+```
+
+Hooks run automatically on `git commit` and `git push`. They are split by stage:
+
+- **commit** (fast): general hygiene (trailing whitespace, EOF, merge-conflict,
+  YAML/TOML checks), `cargo fmt --check`, and `ruff` lint + format checks on `tools/`.
+- **push** (heavier): `cargo clippy` (mysql), `mypy`, `bandit`, and `pydocstyle`.
+
+The Rust/Python hooks call the existing `Makefile` targets, so they stay in sync
+with CI. Run everything on demand with:
+
+```bash
+pre-commit run --all-files               # commit-stage hooks
+pre-commit run --all-files --hook-stage pre-push
+```
+
 ## Code Review
 
 This project is production Mozilla code and subject to the contributing guidelines established in this documentation. Every patch must be peer reviewed by a member of the official Sync team. 
