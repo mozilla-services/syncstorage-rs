@@ -1,15 +1,15 @@
 # =============================================================================
-# Default out-of-the-box configuration: MySQL build
+# Default out-of-the-box configuration: Spanner build
 # =============================================================================
 #
 # This is a ready-to-edit template for running syncstorage-rs against the
-# standard MySQL build (the default `cargo build` / `make run_mysql` target,
-# and the `syncstorage-rs-mysql` Docker image). It runs both Syncstorage and
-# Tokenserver against MySQL.
+# standard Spanner build (`make run_spanner`, the `syncstorage-rs-spanner`
+# Docker image). This mirrors the production topology: Syncstorage runs against
+# Google Cloud Spanner, while Tokenserver runs against MySQL.
 #
 # Copy it to `config/local.toml` and edit the values marked REQUIRED:
 #
-#     cp config/local.example.toml config/local.toml
+#     cp config/local.example.spanner.toml config/local.toml
 #
 # Every setting can also be supplied as an environment variable prefixed with
 # `SYNC_` (nested keys use `__`), e.g. `syncstorage.database_url` becomes
@@ -17,12 +17,16 @@
 # the config file. See the full reference at docs/src/config.md, and the
 # annotated `Settings` structs in `*-settings/src/lib.rs`.
 #
-# For the Spanner build, see `config/local.example.spanner.toml`.
+# To run against the local Spanner emulator instead of real Spanner, set
+# `syncstorage.spanner_emulator_host` (see below) and point the
+# `GOOGLE_APPLICATION_CREDENTIALS` env var at a service-account key for real
+# Spanner only.
+#
+# For the all-MySQL build, see `config/local.example.toml`.
 # =============================================================================
 
 # REQUIRED. Secret used to derive the Hawk signing/token secrets. Use a long,
-# random string in any real deployment. No default; the server cannot
-# authenticate requests without it.
+# random string in any real deployment. No default.
 master_secret = "INSERT_SECRET_KEY_HERE"
 
 # Host/port the server binds to. Defaults: host = "127.0.0.1", port = 8000.
@@ -31,61 +35,50 @@ host = "127.0.0.1"
 port = 8000
 
 # Emit human-readable logs instead of mozlog JSON. Default: false (0).
-# Leave JSON logging on for production; it is the format our tooling expects.
 human_logs = 1
 
-# Example Syncstorage settings:
-# database_url is required when syncstorage is enabled; there is no default,
-# and the server fails to start if it is unset.
-# Example MySQL DSN:
-syncstorage.database_url = "mysql://sample_user:sample_password@localhost/syncstorage_rs"
-# Example Spanner DSN:
-# syncstorage.database_url="spanner://projects/SAMPLE_GCP_PROJECT/instances/SAMPLE_SPANNER_INSTANCE/databases/SAMPLE_SPANNER_DB"
-# enable quota limits
-syncstorage.enable_quota = 0
-# set the quota limit to 2GB.
-# max_quota_limit = 200000000
-syncstorage.enabled = true
-syncstorage.limits.max_total_records = 9984
 # -----------------------------------------------------------------------------
-# Syncstorage (BSO storage service)
+# Syncstorage (BSO storage service) — Spanner
 # -----------------------------------------------------------------------------
 
 # Enable the Syncstorage service. Default: true.
 syncstorage.enabled = true
 
-# REQUIRED when syncstorage is enabled. MySQL DSN for the syncstorage database.
-# There is no usable default: the server fails fast at startup if it is unset,
-# rather than silently connecting to a default host.
-syncstorage.database_url = "mysql://sample_user:sample_password@localhost/syncstorage_rs"
+# REQUIRED when syncstorage is enabled. Spanner DSN, of the form
+# spanner://projects/<project>/instances/<instance>/databases/<database>.
+# No usable default; the server fails fast at startup if it is unset. A
+# "spanner://" scheme is what switches the syncstorage backend into Spanner
+# mode (see `Settings::uses_spanner`).
+syncstorage.database_url = "spanner://projects/SAMPLE_GCP_PROJECT/instances/SAMPLE_SPANNER_INSTANCE/databases/SAMPLE_SPANNER_DB"
+
+# Local Spanner emulator host. Leave unset for real Spanner. When running the
+# emulator (e.g. via docker/docker-compose.spanner.yaml) set this to the
+# emulator's gRPC address so the client talks to the emulator instead of GCP.
+# syncstorage.spanner_emulator_host = "localhost:9010"
 
 # Max size of the syncstorage DB connection pool. Default: 10.
 # syncstorage.database_pool_max_size = 10
 
-# Quota tracking/enforcement are Spanner-only features and are force-disabled
-# for non-Spanner backends, so they have no effect on the MySQL build.
+# Quota tracking/enforcement (Spanner-only). Both default to false. Enable
+# tracking to record per-user usage; additionally enable enforcement to reject
+# writes over `limits.max_quota_limit` (default 2 GB).
 syncstorage.enable_quota = 0
-
-# Request/batch limits. Defaults shown in docs/src/config.md (Syncstorage
-# Limits). `max_total_records` is also used to cap MySQL `get_bsos` result
-# sizes; see issues #298/#333.
-syncstorage.limits.max_total_records = 1666
+# syncstorage.enforce_quota = 0
 
 # -----------------------------------------------------------------------------
-# Tokenserver (node assignment + FxA OAuth verification)
+# Tokenserver (node assignment + FxA OAuth verification) — MySQL
 # -----------------------------------------------------------------------------
 
-# Enable Tokenserver. Default: false. Enable it for a self-contained server
-# that both assigns nodes and stores data.
+# Enable Tokenserver. Default: false.
 tokenserver.enabled = true
 
-# REQUIRED when tokenserver is enabled. MySQL DSN for the tokenserver database.
-# No usable default; the server fails fast at startup if it is unset.
+# REQUIRED when tokenserver is enabled. In the production topology Tokenserver
+# uses MySQL even when Syncstorage uses Spanner. No usable default.
 tokenserver.database_url = "mysql://sample_user:sample_password@localhost/tokenserver_rs"
 
-# Backend type reported in the token response (telemetry only). For the MySQL
-# build set this to "mysql". Default: "spanner". Valid: "mysql"/"postgres"/"spanner".
-tokenserver.node_type = "mysql"
+# Backend type reported in the token response (telemetry only). For the Spanner
+# topology leave this as the default "spanner". Valid: "mysql"/"postgres"/"spanner".
+tokenserver.node_type = "spanner"
 
 # Run the tokenserver DB migrations on startup. Default: false.
 # tokenserver.run_migrations = true
