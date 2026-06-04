@@ -308,7 +308,7 @@ pub async fn handle_fxa_events(
                     db.update_user_generation(UpdateUserGeneration {
                         service_id,
                         email,
-                        generation: Some(change_time_ms / 1000 - 1),
+                        generation: Some(change_time_ms - 1),
                         keys_changed_at: None,
                     })
                     .await?;
@@ -612,7 +612,7 @@ mod tests {
         );
         assert_eq!(
             update_user_generation_calls[0].generation,
-            Some(change_time_ms / 1000 - 1)
+            Some(change_time_ms - 1)
         );
         assert_eq!(update_user_generation_calls[0].keys_changed_at, None);
 
