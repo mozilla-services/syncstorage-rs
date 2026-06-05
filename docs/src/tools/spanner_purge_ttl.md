@@ -7,22 +7,17 @@ The `purge_ttl.py` script is a utility for purging expired Time-To-Live (TTL) re
 ---
 
 ## Status
-- Running as Kubernetes Workload cron job in `sync-prod`.
-- Runs at 10 minutes past every 2nd hour.
-- Runs per-collection and is configured for each of the following: 
-    - batches
-    - clients
-    - crypto
-    - forms
-    - meta
-    - tabs
-- See YAML configuration when editing each job.
-- See Kubernetes Engine Workload Panel in [sync-prod](https://console.cloud.google.com/kubernetes/workload/overview?inv=1&invt=AbmJeQ&project=moz-fx-sync-prod-3f0c) for more information. 
+- **Retired as an automated job.** Google Spanner now expires Sync records natively via its
+  built-in [row deletion (TTL) policies](https://cloud.google.com/spanner/docs/ttl), so
+  `purge_ttl.py` no longer runs as a scheduled Kubernetes Workload cron job in `sync-prod`, and
+  the standalone `syncstorage-rs-spanner-python-utils` image is no longer published.
+- The script is retained for ad-hoc / manual use (e.g. one-off backfills or verification) and
+  remains bundled in the main syncstorage image. The usage instructions below still apply.
 
 ## Specifics
 
 - **Database**: Google Spanner.
-- **Tables**: 
+- **Tables**:
   - `batches`: Contains batch entries, with cascading deletes for child `batch_bsos`.
   - `bsos`: Stores Sync Basic Storage Objects (BSO).
 - **Supported Modes**:
