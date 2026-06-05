@@ -172,56 +172,6 @@ jobs:
           tags: ${{ env.IMAGE_TAGS }}
           cache-from: type=gha
 
-  # Note: we are moving towards renaming all images `syncserver`, the union of sync and tokenserver.
-  # This presently remains for the time being to simplify deploys by maintaining `image_name: syncstorage-rs-spanner-python-utils`.
-  # Historical context: <https://github.com/mozilla-services/syncstorage-rs/pull/1306>
-  build-and-push-syncstorage-rs-spanner-python-utils:
-    needs: check
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-build-and-push
-        id: setup
-        with:
-          workload_identity_provider: ${{ vars.GCPV2_GITHUB_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp_service_account: "${{ vars.SERVICE_ACCOUNT_NAME || 'artifact-writer' }}@moz-fx-sync-prod.iam.gserviceaccount.com"
-          version_json_path: ./tools/spanner/version.json
-
-      - name: Compute tags
-        run: |
-          TAGS=$(cat <<EOF
-          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncstorage-rs-spanner-python-utils:${IMAGE_TAG}
-          ghcr.io/${{ github.repository }}/syncstorage-rs-spanner-python-utils:${IMAGE_TAG}
-          EOF
-          )
-          if [[ "${PUSH_LATEST}" == "true" ]]; then
-            TAGS="$TAGS
-          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncstorage-rs-spanner-python-utils:latest
-          ghcr.io/${{ github.repository }}/syncstorage-rs-spanner-python-utils:latest"
-          fi
-          echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
-          echo "$TAGS" >> "$GITHUB_ENV"
-          echo "EOF" >> "$GITHUB_ENV"
-        env:
-          IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
-          PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
-
-      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
-        with:
-          context: tools/spanner
-          file: tools/spanner/Dockerfile
-          push: true
-          tags: ${{ env.IMAGE_TAGS }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
   build-and-push-syncserver-postgres-python-utils:
     needs: check
     permissions:
