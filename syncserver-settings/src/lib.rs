@@ -148,6 +148,19 @@ impl Settings {
     }
 
     pub fn validate(&self) -> Result<(), ConfigError> {
+        // Fail fast if an enabled service has no DATABASE_URL configured,
+        // rather than silently falling back to a default connection string.
+        if self.syncstorage.enabled && self.syncstorage.database_url.is_empty() {
+            return Err(ConfigError::Message(
+                "SYNC_SYNCSTORAGE__DATABASE_URL must be set".to_owned(),
+            ));
+        }
+        if self.tokenserver.enabled && self.tokenserver.database_url.is_empty() {
+            return Err(ConfigError::Message(
+                "SYNC_TOKENSERVER__DATABASE_URL must be set".to_owned(),
+            ));
+        }
+
         if let Some(init_node_url) = &self.tokenserver.init_node_url {
             let url = Url::parse(init_node_url).map_err(|e| {
                 ConfigError::Message(format!("Invalid SYNC_TOKENSERVER__INIT_NODE_URL: {e}"))
@@ -307,24 +320,106 @@ impl<'d> Deserialize<'d> for Secrets {
 mod test {
     use super::*;
 
+    // A syncstorage DATABASE_URL is required to pass validation, since
+    // syncstorage is enabled by default. Tests that exercise unrelated config
+    // must supply one explicitly so they don't depend on the ambient env.
+    const TEST_SYNCSTORAGE_DATABASE_URL: &str = "mysql://root@127.0.0.1/syncstorage";
+    const TEST_TOKENSERVER_DATABASE_URL: &str = "mysql://root@127.0.0.1/tokenserver";
+
     #[test]
     fn test_environment_variable_prefix() {
         // Setting an environment variable with the correct prefix correctly sets the setting
         // (note that the default value for the settings.tokenserver.enabled setting is false)
-        temp_env::with_var("SYNC_TOKENSERVER__ENABLED", Some("true"), || {
-            let settings = Settings::with_env_and_config_file(None).unwrap();
-            assert!(settings.tokenserver.enabled);
-        });
+        temp_env::with_vars(
+            [
+                (
+                    "SYNC_SYNCSTORAGE__DATABASE_URL",
+                    Some(TEST_SYNCSTORAGE_DATABASE_URL),
+                ),
+                (
+                    "SYNC_TOKENSERVER__DATABASE_URL",
+                    Some(TEST_TOKENSERVER_DATABASE_URL),
+                ),
+                ("SYNC_TOKENSERVER__ENABLED", Some("true")),
+            ],
+            || {
+                let settings = Settings::with_env_and_config_file(None).unwrap();
+                assert!(settings.tokenserver.enabled);
+            },
+        );
 
         // Setting an environment variable with the incorrect prefix does not set the setting
         temp_env::with_vars(
             [
+                (
+                    "SYNC_SYNCSTORAGE__DATABASE_URL",
+                    Some(TEST_SYNCSTORAGE_DATABASE_URL),
+                ),
                 ("SYNC_TOKENSERVER__ENABLED", None),
                 ("SYNC__TOKENSERVER__ENABLED", Some("true")),
             ],
             || {
                 let settings = Settings::with_env_and_config_file(None).unwrap();
                 assert!(!settings.tokenserver.enabled);
+            },
+        );
+    }
+
+    #[test]
+    fn test_missing_syncstorage_database_url_fails_fast() {
+        // syncstorage is enabled by default, so an unset DATABASE_URL must
+        // produce an error rather than fall back to a default value.
+        temp_env::with_vars(
+            [
+                ("SYNC_SYNCSTORAGE__DATABASE_URL", None::<&str>),
+                ("SYNC_TOKENSERVER__DATABASE_URL", None),
+                ("SYNC_TOKENSERVER__ENABLED", None),
+            ],
+            || {
+                let err = Settings::with_env_and_config_file(None)
+                    .expect_err("an unset syncstorage DATABASE_URL should fail validation");
+                assert!(err.to_string().contains("SYNC_SYNCSTORAGE__DATABASE_URL"));
+            },
+        );
+    }
+
+    #[test]
+    fn test_missing_tokenserver_database_url_fails_fast_when_enabled() {
+        // An enabled Tokenserver with no DATABASE_URL must fail fast.
+        temp_env::with_vars(
+            [
+                (
+                    "SYNC_SYNCSTORAGE__DATABASE_URL",
+                    Some(TEST_SYNCSTORAGE_DATABASE_URL),
+                ),
+                ("SYNC_TOKENSERVER__DATABASE_URL", None),
+                ("SYNC_TOKENSERVER__ENABLED", Some("true")),
+            ],
+            || {
+                let err = Settings::with_env_and_config_file(None)
+                    .expect_err("an unset tokenserver DATABASE_URL should fail when enabled");
+                assert!(err.to_string().contains("SYNC_TOKENSERVER__DATABASE_URL"));
+            },
+        );
+    }
+
+    #[test]
+    fn test_disabled_tokenserver_does_not_require_database_url() {
+        // A disabled Tokenserver should not require a DATABASE_URL.
+        temp_env::with_vars(
+            [
+                (
+                    "SYNC_SYNCSTORAGE__DATABASE_URL",
+                    Some(TEST_SYNCSTORAGE_DATABASE_URL),
+                ),
+                ("SYNC_TOKENSERVER__DATABASE_URL", None),
+                ("SYNC_TOKENSERVER__ENABLED", Some("false")),
+            ],
+            || {
+                let settings = Settings::with_env_and_config_file(None)
+                    .expect("a disabled tokenserver should not require a DATABASE_URL");
+                assert!(!settings.tokenserver.enabled);
+                assert!(settings.tokenserver.database_url.is_empty());
             },
         );
     }
