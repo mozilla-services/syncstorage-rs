@@ -106,6 +106,7 @@ The following configuration options are available.
 | <span id="SYNC_TOKENSERVER__STATSD_LABEL"></span>SYNC_TOKENSERVER__STATSD_LABEL | syncstorage.tokenserver | StatsD metrics label prefix |
 | <span id="SYNC_TOKENSERVER__TOKEN_DURATION"></span>SYNC_TOKENSERVER__TOKEN_DURATION | 3600 | Token TTL (1 hour) |
 | <span id="SYNC_TOKENSERVER__FXA_WEBHOOK_ENABLED"></span>SYNC_TOKENSERVER__FXA_WEBHOOK_ENABLED | false | Enable the FxA webhook endpoint. When disabled, the route is not registered. |
+| <span id="SYNC_TOKENSERVER__FXA_WEBHOOK_METRICS_ONLY"></span>SYNC_TOKENSERVER__FXA_WEBHOOK_METRICS_ONLY | false | Run the FxA webhook handler in metrics-only mode. Received events are counted but not processed. Only used if `FXA_WEBHOOK_ENABLED` is true. |
 
 ### Tokenserver+FxA Integration
 

@@ -71,6 +71,10 @@ pub struct Settings {
     /// Whether to enable the FxA webhook endpoint.
     /// Defaults to false.
     pub fxa_webhook_enabled: bool,
+    /// Whether the FxA webhook handler runs in metrics-only mode. When enabled, received events
+    /// are counted but not processed.
+    /// Defaults to false.
+    pub fxa_webhook_metrics_only: bool,
 }
 
 impl Default for Settings {
@@ -100,6 +104,7 @@ impl Default for Settings {
             init_node_url: None,
             init_node_capacity: 100000,
             fxa_webhook_enabled: false,
+            fxa_webhook_metrics_only: false,
         }
     }
 }
