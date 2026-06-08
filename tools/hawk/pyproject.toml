@@ -15,7 +15,7 @@ package-mode = false
 [tool.poetry.dependencies]
 hawkauthlib = "^2.0.0"
 tokenlib = "^2.0.0"
-webob = "^1.8.9"
+webob = "^1.8.10"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.19.1"
