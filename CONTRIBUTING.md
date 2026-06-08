@@ -41,9 +41,48 @@ When submitting a PR:
 See the main [README.md](/README.md) for information on prerequisites,
 installing, running and testing.
 
+## Pre-commit Hooks
+
+This repo ships a [pre-commit](https://pre-commit.com/) configuration
+(`.pre-commit-config.yaml`) that runs the same fast lint/format checks as CI,
+locally, so trivial issues stay off PRs and CI breaks less often.
+
+`pre-commit` is managed as a Poetry dev dependency, so install it with the rest
+of the tooling and wire up the hooks once (per clone):
+
+```bash
+make install                  # installs dev deps, incl. pre-commit, via poetry
+make install-hooks            # or: poetry run pre-commit install --install-hooks
+```
+
+Hooks run automatically on `git commit` and `git push`. They are split by stage:
+
+- **commit** (fast): general hygiene (trailing whitespace, EOF, merge-conflict,
+  YAML/TOML checks), `cargo fmt --check`, and `ruff` lint + format checks on `tools/`.
+- **push** (heavier): `cargo clippy` (mysql always; postgres/spanner only when
+  their backend crates change), `cargo audit` (only when `Cargo.lock`/`Cargo.toml`
+  change), `mypy`, `bandit`, and `pydocstyle`.
+
+Backend clippy is scoped this way because the backends are mutually-exclusive
+features and each variant is a near-full workspace recompile. Shared-crate
+changes are covered by the mysql baseline locally and the full matrix in CI. To
+run every backend's clippy on demand:
+
+```bash
+make clippy-all
+```
+
+The Rust/Python hooks call the existing `Makefile` targets, so they stay in sync
+with CI. Run everything on demand with:
+
+```bash
+poetry run pre-commit run --all-files               # commit-stage hooks
+poetry run pre-commit run --all-files --hook-stage pre-push
+```
+
 ## Code Review
 
-This project is production Mozilla code and subject to the contributing guidelines established in this documentation. Every patch must be peer reviewed by a member of the official Sync team. 
+This project is production Mozilla code and subject to the contributing guidelines established in this documentation. Every patch must be peer reviewed by a member of the official Sync team.
 
 ## Git Commit Guidelines
 
@@ -63,8 +102,8 @@ of `<type>: <subject>` where `type` must be one of:
 
 For Mozilla engineers:
 
-If associated with a Jira ticket, synchronization with Jira and GitHub is possible by appending the suffix of the Jira ticket to the branch name (`STOR-1234` in the example below). Name the branch using the appropriate `<type>` above followed by a forward slash, followed by a dash-separated description of the task and then by the Jira ticket and 
-. Ex. `feat/add-sentry-sdk-STOR-1234` or `add-sentry-sdk-STOR-1234` 
+If associated with a Jira ticket, synchronization with Jira and GitHub is possible by appending the suffix of the Jira ticket to the branch name (`STOR-1234` in the example below). Name the branch using the appropriate `<type>` above followed by a forward slash, followed by a dash-separated description of the task and then by the Jira ticket and
+. Ex. `feat/add-sentry-sdk-STOR-1234` or `add-sentry-sdk-STOR-1234`
 
 Note: the Jira ticket project and number can be added anywhere in the
 branch name, but adding to the beginning is ideal. You can also include the Jira issue at the end of
