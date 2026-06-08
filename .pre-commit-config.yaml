@@ -1,0 +1,143 @@
+# Pre-commit hooks for syncstorage-rs.
+#
+# Runs the same fast lint/format checks as CI, locally, before code leaves your
+# machine. Keeps trivial issues (formatting, lint nits, clippy warnings) off PRs
+# and breaks CI less often.
+#
+# Setup (pre-commit is a poetry dev dependency):
+#   make install                  # installs dev deps, incl. pre-commit, via poetry
+#   make install-hooks            # or: poetry run pre-commit install --install-hooks
+#
+# Run manually against everything:
+#   poetry run pre-commit run --all-files
+#
+# Two tiers, by stage:
+#   pre-commit  -> fast checks, run on every commit (hygiene, fmt, ruff)
+#   pre-push    -> heavier checks, run before pushing (clippy, mypy, bandit, pydocstyle)
+#
+# The Rust/Python hooks shell out to the existing Makefile targets so there is a
+# single source of truth with CI and no drift.
+
+default_install_hook_types: [pre-commit, pre-push]
+# Fast hooks default to pre-commit only. Heavy hooks override with
+# `stages: [pre-push]` below. Without this, unmarked hooks would run at every
+# configured stage (i.e. on both commit and push), duplicating work.
+default_stages: [pre-commit]
+
+# Never modify published migrations, the Spanner schema, or generated artifacts
+# (see CLAUDE.md do-not-touch paths). Keeps the hygiene hooks off them.
+# NOTE: Cargo.lock is intentionally NOT excluded globally so cargo-audit can
+# trigger on it; the file-modifying hygiene hooks exclude it individually below.
+exclude: |
+  (?x)^(
+    .*/migrations/.*|
+    syncstorage-spanner/src/schema\.ddl|
+    poetry\.lock|
+    openapi\.json|
+    CHANGELOG\.md
+  )$
+
+repos:
+  # --- General hygiene (external) -----------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^Cargo\.lock$
+      - id: end-of-file-fixer
+        exclude: ^Cargo\.lock$
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+        exclude: ^Cargo\.lock$
+
+  # --- Rust + Python (local; mirror the Makefile / CI) --------------------
+  - repo: local
+    hooks:
+      # Fast: every commit
+      - id: cargo-fmt
+        name: cargo fmt (check)
+        entry: cargo fmt --all -- --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: ruff-lint
+        name: ruff check (tools/)
+        entry: make ruff-lint
+        language: system
+        files: ^tools/.*\.py$
+        pass_filenames: false
+
+      - id: ruff-fmt-chk
+        name: ruff format check (tools/)
+        entry: make ruff-fmt-chk
+        language: system
+        files: ^tools/.*\.py$
+        pass_filenames: false
+
+      # Heavier: before push.
+      # clippy_mysql is the always-on baseline (mysql is the default feature set
+      # and most code is backend-agnostic). The postgres/spanner variants only
+      # fire when their backend crates change, since backends are mutually
+      # exclusive features and each variant is a near-full workspace recompile.
+      # Shared-crate changes are covered by mysql here and the full matrix in CI.
+      - id: cargo-clippy-mysql
+        name: cargo clippy (mysql)
+        entry: make clippy_mysql
+        language: system
+        types: [rust]
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: cargo-clippy-postgres
+        name: cargo clippy (postgres)
+        entry: make clippy_postgres
+        language: system
+        files: ^(syncstorage-postgres|tokenserver-postgres)/.*\.rs$
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: cargo-clippy-spanner
+        name: cargo clippy (spanner)
+        entry: make clippy_spanner
+        language: system
+        files: ^syncstorage-spanner/.*\.rs$
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: cargo-audit
+        name: cargo audit (dependency CVEs)
+        entry: make audit
+        language: system
+        files: ^(Cargo\.lock|Cargo\.toml)$
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: mypy
+        name: mypy (tools/)
+        entry: make mypy
+        language: system
+        files: ^tools/.*\.py$
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: bandit
+        name: bandit (tools/)
+        entry: make bandit
+        language: system
+        files: ^tools/.*\.py$
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: pydocstyle
+        name: pydocstyle (tools/)
+        entry: make pydocstyle
+        language: system
+        files: ^tools/.*\.py$
+        pass_filenames: false
+        stages: [pre-push]

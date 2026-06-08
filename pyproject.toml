@@ -40,6 +40,7 @@ ruff = "^0.15.6"
 black = "^26.3.1"
 bandit = "^1.9.4"
 isort = "^8.0.1"
+pre-commit = "^4.6.0"
 
 [tool.pydocstyle]
 match = ".*\\.py"
