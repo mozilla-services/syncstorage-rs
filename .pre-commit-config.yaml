@@ -19,6 +19,10 @@
 # single source of truth with CI and no drift.
 
 default_install_hook_types: [pre-commit, pre-push]
+# Fast hooks default to pre-commit only. Heavy hooks override with
+# `stages: [pre-push]` below. Without this, unmarked hooks would run at every
+# configured stage (i.e. on both commit and push), duplicating work.
+default_stages: [pre-commit]
 
 # Never modify published migrations, the Spanner schema, or generated artifacts
 # (see CLAUDE.md do-not-touch paths). Keeps the hygiene hooks off them.
