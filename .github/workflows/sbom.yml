@@ -1,0 +1,30 @@
+name: ssdlc-sbom
+
+on:
+  release:
+    types: [published]
+  push:
+    branches:
+      - "release/**"
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+
+permissions: {}
+
+# Coalesce duplicate runs for the same ref. A GitHub-UI release publish on a
+# fresh tag fires both `release: published` and `push: tags`
+# so the workflow runs twice in parallel for the same tag and uploads the SBOM
+# twice. Grouping by ref_name keeps a single run per release.
+concurrency:
+  group: ssdlc-sbom-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  sbom:
+    uses: mozilla/ssdlc-actions/.github/workflows/ssdlc-sbom.yml@5cc2b20e42d53d1643853f12244fbec9ed2f2e0c
+    with:
+      sbom_name: ${{ github.ref_name }}
+    permissions:
+      actions: read # required by anchore/sbom-action to read workflow run context
+      contents: write # required to upload the SBOM as a release asset
