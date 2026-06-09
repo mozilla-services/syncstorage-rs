@@ -144,11 +144,6 @@ impl Settings {
         if self.uses_spanner() {
             self.limits.max_total_bytes =
                 min(self.limits.max_total_bytes, MAX_SPANNER_LOAD_SIZE as u32);
-        } else {
-            // No quotas for stand alone servers
-            self.limits.max_quota_limit = 0;
-            self.enable_quota = false;
-            self.enforce_quota = false;
         }
     }
 
