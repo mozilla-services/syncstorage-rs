@@ -1345,6 +1345,7 @@ mod tests {
             token_duration: TOKEN_DURATION,
             set_verifiers: Vec::new(),
             fxa_webhook_enabled: false,
+            fxa_webhook_metrics_only: false,
         }
     }
 
@@ -1367,6 +1368,7 @@ mod tests {
             token_duration: TOKEN_DURATION,
             set_verifiers,
             fxa_webhook_enabled: true,
+            fxa_webhook_metrics_only: false,
         }
     }
 
