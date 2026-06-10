@@ -10,7 +10,7 @@ Images are available for both
 and
 [PostgreSQL](https://github.com/mozilla-services/syncstorage-rs/pkgs/container/syncstorage-rs%2Fsyncstorage-rs-postgres)
 as the database.  Differences in configuration or deployment steps will be
-noted. 
+noted.
 
 Tagged release builds are available on ghcr.io. To pin to a specific version,
 set `SYNCSERVER_VERSION` to the desired release tag (e.g., `SYNCSERVER_VERSION=v1.45.0`)
