@@ -4,9 +4,9 @@ These tools are supplemental scripts for working with the Google Cloud Platform.
 
 Remember, the `GOOGLE_APPLICATION_CREDENTIALS` environment variable should point to the absolute path location of your service account credential file.
 
-e.g. 
+e.g.
 ```bash
-GOOGLE_APPLICATION_CREDENTIALS=`pwd`/keys/project-id-service-cred.json venv/bin/python purge_ttl.py
+GOOGLE_APPLICATION_CREDENTIALS=`pwd`/keys/project-id-service-cred.json venv/bin/python count_expired_rows.py
 ```
 See each script for details about function and use.
 
@@ -36,7 +36,7 @@ See the [pyenv-virtualenv](https://github.com/pyenv/pyenv-virtualenv) documentat
 
     # creates named, associated virtualenv
     $ pyenv virtualenv 3.10 spanner # or whatever project name you like.
-    $ pyenv local spanner # activates virtual env whenever you enter this directory. 
+    $ pyenv local spanner # activates virtual env whenever you enter this directory.
 
     # Install dependencies
     $ pip install poetry
@@ -44,4 +44,4 @@ See the [pyenv-virtualenv](https://github.com/pyenv/pyenv-virtualenv) documentat
     ```
 
 5. In general, to run the script with the Poetry managed dependencies - once you're already in your virtual env - run the following (more details in #3):
-Ex. `poetry run python purge_ttl.py`
+Ex. `poetry run python count_expired_rows.py`
