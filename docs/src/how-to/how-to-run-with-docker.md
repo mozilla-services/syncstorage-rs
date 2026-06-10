@@ -10,7 +10,7 @@ Images are available for both
 and
 [PostgreSQL](https://github.com/mozilla-services/syncstorage-rs/pkgs/container/syncstorage-rs%2Fsyncstorage-rs-postgres)
 as the database.  Differences in configuration or deployment steps will be
-noted. 
+noted.
 
 Tagged release builds are available on ghcr.io. To pin to a specific version,
 set `SYNCSERVER_VERSION` to the desired release tag (e.g., `SYNCSERVER_VERSION=v1.45.0`)
@@ -141,6 +141,145 @@ Next, start the service with `docker compose`:
 ```sh
 docker compose -f docker-compose.one-shot.yaml up -d
 ```
+
+## Docker Compose, One-Shot with MySQL
+
+This recipe brings up everything needed for a working MySQL-backed server in a
+single command: a MySQL database for Syncstorage and one for Tokenserver, plus
+the server itself. Syncstorage applies its schema migrations automatically at
+startup, `SYNC_TOKENSERVER__RUN_MIGRATIONS` applies the Tokenserver schema, and
+`SYNC_TOKENSERVER__INIT_NODE_URL` bootstraps the `sync-1.5` service and storage
+node records — so the stack is ready to serve with no manual database setup.
+
+### Option A: build from source (works from a checkout)
+
+Run this from a clone of the repository; the build `context` is the repo root,
+so the MySQL build of the server is compiled locally and the recipe does not
+depend on any published image. Save the yaml below into a file, e.g.
+`docker-compose.one-shot.yaml`.
+
+```yaml
+services:
+  syncserver:
+    build:
+      context: .
+      args:
+        SYNCSTORAGE_DATABASE_BACKEND: mysql
+        TOKENSERVER_DATABASE_BACKEND: mysql
+    container_name: syncserver
+    ports:
+      - "8000:8000"
+    environment:
+      SYNC_HOST: "0.0.0.0"
+      SYNC_PORT: "8000"
+      SYNC_MASTER_SECRET: "${SYNC_MASTER_SECRET:-changeme_secret_key}"
+      SYNC_SYNCSTORAGE__DATABASE_URL: "mysql://sync:sync@sync-db:3306/syncstorage"
+      SYNC_TOKENSERVER__DATABASE_URL: "mysql://sync:sync@tokenserver-db:3306/tokenserver"
+      SYNC_TOKENSERVER__ENABLED: "true"
+      SYNC_TOKENSERVER__NODE_TYPE: "mysql"
+      SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
+      SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: "api.accounts.firefox.com"
+      SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: "https://oauth.accounts.firefox.com"
+      SYNC_HUMAN_LOGS: "${SYNC_HUMAN_LOGS:-false}"
+      RUST_LOG: "${RUST_LOG:-info}"
+      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:${SYNC_PORT:-8000}}"
+    depends_on:
+      sync-db:
+        condition: service_healthy
+      tokenserver-db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/__heartbeat__"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  sync-db:
+    image: docker.io/library/mysql:8.0
+    container_name: syncserver-sync-db
+    command: --explicit_defaults_for_timestamp
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: syncstorage
+      MYSQL_USER: sync
+      MYSQL_PASSWORD: sync
+    volumes:
+      - sync_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin -h 127.0.0.1 -usync -psync ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  tokenserver-db:
+    image: docker.io/library/mysql:8.0
+    container_name: syncserver-tokenserver-db
+    command: --explicit_defaults_for_timestamp
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: tokenserver
+      MYSQL_USER: sync
+      MYSQL_PASSWORD: sync
+    volumes:
+      - tokenserver_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin -h 127.0.0.1 -usync -psync ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  sync_db_data:
+    driver: local
+  tokenserver_db_data:
+    driver: local
+```
+
+Next, build and start the service with `docker compose`:
+
+```sh
+docker compose -f docker-compose.one-shot.yaml up -d --build
+```
+
+Once the `syncserver` container reports healthy, confirm it is serving:
+
+```sh
+curl http://localhost:8000/__heartbeat__
+```
+
+### Option B: use a published image
+
+Mozilla also publishes prebuilt images on ghcr.io. Note that these are
+currently tagged by commit SHA — there is **no `latest` or semver tag** — so
+you must pin `SYNCSERVER_VERSION` to a tag listed on the
+[`syncstorage-rs-mysql` packages page](https://github.com/mozilla-services/syncstorage-rs/pkgs/container/syncstorage-rs%2Fsyncstorage-rs-mysql).
+To use a published image, replace the `syncserver` service's `build:` block with
+an `image:` reference; the `sync-db`, `tokenserver-db`, and `volumes` sections
+are unchanged:
+
+```yaml
+services:
+  syncserver:
+    image: ghcr.io/mozilla-services/syncstorage-rs/syncstorage-rs-mysql:${SYNCSERVER_VERSION:?set SYNCSERVER_VERSION to a published tag}
+    platform: linux/amd64
+    container_name: syncserver
+    # ...the remaining syncserver settings are identical to Option A
+```
+
+Then start it with the tag pinned (published images are `linux/amd64`):
+
+```sh
+SYNCSERVER_VERSION=<published-tag> docker compose -f docker-compose.one-shot.yaml up -d
+```
+
+> Set `SYNC_MASTER_SECRET` to your own value for anything beyond local
+> experimentation; the default above is a placeholder.
 
 ## Configuring Firefox (Desktop)
 
