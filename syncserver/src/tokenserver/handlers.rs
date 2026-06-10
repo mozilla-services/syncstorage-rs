@@ -8,6 +8,7 @@ use serde_json::Value;
 use tokio::time::timeout;
 use utoipa::ToSchema;
 
+use syncserver_common::Metrics;
 use tokenserver_auth::{MakeTokenPlaintext, Tokenlib, TokenserverOrigin};
 use tokenserver_common::{NodeType, TokenserverError};
 use tokenserver_db::{
@@ -277,20 +278,34 @@ async fn update_user(
     }
 }
 
+// statsd counter names
+const METRIC_EVENTS_RECEIVED: &str = "webhook.events_received";
+const METRIC_EVENTS_PROCESSED: &str = "webhook.events_processed";
+
 pub async fn handle_fxa_events(
     FxaWebhookToken(claims): FxaWebhookToken,
     DbWrapper(mut db): DbWrapper,
     state: Data<super::ServerState>,
 ) -> Result<HttpResponse, TokenserverError> {
+    let metrics = Metrics::from(&state.metrics);
+
+    let Some(events) = claims.events.as_object() else {
+        return Ok(HttpResponse::Ok().finish());
+    };
+
+    // Count every event received.
+    metrics.count(METRIC_EVENTS_RECEIVED, events.len() as i64);
+
+    if state.fxa_webhook_metrics_only {
+        return Ok(HttpResponse::Ok().finish());
+    }
+
     let service_id = db
         .get_service_id(tokenserver_db::params::GetServiceId {
             service: SYNC_SERVICE_NAME.to_owned(),
         })
         .await?
         .id;
-    let Some(events) = claims.events.as_object() else {
-        return Ok(HttpResponse::Ok().finish());
-    };
 
     for event_type in events.keys() {
         let email = format!("{}@{}", claims.sub, state.fxa_email_domain);
@@ -298,6 +313,7 @@ pub async fn handle_fxa_events(
             "https://schemas.accounts.firefox.com/event/delete-user" => {
                 info!("Processing account delete for {}", email);
                 db.retire_user(RetireUser { service_id, email }).await?;
+                metrics.incr_with_tag(METRIC_EVENTS_PROCESSED, "event_type", "delete_user");
             }
             "https://schemas.accounts.firefox.com/event/password-change" => {
                 if let Some(change_time_ms) = events[event_type]
@@ -312,6 +328,7 @@ pub async fn handle_fxa_events(
                         keys_changed_at: None,
                     })
                     .await?;
+                    metrics.incr_with_tag(METRIC_EVENTS_PROCESSED, "event_type", "password_change");
                 }
             }
             _ => {
@@ -445,6 +462,7 @@ mod tests {
             set_verifiers,
             fxa_webhook_enabled: true,
             allow_new_users: true,
+            fxa_webhook_metrics_only: false,
         }
     }
 
@@ -579,6 +597,31 @@ mod tests {
         let retire_user_calls = call_log.retire_user.lock().unwrap();
         assert_eq!(retire_user_calls.len(), 1);
         assert_eq!(retire_user_calls[0].email, "quux@api.accounts.firefox.com");
+    }
+
+    #[actix_web::test]
+    async fn test_metrics_only_mode_skips_processing() {
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
+        let (pool, call_log) = MockDbPool::with_capture();
+        let mut state = make_state_with_db_pool(vec![verifier], Box::new(pool));
+        state.fxa_webhook_metrics_only = true;
+        let app = make_app_from_state(state).await;
+        let token = make_set(
+            "quux",
+            "testo",
+            json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
+            3600,
+            TEST_PRIVATE_KEY_PEM,
+        );
+        let req = TestRequest::post()
+            .uri("/1.0/webhooks/fxa/events")
+            .insert_header(("Authorization", format!("Bearer {token}")))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        // no database mutation in metrics-only mode
+        assert_eq!(resp.status(), 200);
+        assert_eq!(call_log.retire_user.lock().unwrap().len(), 0);
     }
 
     #[actix_web::test]

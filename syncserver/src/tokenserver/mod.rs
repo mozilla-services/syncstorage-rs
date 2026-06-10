@@ -35,6 +35,7 @@ pub struct ServerState {
     pub set_verifiers: Vec<SETVerifierImpl>,
     pub fxa_webhook_enabled: bool,
     pub allow_new_users: bool,
+    pub fxa_webhook_metrics_only: bool,
 }
 
 impl ServerState {
@@ -117,6 +118,7 @@ impl ServerState {
             set_verifiers,
             fxa_webhook_enabled: settings.fxa_webhook_enabled,
             allow_new_users: settings.allow_new_users,
+            fxa_webhook_metrics_only: settings.fxa_webhook_metrics_only,
         })
     }
 

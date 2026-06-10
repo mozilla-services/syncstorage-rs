@@ -74,6 +74,13 @@ clippy_release_spanner:
 	# Release mode clippy — catches dead code and issues only visible with optimizations
 	cargo clippy --release --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- -D warnings
 
+.PHONY: clippy-all
+clippy-all: clippy_mysql clippy_postgres clippy_spanner  ##  Run clippy for all backends (mysql, postgres, spanner).
+
+.PHONY: audit
+audit:  ##  Check dependencies for known CVEs (run by CI on every push).
+	cargo audit
+
 clean:
 	cargo clean
 
@@ -264,6 +271,10 @@ $(INSTALL_STAMP): pyproject.toml poetry.lock
 	$(POETRY) install
 	touch $(INSTALL_STAMP)
 
+.PHONY: install-hooks
+install-hooks: $(INSTALL_STAMP)  ##  Install git pre-commit/pre-push hooks (via poetry).
+	$(POETRY) run pre-commit install --install-hooks
+
 hawk:
 	# install dependencies for hawk token utility.
 	$(POETRY) -V
@@ -368,7 +379,7 @@ bandit: $(INSTALL_STAMP)  ##  Run bandit
 .PHONY: mypy
 mypy: $(INSTALL_STAMP)  ##  Run mypy
 	$(POETRY) run mypy --config-file=$(ROOT_PYPROJECT_TOML) $(TOOLS_DIR)
- 
+
 .PHONY: pydocstyle
 pydocstyle: $(INSTALL_STAMP)  ##  Run pydocstyle
 	$(POETRY) run pydocstyle -es --count --config=$(ROOT_PYPROJECT_TOML) $(TOOLS_DIR)

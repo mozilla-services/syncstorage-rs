@@ -1347,6 +1347,7 @@ mod tests {
             set_verifiers: Vec::new(),
             fxa_webhook_enabled: false,
             allow_new_users: true,
+            fxa_webhook_metrics_only: false,
         }
     }
 
@@ -1370,6 +1371,7 @@ mod tests {
             set_verifiers,
             fxa_webhook_enabled: true,
             allow_new_users: true,
+            fxa_webhook_metrics_only: false,
         }
     }
 
