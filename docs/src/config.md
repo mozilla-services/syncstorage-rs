@@ -133,4 +133,3 @@ The following configuration options are available.
 | <span id="SYNC_STATSD_HOST"></span>SYNC_STATSD_HOST | localhost | StatsD server hostname |
 | <span id="SYNC_STATSD_PORT"></span>SYNC_STATSD_PORT | 8125 | StatsD server port |
 | <span id="SYNC_INCLUDE_HOSTNAME_TAG"></span>SYNC_INCLUDE_HOSTNAME_TAG | false | Include hostname in metrics tags |
-
