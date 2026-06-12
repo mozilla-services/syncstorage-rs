@@ -71,6 +71,9 @@ pub struct Settings {
     /// Whether to enable the FxA webhook endpoint.
     /// Defaults to false.
     pub fxa_webhook_enabled: bool,
+    /// Whether new users may register to the Tokenserver.
+    /// Defaults to true.
+    pub allow_new_users: bool,
     /// Whether the FxA webhook handler runs in metrics-only mode. When enabled, received events
     /// are counted but not processed.
     /// Defaults to false.
@@ -104,6 +107,7 @@ impl Default for Settings {
             init_node_url: None,
             init_node_capacity: 100000,
             fxa_webhook_enabled: false,
+            allow_new_users: true,
             fxa_webhook_metrics_only: false,
         }
     }
