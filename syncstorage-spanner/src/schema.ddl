@@ -35,14 +35,6 @@ CREATE TABLE bsos (
 )    PRIMARY KEY(fxa_uid, fxa_kid, collection_id, bso_id),
   INTERLEAVE IN PARENT user_collections ON DELETE CASCADE;
 
-    CREATE INDEX BsoModified
-        ON bsos(fxa_uid, fxa_kid, collection_id, modified DESC),
-INTERLEAVE IN user_collections;
-
-    CREATE INDEX BsoExpiry
-        ON bsos(fxa_uid, fxa_kid, collection_id, expiry),
-INTERLEAVE IN user_collections;
-
 CREATE TABLE collections (
   collection_id INT64  NOT NULL,
   name STRING(32)      NOT NULL,
