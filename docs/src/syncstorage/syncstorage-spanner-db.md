@@ -47,7 +47,7 @@ Set under `[syncstorage.limits]` in TOML, or as `SYNC_SYNCSTORAGE__LIMITS__*` en
 | `max_record_payload_bytes` | 2,621,440 (2.5 MB)                       | Per-BSO payload size ceiling.                                                                                                                                    |
 | `max_request_bytes`        | 2,625,536 (≈ 2.5 MB + 4 KB)              | HTTP `Content-Length` ceiling also enforced upstream of the API (e.g., nginx).                                                                                  |
 | `max_total_bytes`          | 250 MB declared, clamped                 | Combined batch payload size. **`Settings::normalize()` clamps this to `MAX_SPANNER_LOAD_SIZE` (100 MB) for Spanner deployments.**                                |
-| `max_total_records`        | 10,000 default; 6,656 in Spanner prod    | BSOs per batch. The Spanner ceiling is driven by the per-commit mutation budget, see [below](#batch-commit-mutation-budget).                                    |
+| `max_total_records`        | 10,000 default; 9,984 in Spanner prod    | BSOs per batch. The Spanner ceiling is driven by the per-commit mutation budget, see [below](#batch-commit-mutation-budget).                                    |
 | `max_quota_limit`          | 2 GB                                     | Per-collection quota; only enforced when `enforce_quota = true`.                                                                                                  |
 
 ### Quota toggles
@@ -107,14 +107,9 @@ Enables `/info/collections`, `/info/collection_counts`, and `/info/collection_us
 
 `INTERLEAVE IN PARENT user_collections ON DELETE CASCADE`.
 
-### Secondary indexes
+### Secondary indexes (historical)
 
-Both interleaved in `user_collections`:
-
-- `BsoModified` on `(fxa_uid, fxa_kid, collection_id, modified DESC)` sorts by modified-descending (used in `sort=newest`).
-- `BsoExpiry` on `(fxa_uid, fxa_kid, collection_id, expiry)` supports TTL-based queries.
-
-These two indexes are the dominant per-row cost in the mutation budget below: any UPDATE that changes `modified` or `expiry` (and the batch commit always does) requires rewriting both index entries.
+The `bsos` table previously carried two interleaved secondary indexes — `BsoModified` and `BsoExpiry` — covering modified-descending sort and TTL-based queries respectively. Both were removed in [PR #2382](https://github.com/mozilla-services/syncstorage-rs/pull/2382) (STOR-111) after the queries that depended on them were retired. Their removal cut the per-BSO mutation cost in the batch commit from 12 to 8 — see the [mutation budget evolution](#mutation-budget-evolution) below.
 
 ## Collections Table
 
@@ -156,7 +151,7 @@ The 13 standard collections expected by clients have fixed reserved IDs (1–13)
 
 ## Batch commit mutation budget
 
-This section is the canonical reference for the per-commit mutation budget on Spanner. A companion `syncstorage-spanner/src/db/BATCH_COMMIT.txt` exists in the spanner crate and tracks the same math at the code-adjacent layer; if the two disagree, this page is authoritative. The math below reflects the post-STOR-218 single-upsert commit path (`batch_commit_upsert.sql`).
+This section is the canonical reference for the per-commit mutation budget on Spanner. The math below reflects the current code: the post-STOR-218 single-upsert commit path (`batch_commit_upsert.sql`) running against the post-[#2382](https://github.com/mozilla-services/syncstorage-rs/pull/2382) `bsos` schema with no secondary indexes.
 
 ### Mutation primer
 
@@ -199,17 +194,15 @@ INSERT or UPDATE of one `user_collections` row:
 
 #### Step 2 `INSERT OR UPDATE INTO bsos`
 
-Worst case per row is the existing-row path where every non-PK column may change and both secondary indexes must be rewritten:
+With no secondary indexes on `bsos` (per [#2382](https://github.com/mozilla-services/syncstorage-rs/pull/2382)), the upsert pays only the base-row cost — identical on the insert and update paths:
 
-| Component                                         | Mutations |
-| ------------------------------------------------- | --------- |
-| 4 PK columns                                      | 4         |
-| 4 non-PK columns (`sortindex`, `payload`, `modified`, `expiry`) | 4 |
-| `BsoModified` index: delete old + insert new      | 2         |
-| `BsoExpiry` index: delete old + insert new        | 2         |
-| **Total per BSO**                                 | **12**    |
+| Component                                                       | Mutations |
+| --------------------------------------------------------------- | --------- |
+| 4 PK columns (`fxa_uid`, `fxa_kid`, `collection_id`, `bso_id`)  | 4         |
+| 4 non-PK columns (`sortindex`, `payload`, `modified`, `expiry`) | 4         |
+| **Total per BSO**                                               | **8**     |
 
-For `N` BSOs in the batch: `12N` mutations.
+For `N` BSOs in the batch: `8N` mutations.
 
 #### Step 3 `delete_batch`
 
@@ -221,22 +214,60 @@ UPDATE of one `user_collections` row: **6 mutations** (3 PK + 3 non-PK columns).
 
 ### Totals and ceiling
 
-| Mode       | Formula              | At N = 6,656        | Headroom (80,000 − total) |
+| Mode       | Formula              | At N = 9,984        | Headroom (80,000 − total) |
 | ---------- | -------------------- | ------------------- | ------------------------- |
-| quota off  | `4 + 12N + 1`        | 79,877              | 123                       |
-| quota on   | `6 + 12N + 1 + 6`    | 79,885              | 115                       |
+| quota off  | `4 + 8N + 1`         | 79,877              | 123                       |
+| quota on   | `6 + 8N + 1 + 6`     | 79,885              | 115                       |
 
-Solving `12N + 13 <= 80,000` (quota on, the binding constraint) gives `N <= 6,665`. That is the absolute ceiling and what `BATCH_COMMIT.txt` uses as its illustrative example. The deployed value is the more conservative **6,656** (= 1,664 × 4) with the same proportional margin as the legacy 1,664-of-20,000 cap, and not coincidentally one step away from a future ceiling change without a code edit.
+Solving `8N + 13 <= 80,000` (quota on, the binding constraint) gives `N <= 9,998`. The deployed value is the more conservative **9,984** — which equals `6,656 × (12 / 8)` (the previous chosen value scaled by the per-BSO cost ratio) and equals `1,664 × 6` (the legacy 1,664 scaled by the combined cap-and-index gains since 2022). It holds total mutations at exactly **79,885** — identical to the pre-#2382 configuration at 6,656 — and leaves the same 115-mutation absolute headroom, with 14 BSOs of slack vs. the 9,998 ceiling.
+
+### Mutation budget evolution
+
+```mermaid
+timeline
+    title Spanner mutation budget over time
+    Pre-Sep 2022       : Cap 20,000 mutations
+                       : 12 mutations / BSO
+                       : 1,664 max_total_records
+    Sep 2022           : Cap 40,000 mutations (unused by us)
+    Current (STOR-218) : Cap 80,000 mutations
+                       : 12 mutations / BSO
+                       : 6,656 max_total_records
+    Post-#2382         : Cap 80,000 mutations
+                       : 8 mutations / BSO
+                       : 9,984 max_total_records
+```
+
+Three-way comparison, quota-on path (the binding constraint):
+
+|                                  | Legacy (≤ 2022)        | Pre-#2382 (STOR-218 in place) | Current (post-#2382)      |
+| -------------------------------- | ---------------------- | ----------------------------- | ------------------------- |
+| Spanner per-commit cap           | 20,000                 | 80,000                        | 80,000                    |
+| Secondary indexes on `bsos`      | `BsoModified`, `BsoExpiry` | `BsoModified`, `BsoExpiry` | none                      |
+| Per-BSO mutation cost            | 12                     | 12                            | **8**                     |
+| Formula (quota on)               | `12N + 13 ≤ 20,000`    | `12N + 13 ≤ 80,000`           | `8N + 13 ≤ 80,000`        |
+| Mathematical ceiling             | 1,665                  | 6,665                         | 9,998                     |
+| Chosen `max_total_records`       | **1,664**              | **6,656**                     | **9,984**                 |
+| Mutations consumed at chosen `N` | 19,981                 | 79,885                        | 79,885                    |
+| Headroom under cap               | 19                     | 115                           | 115                       |
+
+Capacity has grown ~6× since 2022 — first 4× from the Spanner cap raise (20k → 80k), then another 1.5× from the secondary-index removal (12 → 8 mutations per BSO) — while the absolute headroom under the cap has stayed effectively constant.
+
+### Justification
+
+- **Why not 9,998 (the math ceiling)?** 14 BSOs of slack is operationally negligible client-side, but the buffer absorbs minor Spanner accounting drift or a +1-mutation fixed-overhead schema change (e.g., a new column on `user_collections`) without an emergency config bump.
+- **Why 9,984 specifically?** It holds total mutations at exactly **79,885** — identical to the prior 6,656/12-mut configuration. The value drops out cleanly as `6,656 × (12 / 8) = 9,984` (per-BSO cost ratio) and as `1,664 × 6 = 9,984` (total scaling since 2022). Same absolute 115-mutation headroom.
+- **What headroom does NOT protect against.** Adding a column or a new index to `bsos` would scale per-BSO cost across all `N` rows and requires a fresh recalculation; the 115-mutation buffer only absorbs fixed-overhead changes and small accounting drift, not anything that multiplies `N`.
 
 ### Env var
 
-`max_total_records` is set in production via the `SYNC_SYNCSTORAGE__LIMITS__MAX_TOTAL_RECORDS` environment variable.  The standalone-server default in `syncstorage-settings/src/lib.rs` is 10,000 and applies to non-Spanner backends; the Spanner production deployment always overrides it.
+`max_total_records` is set in production via the `SYNC_SYNCSTORAGE__LIMITS__MAX_TOTAL_RECORDS` environment variable. The standalone-server default in `syncstorage-settings/src/lib.rs` is 10,000 and applies to non-Spanner backends; the Spanner production deployment always overrides it.
 
 `config/local.example.toml` carries the recommended Spanner dev value for the local emulator stack.
 
 ### Why `INSERT OR UPDATE` is safe at this scale
 
-The pre-STOR-218 implementation issued two DML statements per commit (`UPDATE` for existing rows, then `INSERT INTO ... SELECT` for the remainder) with pre-scan to bucket rows. The current single-statement upsert produces the same worst-case mutation cost per BSO (12) the index rewrite dominates either way while simplifying the code path. The ceiling derivation above therefore applies to both the legacy and current paths; the `max_total_records` value chosen for one is valid for the other.
+The pre-STOR-218 implementation issued two DML statements per commit (`UPDATE` for existing rows, then `INSERT INTO ... SELECT` for the remainder) with a pre-scan to bucket rows. The current single-statement upsert simplifies the code path without changing the mutation accounting: with both secondary indexes removed (per [#2382](https://github.com/mozilla-services/syncstorage-rs/pull/2382)), the upsert pays only base-row mutations (4 PK + 4 non-PK = 8), and that cost is identical on the insert and update paths.
 
 ## Database Diagram and Relationship
 
