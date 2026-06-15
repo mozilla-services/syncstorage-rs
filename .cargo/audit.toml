@@ -4,4 +4,6 @@ ignore = [
        "RUSTSEC-2024-0421", # Bound by diesel 1.4, `idna`  < 0.1.5, Upgrade to >=1.0.0
        "RUSTSEC-2024-0437", # Bound by grpcio 0.13,
        "RUSTSEC-2026-0002", # Bound by mysql_async, via diesel-async
+       "RUSTSEC-2026-0176", # pyo3 0.28 OOB read; TEMP, remove when pyo3>=0.29 (STOR-608)
+       "RUSTSEC-2026-0177", # pyo3 0.28 missing Sync bound; TEMP, remove when pyo3>=0.29 (STOR-608)
 ]
