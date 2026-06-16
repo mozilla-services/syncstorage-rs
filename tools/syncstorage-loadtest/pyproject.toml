@@ -18,7 +18,7 @@ dependencies = [
     "tokenlib>=2.0.0",
     "aiodogstatsd>=0.16.0,<0.17.0",
     "PyFxA>=0.8.2",
-    "PyJWT>=2.0.0",
+    "PyJWT>=2.13.0",
     "cryptography>=48.0.0",
 ]
 
