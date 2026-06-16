@@ -14,7 +14,7 @@ license = "Mozilla Public License Version 2.0"
 package-mode = false 
 
 [tool.poetry.dependencies]
-cryptography = "48.0.0"
+cryptography = "48.0.1"
 hawkauthlib = "^2.0.0"
 mysqlclient = "^2.2.7"
 psycopg2-binary = "^2.9.11"
