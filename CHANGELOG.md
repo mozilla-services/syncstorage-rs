@@ -1,3 +1,25 @@
+<a name="0.23.2"></a>
+## 0.23.2 (2026-06-17)
+
+
+#### Performance
+
+*   spanner mutation limit increase to 80000 max_total_records (#2327) ([a70ca645](https://github.com/mozilla-services/syncstorage-rs/commit/a70ca64588527887a90db8679155581cb33c3979))
+
+#### Chore
+
+*   stop publishing the separate Docker purge-script images (#2377) ([a4ede2f1](https://github.com/mozilla-services/syncstorage-rs/commit/a4ede2f15e6096b4100d8cf42e24ef888579c7ee))
+*   kill the removed BsoModified/Expiry secondary indices (#2382) ([d7e33e7e](https://github.com/mozilla-services/syncstorage-rs/commit/d7e33e7eb264997dac606f50cb03fd6fedb82e20))
+*   tag 0.23.1 (#2385) ([b28317e9](https://github.com/mozilla-services/syncstorage-rs/commit/b28317e972f40a982c792a743554c13abe1cd2b2))
+* **deps:**  bump pyjwt in /tools/syncstorage-loadtest (#2392) ([12dc1bf6](https://github.com/mozilla-services/syncstorage-rs/commit/12dc1bf63ffc59a89f11eeaacdb776abdc95dd32))
+
+#### Bug Fixes
+
+*   add settings for FxA acct event SET `aud` and `iss` (#2393) ([a9a08fbd](https://github.com/mozilla-services/syncstorage-rs/commit/a9a08fbdc60b68474b52b2ca4090f2b91aa2eb42))
+*   expose tokenserver endpoints only when enabled (#2394) ([f5e1b1c7](https://github.com/mozilla-services/syncstorage-rs/commit/f5e1b1c7f0f55d8b96ede583a7e0149a88f4c906))
+
+
+
 <a name="0.23.1"></a>
 ## 0.23.1 (2026-06-11)
 
