@@ -40,8 +40,6 @@ pub struct Settings {
     /// A secondary JWK to be used to verify OAuth tokens. This is intended to be used to enable
     /// seamless key rotations on FxA.
     pub fxa_oauth_secondary_jwk: Option<Jwk>,
-    /// Sync's client id assigned by FxA.  Used to validate OAuth access tokens.
-    pub fxa_client_id: Option<String>,
     /// The rate at which capacity should be released from nodes that are at capacity.
     pub node_capacity_release_rate: Option<f32>,
     /// The type of the storage nodes used by this instance of Tokenserver.
@@ -97,7 +95,6 @@ impl Default for Settings {
             fxa_oauth_request_timeout: 10,
             fxa_oauth_primary_jwk: None,
             fxa_oauth_secondary_jwk: None,
-            fxa_client_id: None,
             node_capacity_release_rate: None,
             node_type: NodeType::Spanner,
             statsd_label: "syncstorage.tokenserver".to_owned(),
