@@ -19,6 +19,7 @@
     - [API v1.1 (Obsolete)](syncstorage/api-1.1.md)
     - [API v1.0 (Obsolete)](syncstorage/api-1.0.md)
 - [Syncstorage DB - Postgres](syncstorage/syncstorage-postgres-db.md)
+- [Syncstorage DB - Spanner](syncstorage/syncstorage-spanner-db.md)
 - [Tokenserver](tokenserver/tokenserver.md)
     - [Goals of Tokenserver](tokenserver/tokenserver-goals.md)
     - [Tokenserver API](tokenserver/tokenserver-api.md)
