@@ -34,19 +34,6 @@ port = 8000
 # Leave JSON logging on for production; it is the format our tooling expects.
 human_logs = 1
 
-# Example Syncstorage settings:
-# database_url is required when syncstorage is enabled; there is no default,
-# and the server fails to start if it is unset.
-# Example MySQL DSN:
-syncstorage.database_url = "mysql://sample_user:sample_password@localhost/syncstorage_rs"
-# Example Spanner DSN:
-# syncstorage.database_url="spanner://projects/SAMPLE_GCP_PROJECT/instances/SAMPLE_SPANNER_INSTANCE/databases/SAMPLE_SPANNER_DB"
-# enable quota limits
-syncstorage.enable_quota = 0
-# set the quota limit to 2GB.
-# max_quota_limit = 200000000
-syncstorage.enabled = true
-syncstorage.limits.max_total_records = 9984
 # -----------------------------------------------------------------------------
 # Syncstorage (BSO storage service)
 # -----------------------------------------------------------------------------
