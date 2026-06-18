@@ -56,7 +56,7 @@ syncstorage.enable_quota = 0
 # Request/batch limits. Defaults shown in docs/src/config.md (Syncstorage
 # Limits). `max_total_records` is also used to cap MySQL `get_bsos` result
 # sizes; see issues #298/#333.
-syncstorage.limits.max_total_records = 1666
+syncstorage.limits.max_total_records = 9984
 
 # -----------------------------------------------------------------------------
 # Tokenserver (node assignment + FxA OAuth verification)
