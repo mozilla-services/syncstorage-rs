@@ -504,28 +504,7 @@ mod tests {
             "quux",
             "testo",
             json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
-            3600,
             OTHER_PRIVATE_KEY_PEM,
-        );
-        let req = TestRequest::post()
-            .uri("/1.0/webhooks/fxa/events")
-            .insert_header(("Authorization", format!("Bearer {token}")))
-            .to_request();
-        let resp = test::call_service(&app, req).await;
-        assert_eq!(resp.status(), 401);
-    }
-
-    #[actix_web::test]
-    async fn test_expired_token() {
-        let verifier =
-            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
-        let app = make_app(vec![verifier]).await;
-        let token = make_set(
-            "quux",
-            "testo",
-            json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
-            -3600,
-            TEST_PRIVATE_KEY_PEM,
         );
         let req = TestRequest::post()
             .uri("/1.0/webhooks/fxa/events")
@@ -544,7 +523,6 @@ mod tests {
             "quux",
             "some-other-RP",
             json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
-            3600,
             TEST_PRIVATE_KEY_PEM,
         );
         let req = TestRequest::post()
@@ -562,7 +540,6 @@ mod tests {
             "quux",
             "testo",
             json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
-            3600,
             TEST_PRIVATE_KEY_PEM,
         );
         let req = TestRequest::post()
@@ -584,7 +561,6 @@ mod tests {
             "quux",
             "testo",
             json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
-            3600,
             TEST_PRIVATE_KEY_PEM,
         );
         let req = TestRequest::post()
@@ -610,7 +586,6 @@ mod tests {
             "quux",
             "testo",
             json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
-            3600,
             TEST_PRIVATE_KEY_PEM,
         );
         let req = TestRequest::post()
@@ -638,7 +613,6 @@ mod tests {
             "quux",
             "testo",
             json!({"https://schemas.accounts.firefox.com/event/password-change": {"changeTime": change_time_ms}}),
-            3600,
             TEST_PRIVATE_KEY_PEM,
         );
         let req = TestRequest::post()
@@ -673,7 +647,6 @@ mod tests {
             "quux",
             "testo",
             json!({"https://schemas.accounts.firefox.com/event/unknown-event": {}}),
-            3600,
             TEST_PRIVATE_KEY_PEM,
         );
         let req = TestRequest::post()
