@@ -37,7 +37,7 @@ jobs:
         run: |
           TAG_NAME=${{ github.event.release.tag_name }}
           echo "TAG_NAME=$TAG_NAME"
-          echo "tags=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:$TAG_NAME,${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
+          echo "tags=cwndev/syncserver-rs:$TAG_NAME,cwndev/syncserver-rs:latest" >> $GITHUB_OUTPUT
     
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
