@@ -1,3 +1,73 @@
+<a name="0.23.2"></a>
+## 0.23.2 (2026-06-17)
+
+
+#### Performance
+
+*   spanner mutation limit increase to 80000 max_total_records (#2327) ([a70ca645](https://github.com/mozilla-services/syncstorage-rs/commit/a70ca64588527887a90db8679155581cb33c3979))
+
+#### Chore
+
+*   stop publishing the separate Docker purge-script images (#2377) ([a4ede2f1](https://github.com/mozilla-services/syncstorage-rs/commit/a4ede2f15e6096b4100d8cf42e24ef888579c7ee))
+*   kill the removed BsoModified/Expiry secondary indices (#2382) ([d7e33e7e](https://github.com/mozilla-services/syncstorage-rs/commit/d7e33e7eb264997dac606f50cb03fd6fedb82e20))
+*   tag 0.23.1 (#2385) ([b28317e9](https://github.com/mozilla-services/syncstorage-rs/commit/b28317e972f40a982c792a743554c13abe1cd2b2))
+* **deps:**  bump pyjwt in /tools/syncstorage-loadtest (#2392) ([12dc1bf6](https://github.com/mozilla-services/syncstorage-rs/commit/12dc1bf63ffc59a89f11eeaacdb776abdc95dd32))
+
+#### Bug Fixes
+
+*   add settings for FxA acct event SET `aud` and `iss` (#2393) ([a9a08fbd](https://github.com/mozilla-services/syncstorage-rs/commit/a9a08fbdc60b68474b52b2ca4090f2b91aa2eb42))
+*   expose tokenserver endpoints only when enabled (#2394) ([f5e1b1c7](https://github.com/mozilla-services/syncstorage-rs/commit/f5e1b1c7f0f55d8b96ede583a7e0149a88f4c906))
+
+
+
+<a name="0.23.1"></a>
+## 0.23.1 (2026-06-11)
+
+
+#### Chore
+
+*   pre commit hooks  (#2360) ([a79f719c](https://github.com/mozilla-services/syncstorage-rs/commit/a79f719cac644c3a2c2b29977bafbf318f613cfa))
+*   bump diesel async deadpool (#2340) ([a79eab8d](https://github.com/mozilla-services/syncstorage-rs/commit/a79eab8dd0a2c0fcceb43116504e62d56ec68a61))
+*   rmv dependabot rebase (#2346) ([1f47d232](https://github.com/mozilla-services/syncstorage-rs/commit/1f47d23206aa6a98855ca9394e611dbef0b15463))
+*   auto-rebase open Dependabot PRs on master merge (#2336) ([3a6051c8](https://github.com/mozilla-services/syncstorage-rs/commit/3a6051c81c5efcda36b7cfe173a763fcf47d310e))
+*   classify tickets by work category in jira-status skill (#2338) ([81c94ead](https://github.com/mozilla-services/syncstorage-rs/commit/81c94ead3f99dcbe0296c01e3275402c405b1500))
+*   bump low risk prod deps (#2334) ([c601009c](https://github.com/mozilla-services/syncstorage-rs/commit/c601009c409e28ff85eb6d52b98a7a87b1d172e6))
+*   tag 0.23.0 (#2325) ([5bf90441](https://github.com/mozilla-services/syncstorage-rs/commit/5bf90441000e828db0ebde08c74742d782e7dae8))
+* **ci:**  add ssdlc sbom workflow (#2368) ([6755204f](https://github.com/mozilla-services/syncstorage-rs/commit/6755204f18fcc83a3a0e61b90e6d2bbf0caa5fe7))
+* **deps:**
+  *  bump aiohttp in /tools/syncstorage-loadtest (#2364) ([e5085498](https://github.com/mozilla-services/syncstorage-rs/commit/e5085498ebf6d2ff94723a945a7186217c3b1c46))
+  *  bump webob from 1.8.9 to 1.8.10 in /tools/hawk (#2365) ([c17c04c7](https://github.com/mozilla-services/syncstorage-rs/commit/c17c04c76ec6fa85a98e01364df4fe4a25917f51))
+  *  bump cryptography in / (#2348) ([31e12ab4](https://github.com/mozilla-services/syncstorage-rs/commit/31e12ab4045db0d2837f9646ace2999e5f1418c2))
+  *  bump the actions-deps group across 1 directory with 4 updates (#2345) ([3f8cd35f](https://github.com/mozilla-services/syncstorage-rs/commit/3f8cd35f9c97def9d64f9a4b9aade05e398c3d0e))
+  *  bump openssl from 0.10.79 to 0.10.80 (#2321) ([94cc7c9b](https://github.com/mozilla-services/syncstorage-rs/commit/94cc7c9ba261deea95909dbee7a8441c93f8b134))
+  *  bump idna from 3.13 to 3.15 in /tools/integration_tests (#2320) ([4ecbda7c](https://github.com/mozilla-services/syncstorage-rs/commit/4ecbda7c0753fc9ec83e63a876cd7a8513a77f6f))
+  *  bump idna from 3.13 to 3.15 (#2319) ([f5ad19c2](https://github.com/mozilla-services/syncstorage-rs/commit/f5ad19c295f3113548d78217a2a27312cc9c3877))
+  *  bump idna from 3.13 to 3.15 in /tools/tokenserver (#2318) ([7b64575c](https://github.com/mozilla-services/syncstorage-rs/commit/7b64575c7fdfc79045e59fe64129a39d925224e8))
+  *  bump idna from 3.11 to 3.15 in /tools/syncstorage-loadtest (#2317) ([c094a90e](https://github.com/mozilla-services/syncstorage-rs/commit/c094a90e53939e088e08ce396bbf5f61bf2c5090))
+  *  bump idna from 3.11 to 3.15 in /tools/spanner (#2316) ([9bd34300](https://github.com/mozilla-services/syncstorage-rs/commit/9bd34300d955a09e20359d161d3b6e03c8821d1d))
+  *  bump idna from 3.11 to 3.15 in /tools/tokenserver/loadtests (#2315) ([4da7ae55](https://github.com/mozilla-services/syncstorage-rs/commit/4da7ae55359113cb5b4aa649dccb7944e525396a))
+* **settings:**  fail fast when DATABASE_URL is unset (#2362) ([28df1660](https://github.com/mozilla-services/syncstorage-rs/commit/28df16601b126abb41e534da4ecebd36c67e4bea))
+
+#### Bug Fixes
+
+*   use ms for generation value in account webhook event (#2366) ([65f169a9](https://github.com/mozilla-services/syncstorage-rs/commit/65f169a972933da315484d45de4750e46524496b))
+*   update user_collection_quota (#2328) ([4d3f61f0](https://github.com/mozilla-services/syncstorage-rs/commit/4d3f61f0c06b37a9374659628165b7072b78d565))
+
+#### Refactor
+
+* **db:**  use Spanner INSERT OR UPDATE DML (#2314) ([6eacda8b](https://github.com/mozilla-services/syncstorage-rs/commit/6eacda8be54e5bb46b0a022330bea54cc757ff1c))
+
+#### Features
+
+*   add account webhook metrics and metrics-only mode (#2378) ([01d9e037](https://github.com/mozilla-services/syncstorage-rs/commit/01d9e037265b0eddff8188a3781aeab75852f818))
+*   simplify spanner setup and tests with skill (#2330) ([c5329523](https://github.com/mozilla-services/syncstorage-rs/commit/c532952313f7aad2a7411a0ed93d271e369edd87))
+
+#### Doc
+
+*   we run clog with --setversion (#2322) ([3b80cc85](https://github.com/mozilla-services/syncstorage-rs/commit/3b80cc85f8f2818bdbbbda1b2dbae2097eb8bc1c))
+
+
+
 <a name="0.23.0"></a>
 ## 0.23.0 (2026-05-21)
 

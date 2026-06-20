@@ -1384,7 +1384,6 @@ mod tests {
             "quux",
             "testo",
             serde_json::json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
-            3600,
             TEST_PRIVATE_KEY_PEM,
         );
         let req = TestRequest::default()
@@ -1407,7 +1406,6 @@ mod tests {
             "quux",
             "testo",
             serde_json::json!({}),
-            3600,
             OTHER_PRIVATE_KEY_PEM,
         );
         let req = TestRequest::default()
@@ -1428,13 +1426,7 @@ mod tests {
     #[actix_rt::test]
     async fn test_fxa_webhook_no_verifiers() {
         let state = make_webhook_state(vec![]);
-        let token = make_set(
-            "quux",
-            "testo",
-            serde_json::json!({}),
-            3600,
-            TEST_PRIVATE_KEY_PEM,
-        );
+        let token = make_set("quux", "testo", serde_json::json!({}), TEST_PRIVATE_KEY_PEM);
         let req = TestRequest::default()
             .app_data(Data::new(state))
             .insert_header(("Authorization", format!("Bearer {token}")))

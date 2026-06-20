@@ -40,8 +40,6 @@ pub struct Settings {
     /// A secondary JWK to be used to verify OAuth tokens. This is intended to be used to enable
     /// seamless key rotations on FxA.
     pub fxa_oauth_secondary_jwk: Option<Jwk>,
-    /// Sync's client id assigned by FxA.  It is used to validate the `aud` of JWKs.
-    pub fxa_client_id: Option<String>,
     /// The rate at which capacity should be released from nodes that are at capacity.
     pub node_capacity_release_rate: Option<f32>,
     /// The type of the storage nodes used by this instance of Tokenserver.
@@ -78,6 +76,10 @@ pub struct Settings {
     /// are counted but not processed.
     /// Defaults to false.
     pub fxa_webhook_metrics_only: bool,
+    /// The `aud` of Security Event Tokens received on the account events webhook endpoint.
+    pub fxa_webhook_set_client_id: Option<String>,
+    /// The `iss` of Security Event Tokens received on the account events webhook endpoint.
+    pub fxa_webhook_set_issuer: Option<String>,
 }
 
 impl Default for Settings {
@@ -96,7 +98,6 @@ impl Default for Settings {
             fxa_oauth_request_timeout: 10,
             fxa_oauth_primary_jwk: None,
             fxa_oauth_secondary_jwk: None,
-            fxa_client_id: None,
             node_capacity_release_rate: None,
             node_type: NodeType::Spanner,
             statsd_label: "syncstorage.tokenserver".to_owned(),
@@ -109,6 +110,8 @@ impl Default for Settings {
             fxa_webhook_enabled: false,
             allow_new_users: true,
             fxa_webhook_metrics_only: false,
+            fxa_webhook_set_client_id: None,
+            fxa_webhook_set_issuer: None,
         }
     }
 }

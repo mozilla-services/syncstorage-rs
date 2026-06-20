@@ -77,25 +77,20 @@ impl ServerState {
 
         let set_verifiers = {
             let mut verifiers = Vec::with_capacity(2);
-            if let Some(client_id) = &settings.fxa_client_id {
+            if let (Some(client_id), Some(issuer)) = (
+                &settings.fxa_webhook_set_client_id,
+                &settings.fxa_webhook_set_issuer,
+            ) {
                 if let Some(primary_jwk) = &settings.fxa_oauth_primary_jwk {
                     verifiers.push(
-                        SETVerifierImpl::new(
-                            primary_jwk,
-                            client_id,
-                            &settings.fxa_oauth_server_url,
-                        )
-                        .expect("Invalid primary JWK for SET verification"),
+                        SETVerifierImpl::new(primary_jwk, client_id, issuer)
+                            .expect("Invalid primary JWK for SET verification"),
                     );
                 }
                 if let Some(secondary_jwk) = &settings.fxa_oauth_secondary_jwk {
                     verifiers.push(
-                        SETVerifierImpl::new(
-                            secondary_jwk,
-                            client_id,
-                            &settings.fxa_oauth_server_url,
-                        )
-                        .expect("Invalid secondary JWK for SET verification"),
+                        SETVerifierImpl::new(secondary_jwk, client_id, issuer)
+                            .expect("Invalid secondary JWK for SET verification"),
                     );
                 }
             }
