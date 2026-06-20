@@ -1,8 +1,8 @@
 name: Build ARM64 Docker Image
 
 on:
-  push:
-    branches: [ "main", "master" ]
+  release:
+    types: [published]
   workflow_dispatch:
 
 env:
