@@ -3,10 +3,6 @@ name: Build ARM64 Docker Image
 on:
   release:
     types: [published]
-  workflow_dispatch:
-
-env:
-  IMAGE_NAME: syncserver-rs
 
 jobs:
   build:
