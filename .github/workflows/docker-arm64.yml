@@ -35,9 +35,13 @@ jobs:
       - name: Set Image Tags
         id: vars
         run: |
-          TAG_NAME=${{ github.event.release.tag_name }}
-          echo "TAG_NAME=$TAG_NAME"
-          echo "tags=cwndev/syncserver-rs:$TAG_NAME,cwndev/syncserver-rs:latest" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG_NAME=${{ github.event.release.tag_name }}
+            echo "tags=cwndev/syncserver-rs:$TAG_NAME,cwndev/syncserver-rs:latest" >> $GITHUB_OUTPUT
+          else
+            SHORT_SHA=${GITHUB_SHA::7}
+            echo "tags=cwndev/syncserver-rs:dev-$SHORT_SHA" >> $GITHUB_OUTPUT
+          fi
     
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
