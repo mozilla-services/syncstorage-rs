@@ -42,4 +42,7 @@ jobs:
           file: ./Dockerfile
           push: true
           platforms: linux/arm64
+          build-args: |
+            SYNCSTORAGE_DATABASE_BACKEND=postgres
+            TOKENSERVER_DATABASE_BACKEND=postgres
           tags: ${{ steps.vars.outputs.tags }}
