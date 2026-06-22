@@ -1,3 +1,22 @@
+<a name="0.23.3"></a>
+## 0.23.3 (2026-06-18)
+
+
+#### Chore
+
+*   rm the fxa_client_id settings that's no longer used (#2400) ([c530cd4c](https://github.com/mozilla-services/syncstorage-rs/commit/c530cd4c390882d451c16c6b798d20e66c709754))
+*   tag 0.23.2 (#2399) ([1aee7bd9](https://github.com/mozilla-services/syncstorage-rs/commit/1aee7bd942324313607b5d9100673386515c84b3))
+
+#### Features
+
+*   kill get_collection's redundant extract_resource call (#2389) ([1a703e24](https://github.com/mozilla-services/syncstorage-rs/commit/1a703e2427cd4194c83dc60f3086fb6e1eead19b))
+
+#### Bug Fixes
+
+*   do not validate `exp` on FxA event tokens (#2402) ([14512f11](https://github.com/mozilla-services/syncstorage-rs/commit/14512f11f046b8de0be54605746c7647ef35def7))
+
+
+
 <a name="0.23.2"></a>
 ## 0.23.2 (2026-06-17)
 
