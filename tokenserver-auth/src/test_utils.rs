@@ -74,14 +74,9 @@ pub fn test_jwk() -> Jwk {
     serde_json::from_str(TEST_JWK).unwrap()
 }
 
-/// Sign a SET with the given PEM.
-pub fn make_set(
-    sub: &str,
-    aud: &str,
-    events: serde_json::Value,
-    exp_offset_secs: i64,
-    private_key_pem: &[u8],
-) -> String {
+/// Sign a SET with the given PEM. Mirrors the claims the FxA Event Broker emits: {iss, aud, sub,
+/// iat, jti, events}
+pub fn make_set(sub: &str, aud: &str, events: serde_json::Value, private_key_pem: &[u8]) -> String {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -91,7 +86,6 @@ pub fn make_set(
         "sub": sub,
         "aud": aud,
         "iat": now,
-        "exp": now + exp_offset_secs,
         "jti": "wibble",
         "events": events,
     });
