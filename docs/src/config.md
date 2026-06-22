@@ -107,6 +107,8 @@ The following configuration options are available.
 | <span id="SYNC_TOKENSERVER__TOKEN_DURATION"></span>SYNC_TOKENSERVER__TOKEN_DURATION | 3600 | Token TTL (1 hour) |
 | <span id="SYNC_TOKENSERVER__FXA_WEBHOOK_ENABLED"></span>SYNC_TOKENSERVER__FXA_WEBHOOK_ENABLED | false | Enable the FxA webhook endpoint. When disabled, the route is not registered. |
 | <span id="SYNC_TOKENSERVER__FXA_WEBHOOK_METRICS_ONLY"></span>SYNC_TOKENSERVER__FXA_WEBHOOK_METRICS_ONLY | false | Run the FxA webhook handler in metrics-only mode. Received events are counted but not processed. Only used if `FXA_WEBHOOK_ENABLED` is true. |
+| <span id="SYNC_TOKENSERVER__FXA_WEBHOOK_SET_CLIENT_ID"></span>SYNC_TOKENSERVER__FXA_WEBHOOK_SET_CLIENT_ID | None | Expected `aud` of FxA Security Event Tokens. Required for account event webhooks. |
+| <span id="SYNC_TOKENSERVER__FXA_WEBHOOK_SET_ISSUER"></span>SYNC_TOKENSERVER__FXA_WEBHOOK_SET_ISSUER | None | Expected `iss` of FxA Security Event Tokens. Required for account event webhooks. |
 
 ### Tokenserver+FxA Integration
 
@@ -133,4 +135,3 @@ The following configuration options are available.
 | <span id="SYNC_STATSD_HOST"></span>SYNC_STATSD_HOST | localhost | StatsD server hostname |
 | <span id="SYNC_STATSD_PORT"></span>SYNC_STATSD_PORT | 8125 | StatsD server port |
 | <span id="SYNC_INCLUDE_HOSTNAME_TAG"></span>SYNC_INCLUDE_HOSTNAME_TAG | false | Include hostname in metrics tags |
-

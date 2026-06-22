@@ -318,11 +318,11 @@ pub async fn get_collection(
             };
             let response = if coll.query.full {
                 let result = db.get_bsos(params).await;
-                finish_get_collection(&coll, db, result).await?
+                finish_get_collection(&coll, result).await?
             } else {
                 // Changed to be a Paginated list of BSOs, need to extract IDs from them.
                 let result = db.get_bso_ids(params).await;
-                finish_get_collection(&coll, db, result).await?
+                finish_get_collection(&coll, result).await?
             };
             Ok(response)
         })
@@ -331,7 +331,6 @@ pub async fn get_collection(
 
 async fn finish_get_collection<T>(
     coll: &CollectionRequest,
-    db: &mut dyn Db<Error = DbError>,
     result: Result<Paginated<T>, DbError>,
 ) -> Result<HttpResponse, DbError>
 where
@@ -347,14 +346,8 @@ where
         }
     })?;
 
-    let ts = db
-        .extract_resource(coll.user_id.clone(), Some(coll.collection.clone()), None)
-        .await?;
-
     let mut builder = HttpResponse::build(StatusCode::OK);
-    let resp = builder
-        .insert_header((X_LAST_MODIFIED, ts.as_header()))
-        .insert_header((X_WEAVE_RECORDS, result.items.len().to_string()));
+    let resp = builder.insert_header((X_WEAVE_RECORDS, result.items.len().to_string()));
 
     if let Some(offset) = result.offset {
         resp.insert_header((X_WEAVE_NEXT_OFFSET, offset));

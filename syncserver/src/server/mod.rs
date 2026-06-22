@@ -203,20 +203,22 @@ macro_rules! build_app {
                     .route(web::put().to(handlers::put_bso)),
             )
             // Tokenserver
-            .service(
-                web::resource("/1.0/{application}/{version}")
-                    .route(web::get().to(tokenserver::handlers::get_tokenserver_result)),
-            )
+            // Only expose the endpoints when Tokenserver is enabled.
             .configure(|cfg| {
-                let fxa_webhook_enabled = $tokenserver_state
-                    .as_ref()
-                    .map(|s: &tokenserver::ServerState| s.fxa_webhook_enabled)
-                    .unwrap_or(false);
-                if fxa_webhook_enabled {
+                if let Some(tokenserver_state) = $tokenserver_state.as_ref() {
+                    let tokenserver_state: &tokenserver::ServerState = tokenserver_state;
+
                     cfg.service(
-                        web::resource("/1.0/webhooks/fxa/events")
-                            .route(web::post().to(tokenserver::handlers::handle_fxa_events)),
+                        web::resource("/1.0/{application}/{version}")
+                            .route(web::get().to(tokenserver::handlers::get_tokenserver_result)),
                     );
+
+                    if tokenserver_state.fxa_webhook_enabled {
+                        cfg.service(
+                            web::resource("/1.0/webhooks/fxa/events")
+                                .route(web::post().to(tokenserver::handlers::handle_fxa_events)),
+                        );
+                    }
                 }
             })
             // Dockerflow
