@@ -7,13 +7,25 @@ use futures::FutureExt;
 use futures::future::LocalBoxFuture;
 
 use syncserver_common::{Taggable, X_LAST_MODIFIED};
-use syncstorage_db::{Db, DbError, DbPool, UserIdentifier, params, results::ConnectionInfo};
+use syncstorage_db::{
+    Db, DbError, DbPool, SyncTimestamp, UserIdentifier, params, results::ConnectionInfo,
+};
 
 use super::extractors::{
     BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt,
 };
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::{MetricsWrapper, ServerState};
+
+/// In-transaction outcome for [`DbTransactionPool::transaction_http_then`].
+enum InTxOutcome<R> {
+    /// Continue post-transaction processing with this value and the resource
+    /// timestamp extracted inside the transaction.
+    Continue(R, SyncTimestamp),
+    /// Short-circuit response (e.g., precondition failed) that bypasses the
+    /// post-transaction `finalize` step.
+    Response(HttpResponse),
+}
 
 #[derive(Clone)]
 pub struct DbTransactionPool {
@@ -162,6 +174,80 @@ impl DbTransactionPool {
             Some(_) => db.rollback().await?,
         };
         Ok(resp)
+    }
+
+    /// Like [`Self::transaction_http`], but defers HTTP response construction
+    /// until after the DB transaction commits. The `action` runs inside the
+    /// transaction and returns a value `R`; once committed, `finalize` is
+    /// called with `R` to produce the final response. Precondition handling
+    /// and `X-Last-Modified` header injection behave the same as
+    /// [`Self::transaction_http`].
+    ///
+    /// Use this for read paths that need to perform extra I/O (such as
+    /// fetching off-loaded payloads from object storage) after the DB
+    /// connection has been released.
+    pub async fn transaction_http_then<A, R, F>(
+        &self,
+        request: &HttpRequest,
+        action: A,
+        finalize: F,
+    ) -> Result<HttpResponse, ApiError>
+    where
+        A: AsyncFnOnce(&mut dyn Db<Error = DbError>) -> Result<R, ApiError>,
+        F: AsyncFnOnce(R) -> Result<HttpResponse, ApiError>,
+    {
+        let in_tx = async |db: &mut dyn Db<Error = DbError>| -> Result<InTxOutcome<R>, ApiError> {
+            set_extra(request, db.get_connection_info());
+            let resource_ts = db
+                .extract_resource(
+                    self.user_id.clone(),
+                    self.collection.clone(),
+                    self.bso_opt.clone(),
+                )
+                .await
+                .map_err(ApiError::from)?;
+
+            if let Some(precondition) = &self.precondition.opt {
+                let status = match precondition {
+                    PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= *header_ts => {
+                        StatusCode::NOT_MODIFIED
+                    }
+                    PreConditionHeader::IfUnmodifiedSince(header_ts)
+                        if resource_ts > *header_ts =>
+                    {
+                        StatusCode::PRECONDITION_FAILED
+                    }
+                    _ => StatusCode::OK,
+                };
+                if status != StatusCode::OK {
+                    return Ok(InTxOutcome::Response(
+                        HttpResponse::build(status)
+                            .insert_header((X_LAST_MODIFIED, resource_ts.as_header()))
+                            .finish(),
+                    ));
+                };
+            }
+
+            let r = action(db).await?;
+            Ok(InTxOutcome::Continue(r, resource_ts))
+        };
+
+        let (outcome, mut db) = self.transaction_internal(request, in_tx).await?;
+        db.commit().await?;
+
+        match outcome {
+            InTxOutcome::Response(resp) => Ok(resp),
+            InTxOutcome::Continue(r, resource_ts) => {
+                let mut resp = finalize(r).await?;
+                if !resp.headers().contains_key(X_LAST_MODIFIED)
+                    && let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header())
+                {
+                    resp.headers_mut()
+                        .insert(header::HeaderName::from_static(X_LAST_MODIFIED), ts_header);
+                }
+                Ok(resp)
+            }
+        }
     }
 
     /// Create a lock collection if there is a collection to lock

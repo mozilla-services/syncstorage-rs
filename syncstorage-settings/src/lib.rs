@@ -109,6 +109,24 @@ pub struct Settings {
     /// Percentage of `lbheartbeat_ttl` time to "jitter" (adds additional,
     /// randomized time)
     pub lbheartbeat_ttl_jitter: u32,
+
+    /// Optional Google Cloud Storage bucket for off-loading BSO payloads.
+    /// When set and the request's collection appears in
+    /// [`Self::gcs_payload_offload_collections`], incoming payloads are
+    /// uploaded to this bucket and the resulting URL is stored in the
+    /// `payload_link` column instead of the inline `payload` column.
+    pub gcs_payload_bucket: Option<String>,
+
+    /// Collections whose BSO payloads are off-loaded to GCS (see
+    /// [`Self::gcs_payload_bucket`]). Empty by default, which disables the
+    /// off-load path for all collections.
+    pub gcs_payload_offload_collections: Vec<String>,
+
+    /// Override the GCS endpoint URL for testing (e.g. an httptest mock or
+    /// fake-gcs-server instance). When set, anonymous credentials are used.
+    /// Debug-builds only; not available in release.
+    #[cfg(debug_assertions)]
+    pub gcs_endpoint: Option<String>,
 }
 
 impl Default for Settings {
@@ -134,6 +152,10 @@ impl Default for Settings {
             enabled: true,
             lbheartbeat_ttl: None,
             lbheartbeat_ttl_jitter: 25,
+            gcs_payload_bucket: None,
+            gcs_payload_offload_collections: Vec::new(),
+            #[cfg(debug_assertions)]
+            gcs_endpoint: None,
         }
     }
 }

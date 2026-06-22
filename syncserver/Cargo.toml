@@ -39,8 +39,11 @@ actix-http = "3"
 actix-rt = "2"
 actix-cors = "0.7"
 glean = { path = "../glean" }
+google-cloud-auth = "1.13"
+google-cloud-storage = "1.15"
 hawk = "5.0"
 mime = "0.3"
+wkt = { package = "google-cloud-wkt", version = "1.5" }
 # pin to 0.19: https://github.com/getsentry/sentry-rust/issues/277
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
@@ -60,6 +63,7 @@ validator_derive = "0.20"
 woothee = "0.13"
 
 [dev-dependencies]
+httptest = "0.16"
 temp-env.workspace = true
 tokenserver-auth = { path = "../tokenserver-auth", features = ["test-support"] }
 

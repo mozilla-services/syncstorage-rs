@@ -81,3 +81,10 @@ ALTER TABLE bsos
 ALTER TABLE batches
     ADD ROW DELETION POLICY (OLDER_THAN(expiry, INTERVAL 0 DAY));
 
+-- Optional URI to a Google Cloud Storage object holding the bso payload
+-- when the payload is stored externally rather than inline.
+ALTER TABLE bsos
+    ADD COLUMN payload_link STRING(MAX);
+ALTER TABLE batch_bsos
+    ADD COLUMN payload_link STRING(MAX);
+

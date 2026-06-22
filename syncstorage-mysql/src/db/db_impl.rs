@@ -297,6 +297,9 @@ impl Db for MysqlDb {
                 bso::payload,
                 bso::sortindex,
                 bso::expiry,
+                // payload_link is Spanner-only; bind a literal NULL so the
+                // shared results::GetBso Queryable derive is satisfied.
+                sql::<Nullable<Text>>("NULL"),
             ))
             .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(collection_id))
@@ -460,6 +463,7 @@ impl Db for MysqlDb {
                 bso::payload,
                 bso::sortindex,
                 bso::expiry,
+                sql::<Nullable<Text>>("NULL"),
             ))
             .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(&collection_id))
@@ -518,6 +522,7 @@ impl Db for MysqlDb {
                 collection: input.collection.clone(),
                 id: pbso.id.clone(),
                 payload: pbso.payload,
+                payload_link: pbso.payload_link,
                 sortindex: pbso.sortindex,
                 ttl: pbso.ttl,
             })
