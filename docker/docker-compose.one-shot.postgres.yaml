@@ -1,0 +1,85 @@
+# One-shot, stand-alone PostgreSQL-backed Syncserver.
+#
+# Unlike docker-compose.postgres.yaml (which is an end-to-end test harness:
+# mock FxA server, prebuilt `app:build` image, separate sync/tokenserver DBs),
+# this brings up a working server in a single command with no manual database
+# setup:
+#
+#   make docker_oneshot_postgres
+#   # or:
+#   docker compose -f docker/docker-compose.one-shot.postgres.yaml up -d --build
+#
+# Then confirm it is serving:
+#
+#   curl http://localhost:8000/__heartbeat__
+#
+# Syncstorage and Tokenserver share a single Postgres database here for
+# simplicity; SYNC_TOKENSERVER__RUN_MIGRATIONS applies the Tokenserver schema
+# and SYNC_TOKENSERVER__INIT_NODE_URL bootstraps the `sync-1.5` service and
+# storage node records.
+#
+# This builds the Postgres server from the local checkout (build context is the
+# repo root), so it does not depend on any published image. To use a published
+# image instead, replace the syncserver `build:` block with:
+#
+#   image: ghcr.io/mozilla-services/syncstorage-rs/syncserver-postgres:${SYNCSERVER_VERSION:-latest}
+#   platform: linux/amd64
+#
+# Set SYNC_MASTER_SECRET to your own value for anything beyond local
+# experimentation; the default below is a placeholder.
+
+services:
+  syncserver:
+    build:
+      context: ..
+      args:
+        SYNCSTORAGE_DATABASE_BACKEND: postgres
+        TOKENSERVER_DATABASE_BACKEND: postgres
+    container_name: syncserver
+    ports:
+      - "8000:8000"
+    environment:
+      SYNC_HOST: "0.0.0.0"
+      SYNC_PORT: "8000"
+      SYNC_MASTER_SECRET: "${SYNC_MASTER_SECRET:-changeme_secret_key}"
+      SYNC_SYNCSTORAGE__DATABASE_URL: "postgres://sync:sync@postgres:5432/syncserver"
+      SYNC_TOKENSERVER__DATABASE_URL: "postgres://sync:sync@postgres:5432/syncserver"
+      SYNC_TOKENSERVER__ENABLED: "true"
+      SYNC_TOKENSERVER__NODE_TYPE: "postgres"
+      SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
+      SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: "api.accounts.firefox.com"
+      SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: "https://oauth.accounts.firefox.com"
+      SYNC_HUMAN_LOGS: "${SYNC_HUMAN_LOGS:-false}"
+      RUST_LOG: "${RUST_LOG:-info}"
+      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:${SYNC_PORT:-8000}}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/__heartbeat__"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  postgres:
+    image: docker.io/library/postgres:18
+    container_name: syncserver-postgres
+    environment:
+      POSTGRES_USER: sync
+      POSTGRES_PASSWORD: sync
+      POSTGRES_DB: syncserver
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sync -d syncserver"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local

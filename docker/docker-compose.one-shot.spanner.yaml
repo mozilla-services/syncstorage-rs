@@ -1,0 +1,113 @@
+# One-shot, stand-alone Spanner-backed Syncserver (LOCAL DEV ONLY).
+#
+# This mirrors the production shape — Spanner for Syncstorage, MySQL for
+# Tokenserver — but runs against the Cloud Spanner *emulator*, so it needs no
+# GCP service account. It is for local experimentation only: the emulator is
+# in-memory-ish, single-node, unauthenticated, and not suitable for any real
+# data. Production uses real Spanner with a service-account key (see
+# `make run_spanner`).
+#
+# Brings up the stack in a single command with no manual database setup:
+#
+#   make docker_oneshot_spanner
+#   # or:
+#   docker compose -f docker/docker-compose.one-shot.spanner.yaml up -d --build
+#
+# Then confirm it is serving:
+#
+#   curl http://localhost:8000/__heartbeat__
+#
+# The sync-db-setup container provisions the emulator instance/database from the
+# image's bundled schema (scripts/prepare-spanner.sh + /app/schema.ddl) and then
+# exits; syncserver waits for it to finish. Tokenserver applies its schema via
+# SYNC_TOKENSERVER__RUN_MIGRATIONS, and SYNC_TOKENSERVER__INIT_NODE_URL
+# bootstraps the `sync-1.5` service and storage node records.
+#
+# The Spanner server is built from the local checkout (build context is the repo
+# root); sync-db-setup builds the image and syncserver reuses it.
+#
+# Set SYNC_MASTER_SECRET to your own value for anything beyond local
+# experimentation; the default below is a placeholder.
+
+services:
+  sync-db:
+    # Keep in sync with SPANNER_EMULATOR_VER in .github/workflows/main-workflow.yml
+    image: gcr.io/cloud-spanner-emulator/emulator:1.5.52
+    container_name: syncserver-spanner-emulator
+    ports:
+      - "9010:9010"
+      - "9020:9020"
+    restart: unless-stopped
+
+  sync-db-setup:
+    build:
+      context: ..
+      args:
+        SYNCSTORAGE_DATABASE_BACKEND: spanner
+        TOKENSERVER_DATABASE_BACKEND: mysql
+    image: syncstorage-rs-spanner-oneshot:latest
+    container_name: syncserver-spanner-setup
+    depends_on:
+      - sync-db
+    restart: "no"
+    entrypoint: ["/app/scripts/prepare-spanner.sh"]
+    environment:
+      # prepare-spanner.sh talks to the emulator's REST admin port (9020).
+      SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9020
+
+  tokenserver-db:
+    image: docker.io/library/mysql:8.0
+    container_name: syncserver-tokenserver-db
+    command: --explicit_defaults_for_timestamp
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: tokenserver
+      MYSQL_USER: sync
+      MYSQL_PASSWORD: sync
+    volumes:
+      - tokenserver_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin -h 127.0.0.1 -usync -psync ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  syncserver:
+    image: syncstorage-rs-spanner-oneshot:latest
+    container_name: syncserver
+    ports:
+      - "8000:8000"
+    environment:
+      SYNC_HOST: "0.0.0.0"
+      SYNC_PORT: "8000"
+      SYNC_MASTER_SECRET: "${SYNC_MASTER_SECRET:-changeme_secret_key}"
+      SYNC_SYNCSTORAGE__DATABASE_URL: "spanner://projects/test-project/instances/test-instance/databases/test-database"
+      # syncserver uses the emulator's gRPC port (9010).
+      SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9010
+      SYNC_TOKENSERVER__DATABASE_URL: "mysql://sync:sync@tokenserver-db:3306/tokenserver"
+      SYNC_TOKENSERVER__ENABLED: "true"
+      SYNC_TOKENSERVER__NODE_TYPE: "spanner"
+      SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
+      SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: "api.accounts.firefox.com"
+      SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: "https://oauth.accounts.firefox.com"
+      SYNC_HUMAN_LOGS: "${SYNC_HUMAN_LOGS:-false}"
+      RUST_LOG: "${RUST_LOG:-info}"
+      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:${SYNC_PORT:-8000}}"
+    depends_on:
+      sync-db-setup:
+        condition: service_completed_successfully
+      tokenserver-db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/__heartbeat__"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  tokenserver_db_data:
+    driver: local

@@ -1,0 +1,112 @@
+# One-shot, stand-alone MySQL-backed Syncserver.
+#
+# Unlike docker-compose.mysql.yaml (which is an end-to-end test harness:
+# mock FxA server, prebuilt `app:build` image), this brings up a working
+# server in a single command with no manual database setup:
+#
+#   make docker_oneshot_mysql
+#   # or:
+#   docker compose -f docker/docker-compose.one-shot.mysql.yaml up -d --build
+#
+# Then confirm it is serving:
+#
+#   curl http://localhost:8000/__heartbeat__
+#
+# Syncstorage applies its schema migrations at startup,
+# SYNC_TOKENSERVER__RUN_MIGRATIONS applies the Tokenserver schema, and
+# SYNC_TOKENSERVER__INIT_NODE_URL bootstraps the `sync-1.5` service and storage
+# node records.
+#
+# This builds the MySQL server from the local checkout (build context is the
+# repo root), so it does not depend on any published image. To use a published
+# image instead, replace the syncserver `build:` block with:
+#
+#   image: ghcr.io/mozilla-services/syncstorage-rs/syncstorage-rs-mysql:${SYNCSERVER_VERSION:?set SYNCSERVER_VERSION to a published tag}
+#   platform: linux/amd64
+#
+# Published images are tagged by commit SHA (no `latest`/semver), so
+# SYNCSERVER_VERSION must be a tag from the syncstorage-rs-mysql packages page.
+#
+# Set SYNC_MASTER_SECRET to your own value for anything beyond local
+# experimentation; the default below is a placeholder.
+
+services:
+  syncserver:
+    build:
+      context: ..
+      args:
+        SYNCSTORAGE_DATABASE_BACKEND: mysql
+        TOKENSERVER_DATABASE_BACKEND: mysql
+    container_name: syncserver
+    ports:
+      - "8000:8000"
+    environment:
+      SYNC_HOST: "0.0.0.0"
+      SYNC_PORT: "8000"
+      SYNC_MASTER_SECRET: "${SYNC_MASTER_SECRET:-changeme_secret_key}"
+      SYNC_SYNCSTORAGE__DATABASE_URL: "mysql://sync:sync@sync-db:3306/syncstorage"
+      SYNC_TOKENSERVER__DATABASE_URL: "mysql://sync:sync@tokenserver-db:3306/tokenserver"
+      SYNC_TOKENSERVER__ENABLED: "true"
+      SYNC_TOKENSERVER__NODE_TYPE: "mysql"
+      SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
+      SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: "api.accounts.firefox.com"
+      SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: "https://oauth.accounts.firefox.com"
+      SYNC_HUMAN_LOGS: "${SYNC_HUMAN_LOGS:-false}"
+      RUST_LOG: "${RUST_LOG:-info}"
+      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:${SYNC_PORT:-8000}}"
+    depends_on:
+      sync-db:
+        condition: service_healthy
+      tokenserver-db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/__heartbeat__"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  sync-db:
+    image: docker.io/library/mysql:8.0
+    container_name: syncserver-sync-db
+    command: --explicit_defaults_for_timestamp
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: syncstorage
+      MYSQL_USER: sync
+      MYSQL_PASSWORD: sync
+    volumes:
+      - sync_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin -h 127.0.0.1 -usync -psync ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  tokenserver-db:
+    image: docker.io/library/mysql:8.0
+    container_name: syncserver-tokenserver-db
+    command: --explicit_defaults_for_timestamp
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: tokenserver
+      MYSQL_USER: sync
+      MYSQL_PASSWORD: sync
+    volumes:
+      - tokenserver_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin -h 127.0.0.1 -usync -psync ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  sync_db_data:
+    driver: local
+  tokenserver_db_data:
+    driver: local
