@@ -654,11 +654,8 @@ async fn get_collection_usage() -> Result<(), DbError> {
                     collection: "ignored".to_owned(),
                 })
                 .await?;
-            assert_eq!(
-                &(quota.total_bytes as i64),
-                expected.get("bookmarks").unwrap()
-            );
-            assert_eq!(quota.count, 5); // 3 collections, 5 records
+            assert_eq!(&(quota.total_bytes as i64), &sum);
+            assert_eq!(quota.count, 15); // 3 collections of 5 records
         }
         Ok(())
     })
