@@ -1,5 +1,5 @@
 use base64::Engine;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use async_trait::async_trait;
 use diesel::{
@@ -69,11 +69,25 @@ impl BatchDb for MysqlDb {
             }
         }
 
-        do_append(self, batch_id, params.user_id, collection_id, params.bsos).await?;
-        Ok(results::CreateBatch {
+        let batch = results::CreateBatch {
             id: encode_id(batch_id),
-            size: None,
-        })
+            // `size` is the committed size
+            size: self
+                .check_quota(&params.user_id, &params.collection)
+                .await?,
+        };
+
+        do_append(
+            self,
+            params.user_id,
+            collection_id,
+            batch.clone(),
+            params.bsos,
+            &params.collection,
+        )
+        .await?;
+
+        Ok(batch)
     }
 
     async fn validate_batch(&mut self, params: params::ValidateBatch) -> DbResult<bool> {
@@ -110,9 +124,24 @@ impl BatchDb for MysqlDb {
             return Err(DbError::batch_not_found());
         }
 
-        let batch_id = decode_id(&params.batch.id)?;
         let collection_id = self._get_collection_id(&params.collection).await?;
-        do_append(self, batch_id, params.user_id, collection_id, params.bsos).await?;
+
+        // `batch.size` is the committed size
+        let mut batch = params.batch;
+        batch.size = self
+            .check_quota(&params.user_id, &params.collection)
+            .await?;
+
+        do_append(
+            self,
+            params.user_id,
+            collection_id,
+            batch,
+            params.bsos,
+            &params.collection,
+        )
+        .await?;
+
         Ok(())
     }
 
@@ -191,10 +220,11 @@ impl BatchDb for MysqlDb {
 
 pub async fn do_append(
     db: &mut MysqlDb,
-    batch_id: i64,
     user_id: UserIdentifier,
     _collection_id: i32,
+    batch: results::CreateBatch,
     bsos: Vec<params::PostCollectionBso>,
+    collection: &str,
 ) -> DbResult<()> {
     fn exist_idx(user_id: u64, batch_id: i64, bso_id: &str) -> String {
         // Construct something that matches the key for batch_upload_items
@@ -204,6 +234,32 @@ pub async fn do_append(
             user_id = user_id,
             bso_id = bso_id,
         )
+    }
+
+    let batch_id = decode_id(&batch.id)?;
+    let uid = user_id.legacy_id as i64;
+
+    if db.quota.enabled
+        && let Some(size) = batch.size
+    {
+        let running_size: usize = bsos
+            .iter()
+            .filter_map(|bso| bso.payload.as_ref().map(|p| p.len()))
+            .sum();
+        let incoming_ids: Vec<String> = bsos.iter().map(|bso| bso.id.clone()).collect();
+        let pending_size = pending_batch_size(db, uid, batch_id, &incoming_ids).await?;
+        let projected_total = size + pending_size + running_size;
+        if projected_total >= db.quota.size {
+            let mut tags = HashMap::default();
+            tags.insert("collection".to_owned(), collection.to_owned());
+            db.metrics.incr_with_tags("storage.quota.at_limit", tags);
+            if db.quota.enforced {
+                return Err(DbError::quota());
+            } else {
+                warn!("Quota at limit for user ({} bytes)", projected_total;
+                      "collection" => collection);
+            }
+        }
     }
 
     // It's possible for the list of items to contain a duplicate key entry.
@@ -279,6 +335,25 @@ pub async fn do_append(
     }
 
     Ok(())
+}
+
+/// Sum the pending payload bytes, excluding any ids in `incoming_ids`.
+async fn pending_batch_size(
+    db: &mut MysqlDb,
+    user_id: i64,
+    batch_id: i64,
+    incoming_ids: &[String],
+) -> DbResult<usize> {
+    let current_batch_size: i64 = batch_upload_items::table
+        .select(sql::<BigInt>("COALESCE(SUM(payload_size), 0)"))
+        .filter(batch_upload_items::user_id.eq(user_id))
+        .filter(batch_upload_items::batch_id.eq(batch_id))
+        .filter(batch_upload_items::id.ne_all(incoming_ids))
+        .get_result(&mut db.conn)
+        .await
+        .optional()?
+        .unwrap_or_default();
+    Ok(current_batch_size.max(0) as usize)
 }
 
 pub fn validate_batch_id(id: &str) -> DbResult<()> {
