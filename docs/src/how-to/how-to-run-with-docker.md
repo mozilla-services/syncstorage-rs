@@ -37,10 +37,10 @@ services:
     platform: linux/amd64
     container_name: syncserver
     ports:
-      - "8000:8000"
+      - "${SYNC_PORT:-8000}:${SYNC_PORT:-8000}"
     environment:
       SYNC_HOST: "0.0.0.0"
-      SYNC_PORT: "8000"
+      SYNC_PORT: "${SYNC_PORT:-8000}"
       SYNC_MASTER_SECRET: "${SYNC_MASTER_SECRET}"
       SYNC_SYNCSTORAGE__DATABASE_URL: "${SYNC_SYNCSTORAGE__DATABASE_URL}"
       SYNC_TOKENSERVER__DATABASE_URL: "${SYNC_TOKENSERVER__DATABASE_URL}"
@@ -48,10 +48,10 @@ services:
       SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
       SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: "api.accounts.firefox.com"
       SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: "https://oauth.accounts.firefox.com"
-      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:${SYNC_PORT}}"
+      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:${SYNC_PORT:-8000}}"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${SYNC_PORT}/__heartbeat__"]
+      test: ["CMD", "curl", "-f", "http://localhost:${SYNC_PORT:-8000}/__heartbeat__"]
       interval: 30s
       timeout: 10s
       retries: 3

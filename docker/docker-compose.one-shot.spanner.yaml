@@ -78,10 +78,10 @@ services:
     image: syncstorage-rs-spanner-oneshot:latest
     container_name: syncserver
     ports:
-      - "8000:8000"
+      - "${SYNC_PORT:-8000}:${SYNC_PORT:-8000}"
     environment:
       SYNC_HOST: "0.0.0.0"
-      SYNC_PORT: "8000"
+      SYNC_PORT: "${SYNC_PORT:-8000}"
       SYNC_MASTER_SECRET: "${SYNC_MASTER_SECRET:-changeme_secret_key}"
       SYNC_SYNCSTORAGE__DATABASE_URL: "spanner://projects/test-project/instances/test-instance/databases/test-database"
       # syncserver uses the emulator's gRPC port (9010).
@@ -102,7 +102,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/__heartbeat__"]
+      test: ["CMD", "curl", "-f", "http://localhost:${SYNC_PORT:-8000}/__heartbeat__"]
       interval: 30s
       timeout: 10s
       retries: 3
