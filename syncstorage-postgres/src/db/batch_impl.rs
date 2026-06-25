@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use diesel::{
     self, ExpressionMethods, OptionalExtension, QueryDsl, delete,
@@ -45,7 +47,10 @@ impl BatchDb for PgDb {
 
         let batch = results::CreateBatch {
             id: batch_id.to_string(),
-            size: None,
+            // `size` is the committed size
+            size: self
+                .check_quota(&params.user_id, &params.collection)
+                .await?,
         };
 
         do_append(
@@ -54,6 +59,7 @@ impl BatchDb for PgDb {
             collection_id,
             batch.clone(),
             params.bsos,
+            &params.collection,
         )
         .await?;
 
@@ -100,12 +106,19 @@ impl BatchDb for PgDb {
 
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
 
+        // `batch.size` is the committed size
+        let mut batch = params.batch;
+        batch.size = self
+            .check_quota(&params.user_id, &params.collection)
+            .await?;
+
         do_append(
             self,
             params.user_id,
             collection_id,
-            params.batch,
+            batch,
             params.bsos,
+            &params.collection,
         )
         .await?;
 
@@ -132,13 +145,7 @@ impl BatchDb for PgDb {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
 
-        let timestamp = self
-            .update_collection(params::UpdateCollection {
-                user_id: params.user_id.clone(),
-                collection_id,
-                collection: params.collection.clone(),
-            })
-            .await?;
+        let timestamp = self.checked_timestamp()?;
         let default_ttl_seconds = DEFAULT_BSO_TTL as i64;
         let ts_datetime = timestamp.as_datetime()?;
 
@@ -149,6 +156,14 @@ impl BatchDb for PgDb {
             .bind::<Timestamptz, _>(ts_datetime)
             .bind::<BigInt, _>(default_ttl_seconds)
             .execute(&mut self.conn)
+            .await?;
+
+        let timestamp = self
+            .update_collection(params::UpdateCollection {
+                user_id: params.user_id.clone(),
+                collection_id,
+                collection: params.collection.clone(),
+            })
             .await?;
 
         self.delete_batch(params::DeleteBatch {
@@ -194,14 +209,39 @@ pub async fn do_append(
     collection_id: i32,
     batch: results::CreateBatch,
     bsos: Vec<params::PostCollectionBso>,
+    collection: &str,
 ) -> DbResult<()> {
     let batch_id = Uuid::parse_str(&batch.id)
         .map_err(|e| DbError::internal(format!("Invalid batch_id in batch: {}", e)))?;
+    let user_id_i64 = user_id.legacy_id as i64;
+
+    if db.quota.enabled
+        && let Some(size) = batch.size
+    {
+        let running_size: usize = bsos
+            .iter()
+            .filter_map(|bso| bso.payload.as_ref().map(|p| p.len()))
+            .sum();
+        let incoming_ids: Vec<String> = bsos.iter().map(|bso| bso.id.clone()).collect();
+        let pending_size =
+            pending_batch_size(db, user_id_i64, collection_id, &batch_id, &incoming_ids).await?;
+        let projected_total = size + pending_size + running_size;
+        if projected_total >= db.quota.size {
+            let mut tags = HashMap::default();
+            tags.insert("collection".to_owned(), collection.to_owned());
+            db.metrics.incr_with_tags("storage.quota.at_limit", tags);
+            if db.quota.enforced {
+                return Err(DbError::quota());
+            } else {
+                warn!("Quota at limit for user ({} bytes)", projected_total;
+                      "collection" => collection);
+            }
+        }
+    }
 
     for bso in bsos {
         let ttl = bso.ttl.map(|t| t as i64);
         let sortindex = bso.sortindex;
-        let user_id_i64 = user_id.legacy_id as i64;
 
         sql_query(
             "INSERT INTO batch_bsos (user_id, collection_id, batch_id, batch_bso_id, sortindex, payload, ttl)
@@ -223,6 +263,29 @@ pub async fn do_append(
     }
 
     Ok(())
+}
+
+/// Sum the pending payload bytes, excluding any ids in `incoming_ids`.
+async fn pending_batch_size(
+    db: &mut PgDb,
+    user_id: i64,
+    collection_id: i32,
+    batch_id: &Uuid,
+    incoming_ids: &[String],
+) -> DbResult<usize> {
+    let current_batch_size: i64 = batch_bsos::table
+        .select(sql::<BigInt>(
+            "COALESCE(SUM(LENGTH(COALESCE(payload, ''))), 0)::BIGINT",
+        ))
+        .filter(batch_bsos::user_id.eq(user_id))
+        .filter(batch_bsos::collection_id.eq(collection_id))
+        .filter(batch_bsos::batch_id.eq(batch_id))
+        .filter(batch_bsos::batch_bso_id.ne_all(incoming_ids))
+        .get_result(&mut db.conn)
+        .await
+        .optional()?
+        .unwrap_or_default();
+    Ok(current_batch_size.max(0) as usize)
 }
 
 pub fn validate_batch_id(id: &str) -> DbResult<Uuid> {

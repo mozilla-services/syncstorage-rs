@@ -210,7 +210,7 @@ impl Db for MysqlDb {
                 if self.quota.enforced {
                     return Err(DbError::quota());
                 } else {
-                    warn!("Quota at limit for user's collection ({} bytes)", usage.total_bytes; "collection"=>bso.collection.clone());
+                    warn!("Quota at limit for user ({} bytes)", usage.total_bytes; "collection"=>bso.collection.clone());
                 }
             }
         }
@@ -682,14 +682,12 @@ impl Db for MysqlDb {
         params: params::GetQuotaUsage,
     ) -> DbResult<results::GetQuotaUsage> {
         let uid = params.user_id.legacy_id as i64;
-        let collection_id = self._get_collection_id(&params.collection).await?;
         let (total_bytes, count): (i64, i32) = user_collections::table
             .select((
                 sql::<BigInt>("COALESCE(SUM(COALESCE(total_bytes, 0)), 0)"),
                 sql::<Integer>("COALESCE(SUM(COALESCE(count, 0)), 0)"),
             ))
             .filter(user_collections::user_id.eq(uid))
-            .filter(user_collections::collection_id.eq(collection_id))
             .get_result(&mut self.conn)
             .await
             .optional()?

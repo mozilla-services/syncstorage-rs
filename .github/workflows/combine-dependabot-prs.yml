@@ -1,0 +1,43 @@
+name: Combine Dependabot PRs
+
+# Folds the month's open Dependabot PRs into a single "Combined PRs" PR to cut
+# review noise. Dependabot grouping already merges within each ecosystem, but it
+# cannot merge across groups (cargo dev vs prod), across directories (pip), or
+# across ecosystems -- this sweeps up that remainder.
+#
+# NOTE on CI: the combined PR is opened with the default GITHUB_TOKEN, so by
+# GitHub's anti-recursion rule it does NOT trigger the pull_request workflows.
+# `ci_required: true` guarantees each source PR already passed CI individually;
+# to validate the *combination*, close and reopen the combined PR (a human
+# reopen fires pull_request) so the Main Workflow runs before merge.
+
+on:
+  # Dependabot runs monthly (see .github/dependabot.yml); run a few days later
+  # to sweep up that batch. No-op unless >= min_combine_number PRs are open.
+  schedule:
+    - cron: "0 6 8 * *"
+  workflow_dispatch:
+
+# Don't let a manual run race a scheduled run.
+concurrency:
+  group: combine-dependabot-prs
+  cancel-in-progress: false
+
+jobs:
+  combine-prs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Combine Dependabot PRs
+        uses: github/combine-prs@2909f404763c3177a456e052bdb7f2e85d3a7cb3 # v5.2.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # All Dependabot branches share the "dependabot" prefix.
+          branch_prefix: dependabot
+          # Only combine PRs that have already passed CI individually.
+          ci_required: "true"
+          pr_title: "chore(deps): combine dependabot pull requests"
+          # Carry the same label Dependabot applies, so filters keep working.
+          labels: dependencies
