@@ -1,5 +1,5 @@
 [![License: MPL 2.0][mpl-svg]][mpl]
-[![Build Status][circleci-badge]][circleci]
+[![CI (Main Workflow)][main-workflow-badge]][main-workflow]
 [![docs][docs-badge]][docs]
 [![Connect to Matrix via the Riot webapp][matrix-badge]][matrix]
 [![Swagger OpenAPI Docs](https://img.shields.io/badge/API-Documentation-blue.svg)][swagger-ui]
@@ -11,8 +11,8 @@ For full documentation, please navigate to the service docs [here](https://mozil
 
 [mpl-svg]: https://img.shields.io/badge/License-MPL%202.0-blue.svg
 [mpl]: https://opensource.org/licenses/MPL-2.0
-[circleci-badge]: https://circleci.com/gh/mozilla-services/syncstorage-rs.svg?style=shield
-[circleci]: https://circleci.com/gh/mozilla-services/syncstorage-rs
+[main-workflow-badge]: https://github.com/mozilla-services/syncstorage-rs/actions/workflows/main-workflow.yml/badge.svg
+[main-workflow]: https://github.com/mozilla-services/syncstorage-rs/actions/workflows/main-workflow.yml
 [docs-badge]: https://github.com/mozilla-services/syncstorage-rs/actions/workflows/publish-docs.yaml/badge.svg
 [docs]: https://mozilla-services.github.io/syncstorage-rs/
 [matrix-badge]: https://img.shields.io/badge/chat%20on%20[m]-%23services%3Amozilla.org-blue
