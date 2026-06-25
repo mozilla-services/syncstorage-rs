@@ -20,6 +20,7 @@ use std::time::SystemTime;
 use google_cloud_auth::credentials::anonymous;
 use google_cloud_storage::client::Storage;
 use syncstorage_db::UserIdentifier;
+use uuid::Uuid;
 
 use crate::{
     error::{ApiError, ApiErrorKind},
@@ -73,7 +74,13 @@ pub async fn upload_payload(
     bso_id: &str,
     payload: String,
 ) -> Result<String, ApiError> {
-    let object_name = format!("{}/{}/{}", user_id.fxa_uid, collection, bso_id);
+    let object_name = format!(
+        "{}/{}/{}/{}",
+        user_id.fxa_uid,
+        collection,
+        bso_id,
+        Uuid::new_v4().hyphenated()
+    );
     let client = gcs_client(state).await?;
 
     let custom_time: wkt::Timestamp = SystemTime::now()

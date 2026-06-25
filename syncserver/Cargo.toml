@@ -34,6 +34,7 @@ slog-stdlog.workspace = true
 slog-term.workspace = true
 hmac.workspace = true
 thiserror.workspace = true
+uuid.workspace = true
 
 actix-http = "3"
 actix-rt = "2"

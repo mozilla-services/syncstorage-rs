@@ -4779,6 +4779,7 @@ dependencies = [
  "urlencoding",
  "utoipa",
  "utoipa-swagger-ui",
+ "uuid 1.23.1",
  "validator",
  "validator_derive",
  "woothee",
