@@ -2,6 +2,10 @@ name: Build ARM64 Docker Image
 
 on:
   workflow_dispatch: 
+    inputs:
+      tag:
+        description: 'Tag to build e.g. 0.23.3'
+        required: true
   push:
     tags:
       - '*'
@@ -15,6 +19,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.tag }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -32,7 +39,7 @@ jobs:
         id: vars
         run: |
           if [ "${{ github.event_name }}" = "release" ]; then
-            TAG_NAME=${{ github.event.release.tag_name }}
+            TAG_NAME=${{ github.event.inputs.tag }}
             echo "tags=cwndev/syncserver-rs:$TAG_NAME,cwndev/syncserver-rs:latest" >> $GITHUB_OUTPUT
           else
             SHORT_SHA=${GITHUB_SHA::7}
