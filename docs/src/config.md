@@ -34,6 +34,7 @@ The following configuration options are available.
 | --- | --- | --- |
 | <span id="SYNC_HOST"></span>SYNC_HOST | 127.0.0.1 | Host address to bind the server to |
 | <span id="SYNC_PORT"></span>SYNC_PORT | 8000 | Server port to bind to |
+| <span id="SYNC_PUBLIC_URL"></span>SYNC_PUBLIC_URL | _None_ | public url for performing request validation |
 | <span id="SYNC_MASTER_SECRET"></span>SYNC_MASTER_SECRET | None, required | Secret used to derive auth secrets |
 | <span id="SYNC_ENVIRONMENT"></span>SYNC_ENVIRONMENT | dev | Environment name ("dev", "stage", "prod") |
 | <span id="SYNC_HUMAN_LOGS"></span>SYNC_HUMAN_LOGS | false | Enable human-readable logs |
