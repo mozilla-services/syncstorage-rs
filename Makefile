@@ -102,6 +102,24 @@ docker_start_spanner_rebuild:
 docker_stop_spanner:
 	docker compose -f docker/docker-compose.spanner.yaml down
 
+docker_oneshot_mysql:  ##  Build & run a stand-alone MySQL Syncserver (curl localhost:8000/__heartbeat__).
+	docker compose -f docker/docker-compose.one-shot.mysql.yaml up -d --build
+
+docker_oneshot_mysql_stop:  ##  Stop the stand-alone MySQL Syncserver.
+	docker compose -f docker/docker-compose.one-shot.mysql.yaml down
+
+docker_oneshot_postgres:  ##  Build & run a stand-alone PostgreSQL Syncserver (curl localhost:8000/__heartbeat__).
+	docker compose -f docker/docker-compose.one-shot.postgres.yaml up -d --build
+
+docker_oneshot_postgres_stop:  ##  Stop the stand-alone PostgreSQL Syncserver.
+	docker compose -f docker/docker-compose.one-shot.postgres.yaml down
+
+docker_oneshot_spanner:  ##  Build & run a stand-alone Spanner-emulator Syncserver, local dev only (curl localhost:8000/__heartbeat__).
+	docker compose -f docker/docker-compose.one-shot.spanner.yaml up -d --build
+
+docker_oneshot_spanner_stop:  ##  Stop the stand-alone Spanner-emulator Syncserver.
+	docker compose -f docker/docker-compose.one-shot.spanner.yaml down
+
 .ONESHELL:
 docker_run_mysql_e2e_tests:
 	exit_code=0

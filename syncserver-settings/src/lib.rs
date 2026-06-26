@@ -16,7 +16,10 @@ static PREFIX: &str = "sync";
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default)]
 pub struct Settings {
+    /// TCP port the server binds to. Default: 8000.
     pub port: u16,
+    /// Host address the server binds to. Default: "127.0.0.1". Use "0.0.0.0"
+    /// inside containers so the port is reachable from the host.
     pub host: String,
     /// Keep-alive header value (seconds)
     pub actix_keep_alive: Option<u32>,
@@ -25,9 +28,13 @@ pub struct Settings {
     /// that are used during Hawk authentication.
     pub master_secret: Secrets,
 
+    /// Emit human-readable logs instead of mozlog JSON. Default: false.
+    /// Production environments should leave this off (JSON is preferred).
     pub human_logs: bool,
 
+    /// Hostname of the StatsD/metrics sink. Default: "localhost".
     pub statsd_host: Option<String>,
+    /// Port of the StatsD/metrics sink. Default: 8125.
     pub statsd_port: u16,
     /// Whether to  include the hostname in metrics, which increases cardinality significantly in
     /// prod.
