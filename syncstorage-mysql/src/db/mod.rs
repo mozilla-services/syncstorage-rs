@@ -9,7 +9,7 @@ use diesel::{
 use diesel_async::RunQueryDsl;
 use syncserver_common::Metrics;
 use syncstorage_db_common::{
-    FIRST_CUSTOM_COLLECTION_ID, UserIdentifier, error::DbErrorIntrospect, results,
+    Db, FIRST_CUSTOM_COLLECTION_ID, UserIdentifier, error::DbErrorIntrospect, params, results,
     util::SyncTimestamp,
 };
 use syncstorage_settings::Quota;
@@ -236,6 +236,34 @@ impl MysqlDb {
             total_bytes: total_bytes as usize,
             count,
         })
+    }
+
+    async fn check_quota(
+        &mut self,
+        user_id: &UserIdentifier,
+        collection: &str,
+    ) -> DbResult<Option<usize>> {
+        if !self.quota.enabled {
+            return Ok(None);
+        }
+        let usage = self
+            .get_quota_usage(params::GetQuotaUsage {
+                user_id: user_id.clone(),
+                collection: collection.to_owned(),
+            })
+            .await?;
+        if usage.total_bytes >= self.quota.size {
+            let mut tags = HashMap::default();
+            tags.insert("collection".to_owned(), collection.to_owned());
+            self.metrics.incr_with_tags("storage.quota.at_limit", tags);
+            if self.quota.enforced {
+                return Err(DbError::quota());
+            } else {
+                warn!("Quota at limit for user ({} bytes)", usage.total_bytes;
+                      "collection" => collection);
+            }
+        }
+        Ok(Some(usage.total_bytes))
     }
 }
 

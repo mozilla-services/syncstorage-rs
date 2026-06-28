@@ -557,7 +557,7 @@ impl SpannerDb {
             if self.quota.enforced {
                 return Err(self.quota_error(collection));
             } else {
-                warn!("Quota at limit for user's collection: ({} bytes)", usage.total_bytes; "collection"=>collection);
+                warn!("Quota at limit for user ({} bytes)", usage.total_bytes; "collection"=>collection);
             }
         }
         Ok(Some(usage.total_bytes))
