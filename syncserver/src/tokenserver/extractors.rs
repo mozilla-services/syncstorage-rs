@@ -249,6 +249,7 @@ impl FromRequest for TokenserverRequest {
                     client_state: auth_data.client_state.clone(),
                     keys_changed_at: auth_data.keys_changed_at,
                     capacity_release_rate: state.node_capacity_release_rate,
+                    allow_new_users: state.allow_new_users,
                 })
                 .await?;
             log_items_mutator.insert("first_seen_at".to_owned(), user.first_seen_at.to_string());
@@ -1345,6 +1346,7 @@ mod tests {
             token_duration: TOKEN_DURATION,
             set_verifiers: Vec::new(),
             fxa_webhook_enabled: false,
+            allow_new_users: true,
             fxa_webhook_metrics_only: false,
         }
     }
@@ -1368,6 +1370,7 @@ mod tests {
             token_duration: TOKEN_DURATION,
             set_verifiers,
             fxa_webhook_enabled: true,
+            allow_new_users: true,
             fxa_webhook_metrics_only: false,
         }
     }
