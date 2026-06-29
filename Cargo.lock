@@ -4838,6 +4838,7 @@ dependencies = [
  "serde",
  "slog-scope",
  "syncserver-common",
+ "syncstorage-db-common",
  "syncstorage-settings",
  "temp-env",
  "tokenserver-settings",
@@ -4931,6 +4932,7 @@ version = "0.23.3"
 dependencies = [
  "rand 0.10.1",
  "serde",
+ "serde_json",
  "syncserver-common",
 ]
 
