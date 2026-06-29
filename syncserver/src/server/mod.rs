@@ -399,8 +399,7 @@ impl Server {
         let worker_thread_count =
             calculate_worker_max_blocking_threads(settings.worker_max_blocking_threads);
         let limits = Arc::new(settings.syncstorage.limits);
-        let limits_json =
-            serde_json::to_string(&*limits).expect("ServerLimits failed to serialize");
+        let limits_json = build_limits_json(&limits);
         let secrets = Arc::new(settings.master_secret);
         let quota_enabled = settings.syncstorage.enable_quota;
         let actix_keep_alive = settings.actix_keep_alive;
@@ -527,6 +526,21 @@ impl Server {
 fn calculate_worker_max_blocking_threads(count: usize) -> usize {
     let parallelism = std::thread::available_parallelism().map_or(2, NonZeroUsize::get);
     std::cmp::max(count / parallelism, 1)
+}
+
+/// Serializes `ServerLimits`, then injects a `collections` section for any overrides.
+pub(crate) fn build_limits_json(limits: &ServerLimits) -> String {
+    let mut value = serde_json::to_value(limits).expect("ServerLimits failed to serialize");
+    if !limits.collections.is_empty()
+        && let Some(obj) = value.as_object_mut()
+    {
+        obj.insert(
+            "collections".to_owned(),
+            serde_json::to_value(&limits.collections)
+                .expect("collection overrides failed to serialize"),
+        );
+    }
+    serde_json::to_string(&value).expect("ServerLimits failed to serialize")
 }
 
 fn build_cors(settings: &Settings) -> Cors {

@@ -2,10 +2,11 @@
 
 use std::{
     cmp::min,
+    collections::HashMap,
     time::{Duration, Instant},
 };
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use syncserver_common::{self, MAX_SPANNER_LOAD_SIZE};
 
 static KILOBYTE: u32 = 1024;
@@ -221,6 +222,49 @@ pub struct ServerLimits {
     /// Maximum BSO count across a batch upload.
     pub max_total_records: u32,
     pub max_quota_limit: u64,
+
+    /// Optional per-collection overrides of the limits above by collection name.
+    ///
+    /// Configured as a JSON string mapping each collection name to an overrides object, e.g.
+    /// `SYNC_SYNCSTORAGE__LIMITS__COLLECTIONS='{"tabs":{"max_record_payload_bytes":202020}}'`.
+    #[serde(
+        default,
+        deserialize_with = "deserialize_collection_limits",
+        skip_serializing
+    )]
+    pub collections: HashMap<String, CollectionLimitOverride>,
+}
+
+/// Optional per-collection overrides of ServerLimits by collection name.
+///
+/// `None` means the collection inherits the global limit.  Currently only
+/// `max_record_payload_bytes` is supported.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CollectionLimitOverride {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_record_payload_bytes: Option<u32>,
+}
+
+/// Deserialize the per-collection overrides from a JSON string.
+fn deserialize_collection_limits<'de, D>(
+    deserializer: D,
+) -> Result<HashMap<String, CollectionLimitOverride>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    serde_json::from_str(&s).map_err(serde::de::Error::custom)
+}
+
+impl ServerLimits {
+    /// The effective `max_record_payload_bytes` for `collection`.
+    pub fn max_record_payload_bytes_for(&self, collection: &str) -> u32 {
+        self.collections
+            .get(collection)
+            .and_then(|o| o.max_record_payload_bytes)
+            .unwrap_or(self.max_record_payload_bytes)
+    }
 }
 
 impl Default for ServerLimits {
@@ -234,6 +278,52 @@ impl Default for ServerLimits {
             max_total_bytes: DEFAULT_MAX_TOTAL_BYTES,
             max_total_records: DEFAULT_MAX_TOTAL_RECORDS,
             max_quota_limit: DEFAULT_MAX_QUOTA_LIMIT,
+            collections: HashMap::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn deserialize(
+        value: serde_json::Value,
+    ) -> Result<HashMap<String, CollectionLimitOverride>, serde_json::Error> {
+        deserialize_collection_limits(value)
+    }
+
+    #[test]
+    fn collections_parses_json_string() {
+        let parsed = deserialize(serde_json::json!(
+            r#"{"newtab-images":{"max_record_payload_bytes":20971520}}"#
+        ))
+        .unwrap();
+        assert_eq!(
+            parsed
+                .get("newtab-images")
+                .and_then(|o| o.max_record_payload_bytes),
+            Some(20_971_520)
+        );
+        assert_eq!(parsed.len(), 1);
+    }
+
+    #[test]
+    fn max_record_payload_bytes_overrides() {
+        let mut limits = ServerLimits::default();
+        limits.collections.insert(
+            "newtab-images".to_owned(),
+            CollectionLimitOverride {
+                max_record_payload_bytes: Some(20_971_520),
+            },
+        );
+        assert_eq!(
+            limits.max_record_payload_bytes_for("newtab-images"),
+            20_971_520
+        );
+        assert_eq!(
+            limits.max_record_payload_bytes_for("tabs"),
+            DEFAULT_MAX_RECORD_PAYLOAD_BYTES
+        );
     }
 }
