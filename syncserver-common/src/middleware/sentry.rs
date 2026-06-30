@@ -173,6 +173,31 @@ where
     builder.send();
 }
 
+/// Request headers whose values may contain credentials or user-identifying
+/// data and so must not be recorded on Sentry events. Compared case-insensitively.
+const REDACTED_HEADERS: &[&str] = &[
+    "authorization",
+    "proxy-authorization",
+    "cookie",
+    "x-client-state",
+    "x-keyid",
+    "x-forwarded-for",
+];
+
+/// Placeholder substituted for the value of a [`REDACTED_HEADERS`] header.
+const REDACTED_HEADER_VALUE: &str = "[redacted]";
+
+/// Return the header value to record on a Sentry event, substituting a
+/// placeholder for headers whose values may carry credentials or
+/// user-identifying data.
+fn sentry_header_value(name: &str, value: &str) -> String {
+    if REDACTED_HEADERS.contains(&name.to_ascii_lowercase().as_str()) {
+        REDACTED_HEADER_VALUE.to_owned()
+    } else {
+        value.to_owned()
+    }
+}
+
 /// Build a Sentry request struct from the HTTP request
 fn sentry_request_from_http(request: &ServiceRequest) -> sentry::protocol::Request {
     sentry::protocol::Request {
@@ -188,7 +213,13 @@ fn sentry_request_from_http(request: &ServiceRequest) -> sentry::protocol::Reque
         headers: request
             .headers()
             .iter()
-            .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or_default().to_string()))
+            .map(|(k, v)| {
+                let name = k.as_str();
+                (
+                    name.to_owned(),
+                    sentry_header_value(name, v.to_str().unwrap_or_default()),
+                )
+            })
             .collect(),
         ..Default::default()
     }
@@ -343,4 +374,37 @@ fn resolved_backtrace(err: &dyn ReportableError) -> Option<Backtrace> {
         backtrace.resolve();
     }
     backtrace
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{REDACTED_HEADER_VALUE, sentry_header_value};
+
+    #[test]
+    fn sensitive_header_values_are_redacted() {
+        // Sensitive headers are redacted regardless of case.
+        for name in [
+            "authorization",
+            "Authorization",
+            "Cookie",
+            "X-KeyID",
+            "x-client-state",
+            "X-Forwarded-For",
+        ] {
+            assert_eq!(
+                sentry_header_value(name, "sensitive-value"),
+                REDACTED_HEADER_VALUE,
+                "expected `{name}` to be redacted"
+            );
+        }
+    }
+
+    #[test]
+    fn ordinary_header_values_pass_through() {
+        assert_eq!(
+            sentry_header_value("content-type", "application/json"),
+            "application/json"
+        );
+        assert_eq!(sentry_header_value("user-agent", "Firefox"), "Firefox");
+    }
 }
