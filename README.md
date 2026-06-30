@@ -8,7 +8,7 @@
 
 An arm64 build of Syncstorage-rs.  I will keep the original readme in-tact below.
 
-[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-syncstorage-rs-arm64-blue?logo=docker)](https://hub.docker.com/r/cwndev/syncstorage-rs-arm64)
+[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-syncstorage%2Drs%2Darm64-blue)](https://hub.docker.com/r/cwndev/syncstorage-rs-arm64)
 
 # Syncstorage-rs
 
