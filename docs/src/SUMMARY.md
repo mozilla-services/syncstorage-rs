@@ -25,7 +25,6 @@
     - [Tokenserver API](tokenserver/tokenserver-api.md)
     - [Tokenserver DB - Postgres](tokenserver/tokenserver-db-postgres.md)
     - [User Flow](tokenserver/user-flow.md)
-    - [Process Account Events](tools/process_account_events.md)
     - [Purge Old Records](tools/purge_old_records_tokenserver.md)
     - [Postgres Purge TTL](tools/postgres_purge_ttl.md)
     - [Hawk Token Generator](tools/hawk_make_token.md)
