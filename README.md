@@ -4,6 +4,12 @@
 [![Connect to Matrix via the Riot webapp][matrix-badge]][matrix]
 [![Swagger OpenAPI Docs](https://img.shields.io/badge/API-Documentation-blue.svg)][swagger-ui]
 
+# Syncstorage-rs-arm64
+
+An arm64 build of Syncstorage-rs.  I will keep the original readme in-tact below.
+
+[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-Check%20in-blue?logo=docker)](https://hub.docker.com/r/cwndev/syncstorage-rs-arm64)
+
 # Syncstorage-rs
 
 Mozilla Sync Storage built with [Rust](https://rust-lang.org).
