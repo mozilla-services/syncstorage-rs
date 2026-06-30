@@ -118,6 +118,9 @@ jobs:
       - name: Install Poetry
         run: pip3 install poetry
 
+      - name: Install Python dependencies
+        run: poetry install --with tokenserver-unit-tests,dev --no-interaction --no-ansi
+
       - name: Python Format Check
         run: poetry run ruff format --diff tools
 
@@ -152,7 +155,7 @@ jobs:
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
 
       - name: Set Rust toolchain
-        run: rustup default ${RUST_VERSION}
+        run: rustup toolchain install ${RUST_VERSION} --component rustfmt --component clippy --no-self-update && rustup default ${RUST_VERSION}
 
       - name: Cache cargo-audit
         id: cache-cargo-audit
@@ -209,7 +212,7 @@ jobs:
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
 
       - name: Set Rust toolchain
-        run: rustup default ${RUST_VERSION}
+        run: rustup toolchain install ${RUST_VERSION} --component rustfmt --component clippy --no-self-update && rustup default ${RUST_VERSION}
 
       - name: Rust Clippy ${{ matrix.target }}
         run: make clippy_${{ matrix.target }}
@@ -248,7 +251,7 @@ jobs:
             ${{ runner.os }}-cargo-release-${{ matrix.target }}-
 
       - name: Set Rust toolchain
-        run: rustup default ${RUST_VERSION}
+        run: rustup toolchain install ${RUST_VERSION} --component rustfmt --component clippy --no-self-update && rustup default ${RUST_VERSION}
 
       - name: Rust Clippy release ${{ matrix.target }}
         run: make clippy_release_${{ matrix.target }}
