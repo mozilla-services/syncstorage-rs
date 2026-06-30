@@ -39,7 +39,7 @@ jobs:
         id: vars
         run: |
           TAG_NAME=${{ github.event.inputs.tag }}
-          echo "tags=cwndev/syncserver-rs:$TAG_NAME,cwndev/syncserver-rs:latest" >> $GITHUB_OUTPUT
+          echo "tags=cwndev/syncstorage-rs-arm64:$TAG_NAME,cwndev/syncstorage-rs-arm64:latest" >> $GITHUB_OUTPUT
     
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
