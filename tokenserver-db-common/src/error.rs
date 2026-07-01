@@ -89,7 +89,9 @@ impl From<DbErrorKind> for DbError {
 impl From<DbError> for TokenserverError {
     fn from(db_error: DbError) -> Self {
         TokenserverError {
-            description: db_error.to_string(),
+            // `description` is serialized into the HTTP response body, so it must stay generic.
+            // Let `..internal_error()` supply the "Server error" description; the detailed driver
+            // message is preserved in `context` for Sentry/logging only.
             context: db_error.to_string(),
             backtrace: db_error.backtrace.clone(),
             http_status: if db_error.status.is_server_error() {
@@ -147,5 +149,26 @@ impl From<PoolError<diesel_async::pooled_connection::PoolError>> for DbError {
             PoolError::Timeout(timeout_type) => DbError::pool_timeout(timeout_type),
             _ => DbError::internal(format!("deadpool PoolError: {pe}")),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DbError;
+    use tokenserver_common::TokenserverError;
+
+    #[test]
+    fn db_error_maps_to_generic_description() {
+        let db_error = DbError::internal("backend detail that should stay internal".to_owned());
+        let ts_error = TokenserverError::from(db_error);
+
+        // The client-facing `description` (serialized into the response body) stays generic.
+        assert_eq!(ts_error.description, "Server error");
+        // The detailed message is retained internally (Sentry/logging) via `context`.
+        assert!(
+            ts_error
+                .context
+                .contains("backend detail that should stay internal")
+        );
     }
 }
