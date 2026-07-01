@@ -51,7 +51,7 @@ dependencies = [
  "derive_more",
  "encoding_rs",
  "flate2",
- "foldhash",
+ "foldhash 0.1.5",
  "futures-core",
  "h2 0.3.27",
  "http 0.2.12",
@@ -161,7 +161,7 @@ dependencies = [
  "cfg-if",
  "derive_more",
  "encoding_rs",
- "foldhash",
+ "foldhash 0.1.5",
  "futures-core",
  "futures-util",
  "impl-more",
@@ -655,9 +655,9 @@ dependencies = [
 
 [[package]]
 name = "chrono"
-version = "0.4.44"
+version = "0.4.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c673075a2e0e5f4a1dde27ce9dee1ea4558c7ffe648f576438a20ca1d2acc4b0"
+checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
 dependencies = [
  "iana-time-zone",
  "js-sys",
@@ -735,9 +735,9 @@ dependencies = [
 
 [[package]]
 name = "config"
-version = "0.15.22"
+version = "0.15.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e68cfe19cd7d23ffde002c24ffa5cda73931913ef394d5eaaa32037dc940c0c"
+checksum = "0b34d0237145f33580b89724f75d16950efd3e2c91b2d823917ecb69ec7f84f0"
 dependencies = [
  "async-trait",
  "convert_case 0.6.0",
@@ -1048,7 +1048,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef552e6f588e446098f6ba40d89ac146c8c7b64aade83c051ee00bb5d2bc18d"
 dependencies = [
  "serde",
- "uuid 1.23.1",
+ "uuid 1.23.4",
 ]
 
 [[package]]
@@ -1107,9 +1107,9 @@ dependencies = [
 
 [[package]]
 name = "diesel"
-version = "2.3.9"
+version = "2.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9940fb8467a0a06312218ed384185cb8536aa10d8ec017d0ce7fad2c1bd882d5"
+checksum = "29fe29a87fb84c631ffb3ba21798c4b1f3a964701ba78f0dce4bf8668562ec88"
 dependencies = [
  "bitflags 2.11.0",
  "byteorder",
@@ -1118,14 +1118,14 @@ dependencies = [
  "downcast-rs",
  "itoa",
  "pq-sys",
- "uuid 1.23.1",
+ "uuid 1.23.4",
 ]
 
 [[package]]
 name = "diesel-async"
-version = "0.9.0"
+version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c20ddcc6737cecdaef3dfecb2796bdfe3002456521189d30be8e4c5a1bc821d"
+checksum = "dd39af30158d444884f166fe4c58f35dc40ad71ad017bb59408a3448526ff4bd"
 dependencies = [
  "deadpool",
  "diesel",
@@ -1419,6 +1419,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
+name = "foldhash"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+
+[[package]]
 name = "foreign-types"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1608,7 +1614,7 @@ dependencies = [
  "chrono",
  "serde",
  "serde_json",
- "uuid 1.23.1",
+ "uuid 1.23.4",
 ]
 
 [[package]]
@@ -1631,7 +1637,7 @@ dependencies = [
  "google-cloud-gax",
  "hex",
  "hmac 0.13.0",
- "http 1.4.0",
+ "http 1.4.2",
  "jsonwebtoken",
  "reqwest 0.13.4",
  "rustc_version",
@@ -1656,7 +1662,7 @@ dependencies = [
  "futures 0.3.32",
  "google-cloud-rpc",
  "google-cloud-wkt",
- "http 1.4.0",
+ "http 1.4.2",
  "pin-project",
  "rand 0.10.1",
  "serde",
@@ -1678,7 +1684,7 @@ dependencies = [
  "google-cloud-rpc",
  "google-cloud-wkt",
  "h2 0.4.15",
- "http 1.4.0",
+ "http 1.4.2",
  "http-body",
  "http-body-util",
  "hyper",
@@ -1776,7 +1782,7 @@ checksum = "864a48916c62ddbd1dc289be6d041d8ca61160c9c6169298e5cf3da11baf8370"
 dependencies = [
  "futures 0.3.32",
  "grpcio",
- "protobuf",
+ "protobuf 2.28.0",
 ]
 
 [[package]]
@@ -1801,7 +1807,7 @@ dependencies = [
  "google-cloud-type",
  "google-cloud-wkt",
  "hex",
- "http 1.4.0",
+ "http 1.4.2",
  "http-body",
  "md5",
  "percent-encoding",
@@ -1816,7 +1822,7 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "url",
- "uuid 1.23.1",
+ "uuid 1.23.4",
 ]
 
 [[package]]
@@ -1860,7 +1866,7 @@ dependencies = [
  "libc",
  "log",
  "parking_lot",
- "protobuf",
+ "protobuf 2.28.0",
 ]
 
 [[package]]
@@ -1909,7 +1915,7 @@ dependencies = [
  "fnv",
  "futures-core",
  "futures-sink",
- "http 1.4.0",
+ "http 1.4.2",
  "indexmap 2.13.0",
  "slab",
  "tokio",
@@ -1937,7 +1943,7 @@ checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
  "allocator-api2",
  "equivalent",
- "foldhash",
+ "foldhash 0.1.5",
 ]
 
 [[package]]
@@ -1945,14 +1951,17 @@ name = "hashbrown"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
+dependencies = [
+ "foldhash 0.2.0",
+]
 
 [[package]]
 name = "hashlink"
-version = "0.10.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7382cf6263419f2d8df38c55d7da83da5c18aef87fc7a7fc1fb1e344edfe14c1"
+checksum = "824e001ac4f3012dd16a264bec811403a67ca9deb6c102fc5049b32c4574b35f"
 dependencies = [
- "hashbrown 0.15.5",
+ "hashbrown 0.16.1",
 ]
 
 [[package]]
@@ -2058,9 +2067,9 @@ dependencies = [
 
 [[package]]
 name = "http"
-version = "1.4.0"
+version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3ba2a386d7f85a81f119ad7498ebe444d2e22c2af0b86b069416ace48b3311a"
+checksum = "6970f50e31d6fc17d3fa27329444bfa74e196cf62e95052a3f6fee181dba6425"
 dependencies = [
  "bytes",
  "itoa",
@@ -2073,7 +2082,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1efedce1fb8e6913f23e0c92de8e62cd5b772a67e7b3946df930a62566c93184"
 dependencies = [
  "bytes",
- "http 1.4.0",
+ "http 1.4.2",
 ]
 
 [[package]]
@@ -2084,7 +2093,7 @@ checksum = "b021d93e26becf5dc7e1b75b1bed1fd93124b374ceb73f43d4d4eafec896a64a"
 dependencies = [
  "bytes",
  "futures-core",
- "http 1.4.0",
+ "http 1.4.2",
  "http-body",
  "pin-project-lite",
 ]
@@ -2112,7 +2121,7 @@ dependencies = [
  "crossbeam-channel",
  "form_urlencoded",
  "futures 0.3.32",
- "http 1.4.0",
+ "http 1.4.2",
  "http-body-util",
  "hyper",
  "hyper-util",
@@ -2151,7 +2160,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "h2 0.4.15",
- "http 1.4.0",
+ "http 1.4.2",
  "http-body",
  "httparse",
  "httpdate",
@@ -2168,7 +2177,7 @@ version = "0.27.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3c93eb611681b207e1fe55d5a71ecf91572ec8a6705cdb6857f7d8d5242cf58"
 dependencies = [
- "http 1.4.0",
+ "http 1.4.2",
  "hyper",
  "hyper-util",
  "rustls",
@@ -2217,7 +2226,7 @@ dependencies = [
  "bytes",
  "futures-channel",
  "futures-util",
- "http 1.4.0",
+ "http 1.4.2",
  "http-body",
  "hyper",
  "ipnet",
@@ -2787,7 +2796,7 @@ dependencies = [
  "bytes",
  "colored",
  "futures-core",
- "http 1.4.0",
+ "http 1.4.2",
  "http-body",
  "http-body-util",
  "hyper",
@@ -2853,7 +2862,7 @@ dependencies = [
  "sha1",
  "sha2 0.10.9",
  "thiserror 2.0.18",
- "uuid 1.23.1",
+ "uuid 1.23.4",
 ]
 
 [[package]]
@@ -3565,6 +3574,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 
 [[package]]
+name = "protobuf"
+version = "3.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d65a1d4ddae7d8b5de68153b48f6aa3bba8cb002b243dbdbc55a5afbc98f99f4"
+dependencies = [
+ "once_cell",
+ "protobuf-support",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "protobuf-support"
+version = "3.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e36c2f31e0a47f9280fb347ef5e461ffcd2c52dd520d8e216b52f93b0b0d7d6"
+dependencies = [
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "pyo3"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3784,9 +3813,9 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.12.3"
+version = "1.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e10754a14b9137dd7b1e3e5b0493cc9171fdd105e0ab477f51b72e7f3ac0e276"
+checksum = "f1292b7759ae1cb9ec195452d1390a074f0cd8541ab7a5a8c31cd6db45d4a6ba"
 dependencies = [
  "aho-corasick",
  "memchr",
@@ -3813,9 +3842,9 @@ checksum = "cab834c73d247e67f4fae452806d17d3c7501756d98c8808d7c9c7aa7d18f973"
 
 [[package]]
 name = "regex-syntax"
-version = "0.8.10"
+version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
+checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "reqwest"
@@ -3828,7 +3857,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "futures-util",
- "http 1.4.0",
+ "http 1.4.2",
  "http-body",
  "http-body-util",
  "hyper",
@@ -3865,7 +3894,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-util",
- "http 1.4.0",
+ "http 1.4.2",
  "http-body",
  "http-body-util",
  "hyper",
@@ -4312,7 +4341,7 @@ dependencies = [
  "thiserror 2.0.18",
  "time",
  "url",
- "uuid 1.23.1",
+ "uuid 1.23.4",
 ]
 
 [[package]]
@@ -4746,7 +4775,7 @@ dependencies = [
  "hex",
  "hmac 0.13.0",
  "hostname",
- "http 1.4.0",
+ "http 1.4.2",
  "httptest",
  "lazy_static",
  "mime",
@@ -4779,7 +4808,7 @@ dependencies = [
  "urlencoding",
  "utoipa",
  "utoipa-swagger-ui",
- "uuid 1.23.1",
+ "uuid 1.23.4",
  "validator",
  "validator_derive",
  "woothee",
@@ -4813,7 +4842,7 @@ dependencies = [
  "diesel",
  "diesel-async",
  "diesel_migrations",
- "http 1.4.0",
+ "http 1.4.2",
  "log",
  "syncserver-common",
  "thiserror 2.0.18",
@@ -4867,7 +4896,7 @@ dependencies = [
  "deadpool",
  "diesel",
  "diesel_migrations",
- "http 1.4.0",
+ "http 1.4.2",
  "lazy_static",
  "serde",
  "serde_json",
@@ -4913,7 +4942,7 @@ dependencies = [
  "syncserver-db-common",
  "syncstorage-db-common",
  "syncstorage-settings",
- "uuid 1.23.1",
+ "uuid 1.23.4",
 ]
 
 [[package]]
@@ -4938,8 +4967,8 @@ dependencies = [
  "futures 0.3.32",
  "google-cloud-rust-raw",
  "grpcio",
- "http 1.4.0",
- "protobuf",
+ "http 1.4.2",
+ "protobuf 3.7.2",
  "slog-scope",
  "syncserver-common",
  "syncserver-db-common",
@@ -4947,7 +4976,7 @@ dependencies = [
  "syncstorage-settings",
  "thiserror 2.0.18",
  "tokio",
- "uuid 1.23.1",
+ "uuid 1.23.4",
 ]
 
 [[package]]
@@ -5169,7 +5198,7 @@ version = "0.23.3"
 dependencies = [
  "actix-web",
  "backtrace",
- "http 1.4.0",
+ "http 1.4.2",
  "pyo3",
  "serde",
  "syncserver-common",
@@ -5207,7 +5236,7 @@ dependencies = [
  "diesel",
  "diesel-async",
  "diesel_migrations",
- "http 1.4.0",
+ "http 1.4.2",
  "serde",
  "slog-scope",
  "syncserver-common",
@@ -5226,7 +5255,7 @@ dependencies = [
  "diesel",
  "diesel-async",
  "diesel_migrations",
- "http 1.4.0",
+ "http 1.4.2",
  "slog-scope",
  "syncserver-common",
  "syncserver-db-common",
@@ -5245,7 +5274,7 @@ dependencies = [
  "diesel",
  "diesel-async",
  "diesel_migrations",
- "http 1.4.0",
+ "http 1.4.2",
  "slog-scope",
  "syncserver-common",
  "syncserver-db-common",
@@ -5422,7 +5451,7 @@ checksum = "ac2a5518c70fa84342385732db33fb3f44bc4cc748936eb5833d2df34d6445ef"
 dependencies = [
  "base64",
  "bytes",
- "http 1.4.0",
+ "http 1.4.2",
  "http-body",
  "http-body-util",
  "hyper",
@@ -5480,7 +5509,7 @@ dependencies = [
  "bitflags 2.11.0",
  "bytes",
  "futures-util",
- "http 1.4.0",
+ "http 1.4.2",
  "http-body",
  "iri-string",
  "pin-project-lite",
@@ -5685,7 +5714,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d81f9efa9df032be5934a46a068815a10a042b494b6a58cb0a1a97bb5467ed6f"
 dependencies = [
  "base64",
- "http 1.4.0",
+ "http 1.4.2",
  "httparse",
  "log",
 ]
@@ -5779,9 +5808,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.23.1"
+version = "1.23.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddd74a9687298c6858e9b88ec8935ec45d22e8fd5e6394fa1bd4e99a87789c76"
+checksum = "bf80a72845275afea99e7f2b434723d3bc7e38470fcd1c7ed39a599c73319a53"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",
@@ -6422,9 +6451,9 @@ checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
 
 [[package]]
 name = "yaml-rust2"
-version = "0.10.4"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2462ea039c445496d8793d052e13787f2b90e750b833afee748e601c17621ed9"
+checksum = "631a50d867fafb7093e709d75aaee9e0e0d5deb934021fcea25ac2fe09edc51e"
 dependencies = [
  "arraydeque",
  "encoding_rs",
