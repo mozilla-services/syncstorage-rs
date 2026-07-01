@@ -63,6 +63,9 @@ pub struct GetBso {
     #[serde(skip_deserializing)]
     #[diesel(sql_type = BigInt)]
     pub expiry: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[diesel(sql_type = Nullable<Text>)]
+    pub payload_link: Option<String>,
 }
 
 #[derive(Debug, Default)]

@@ -613,6 +613,7 @@ impl TryFrom<GetBso> for results::GetBso {
             payload: pg.payload,
             modified: SyncTimestamp::from_datetime(pg.modified)?,
             expiry: pg.expiry.timestamp_millis(),
+            payload_link: None,
         })
     }
 }

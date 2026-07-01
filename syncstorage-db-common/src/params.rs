@@ -226,6 +226,8 @@ pub struct PutBso {
     pub id: String,
     pub sortindex: Option<i32>,
     pub payload: Option<String>,
+    // URI of an externally-stored payload (currently Spanner + GCS only)
+    pub payload_link: Option<String>,
     // ttl in seconds
     pub ttl: Option<u32>,
 }
@@ -235,6 +237,8 @@ pub struct PostCollectionBso {
     pub id: String,
     pub sortindex: Option<i32>,
     pub payload: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload_link: Option<String>,
     // ttl in seconds
     pub ttl: Option<u32>,
 }
