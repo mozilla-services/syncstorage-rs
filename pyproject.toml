@@ -43,7 +43,7 @@ isort = "^8.0.1"
 pre-commit = "^4.6.0"
 
 [tool.pydocstyle]
-match = ".*\\.py"
+match = "(?!test_).*\\.py"
 convention = "pep257"
 # Error Code Ref: https://www.pydocstyle.org/en/stable/error_codes.html
 # D212 Multi-line docstring summary should start at the first line

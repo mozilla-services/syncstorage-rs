@@ -1,0 +1,96 @@
+REFERENCE DOCUMENTATION ONLY -- NOT A BUILD INPUT.
+
+This unified diff shows the equivalent customization expressed as a
+patch against GoogleCloudPlatform/DataflowTemplates'
+Cloud_Spanner_Change_Streams_to_PubSub template. The actual build
+input is the standalone Java source tree under src/; this file exists
+so a reviewer can see at a glance what behaviour our pipeline adds
+relative to the upstream template.
+
+The customization is a single Filter step inserted between the change
+stream source and the Pub/Sub sink: records whose every mod has
+payload_link NULL on both sides are dropped; malformed records pass
+through so the downstream reconciler / DLQ surface them.
+
+If upstream's pipeline shape evolves and this reference diverges from
+our src/ tree, regenerate the diff against a fresh clone of upstream
+to keep the reference accurate. See README.md for the procedure. The
+SHA in upstream.txt is the upstream commit this diff was last reviewed
+against.
+
+---
+ .../spannerchangestreamstopubsub/SpannerChangeStreamsToPubSub.java | 38 +++++++++++++++++++-
+ 1 file changed, 37 insertions(+), 1 deletion(-)
+
+diff --git a/v2/googlecloud-to-googlecloud/src/main/java/com/google/cloud/teleport/v2/templates/spannerchangestreamstopubsub/SpannerChangeStreamsToPubSub.java b/v2/googlecloud-to-googlecloud/src/main/java/com/google/cloud/teleport/v2/templates/spannerchangestreamstopubsub/SpannerChangeStreamsToPubSub.java
+--- a/v2/googlecloud-to-googlecloud/src/main/java/com/google/cloud/teleport/v2/templates/spannerchangestreamstopubsub/SpannerChangeStreamsToPubSub.java
++++ b/v2/googlecloud-to-googlecloud/src/main/java/com/google/cloud/teleport/v2/templates/spannerchangestreamstopubsub/SpannerChangeStreamsToPubSub.java
+@@ -38,12 +38,16 @@
+ import com.google.cloud.Timestamp;
+ import com.google.cloud.spanner.Options.RpcPriority;
++import com.fasterxml.jackson.databind.JsonNode;
++import com.fasterxml.jackson.databind.ObjectMapper;
+ import org.apache.beam.sdk.Pipeline;
+ import org.apache.beam.sdk.PipelineResult;
+ import org.apache.beam.sdk.io.gcp.spanner.SpannerConfig;
+ import org.apache.beam.sdk.io.gcp.spanner.SpannerIO;
+ import org.apache.beam.sdk.io.gcp.spanner.changestreams.model.DataChangeRecord;
++import org.apache.beam.sdk.io.gcp.spanner.changestreams.model.Mod;
+ import org.apache.beam.sdk.options.PipelineOptionsFactory;
++import org.apache.beam.sdk.transforms.Filter;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+@@ -76,6 +80,8 @@
+ public final class SpannerChangeStreamsToPubSub {
+   private static final Logger LOG =
+       LoggerFactory.getLogger(SpannerChangeStreamsToPubSub.class);
+
++  private static final ObjectMapper MAPPER = new ObjectMapper();
++
+   public static void main(String[] args) {
+     LOG.info("Starting Input Files to Pub/Sub");
+@@ -120,9 +126,39 @@
+                     .withInclusiveStartAt(startTimestamp)
+                     .withInclusiveEndAt(endTimestamp)
+                     .withRpcPriority(rpcPriority));
+
+-    dataChangeRecord.apply("Write To Pub/Sub", new WriteToPubSub(options));
++    dataChangeRecord
++        .apply(
++            "Filter Payload Link Actionable",
++            Filter.by(SpannerChangeStreamsToPubSub::isPayloadLinkActionable))
++        .apply("Write To Pub/Sub", new WriteToPubSub(options));
+
+     return pipeline.run();
+   }
++
++  /**
++   * Returns true iff at least one mod in the record references a non-null
++   * {@code payload_link} on either side. Records whose every mod has both
++   * old and new {@code payload_link} NULL are inert for the reconciler and
++   * are dropped here. Malformed records pass through so the downstream
++   * reconciler / DLQ -- not this filter -- surface them.
++   */
++  static boolean isPayloadLinkActionable(DataChangeRecord record) {
++    try {
++      for (Mod mod : record.getMods()) {
++        if (extractPayloadLink(mod.getOldValuesJson()) != null
++            || extractPayloadLink(mod.getNewValuesJson()) != null) {
++          return true;
++        }
++      }
++      return false;
++    } catch (Exception e) {
++      LOG.warn("payload_link extraction failed; passing record through", e);
++      return true;
++    }
++  }
++
++  private static String extractPayloadLink(String json) throws Exception {
++    if (json == null || json.isEmpty()) return null;
++    JsonNode link = MAPPER.readTree(json).get("payload_link");
++    if (link == null || link.isNull()) return null;
++    String s = link.asText();
++    return s.isEmpty() ? null : s;
++  }
+ }
