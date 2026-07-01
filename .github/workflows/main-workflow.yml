@@ -326,12 +326,14 @@ jobs:
       - name: Create test results directory
         run: mkdir -p workflow/test-results
 
+      # PILOT (parallel steps, github.blog 2026-06-25): run the apt-get client
+      # install in the background so it overlaps the cargo-nextest /
+      # cargo-llvm-cov installs below. dpkg, cargo, and curl use independent
+      # locks, so there is no contention. A `wait-all` barrier (added before the
+      # DB is created) guarantees the client is present before it is used.
       - name: Install PostgreSQL client
+        background: true
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
-
-      - name: Create Tokenserver database
-        run: |
-          PGPASSWORD=test psql -U test -h 127.0.0.1 -d syncstorage -c 'CREATE DATABASE tokenserver;'
 
       - name: Create version.json
         run: |
@@ -366,6 +368,15 @@ jobs:
       - name: Install cargo-llvm-cov
         if: steps.cache-cargo-llvm-cov-postgres.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-llvm-cov
+
+      # PILOT (parallel steps): barrier — block until the backgrounded apt-get
+      # client install above has finished before the client is used.
+      - name: Wait for background installs
+        wait-all: true
+
+      - name: Create Tokenserver database
+        run: |
+          PGPASSWORD=test psql -U test -h 127.0.0.1 -d syncstorage -c 'CREATE DATABASE tokenserver;'
 
       - name: Run unit tests with coverage
         run: make postgres_test_with_coverage

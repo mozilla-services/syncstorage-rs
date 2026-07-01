@@ -15,6 +15,10 @@ pub struct BatchBsoBody {
     pub payload: Option<String>,
     #[validate(custom(function = "validate_body_bso_ttl"))]
     pub ttl: Option<u32>,
+    /// Populated server-side after a successful GCS payload upload; never
+    /// accepted from the client.
+    #[serde(default, skip_deserializing)]
+    pub payload_link: Option<String>,
 }
 
 impl BatchBsoBody {
@@ -50,6 +54,7 @@ impl From<BatchBsoBody> for PostCollectionBso {
             id: b.id,
             sortindex: b.sortindex,
             payload: b.payload,
+            payload_link: b.payload_link,
             ttl: b.ttl,
         }
     }

@@ -14,7 +14,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
 use syncstorage_db::{
-    Db, DbError, DbErrorIntrospect, params,
+    Db, DbError, DbErrorIntrospect, params, results,
     results::{CreateBatch, Paginated},
 };
 use utoipa;
@@ -27,6 +27,7 @@ use crate::{
             BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, EmitApiMetric,
             HeartbeatRequest, MetaRequest, ReplyFormat, TestErrorRequest,
         },
+        payload_offload::{download_payload, offload_bucket, upload_payload},
         transaction::DbTransactionPool,
     },
 };
@@ -300,52 +301,70 @@ pub async fn delete_collection(
 pub async fn get_collection(
     coll: CollectionRequest,
     db_pool: DbTransactionPool,
+    state: Data<ServerState>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
-    db_pool
-        .transaction_http(&request, async |db| {
-            coll.emit_api_metric("request.get_collection");
-            let params = params::GetBsos {
-                user_id: coll.user_id.clone(),
-                newer: coll.query.newer,
-                older: coll.query.older,
-                sort: coll.query.sort,
-                limit: coll.query.limit,
-                offset: coll.query.offset,
-                ids: coll.query.ids.clone(),
-                full: coll.query.full,
-                collection: coll.collection.clone(),
-            };
-            let response = if coll.query.full {
-                let result = db.get_bsos(params).await;
-                finish_get_collection(&coll, result).await?
-            } else {
+    let params = params::GetBsos {
+        user_id: coll.user_id.clone(),
+        newer: coll.query.newer,
+        older: coll.query.older,
+        sort: coll.query.sort,
+        limit: coll.query.limit,
+        offset: coll.query.offset,
+        ids: coll.query.ids.clone(),
+        full: coll.query.full,
+        collection: coll.collection.clone(),
+    };
+
+    if !coll.query.full {
+        return db_pool
+            .transaction_http(&request, async |db| {
+                coll.emit_api_metric("request.get_collection");
                 // Changed to be a Paginated list of BSOs, need to extract IDs from them.
-                let result = db.get_bso_ids(params).await;
-                finish_get_collection(&coll, result).await?
-            };
-            Ok(response)
-        })
+                let ids = handle_not_found(db.get_bso_ids(params).await)?;
+                Ok(finish_get_collection(&coll, ids).await)
+            })
+            .await;
+    }
+
+    // Full BSOs may carry payload_link entries that need to be resolved
+    // against GCS once the DB transaction has closed
+    db_pool
+        .transaction_http_then(
+            &request,
+            async |db| {
+                coll.emit_api_metric("request.get_collection");
+                handle_not_found(db.get_bsos(params).await).map_err(Into::into)
+            },
+            async |mut bsos: Paginated<results::GetBso>| {
+                for bso in bsos.items.iter_mut() {
+                    if let Some(link) = bso.payload_link.take() {
+                        bso.payload = download_payload(&state, &link).await?;
+                    }
+                }
+                Ok(finish_get_collection(&coll, bsos).await)
+            },
+        )
         .await
 }
 
-async fn finish_get_collection<T>(
-    coll: &CollectionRequest,
-    result: Result<Paginated<T>, DbError>,
-) -> Result<HttpResponse, DbError>
+fn handle_not_found<T>(result: Result<Paginated<T>, DbError>) -> Result<Paginated<T>, DbError>
 where
     T: Serialize + Default + 'static,
 {
-    let result = result.or_else(|e| {
-        if e.is_collection_not_found() {
-            // For b/w compat, non-existent collections must return an
-            // empty list
-            Ok(Paginated::default())
-        } else {
-            Err(e)
-        }
-    })?;
+    if let Err(e) = &result
+        && e.is_collection_not_found()
+    {
+        Ok(Paginated::default())
+    } else {
+        result
+    }
+}
 
+async fn finish_get_collection<T>(coll: &CollectionRequest, result: Paginated<T>) -> HttpResponse
+where
+    T: Serialize + Default + 'static,
+{
     let mut builder = HttpResponse::build(StatusCode::OK);
     let resp = builder.insert_header((X_WEAVE_RECORDS, result.items.len().to_string()));
 
@@ -354,7 +373,7 @@ where
     }
 
     match coll.reply {
-        ReplyFormat::Json => Ok(resp.json(result.items)),
+        ReplyFormat::Json => resp.json(result.items),
         ReplyFormat::Newlines => {
             let items: String = result
                 .items
@@ -364,10 +383,9 @@ where
                 .map(|v| v.replace('\n', "\\u000a") + "\n")
                 .collect();
 
-            Ok(resp
-                .insert_header(("Content-Type", "application/newlines"))
+            resp.insert_header(("Content-Type", "application/newlines"))
                 .insert_header(("Content-Length", format!("{}", items.len())))
-                .body(items))
+                .body(items)
         }
     }
 }
@@ -389,10 +407,37 @@ where
     )
 )]
 pub async fn post_collection(
-    coll: CollectionPostRequest,
+    mut coll: CollectionPostRequest,
     db_pool: DbTransactionPool,
+    state: Data<ServerState>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
+    // Pre-transaction: for collections opted into GCS offload, upload each
+    // payload and record its URL on the BatchBsoBody so the eventual
+    // PostCollectionBso / batch staging row carries the link. The inline
+    // payload is cleared.
+    //
+    // This also covers the batched path: post_collection_batch reads from
+    // `coll.bsos.valid` once the transaction is open, by which point each
+    // entry's payload/payload_link have already been swapped.
+    if let Some(bucket) = offload_bucket(&state, &coll.collection) {
+        for bso in coll.bsos.valid.iter_mut() {
+            if let Some(payload) = bso.payload.take() {
+                let url = upload_payload(
+                    &state,
+                    bucket,
+                    &coll.user_id,
+                    &coll.collection,
+                    &bso.id,
+                    payload,
+                )
+                .await?;
+                bso.payload = Some(String::new());
+                bso.payload_link = Some(url);
+            }
+        }
+    }
+
     db_pool
         .transaction_http(&request, async |db| {
             coll.emit_api_metric("request.post_collection");
@@ -587,6 +632,7 @@ pub async fn post_collection_batch(
                         id: batch_bso.id,
                         sortindex: batch_bso.sortindex,
                         payload: batch_bso.payload,
+                        payload_link: batch_bso.payload_link,
                         ttl: batch_bso.ttl,
                     })
                     .collect(),
@@ -665,24 +711,34 @@ pub async fn delete_bso(
 pub async fn get_bso(
     bso_req: BsoRequest,
     db_pool: DbTransactionPool,
+    state: Data<ServerState>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
     db_pool
-        .transaction_http(&request, async |db| {
-            bso_req.emit_api_metric("request.get_bso");
-            let result = db
-                .get_bso(params::GetBso {
+        .transaction_http_then(
+            &request,
+            async |db| {
+                bso_req.emit_api_metric("request.get_bso");
+                db.get_bso(params::GetBso {
                     user_id: bso_req.user_id,
                     collection: bso_req.collection,
                     id: bso_req.bso,
                 })
-                .await?;
-
-            Ok(result.map_or_else(
-                || HttpResponse::NotFound().finish(),
-                |bso| HttpResponse::Ok().json(bso),
-            ))
-        })
+                .await
+                .map_err(Into::into)
+            },
+            async |mut maybe_bso: Option<results::GetBso>| {
+                if let Some(ref mut bso) = maybe_bso
+                    && let Some(link) = bso.payload_link.take()
+                {
+                    bso.payload = download_payload(&state, &link).await?;
+                }
+                Ok(maybe_bso.map_or_else(
+                    || HttpResponse::NotFound().finish(),
+                    |b| HttpResponse::Ok().json(b),
+                ))
+            },
+        )
         .await
 }
 
@@ -704,10 +760,28 @@ pub async fn get_bso(
     )
 )]
 pub async fn put_bso(
-    bso_req: BsoPutRequest,
+    mut bso_req: BsoPutRequest,
     db_pool: DbTransactionPool,
+    state: Data<ServerState>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
+    let mut payload_link = None;
+    if let Some(bucket) = offload_bucket(&state, &bso_req.collection)
+        && let Some(payload) = bso_req.body.payload.take()
+    {
+        let url = upload_payload(
+            &state,
+            bucket,
+            &bso_req.user_id,
+            &bso_req.collection,
+            &bso_req.bso,
+            payload,
+        )
+        .await?;
+        bso_req.body.payload = Some(String::new());
+        payload_link = Some(url);
+    }
+
     db_pool
         .transaction_http(&request, async |db| {
             bso_req.emit_api_metric("request.put_bso");
@@ -718,6 +792,7 @@ pub async fn put_bso(
                     id: bso_req.bso,
                     sortindex: bso_req.body.sortindex,
                     payload: bso_req.body.payload,
+                    payload_link,
                     ttl: bso_req.body.ttl,
                 })
                 .await?;

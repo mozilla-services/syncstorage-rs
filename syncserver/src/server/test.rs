@@ -14,6 +14,11 @@ use chrono::offset::Utc;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hmac::{Hmac, KeyInit, Mac};
 use http::StatusCode;
+use httptest::{
+    Expectation, Server,
+    matchers::{all_of, contains, matches, request, url_decoded},
+    responders::status_code,
+};
 use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
@@ -113,6 +118,11 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         deadman: Arc::new(RwLock::new(Deadman::from(&settings.syncstorage))),
         glean_logger,
         glean_enabled: settings.syncstorage.glean_enabled,
+        gcs_payload_bucket: settings.syncstorage.gcs_payload_bucket.clone(),
+        gcs_payload_offload_collections: Arc::new(
+            settings.syncstorage.gcs_payload_offload_collections.clone(),
+        ),
+        gcs_endpoint: settings.syncstorage.gcs_endpoint.clone(),
     }
 }
 
@@ -446,6 +456,7 @@ async fn post_collection() {
         id: "foo".to_string(),
         sortindex: Some(0),
         payload: Some("bar".to_string()),
+        payload_link: None,
         ttl: Some(31_536_000),
     }]);
     let bytes =
@@ -891,4 +902,80 @@ async fn error_endpoint_logging_check() {
         },
     )
     .await;
+}
+
+#[actix_rt::test]
+async fn put_bso_offloads_to_gcs() {
+    let mut settings = get_test_settings();
+    if !settings.syncstorage.uses_spanner() {
+        // TODO: should be Spanner only (for now)
+        return;
+    }
+
+    // Mock GCS: match the JSON multipart upload to bsos's bucket. The matcher
+    // inspects the multipart body for `committed=false` metadata and a
+    // `customTime` field; if either is missing the expectation goes
+    // unsatisfied and Server::Drop panics.
+    let server = Server::run();
+    server.expect(
+        Expectation::matching(all_of![
+            request::method_path("POST", "/upload/storage/v1/b/test-bucket/o"),
+            request::query(url_decoded(contains(("uploadType", "multipart")))),
+            request::body(matches(r#""committed""#)),
+            request::body(matches(r#""false""#)),
+            request::body(matches(r#""customTime""#)),
+        ])
+        .respond_with(
+            status_code(200)
+                .append_header("content-type", "application/json")
+                .body(
+                    serde_json::json!({
+                        "name": "test-object",
+                        "bucket": "test-bucket",
+                    })
+                    .to_string(),
+                ),
+        ),
+    );
+
+    settings.syncstorage.gcs_payload_bucket = Some("test-bucket".to_owned());
+    settings.syncstorage.gcs_payload_offload_collections = vec!["bookmarks".to_owned()];
+    settings.syncstorage.gcs_endpoint = Some(format!("http://{}", server.addr()));
+
+    let app = init_app!(settings).await;
+
+    let req = create_request(
+        http::Method::PUT,
+        "/1.5/42/storage/bookmarks/wibble",
+        None,
+        Some(json!({ "payload": "hello world" })),
+    )
+    .to_request();
+    let resp = app
+        .call(req)
+        .await
+        .expect("Could not get resp in put_bso_offloads_to_gcs");
+    assert!(
+        resp.response().status().is_success(),
+        "put_bso failed: {:?}",
+        resp.response()
+    );
+
+    // mock shouldn't see tabs offloaded to GCS
+    let req = create_request(
+        http::Method::PUT,
+        "/1.5/42/storage/tabs/wobble",
+        None,
+        Some(json!({ "payload": "hello world" })),
+    )
+    .to_request();
+    let resp = app
+        .call(req)
+        .await
+        .expect("Could not get resp in put_bso_offloads_to_gcs");
+    assert!(
+        resp.response().status().is_success(),
+        "put_bso failed: {:?}",
+        resp.response()
+    );
 }

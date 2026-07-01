@@ -81,6 +81,7 @@ pub fn pbso(
         collection: coll.to_owned(),
         id: bid.to_owned(),
         payload: payload.map(|payload| payload.to_owned()),
+        payload_link: None,
         sortindex,
         ttl,
     }
@@ -95,6 +96,7 @@ pub fn postbso(
     params::PostCollectionBso {
         id: bid.to_owned(),
         payload: payload.map(str::to_owned),
+        payload_link: None,
         sortindex,
         ttl,
     }
