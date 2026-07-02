@@ -67,6 +67,18 @@ pub struct ServerState {
     pub glean_logger: Arc<GleanEventsLogger>,
 
     pub glean_enabled: bool,
+
+    /// Optional Google Cloud Storage bucket for off-loading BSO payloads.
+    pub gcs_payload_bucket: Option<String>,
+
+    /// Collections whose BSO payloads are off-loaded to GCS.
+    pub gcs_payload_offload_collections: Arc<Vec<String>>,
+
+    /// Override the GCS endpoint URL (for testing). When set the GCS client
+    /// is built with `.with_endpoint(...)` + anonymous credentials.
+    /// Debug-builds only; not available in release.
+    #[cfg(debug_assertions)]
+    pub gcs_endpoint: Option<String>,
 }
 
 pub fn cfg_path(path: &str) -> String {
@@ -379,6 +391,11 @@ impl Server {
             app_channel: settings.environment.clone(),
         });
         let glean_enabled = settings.syncstorage.glean_enabled;
+        let gcs_payload_bucket = settings.syncstorage.gcs_payload_bucket.clone();
+        let gcs_payload_offload_collections =
+            Arc::new(settings.syncstorage.gcs_payload_offload_collections.clone());
+        #[cfg(debug_assertions)]
+        let gcs_endpoint = settings.syncstorage.gcs_endpoint.clone();
         let worker_thread_count =
             calculate_worker_max_blocking_threads(settings.worker_max_blocking_threads);
         let limits = Arc::new(settings.syncstorage.limits);
@@ -426,6 +443,10 @@ impl Server {
                 deadman: Arc::clone(&deadman),
                 glean_logger: Arc::clone(&glean_logger),
                 glean_enabled,
+                gcs_payload_bucket: gcs_payload_bucket.clone(),
+                gcs_payload_offload_collections: Arc::clone(&gcs_payload_offload_collections),
+                #[cfg(debug_assertions)]
+                gcs_endpoint: gcs_endpoint.clone(),
             };
 
             build_app!(

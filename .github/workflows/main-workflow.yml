@@ -36,17 +36,17 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Cache pip and Poetry virtualenv
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.cache/pip
@@ -72,7 +72,7 @@ jobs:
     steps:
       - name: Cache Rust toolchain
         id: cache-rust-toolchain
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.rustup/toolchains
@@ -98,17 +98,17 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Restore pip and Poetry virtualenv
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.cache/pip
@@ -142,12 +142,12 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           persist-credentials: false
 
       - name: Restore Rust toolchain
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.rustup/toolchains
@@ -159,7 +159,7 @@ jobs:
 
       - name: Cache cargo-audit
         id: cache-cargo-audit
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ~/.cargo/bin/cargo-audit
           key: ${{ runner.os }}-cargo-audit-${{ hashFiles('.github/workflows/main-workflow.yml') }}
@@ -170,7 +170,7 @@ jobs:
 
       - name: Cache mdbook
         id: cache-mdbook
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.cargo/bin/mdbook
@@ -199,12 +199,12 @@ jobs:
       matrix:
         target: [spanner, mysql, postgres]
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           persist-credentials: false
 
       - name: Restore Rust toolchain
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.rustup/toolchains
@@ -227,12 +227,12 @@ jobs:
       matrix:
         target: [spanner, mysql, postgres]
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           persist-credentials: false
 
       - name: Restore Rust toolchain
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.rustup/toolchains
@@ -240,7 +240,7 @@ jobs:
           key: ${{ runner.os }}-rust-toolchain-${{ env.RUST_VERSION }}
 
       - name: Restore Rust cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.cargo/registry
@@ -288,12 +288,12 @@ jobs:
       CARGO_INCREMENTAL: "0"
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           persist-credentials: false
 
       - name: Restore Rust toolchain
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.rustup/toolchains
@@ -304,7 +304,7 @@ jobs:
         run: rustup default ${RUST_VERSION}
 
       - name: Restore pip and Poetry virtualenv
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.cache/pip
@@ -312,7 +312,7 @@ jobs:
           key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
 
       - name: Cache Cargo build artifacts
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.cargo/registry/index/
@@ -326,12 +326,14 @@ jobs:
       - name: Create test results directory
         run: mkdir -p workflow/test-results
 
+      # PILOT (parallel steps, github.blog 2026-06-25): run the apt-get client
+      # install in the background so it overlaps the cargo-nextest /
+      # cargo-llvm-cov installs below. dpkg, cargo, and curl use independent
+      # locks, so there is no contention. A `wait-all` barrier (added before the
+      # DB is created) guarantees the client is present before it is used.
       - name: Install PostgreSQL client
+        background: true
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
-
-      - name: Create Tokenserver database
-        run: |
-          PGPASSWORD=test psql -U test -h 127.0.0.1 -d syncstorage -c 'CREATE DATABASE tokenserver;'
 
       - name: Create version.json
         run: |
@@ -347,7 +349,7 @@ jobs:
 
       - name: Cache cargo-nextest
         id: cache-cargo-nextest-postgres
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ~/.cargo/bin/cargo-nextest
           key: ${{ runner.os }}-cargo-nextest-${{ hashFiles('**/Cargo.lock') }}
@@ -358,7 +360,7 @@ jobs:
 
       - name: Cache cargo-llvm-cov
         id: cache-cargo-llvm-cov-postgres
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ~/.cargo/bin/cargo-llvm-cov
           key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('**/Cargo.lock') }}
@@ -366,6 +368,15 @@ jobs:
       - name: Install cargo-llvm-cov
         if: steps.cache-cargo-llvm-cov-postgres.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-llvm-cov
+
+      # PILOT (parallel steps): barrier — block until the backgrounded apt-get
+      # client install above has finished before the client is used.
+      - name: Wait for background installs
+        wait-all: true
+
+      - name: Create Tokenserver database
+        run: |
+          PGPASSWORD=test psql -U test -h 127.0.0.1 -d syncstorage -c 'CREATE DATABASE tokenserver;'
 
       - name: Run unit tests with coverage
         run: make postgres_test_with_coverage
@@ -388,7 +399,7 @@ jobs:
           SYNC_SYNCSTORAGE__DATABASE_URL: postgresql://test:test@127.0.0.1/syncstorage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996
+        uses: dorny/test-reporter@9c978c66ab5564af606adee293b728670b2ca93c
         if: always()
         with:
           name: Postgres Unit Tests
@@ -438,7 +449,7 @@ jobs:
       actions: write
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           persist-credentials: false
 
@@ -456,7 +467,7 @@ jobs:
 
       - name: Cache Docker image tar
         id: cache-postgres-image
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: /tmp/postgres-image.tar
           key: ${{ runner.os }}-postgres-image-${{ hashFiles('Dockerfile', 'Cargo.lock', '**/*.rs', '**/Cargo.toml', 'tools/**', 'scripts/**') }}
@@ -494,7 +505,7 @@ jobs:
       checks: write
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           persist-credentials: false
 
@@ -517,7 +528,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996
+        uses: dorny/test-reporter@9c978c66ab5564af606adee293b728670b2ca93c
         if: always()
         with:
           name: Postgres E2E Tests
@@ -582,12 +593,12 @@ jobs:
       CARGO_INCREMENTAL: "0"
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           persist-credentials: false
 
       - name: Restore Rust toolchain
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.rustup/toolchains
@@ -598,7 +609,7 @@ jobs:
         run: rustup default ${RUST_VERSION}
 
       - name: Restore pip and Poetry virtualenv
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.cache/pip
@@ -606,7 +617,7 @@ jobs:
           key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
 
       - name: Cache Cargo build artifacts
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.cargo/registry/index/
@@ -642,7 +653,7 @@ jobs:
 
       - name: Cache cargo-nextest
         id: cache-cargo-nextest-mysql
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ~/.cargo/bin/cargo-nextest
           key: ${{ runner.os }}-cargo-nextest-${{ hashFiles('**/Cargo.lock') }}
@@ -653,7 +664,7 @@ jobs:
 
       - name: Cache cargo-llvm-cov
         id: cache-cargo-llvm-cov-mysql
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ~/.cargo/bin/cargo-llvm-cov
           key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('**/Cargo.lock') }}
@@ -671,7 +682,7 @@ jobs:
           SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996
+        uses: dorny/test-reporter@9c978c66ab5564af606adee293b728670b2ca93c
         if: always()
         with:
           name: MySQL Unit Tests
@@ -722,7 +733,7 @@ jobs:
       actions: write
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           persist-credentials: false
 
@@ -740,7 +751,7 @@ jobs:
 
       - name: Cache Docker image tar
         id: cache-mysql-image
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: /tmp/mysql-image.tar
           key: ${{ runner.os }}-mysql-image-${{ hashFiles('Dockerfile', 'Cargo.lock', '**/*.rs', '**/Cargo.toml', 'tools/**', 'scripts/**') }}
@@ -778,7 +789,7 @@ jobs:
       checks: write
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           persist-credentials: false
 
@@ -801,7 +812,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996
+        uses: dorny/test-reporter@9c978c66ab5564af606adee293b728670b2ca93c
         if: always()
         with:
           name: MySQL E2E Tests
@@ -872,12 +883,12 @@ jobs:
       CARGO_INCREMENTAL: "0"
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           persist-credentials: false
 
       - name: Restore Rust toolchain
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.rustup/toolchains
@@ -888,7 +899,7 @@ jobs:
         run: rustup default ${RUST_VERSION}
 
       - name: Restore pip and Poetry virtualenv
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.cache/pip
@@ -896,7 +907,7 @@ jobs:
           key: ${{ runner.os }}-python-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
 
       - name: Cache Cargo build artifacts
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: |
             ~/.cargo/registry/index/
@@ -924,7 +935,7 @@ jobs:
 
       - name: Cache cargo-nextest
         id: cache-cargo-nextest-spanner
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ~/.cargo/bin/cargo-nextest
           key: ${{ runner.os }}-cargo-nextest-${{ hashFiles('**/Cargo.lock') }}
@@ -935,7 +946,7 @@ jobs:
 
       - name: Cache cargo-llvm-cov
         id: cache-cargo-llvm-cov-spanner
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: ~/.cargo/bin/cargo-llvm-cov
           key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('**/Cargo.lock') }}
@@ -990,7 +1001,7 @@ jobs:
         run: make spanner_test_with_coverage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996
+        uses: dorny/test-reporter@9c978c66ab5564af606adee293b728670b2ca93c
         if: always()
         with:
           name: Spanner Unit Tests
@@ -1041,7 +1052,7 @@ jobs:
       actions: write
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           persist-credentials: false
 
@@ -1059,7 +1070,7 @@ jobs:
 
       - name: Cache Docker image tar
         id: cache-spanner-image
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: /tmp/spanner-image.tar
           key: ${{ runner.os }}-spanner-image-${{ hashFiles('Dockerfile', 'Cargo.lock', '**/*.rs', '**/Cargo.toml', 'tools/**', 'scripts/**') }}
@@ -1097,7 +1108,7 @@ jobs:
       checks: write
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           persist-credentials: false
 
@@ -1120,7 +1131,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996
+        uses: dorny/test-reporter@9c978c66ab5564af606adee293b728670b2ca93c
         if: always()
         with:
           name: Spanner E2E Tests

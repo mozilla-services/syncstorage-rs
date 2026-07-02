@@ -196,5 +196,10 @@ pub fn bso_from_row(mut row: Vec<Value>) -> DbResult<results::GetBso> {
         expiry: SyncTimestamp::from_rfc3339(row[4].get_string_value())
             .map_err(|e| DbError::integrity(e.to_string()))?
             .as_i64(),
+        payload_link: if row[5].has_null_value() {
+            None
+        } else {
+            Some(row[5].take_string_value())
+        },
     })
 }

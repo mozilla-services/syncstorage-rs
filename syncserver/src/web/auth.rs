@@ -187,7 +187,7 @@ impl HawkPayload {
             80
         };
         let path = uri.path_and_query().ok_or(HawkErrorKind::MissingPath)?;
-        let expiry = if path.path().ends_with("/info/collections") {
+        let expiry = if is_info_collections_path(path.path()) {
             0
         } else {
             Utc::now().timestamp() as u64
@@ -195,6 +195,25 @@ impl HawkPayload {
 
         HawkPayload::new(header, method, path.as_str(), host, port, secrets, expiry)
     }
+}
+
+/// Matches only the legacy read-only `/1.5/{uid}/info/collections` endpoint,
+/// requiring exactly four path segments. An exact match is needed because a
+/// plain `/info/collections` suffix also matches the storage route
+/// `/1.5/{uid}/storage/info/collections` (collection `info`, item
+/// `collections`), which must not receive the same handling.
+fn is_info_collections_path(path: &str) -> bool {
+    let mut segments = path.trim_start_matches('/').split('/');
+    matches!(
+        (
+            segments.next(),
+            segments.next(),
+            segments.next(),
+            segments.next(),
+            segments.next(),
+        ),
+        (Some("1.5"), Some(uid), Some("info"), Some("collections"), None) if !uid.is_empty()
+    )
 }
 
 /// Helper function for [HMAC](https://tools.ietf.org/html/rfc2104) verification.
@@ -208,7 +227,21 @@ fn verify_hmac(info: &[u8], key: &[u8], expected: &[u8]) -> ApiResult<()> {
 mod tests {
     use std::fmt::{self, Display, Formatter};
 
-    use super::{HawkPayload, Secrets};
+    use super::{HawkPayload, Secrets, is_info_collections_path};
+
+    #[test]
+    fn info_collections_exemption_matches_only_exact_route() {
+        // The legacy read-only endpoint is exempt.
+        assert!(is_info_collections_path("/1.5/123/info/collections"));
+        // The writable storage route shares the same suffix but must not match.
+        assert!(!is_info_collections_path(
+            "/1.5/123/storage/info/collections"
+        ));
+        // Other storage items must not match.
+        assert!(!is_info_collections_path("/1.5/123/storage/bookmarks/abc"));
+        // A trailing slash or extra segment must not match.
+        assert!(!is_info_collections_path("/1.5/123/info/collections/"));
+    }
 
     #[test]
     fn valid_header() {

@@ -4,7 +4,8 @@
 -- it provides values to COALESCE over; on insert the join misses, `existing.*`
 -- is NULL, and the COALESCE fallback applies.
 INSERT OR UPDATE INTO bsos
-    (fxa_uid, fxa_kid, collection_id, bso_id, sortindex, payload, modified, expiry)
+    (fxa_uid, fxa_kid, collection_id, bso_id, sortindex, payload, modified, expiry,
+     payload_link)
 SELECT
     bb.fxa_uid,
     bb.fxa_kid,
@@ -17,11 +18,12 @@ SELECT
         TIMESTAMP_ADD(@timestamp, INTERVAL bb.ttl SECOND),
         existing.expiry,
         TIMESTAMP_ADD(@timestamp, INTERVAL @default_bso_ttl SECOND)
-    )
+    ),
+    COALESCE(bb.payload_link, existing.payload_link)
   FROM batch_bsos AS bb
   LEFT JOIN (
       SELECT fxa_uid, fxa_kid, collection_id, bso_id,
-             sortindex, payload, expiry
+             sortindex, payload, expiry, payload_link
         FROM bsos
        WHERE fxa_uid = @fxa_uid
          AND fxa_kid = @fxa_kid

@@ -107,8 +107,7 @@ When a user forgets and resets their password, but has their recovery key, the b
 
 
 ## Utilities
-Tokenserver has two regular running utility scripts:
-1 - [Process Account Events](../tools/process_account_events.md)
-2 - [Purge Old Records](../tools/purge_old_records_tokenserver.md)
+Tokenserver has one regular running utility script:
+1 - [Purge Old Records](../tools/purge_old_records_tokenserver.md)
 
-For context on these processes, their purpose, and how to run them, please review their documentation pages.
+For context on this process, its purpose, and how to run it, please review its documentation page.

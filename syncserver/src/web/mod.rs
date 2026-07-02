@@ -4,6 +4,7 @@ pub mod error;
 pub mod extractors;
 pub mod handlers;
 pub mod middleware;
+pub mod payload_offload;
 mod transaction;
 
 // Known DockerFlow commands for Ops callbacks
