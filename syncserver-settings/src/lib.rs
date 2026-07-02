@@ -78,7 +78,15 @@ impl Settings {
         builder = builder.add_source(
             Environment::with_prefix(&PREFIX.to_uppercase())
                 .separator("__")
-                .prefix_separator("_"),
+                .prefix_separator("_")
+                // Allow specific Vec<String> settings to be provided
+                // via a comma-separated env var. `with_list_parse_key`
+                // restricts list-splitting to the named key so
+                // ordinary string settings that happen to contain
+                // commas are untouched.
+                .list_separator(",")
+                .with_list_parse_key("syncstorage.gcs_payload_offload_collections")
+                .try_parsing(true),
         );
         let settings: Config = builder.build()?;
 
