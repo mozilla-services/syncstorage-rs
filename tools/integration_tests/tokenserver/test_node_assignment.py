@@ -241,11 +241,12 @@ def test_unsuccessfully_releasing_node_capacity(ts_ctx):
     )
     # All of these nodes are completely full, and no capacity can be released
     res = app.get("/1.0/sync/1.5", headers=headers, status=503)
-    # The response has the expected body
+    # The response body carries the generic internal-error description; the
+    # detailed message is retained internally (context) rather than returned.
     expected_error_response = {
         "errors": [
             {
-                "description": "Unexpected error: unable to get a node",
+                "description": "Server error",
                 "location": "internal",
                 "name": "",
             }
