@@ -82,13 +82,11 @@ impl BatchDb for SpannerDb {
         metrics.start_timer("storage.spanner.append_items_to_batch", None);
         let collection_id = self._get_collection_id(&params.collection).await?;
 
-        let current_size = self
+        // `batch.size` is the committed size
+        let mut batch = params.batch;
+        batch.size = self
             .check_quota(&params.user_id, &params.collection)
             .await?;
-        let mut batch = params.batch;
-        if let Some(size) = current_size {
-            batch.size = Some(size + batch.size.unwrap_or(0));
-        }
 
         // confirm that this batch exists or has not yet been committed.
         let exists = self
@@ -250,10 +248,13 @@ pub async fn do_append(
     // Build an ARRAY<STRUCT> of incoming rows for a `INSERT OR UPDATE`.  COALESCE(new, existing)
     // is used so an update only overwrites fields the request supplied.
     let mut rows: Vec<Value> = Vec::with_capacity(bsos.len());
+    // The incoming ids are used to exclude the payloads from the running total.
+    let mut incoming_ids: Vec<String> = Vec::with_capacity(bsos.len());
     for bso in bsos {
         if let Some(ref payload) = bso.payload {
             running_size += payload.len();
         }
+        incoming_ids.push(bso.id.clone());
         let sortindex = bso
             .sortindex
             .map(IntoSpannerValue::into_spanner_value)
@@ -264,6 +265,10 @@ pub async fn do_append(
             .unwrap_or_else(null_value);
         let ttl = bso
             .ttl
+            .map(IntoSpannerValue::into_spanner_value)
+            .unwrap_or_else(null_value);
+        let payload_link = bso
+            .payload_link
             .map(IntoSpannerValue::into_spanner_value)
             .unwrap_or_else(null_value);
 
@@ -277,6 +282,7 @@ pub async fn do_append(
             sortindex,
             payload,
             ttl,
+            payload_link,
         ]));
         let mut value = Value::new();
         value.set_list_value(row);
@@ -285,12 +291,16 @@ pub async fn do_append(
 
     if db.quota.enabled
         && let Some(size) = batch.size
-        && size + running_size >= db.quota.size
     {
-        if db.quota.enforced {
-            return Err(db.quota_error(collection));
-        } else {
-            warn!("Quota at limit for user's collection ({} bytes)", size + running_size; "collection"=>collection);
+        let pending_size =
+            pending_batch_size(db, &user_id, collection_id, &batch.id, &incoming_ids).await?;
+        let projected_total = size + pending_size + running_size;
+        if projected_total >= db.quota.size {
+            if db.quota.enforced {
+                return Err(db.quota_error(collection));
+            } else {
+                warn!("Quota at limit for user ({} bytes)", projected_total; "collection"=>collection);
+            }
         }
     }
 
@@ -307,6 +317,7 @@ pub async fn do_append(
         ("sortindex", TypeCode::INT64),
         ("payload", TypeCode::STRING),
         ("ttl", TypeCode::INT64),
+        ("payload_link", TypeCode::STRING),
     ]
     .into_iter()
     .map(|(name, field_type)| struct_type_field(name, field_type))
@@ -334,7 +345,7 @@ pub async fn do_append(
     db.sql(
         "INSERT OR UPDATE INTO batch_bsos
              (fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id,
-              sortindex, payload, ttl)
+              sortindex, payload, ttl, payload_link)
          SELECT
              incoming.fxa_uid,
              incoming.fxa_kid,
@@ -343,7 +354,8 @@ pub async fn do_append(
              incoming.batch_bso_id,
              COALESCE(incoming.sortindex, existing.sortindex),
              COALESCE(incoming.payload, existing.payload),
-             COALESCE(incoming.ttl, existing.ttl)
+             COALESCE(incoming.ttl, existing.ttl),
+             COALESCE(incoming.payload_link, existing.payload_link)
            FROM UNNEST(@values) AS incoming
            LEFT JOIN batch_bsos AS existing
              ON existing.fxa_uid = incoming.fxa_uid
@@ -361,6 +373,46 @@ pub async fn do_append(
         .count_with_tags("storage.spanner.batch.upsert", row_count as i64, tags);
 
     Ok(())
+}
+
+/// Sum the pending payload bytes, excluding any ids in `incoming_ids`.
+async fn pending_batch_size(
+    db: &mut SpannerDb,
+    user_id: &UserIdentifier,
+    collection_id: i32,
+    batch_id: &str,
+    incoming_ids: &[String],
+) -> DbResult<usize> {
+    let (mut sqlparams, mut sqlparam_types) = params! {
+        "fxa_uid" => user_id.fxa_uid.clone(),
+        "fxa_kid" => user_id.fxa_kid.clone(),
+        "collection_id" => collection_id,
+        "batch_id" => batch_id.to_owned(),
+    };
+    let incoming_ids = incoming_ids.to_vec();
+    sqlparam_types.insert("incoming_ids".to_owned(), incoming_ids.spanner_type());
+    sqlparams.insert("incoming_ids".to_owned(), incoming_ids.into_spanner_value());
+    let result = db
+        .sql(
+            "SELECT COALESCE(SUM(BYTE_LENGTH(payload)), 0)
+               FROM batch_bsos
+              WHERE fxa_uid = @fxa_uid
+                AND fxa_kid = @fxa_kid
+                AND collection_id = @collection_id
+                AND batch_id = @batch_id
+                AND batch_bso_id NOT IN UNNEST(@incoming_ids)",
+        )
+        .await?
+        .params(sqlparams)
+        .param_types(sqlparam_types)
+        .execute(&db.conn)?
+        .one()
+        .await?;
+    let bytes = result[0]
+        .get_string_value()
+        .parse::<usize>()
+        .map_err(|e| DbError::integrity(e.to_string()))?;
+    Ok(bytes)
 }
 
 /// Ensure a parent row exists in user_collections prior to creating a child

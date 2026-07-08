@@ -411,16 +411,14 @@ impl Db for SpannerDb {
         if !self.quota.enabled {
             return Ok(results::GetQuotaUsage::default());
         }
-        let collection_id = self._get_collection_id(&params.collection).await?;
-        let check_sql = "SELECT COALESCE(total_bytes,0), COALESCE(count,0)
+        let check_sql = "SELECT COALESCE(SUM(COALESCE(total_bytes, 0)), 0), \
+                                COALESCE(SUM(COALESCE(count, 0)), 0)
             FROM user_collections
            WHERE fxa_uid = @fxa_uid
-             AND fxa_kid = @fxa_kid
-             AND collection_id = @collection_id";
+             AND fxa_kid = @fxa_kid";
         let (sqlparams, sqlparam_types) = params! {
             "fxa_uid" => params.user_id.fxa_uid.clone(),
             "fxa_kid" => params.user_id.fxa_kid.clone(),
-            "collection_id" => collection_id,
         };
         let result = self
             .sql(check_sql)
@@ -639,7 +637,7 @@ impl Db for SpannerDb {
 
     async fn get_bsos(&mut self, params: params::GetBsos) -> DbResult<results::GetBsos> {
         let query = "\
-            SELECT bso_id, sortindex, payload, modified, expiry
+            SELECT bso_id, sortindex, payload, modified, expiry, payload_link
               FROM bsos
              WHERE fxa_uid = @fxa_uid
                AND fxa_kid = @fxa_kid
@@ -726,7 +724,7 @@ impl Db for SpannerDb {
             "bso_id" => params.id,
         };
         self.sql(
-            "SELECT bso_id, sortindex, payload, modified, expiry
+            "SELECT bso_id, sortindex, payload, modified, expiry, payload_link
                FROM bsos
               WHERE fxa_uid = @fxa_uid
                 AND fxa_kid = @fxa_kid
@@ -799,6 +797,7 @@ impl Db for SpannerDb {
                 id: params.id,
                 sortindex: params.sortindex,
                 payload: params.payload,
+                payload_link: params.payload_link,
                 ttl: params.ttl,
             },
             timestamp,

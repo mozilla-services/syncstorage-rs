@@ -25,7 +25,6 @@
     - [Tokenserver API](tokenserver/tokenserver-api.md)
     - [Tokenserver DB - Postgres](tokenserver/tokenserver-db-postgres.md)
     - [User Flow](tokenserver/user-flow.md)
-    - [Process Account Events](tools/process_account_events.md)
     - [Purge Old Records](tools/purge_old_records_tokenserver.md)
     - [Postgres Purge TTL](tools/postgres_purge_ttl.md)
     - [Hawk Token Generator](tools/hawk_make_token.md)
@@ -37,6 +36,7 @@
 [Mozilla Accounts Server - FxA](mozilla-accounts.md)
 
 - [How To Guides](how-to/index.md)
+    - [Default Configuration for Spanner & MySQL Builds](how-to/default-config.md)
     - [Run Your Own Sync-1.5 Server with Docker](how-to/how-to-run-with-docker.md)
     - [Run Your Own Sync-1.5 Server (legacy)](how-to/how-to-run-sync-server.md)
     - [Configure Sync Server for TLS (legacy)](how-to/how-to-config-tls.md)

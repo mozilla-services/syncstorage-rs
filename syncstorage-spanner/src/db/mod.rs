@@ -557,7 +557,7 @@ impl SpannerDb {
             if self.quota.enforced {
                 return Err(self.quota_error(collection));
             } else {
-                warn!("Quota at limit for user's collection: ({} bytes)", usage.total_bytes; "collection"=>collection);
+                warn!("Quota at limit for user ({} bytes)", usage.total_bytes; "collection"=>collection);
             }
         }
         Ok(Some(usage.total_bytes))
@@ -617,17 +617,28 @@ impl SpannerDb {
             ("", "")
         };
 
+        // payload_link is nullable; preserve the existing row's value when the
+        // request didn't supply one (NULL on insert).
+        let payload_link_expr = if let Some(payload_link) = bso.payload_link {
+            sqlparam_types.insert("payload_link".to_owned(), payload_link.spanner_type());
+            sqlparams.insert("payload_link".to_owned(), payload_link.into_spanner_value());
+            "@payload_link"
+        } else {
+            "existing.payload_link"
+        };
+
         let sql = format!(
             "INSERT OR UPDATE INTO bsos
-                 (fxa_uid, fxa_kid, collection_id, bso_id, modified, payload, expiry{sortindex_col})
+                 (fxa_uid, fxa_kid, collection_id, bso_id, modified, payload, expiry, payload_link{sortindex_col})
              SELECT
                  @fxa_uid, @fxa_kid, @collection_id, @bso_id,
                  {modified_expr},
                  {payload_expr},
-                 {expiry_expr}{sortindex_expr}
+                 {expiry_expr},
+                 {payload_link_expr}{sortindex_expr}
                FROM UNNEST([1]) --  provides a row source for the LEFT JOIN
           LEFT JOIN (
-                 SELECT modified, payload, expiry, sortindex
+                 SELECT modified, payload, expiry, sortindex, payload_link
                    FROM bsos
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
@@ -672,9 +683,22 @@ impl SpannerDb {
                 .ttl
                 .map(IntoSpannerValue::into_spanner_value)
                 .unwrap_or_else(null_value);
+            let payload_link = bso
+                .payload_link
+                .map(IntoSpannerValue::into_spanner_value)
+                .unwrap_or_else(null_value);
 
             let mut row = ListValue::new();
-            row.set_values(vec![bso.id.into_spanner_value(), sortindex, payload, ttl].into());
+            row.set_values(
+                vec![
+                    bso.id.into_spanner_value(),
+                    sortindex,
+                    payload,
+                    ttl,
+                    payload_link,
+                ]
+                .into(),
+            );
             let mut value = Value::new();
             value.set_list_value(row);
             rows.push(value);
@@ -685,6 +709,7 @@ impl SpannerDb {
             ("sortindex", TypeCode::INT64),
             ("payload", TypeCode::STRING),
             ("ttl", TypeCode::INT64),
+            ("payload_link", TypeCode::STRING),
         ]
         .into_iter()
         .map(|(name, field_type)| struct_type_field(name, field_type))
@@ -718,7 +743,7 @@ impl SpannerDb {
         self.sql(
             "INSERT OR UPDATE INTO bsos
                  (fxa_uid, fxa_kid, collection_id, bso_id,
-                  sortindex, payload, modified, expiry)
+                  sortindex, payload, modified, expiry, payload_link)
              SELECT
                  @fxa_uid,
                  @fxa_kid,
@@ -733,7 +758,8 @@ impl SpannerDb {
                      TIMESTAMP_ADD(@timestamp, INTERVAL incoming.ttl SECOND),
                      existing.expiry,
                      TIMESTAMP_ADD(@timestamp, INTERVAL @default_bso_ttl SECOND)
-                 )
+                 ),
+                 COALESCE(incoming.payload_link, existing.payload_link)
                FROM UNNEST(@bsos) AS incoming
                LEFT JOIN bsos AS existing
                  ON existing.fxa_uid = @fxa_uid

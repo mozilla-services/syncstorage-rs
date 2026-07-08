@@ -10,7 +10,7 @@ Images are available for both
 and
 [PostgreSQL](https://github.com/mozilla-services/syncstorage-rs/pkgs/container/syncstorage-rs%2Fsyncstorage-rs-postgres)
 as the database.  Differences in configuration or deployment steps will be
-noted. 
+noted.
 
 Tagged release builds are available on ghcr.io. To pin to a specific version,
 set `SYNCSERVER_VERSION` to the desired release tag (e.g., `SYNCSERVER_VERSION=v1.45.0`)
@@ -37,10 +37,10 @@ services:
     platform: linux/amd64
     container_name: syncserver
     ports:
-      - "8000:8000"
+      - "${SYNC_PORT:-8000}:${SYNC_PORT:-8000}"
     environment:
       SYNC_HOST: "0.0.0.0"
-      SYNC_PORT: "8000"
+      SYNC_PORT: "${SYNC_PORT:-8000}"
       SYNC_MASTER_SECRET: "${SYNC_MASTER_SECRET}"
       SYNC_SYNCSTORAGE__DATABASE_URL: "${SYNC_SYNCSTORAGE__DATABASE_URL}"
       SYNC_TOKENSERVER__DATABASE_URL: "${SYNC_TOKENSERVER__DATABASE_URL}"
@@ -48,10 +48,10 @@ services:
       SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
       SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: "api.accounts.firefox.com"
       SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: "https://oauth.accounts.firefox.com"
-      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:${SYNC_PORT}}"
+      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:${SYNC_PORT:-8000}}"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${SYNC_PORT}/__heartbeat__"]
+      test: ["CMD", "curl", "-f", "http://localhost:${SYNC_PORT:-8000}/__heartbeat__"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -76,70 +76,77 @@ SYNC_TOKENSERVER__INIT_NODE_URL="http://localhost:8000" \
 docker compose -f docker-compose.yaml up -d
 ```
 
-## Docker Compose, One-Shot with PostgreSQL
+## Docker Compose, One-Shot Stand-Alone Servers
 
-Alternatively, the database can be started through `docker compose` as well. The real service URL can be set with the `INIT_NODE_URL` environment variable.
+The repository ships ready-to-run, stand-alone compose files under `docker/`
+that bring up a complete server — database(s) included — in a single command,
+with no manual database setup. Each builds the server from your local checkout,
+so they work directly from a clone without a published image. From the repo
+root:
 
-Save the yaml below into a file, e.g. `docker-compose.one-shot.yaml`.
+| Backend | Make target | Compose file |
+|---|---|---|
+| MySQL | `make docker_oneshot_mysql` | `docker/docker-compose.one-shot.mysql.yaml` |
+| PostgreSQL | `make docker_oneshot_postgres` | `docker/docker-compose.one-shot.postgres.yaml` |
+| Spanner (emulator, local dev only) | `make docker_oneshot_spanner` | `docker/docker-compose.one-shot.spanner.yaml` |
+
+For example, for MySQL:
+
+```sh
+make docker_oneshot_mysql
+# equivalently:
+docker compose -f docker/docker-compose.one-shot.mysql.yaml up -d --build
+```
+
+Once the `syncserver` container reports healthy, confirm it is serving:
+
+```sh
+curl http://localhost:8000/__heartbeat__
+```
+
+Stop and remove a stack with the matching `_stop` target, e.g.
+`make docker_oneshot_mysql_stop`.
+
+Syncstorage applies its schema migrations at startup,
+`SYNC_TOKENSERVER__RUN_MIGRATIONS` applies the Tokenserver schema, and
+`SYNC_TOKENSERVER__INIT_NODE_URL` bootstraps the `sync-1.5` service and storage
+node records — so the stack is ready to serve immediately.
+
+> Set `SYNC_MASTER_SECRET` to your own value for anything beyond local
+> experimentation; the compose files default to a placeholder.
+
+### Backend notes
+
+- **MySQL / PostgreSQL** are reasonable starting points for a real self-hosted
+  deployment. The MySQL recipe uses a separate database for Syncstorage and
+  Tokenserver; the PostgreSQL recipe shares a single database between them for
+  simplicity.
+- **Spanner** runs against the Cloud Spanner *emulator* and is for local
+  experimentation only — it is unauthenticated, single-node, and not durable.
+  Production Spanner uses a real instance and a service-account key (see
+  `make run_spanner`). The recipe mirrors the production split (Spanner for
+  Syncstorage, MySQL for Tokenserver) and includes a one-time setup container
+  that provisions the emulator's schema before the server starts.
+
+### Using a published image instead of building
+
+Mozilla also publishes prebuilt images on ghcr.io. The MySQL images are
+currently tagged by commit SHA — there is **no `latest` or semver tag** — so you
+must pin `SYNCSERVER_VERSION` to a tag listed on the
+[`syncstorage-rs-mysql` packages page](https://github.com/mozilla-services/syncstorage-rs/pkgs/container/syncstorage-rs%2Fsyncstorage-rs-mysql).
+To use one, replace the `syncserver` service's `build:` block in the compose
+file with an `image:` reference (published images are `linux/amd64`):
 
 ```yaml
 services:
   syncserver:
-    image: ghcr.io/mozilla-services/syncstorage-rs/syncserver-postgres:${SYNCSERVER_VERSION:-latest}
+    image: ghcr.io/mozilla-services/syncstorage-rs/syncstorage-rs-mysql:${SYNCSERVER_VERSION:?set SYNCSERVER_VERSION to a published tag}
     platform: linux/amd64
-    container_name: syncserver
-    ports:
-      - "8000:8000"
-    environment:
-      SYNC_HOST: "0.0.0.0"
-      SYNC_PORT: "8000"
-      SYNC_MASTER_SECRET: "${SYNC_MASTER_SECRET:-changeme_secret_key}"
-      SYNC_SYNCSTORAGE__DATABASE_URL: "postgres://sync:sync@postgres:5432/syncserver"
-      SYNC_TOKENSERVER__DATABASE_URL: "postgres://sync:sync@postgres:5432/syncserver"
-      SYNC_TOKENSERVER__ENABLED: "true"
-      SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
-      SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: "api.accounts.firefox.com"
-      SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: "https://oauth.accounts.firefox.com"
-      SYNC_HUMAN_LOGS: "${SYNC_HUMAN_LOGS:-false}"
-      RUST_LOG: "${RUST_LOG:-info}"
-      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:${SYNC_PORT}}"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${SYNC_PORT}/__heartbeat__"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  postgres:
-    image: postgres:18
-    container_name: syncserver-postgres
-    environment:
-      POSTGRES_USER: sync
-      POSTGRES_PASSWORD: sync
-      POSTGRES_DB: syncserver
-    volumes:
-      - postgres_data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sync -d syncserver"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
-    driver: local
+    # ...the remaining syncserver settings are unchanged
 ```
 
-Next, start the service with `docker compose`:
-
 ```sh
-docker compose -f docker-compose.one-shot.yaml up -d
+SYNCSERVER_VERSION=<published-tag> docker compose -f docker/docker-compose.one-shot.mysql.yaml up -d
 ```
 
 ## Configuring Firefox (Desktop)

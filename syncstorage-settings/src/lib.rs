@@ -75,6 +75,7 @@ pub struct Settings {
     /// fails fast at startup (see `syncserver_settings::Settings::validate`)
     /// rather than silently connecting to a default host.
     pub database_url: String,
+    /// Max size of the database connection pool. Default: 10.
     pub database_pool_max_size: u32,
     /// Pool timeout when waiting for a slot to become available, in seconds
     pub database_pool_connection_timeout: Option<u32>,
@@ -92,15 +93,24 @@ pub struct Settings {
     /// Server-enforced limits for request payloads.
     pub limits: ServerLimits,
 
+    /// StatsD metrics label prefix for syncstorage. Default: "syncstorage".
     pub statsd_label: String,
 
+    /// Track per-user storage quota. Spanner-only; force-disabled on other
+    /// backends. Default: false.
     pub enable_quota: bool,
+    /// Reject writes that exceed `limits.max_quota_limit`. Requires
+    /// `enable_quota`. Spanner-only; force-disabled on other backends.
+    /// Default: false.
     pub enforce_quota: bool,
 
     /// Whether Glean telemetry metric emission is enabled.
     pub glean_enabled: bool,
 
+    /// gRPC address of a local Spanner emulator (e.g. "localhost:9010").
+    /// Leave unset to use real Spanner. Default: None.
     pub spanner_emulator_host: Option<String>,
+    /// Whether the Syncstorage service is enabled. Default: true.
     pub enabled: bool,
 
     /// Fail the `/__lbheartbeat__` healthcheck after running for this duration
@@ -109,6 +119,24 @@ pub struct Settings {
     /// Percentage of `lbheartbeat_ttl` time to "jitter" (adds additional,
     /// randomized time)
     pub lbheartbeat_ttl_jitter: u32,
+
+    /// Optional Google Cloud Storage bucket for off-loading BSO payloads.
+    /// When set and the request's collection appears in
+    /// [`Self::gcs_payload_offload_collections`], incoming payloads are
+    /// uploaded to this bucket and the resulting URL is stored in the
+    /// `payload_link` column instead of the inline `payload` column.
+    pub gcs_payload_bucket: Option<String>,
+
+    /// Collections whose BSO payloads are off-loaded to GCS (see
+    /// [`Self::gcs_payload_bucket`]). Empty by default, which disables the
+    /// off-load path for all collections.
+    pub gcs_payload_offload_collections: Vec<String>,
+
+    /// Override the GCS endpoint URL for testing (e.g. an httptest mock or
+    /// fake-gcs-server instance). When set, anonymous credentials are used.
+    /// Debug-builds only; not available in release.
+    #[cfg(debug_assertions)]
+    pub gcs_endpoint: Option<String>,
 }
 
 impl Default for Settings {
@@ -134,6 +162,10 @@ impl Default for Settings {
             enabled: true,
             lbheartbeat_ttl: None,
             lbheartbeat_ttl_jitter: 25,
+            gcs_payload_bucket: None,
+            gcs_payload_offload_collections: Vec::new(),
+            #[cfg(debug_assertions)]
+            gcs_endpoint: None,
         }
     }
 }
@@ -144,11 +176,6 @@ impl Settings {
         if self.uses_spanner() {
             self.limits.max_total_bytes =
                 min(self.limits.max_total_bytes, MAX_SPANNER_LOAD_SIZE as u32);
-        } else {
-            // No quotas for stand alone servers
-            self.limits.max_quota_limit = 0;
-            self.enable_quota = false;
-            self.enforce_quota = false;
         }
     }
 

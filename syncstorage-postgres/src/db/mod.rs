@@ -248,7 +248,7 @@ impl PgDb {
             if self.quota.enforced {
                 return Err(DbError::quota());
             } else {
-                warn!("Quota at limit for user's collection: ({} bytes)", usage.total_bytes;
+                warn!("Quota at limit for user ({} bytes)", usage.total_bytes;
                       "collection" => collection);
             }
         }

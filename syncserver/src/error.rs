@@ -69,6 +69,9 @@ pub enum ApiErrorKind {
     #[error("{}", _0)]
     Db(DbError),
 
+    #[error("{}", _0)]
+    GCS(#[from] google_cloud_storage::Error),
+
     #[error("HAWK authentication error: {}", _0)]
     Hawk(HawkError),
 
@@ -172,7 +175,7 @@ impl From<ApiErrorKind> for ApiError {
         let status = match &kind {
             ApiErrorKind::Db(error) => error.status,
             ApiErrorKind::Hawk(_) => StatusCode::UNAUTHORIZED,
-            ApiErrorKind::NoServerState | ApiErrorKind::Internal(_) => {
+            ApiErrorKind::NoServerState | ApiErrorKind::Internal(_) | ApiErrorKind::GCS(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
             ApiErrorKind::Validation(error) => error.status,
@@ -234,6 +237,7 @@ impl Serialize for ApiErrorKind {
     {
         match *self {
             ApiErrorKind::Db(ref error) => serialize_string_to_array(serializer, error),
+            ApiErrorKind::GCS(ref error) => serialize_string_to_array(serializer, error),
             ApiErrorKind::Hawk(ref error) => serialize_string_to_array(serializer, error),
             ApiErrorKind::Internal(ref description) => {
                 serialize_string_to_array(serializer, description)
@@ -268,6 +272,7 @@ impl From<DbError> for ApiError {
     }
 }
 
+from_error!(google_cloud_storage::Error, ApiError, ApiErrorKind::GCS);
 from_error!(HawkError, ApiError, ApiErrorKind::Hawk);
 from_error!(ValidationError, ApiError, ApiErrorKind::Validation);
 

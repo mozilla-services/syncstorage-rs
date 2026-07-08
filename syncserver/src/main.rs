@@ -40,6 +40,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
         // Note: set "debug: true," to diagnose sentry issues
         release: sentry::release_name!(),
         environment: Some(settings.environment.clone().into()),
+        // Scrub sensitive request headers from every event before it is sent,
+        // as a central complement to the per-request filtering in the Sentry
+        // middleware (covers events emitted from any source).
+        before_send: Some(std::sync::Arc::new(
+            |mut event: sentry::protocol::Event<'static>| {
+                syncserver_common::middleware::sentry::scrub_event_request_headers(&mut event);
+                Some(event)
+            },
+        )),
         ..sentry::ClientOptions::default()
     });
     opts.integrations.retain(|i| i.name() != "debug-images");

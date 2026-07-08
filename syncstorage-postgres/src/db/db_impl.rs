@@ -265,14 +265,12 @@ impl Db for PgDb {
         &mut self,
         params: params::GetQuotaUsage,
     ) -> DbResult<results::GetQuotaUsage> {
-        let collection_id = self._get_collection_id(&params.collection).await?;
         let (total_bytes, count): (i64, i64) = user_collections::table
             .select((
                 sql::<BigInt>("COALESCE(SUM(COALESCE(total_bytes, 0)), 0)::BIGINT"),
                 sql::<BigInt>("COALESCE(SUM(COALESCE(count, 0)), 0)::BIGINT"),
             ))
             .filter(user_collections::user_id.eq(params.user_id.legacy_id as i64))
-            .filter(user_collections::collection_id.eq(collection_id))
             .get_result(&mut self.conn)
             .await
             .optional()?
@@ -615,6 +613,7 @@ impl TryFrom<GetBso> for results::GetBso {
             payload: pg.payload,
             modified: SyncTimestamp::from_datetime(pg.modified)?,
             expiry: pg.expiry.timestamp_millis(),
+            payload_link: None,
         })
     }
 }

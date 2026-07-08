@@ -421,6 +421,53 @@ async fn test_append_upsert_overwrites_same_batch_bso_id() -> Result<(), DbError
 }
 
 #[tokio::test]
+async fn test_quota_pending_batch_accumulates() -> Result<(), DbError> {
+    let settings = Settings::test_settings();
+    if !settings.syncstorage.enable_quota {
+        debug!("[test] Skipping test");
+        return Ok(());
+    }
+
+    with_test_transaction(
+        settings.syncstorage,
+        async |db: &mut dyn Db<Error = DbError>| {
+            let uid = 9001;
+            let coll = "clients";
+
+            let chunk = 3838;
+            let payload = "z".repeat(chunk);
+            // hits quota on second append.
+            db.set_quota(true, chunk + chunk / 2, true);
+
+            let new_batch = db.create_batch(cb(uid, coll, vec![])).await?;
+
+            db.append_to_batch(ab(
+                uid,
+                coll,
+                new_batch.clone(),
+                vec![postbso("b0", Some(&payload), None, None)],
+            ))
+            .await?;
+
+            let result = db
+                .append_to_batch(ab(
+                    uid,
+                    coll,
+                    new_batch.clone(),
+                    vec![postbso("b1", Some(&payload), None, None)],
+                ))
+                .await;
+            assert!(
+                result.as_ref().err().is_some_and(|e| e.is_quota()),
+                "expected an over-quota error, got {result:?}"
+            );
+            Ok(())
+        },
+    )
+    .await
+}
+
+#[tokio::test]
 async fn test_commit_batch_partial_overlap() -> Result<(), DbError> {
     let settings = Settings::test_settings().syncstorage;
     with_test_transaction(settings, async |db: &mut dyn Db<Error = DbError>| {
