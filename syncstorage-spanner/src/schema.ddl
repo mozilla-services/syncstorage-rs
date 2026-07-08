@@ -88,3 +88,9 @@ ALTER TABLE bsos
 ALTER TABLE batch_bsos
     ADD COLUMN payload_link STRING(MAX);
 
+-- payload is nullable: an offloaded BSO stores its payload in GCS
+-- (payload_link) and leaves payload NULL. (batch_bsos.payload is already
+-- nullable.)
+ALTER TABLE bsos
+    ALTER COLUMN payload STRING(MAX);
+
