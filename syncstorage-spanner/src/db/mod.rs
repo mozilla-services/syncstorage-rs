@@ -751,8 +751,14 @@ impl SpannerDb {
                  @collection_id,
                  incoming.bso_id,
                  COALESCE(incoming.sortindex, existing.sortindex),
-                 COALESCE(incoming.payload, existing.payload, ''),
-                 IF(incoming.payload IS NOT NULL OR incoming.sortindex IS NOT NULL,
+                 CASE
+                     WHEN incoming.payload IS NOT NULL THEN incoming.payload
+                     WHEN incoming.payload_link IS NOT NULL THEN NULL
+                     ELSE existing.payload
+                 END,
+                 IF(incoming.payload IS NOT NULL
+                        OR incoming.payload_link IS NOT NULL
+                        OR incoming.sortindex IS NOT NULL,
                     @timestamp,
                     COALESCE(existing.modified, @timestamp)),
                  COALESCE(
@@ -760,7 +766,11 @@ impl SpannerDb {
                      existing.expiry,
                      TIMESTAMP_ADD(@timestamp, INTERVAL @default_bso_ttl SECOND)
                  ),
-                 COALESCE(incoming.payload_link, existing.payload_link)
+                 CASE
+                     WHEN incoming.payload_link IS NOT NULL THEN incoming.payload_link
+                     WHEN incoming.payload IS NOT NULL THEN NULL
+                     ELSE existing.payload_link
+                 END
                FROM UNNEST(@bsos) AS incoming
                LEFT JOIN bsos AS existing
                  ON existing.fxa_uid = @fxa_uid
