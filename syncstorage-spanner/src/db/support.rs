@@ -179,6 +179,18 @@ pub fn bso_from_row(mut row: Vec<Value>) -> DbResult<results::GetBso> {
     let modified_string = &row[3].get_string_value();
     let modified = SyncTimestamp::from_rfc3339(modified_string)
         .map_err(|e| DbError::integrity(e.to_string()))?;
+
+    // A stored BSO must hold its payload in exactly one place: inline
+    // (payload) or offloaded (payload_link). Both set or neither set is
+    // corrupt data.
+    let payload_is_null = row[2].has_null_value();
+    let payload_link_is_null = row[5].has_null_value();
+    if payload_is_null == payload_link_is_null {
+        return Err(DbError::integrity(
+            "bso must have exactly one of payload / payload_link set".to_owned(),
+        ));
+    }
+
     Ok(results::GetBso {
         id: row[0].take_string_value(),
         sortindex: if row[1].has_null_value() {
@@ -191,7 +203,12 @@ pub fn bso_from_row(mut row: Vec<Value>) -> DbResult<results::GetBso> {
                     .map_err(|e| DbError::integrity(e.to_string()))?,
             )
         },
-        payload: row[2].take_string_value(),
+        // NULL when offloaded; the handler resolves it from payload_link.
+        payload: if payload_is_null {
+            String::new()
+        } else {
+            row[2].take_string_value()
+        },
         modified,
         expiry: SyncTimestamp::from_rfc3339(row[4].get_string_value())
             .map_err(|e| DbError::integrity(e.to_string()))?
