@@ -571,7 +571,8 @@ impl SpannerDb {
         bso: params::PostCollectionBso,
         timestamp: SyncTimestamp,
     ) -> DbResult<()> {
-        let has_payload_or_sortindex = bso.payload.is_some() || bso.sortindex.is_some();
+        let has_payload_or_sortindex =
+            bso.payload.is_some() || bso.payload_link.is_some() || bso.sortindex.is_some();
 
         let (mut sqlparams, mut sqlparam_types) = params! {
             "fxa_uid" => user_id.fxa_uid.clone(),
@@ -589,12 +590,22 @@ impl SpannerDb {
             "COALESCE(existing.modified, @timestamp)"
         };
 
-        let payload_expr = if let Some(payload) = bso.payload {
-            sqlparam_types.insert("payload".to_owned(), payload.spanner_type());
-            sqlparams.insert("payload".to_owned(), payload.into_spanner_value());
-            "@payload"
-        } else {
-            "COALESCE(existing.payload, '')"
+        // payload and payload_link are mutually exclusive: an inline write sets
+        // payload and clears the link, an offload write sets the link and
+        // clears payload, and a metadata-only update preserves whichever the
+        // existing row holds.
+        let (payload_expr, payload_link_expr) = match (bso.payload, bso.payload_link) {
+            (Some(payload), _) => {
+                sqlparam_types.insert("payload".to_owned(), payload.spanner_type());
+                sqlparams.insert("payload".to_owned(), payload.into_spanner_value());
+                ("@payload", "NULL")
+            }
+            (None, Some(payload_link)) => {
+                sqlparam_types.insert("payload_link".to_owned(), payload_link.spanner_type());
+                sqlparams.insert("payload_link".to_owned(), payload_link.into_spanner_value());
+                ("NULL", "@payload_link")
+            }
+            (None, None) => ("existing.payload", "existing.payload_link"),
         };
 
         let expiry_expr = if let Some(ttl) = bso.ttl {
@@ -615,16 +626,6 @@ impl SpannerDb {
             (", sortindex", ", @sortindex")
         } else {
             ("", "")
-        };
-
-        // payload_link is nullable; preserve the existing row's value when the
-        // request didn't supply one (NULL on insert).
-        let payload_link_expr = if let Some(payload_link) = bso.payload_link {
-            sqlparam_types.insert("payload_link".to_owned(), payload_link.spanner_type());
-            sqlparams.insert("payload_link".to_owned(), payload_link.into_spanner_value());
-            "@payload_link"
-        } else {
-            "existing.payload_link"
         };
 
         let sql = format!(
