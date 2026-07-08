@@ -196,7 +196,8 @@ impl SETVerifierImpl {
         let mut validation = Validation::new(Algorithm::RS256);
         validation.set_audience(&[client_id]);
         validation.set_issuer(&[issuer_url]);
-        validation.validate_exp = true;
+        // jsonwebtoken validates `exp` by default
+        validation.required_spec_claims.remove("exp");
         Ok(Self {
             key: decoding_key,
             validation,
@@ -223,7 +224,6 @@ mod tests {
             "quux",
             "testo",
             json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
-            3600,
             TEST_PRIVATE_KEY_PEM,
         );
         let claims: FxaWebhookClaims = verifier.verify(&token).unwrap();
@@ -232,19 +232,27 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_expired_set() {
+    fn test_verify_wrong_audience_set() {
         let verifier =
             SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
-        let token = make_set("quux", "testo", json!({}), -3600, TEST_PRIVATE_KEY_PEM);
-        let err = verifier.verify::<FxaWebhookClaims>(&token).unwrap_err();
-        assert!(matches!(err, JWTVerifyError::ExpiredSignature));
+        let token = make_set("quux", "wrong-client-id", json!({}), TEST_PRIVATE_KEY_PEM);
+        assert!(verifier.verify::<FxaWebhookClaims>(&token).is_err());
+    }
+
+    #[test]
+    fn test_verify_wrong_issuer_set() {
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.stage.mozaws.net")
+                .unwrap();
+        let token = make_set("quux", "testo", json!({}), TEST_PRIVATE_KEY_PEM);
+        assert!(verifier.verify::<FxaWebhookClaims>(&token).is_err());
     }
 
     #[test]
     fn test_verify_wrong_key_set() {
         let verifier =
             SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
-        let token = make_set("quux", "testo", json!({}), 3600, OTHER_PRIVATE_KEY_PEM);
+        let token = make_set("quux", "testo", json!({}), OTHER_PRIVATE_KEY_PEM);
         let err = verifier.verify::<FxaWebhookClaims>(&token).unwrap_err();
         assert!(matches!(err, JWTVerifyError::InvalidSignature));
     }
