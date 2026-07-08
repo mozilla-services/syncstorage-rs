@@ -118,6 +118,21 @@ pub fn null_value() -> Value {
     value
 }
 
+/// A BSO's payload lives either inline (`payload`) or offloaded to GCS
+/// (`payload_link`), never both. Reject a write that sets both. (Neither is
+/// allowed: that's a metadata-only update preserving the existing row.)
+pub fn validate_payload_exclusive(
+    payload: Option<&String>,
+    payload_link: Option<&String>,
+) -> DbResult<()> {
+    if payload.is_some() && payload_link.is_some() {
+        return Err(DbError::integrity(
+            "a BSO write cannot set both payload and payload_link".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
 #[derive(Default)]
 pub struct ExecuteSqlRequestBuilder {
     execute_sql: ExecuteSqlRequest,

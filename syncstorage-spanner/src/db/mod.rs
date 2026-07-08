@@ -25,7 +25,7 @@ use crate::{
 };
 use support::{
     ExecuteSqlRequestBuilder, IntoSpannerValue, StreamedResultSetAsync, as_type, null_value,
-    struct_type_field,
+    struct_type_field, validate_payload_exclusive,
 };
 
 mod batch_impl;
@@ -571,6 +571,8 @@ impl SpannerDb {
         bso: params::PostCollectionBso,
         timestamp: SyncTimestamp,
     ) -> DbResult<()> {
+        validate_payload_exclusive(bso.payload.as_ref(), bso.payload_link.as_ref())?;
+
         let has_payload_or_sortindex =
             bso.payload.is_some() || bso.payload_link.is_some() || bso.sortindex.is_some();
 
@@ -671,6 +673,7 @@ impl SpannerDb {
 
         let mut rows: Vec<Value> = Vec::with_capacity(bsos.len());
         for bso in bsos {
+            validate_payload_exclusive(bso.payload.as_ref(), bso.payload_link.as_ref())?;
             // Optional columns are encoded as NULL when the request omitted them
             let sortindex = bso
                 .sortindex
