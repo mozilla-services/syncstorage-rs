@@ -231,6 +231,8 @@ async def test(session: Any) -> None:
     # GET requests to meta/global
     num_requests = min(get_num_requests("metaglobal"), config.get("max_post_records"))
     batch_max_count = min(_BATCH_MAX_COUNT, config.get("max_total_records"))
+    # Combined payload byte budget per POST request.
+    max_post_bytes = config.get("max_post_bytes")
 
     # Always GET info/collections
     # This is also a good opportunity to correct for timeskew.
@@ -290,6 +292,9 @@ async def test(session: Any) -> None:
         wbo_list: list[dict[str, str]] = []
         # Random batch size, skewed slightly towards the upper limit.
         items_per_batch = min(random.randint(20, batch_max_count + 80), batch_max_count)
+        # Cumulative payload bytes, kept under the server's per-request
+        # max_post_bytes so large payloads don't overflow a single POST.
+        batch_bytes = 0
         for _i in range(items_per_batch):
             randomness = os.urandom(10)
             id_bytes = base64.urlsafe_b64encode(randomness).rstrip(b"=")
@@ -300,12 +305,16 @@ async def test(session: Any) -> None:
             payload_length = payload_target_length(
                 is_large, config.get("max_record_payload_bytes")
             )
+            # Stop packing once the budget is spent, but always send at least one.
+            if wbo_list and batch_bytes + payload_length > max_post_bytes:
+                break
 
             # XXX should be in the class
             token = storage.auth_token.decode("utf8")
             payload = make_payload(payload_length, token)
             wbo = {"id": id_str, "payload": payload}
             wbo_list.append(wbo)
+            batch_bytes += payload_length
 
         data = json.dumps(wbo_list)
         status = 200
@@ -325,8 +334,8 @@ async def test(session: Any) -> None:
                 url += "?batch=%s" % batch_id
 
         resp, result = await storage.post(url, data=data, statuses=(status,))
-        assert len(result["success"]) == items_per_batch, (
-            "Result success did not have expected number ofitems in batch {}".format(
+        assert len(result["success"]) == len(wbo_list), (
+            "Result success did not have expected number of items in batch {}".format(
                 result
             )
         )
