@@ -148,6 +148,44 @@ def get_num_requests(name: str) -> int:
     return count
 
 
+def payload_target_length(is_large: bool, max_record_bytes: int) -> int:
+    """Choose a target payload length in bytes for a single BSO.
+
+    Large payloads target LARGE_PAYLOAD_SIZE when set, otherwise the server's
+    max_record_payload_bytes. Small payloads keep the historical Pareto skew
+    (min=300, mean~450). Both are capped at max_record_bytes.
+
+    Args:
+        is_large: When True, target an expanded payload; otherwise use the
+            historical small-skewed distribution.
+        max_record_bytes: The server's max_record_payload_bytes limit.
+
+    Returns:
+        int: Target payload length, capped at max_record_bytes.
+
+    """
+    if is_large:
+        target = _LARGE_PAYLOAD_SIZE or max_record_bytes
+    else:
+        target = int(random.paretovariate(3) * 300)
+    return min(target, max_record_bytes)
+
+
+def make_payload(length: int, filler: str) -> str:
+    """Build a payload string of the given length by repeating filler.
+
+    Args:
+        length: Desired payload length in characters.
+        filler: Non-empty seed string to repeat.
+
+    Returns:
+        str: A string of exactly `length` characters.
+
+    """
+    chunks = int((length / len(filler)) + 1)
+    return (filler * chunks)[:length]
+
+
 @setup_session()
 async def _session(worker_num: int, session: Any) -> None:
     exc = []
@@ -257,17 +295,15 @@ async def test(session: Any) -> None:
             id_bytes = base64.urlsafe_b64encode(randomness).rstrip(b"=")
             id_str = id_bytes.decode("utf8")
             id_str += str(int((time.time() % 100) * 100000))
-            # Random payload length.  They can be big, but skew small.
-            # This gives min=300, mean=450, max=config.max_record_payload_bytes
-            payload_length = min(
-                int(random.paretovariate(3) * 300),
-                config.get("max_record_payload_bytes"),
+            # Expanded payloads target the max size; otherwise skew small.
+            is_large = random.random() < _LARGE_PAYLOAD_PROB
+            payload_length = payload_target_length(
+                is_large, config.get("max_record_payload_bytes")
             )
 
             # XXX should be in the class
             token = storage.auth_token.decode("utf8")
-            payload_chunks = int((payload_length / len(token)) + 1)
-            payload = (token * payload_chunks)[:payload_length]
+            payload = make_payload(payload_length, token)
             wbo = {"id": id_str, "payload": payload}
             wbo_list.append(wbo)
 
