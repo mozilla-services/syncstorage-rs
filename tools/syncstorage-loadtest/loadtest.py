@@ -36,9 +36,17 @@ _DISABLE_DELETES = os.environ.get("DISABLE_DELETES", "false").lower() in ("true"
 def _parse_large_payload_prob() -> float:
     """Parse LARGE_PAYLOAD_PROB: fraction of BSOs given an expanded payload.
 
+    Set to 1.0 for 100% expanded payloads: every BSO written gets a large
+    payload. Set to 0.0 (the default) to leave expanded payloads off entirely,
+    so existing runs are unchanged.
+
+    This controls payload *size* only. Whether a write is offloaded to GCS is a
+    separate, per-collection server setting (gcs_payload_offload_collections);
+    to drive a fully offloaded collection at maximum size, target it via
+    OFFLOAD_COLLECTIONS and set this to 1.0.
+
     Returns:
-        float: Probability in [0.0, 1.0]. Defaults to 0.0, leaving expanded
-            payloads off so existing runs are unchanged.
+        float: Probability in [0.0, 1.0]. Defaults to 0.0.
 
     Raises:
         ValueError: If the value is non-numeric or outside [0.0, 1.0].
