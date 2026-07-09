@@ -11,15 +11,15 @@ license = "Mozilla Public License Version 2.0"
 
 
 [tool.poetry]
-package-mode = false 
+package-mode = false
 
 [tool.poetry.dependencies]
-cryptography = "48.0.0"
+cryptography = "48.0.1"
 hawkauthlib = "^2.0.0"
 mysqlclient = "^2.2.7"
 psycopg2-binary = "^2.9.11"
 psutil = "^7.0.0"
-pyjwt = "^2.10.1"
+pyjwt = "^2.13.0"
 pyfxa = "0.8.2"
 pytest = "^9.0.3"
 requests = "^2.32.4"
