@@ -8,7 +8,7 @@ import json
 import os
 import random
 import time
-from typing import Any
+from typing import Any, Optional
 
 from molotov import scenario, setup_session, teardown_session
 from storage import StorageClient
@@ -31,6 +31,78 @@ _COLLS = ["bookmarks", "forms", "passwords", "history", "prefs"]
 _BATCH_MAX_COUNT = 100
 
 _DISABLE_DELETES = os.environ.get("DISABLE_DELETES", "false").lower() in ("true", "1")
+
+
+def _parse_large_payload_prob() -> float:
+    """Parse LARGE_PAYLOAD_PROB: fraction of BSOs given an expanded payload.
+
+    Returns:
+        float: Probability in [0.0, 1.0]. Defaults to 0.0, leaving expanded
+            payloads off so existing runs are unchanged.
+
+    Raises:
+        ValueError: If the value is non-numeric or outside [0.0, 1.0].
+
+    """
+    raw = os.environ.get("LARGE_PAYLOAD_PROB", "0.0")
+    try:
+        prob = float(raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"LARGE_PAYLOAD_PROB must be a float in [0.0, 1.0], got {raw!r}"
+        ) from exc
+    if not 0.0 <= prob <= 1.0:
+        raise ValueError(f"LARGE_PAYLOAD_PROB must be in [0.0, 1.0], got {prob}")
+    return prob
+
+
+def _parse_large_payload_size() -> Optional[int]:
+    """Parse LARGE_PAYLOAD_SIZE: explicit target size (bytes) for large payloads.
+
+    When unset, large payloads instead target max_record_payload_bytes from the
+    server's /info/configuration response.
+
+    Returns:
+        Optional[int]: A positive byte count, or None when unset.
+
+    Raises:
+        ValueError: If set to a non-integer or non-positive value.
+
+    """
+    raw = os.environ.get("LARGE_PAYLOAD_SIZE")
+    if not raw:
+        return None
+    try:
+        size = int(raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"LARGE_PAYLOAD_SIZE must be a positive integer, got {raw!r}"
+        ) from exc
+    if size <= 0:
+        raise ValueError(f"LARGE_PAYLOAD_SIZE must be positive, got {size}")
+    return size
+
+
+def _parse_offload_collections() -> Optional[list[str]]:
+    """Parse OFFLOAD_COLLECTIONS: collections to target for writes.
+
+    These should match the server's gcs_payload_offload_collections. When unset,
+    writes fall back to the default _COLLS list.
+
+    Returns:
+        Optional[list[str]]: Collection names, or None when unset or empty.
+
+    """
+    raw = os.environ.get("OFFLOAD_COLLECTIONS")
+    if raw is None:
+        return None
+    names = [name.strip() for name in raw.split(",") if name.strip()]
+    return names or None
+
+
+_LARGE_PAYLOAD_PROB = _parse_large_payload_prob()
+_LARGE_PAYLOAD_SIZE = _parse_large_payload_size()
+_OFFLOAD_COLLECTIONS = _parse_offload_collections()
 
 
 def should_do(name: str) -> bool:
