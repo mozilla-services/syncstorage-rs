@@ -607,7 +607,15 @@ impl SpannerDb {
                 sqlparams.insert("payload_link".to_owned(), payload_link.into_spanner_value());
                 ("NULL", "@payload_link")
             }
-            (None, None) => ("existing.payload", "existing.payload_link"),
+            // Metadata-only write: preserve the existing row. An offloaded row
+            // keeps its NULL payload; an inline row keeps its payload; a fresh
+            // insert (no existing row) defaults to an empty inline payload so
+            // the row still satisfies the exactly-one invariant.
+            (None, None) => (
+                "CASE WHEN existing.payload_link IS NOT NULL THEN NULL \
+                      ELSE COALESCE(existing.payload, '') END",
+                "existing.payload_link",
+            ),
         };
 
         let expiry_expr = if let Some(ttl) = bso.ttl {
@@ -757,7 +765,8 @@ impl SpannerDb {
                  CASE
                      WHEN incoming.payload IS NOT NULL THEN incoming.payload
                      WHEN incoming.payload_link IS NOT NULL THEN NULL
-                     ELSE existing.payload
+                     WHEN existing.payload_link IS NOT NULL THEN NULL
+                     ELSE COALESCE(existing.payload, '')
                  END,
                  IF(incoming.payload IS NOT NULL
                         OR incoming.payload_link IS NOT NULL

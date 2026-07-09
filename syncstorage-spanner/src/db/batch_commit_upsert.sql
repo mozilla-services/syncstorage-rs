@@ -18,7 +18,8 @@ SELECT
     CASE
         WHEN bb.payload IS NOT NULL THEN bb.payload
         WHEN bb.payload_link IS NOT NULL THEN NULL
-        ELSE existing.payload
+        WHEN existing.payload_link IS NOT NULL THEN NULL
+        ELSE COALESCE(existing.payload, '')
     END,
     @timestamp,
     COALESCE(
