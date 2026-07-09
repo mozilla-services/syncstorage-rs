@@ -186,6 +186,26 @@ def make_payload(length: int, filler: str) -> str:
     return (filler * chunks)[:length]
 
 
+def write_collections(num: int) -> list[str]:
+    """Pick `num` collection names for a batch write.
+
+    When OFFLOAD_COLLECTIONS is configured, sample from it with replacement so
+    a small (often single-entry) set still satisfies any request count and all
+    writes land on offload-enabled collections. Otherwise preserve the default
+    behavior of sampling distinct names from _COLLS.
+
+    Args:
+        num: Number of collection names to return.
+
+    Returns:
+        list[str]: Selected collection names.
+
+    """
+    if _OFFLOAD_COLLECTIONS is not None:
+        return random.choices(_OFFLOAD_COLLECTIONS, k=num)
+    return random.sample(_COLLS, num)
+
+
 @setup_session()
 async def _session(worker_num: int, session: Any) -> None:
     exc = []
@@ -282,10 +302,10 @@ async def test(session: Any) -> None:
 
     # Collections should be a single static entry if we're "transactional"
     if transact:
-        col = random.sample(_COLLS, 1)[0]
+        col = write_collections(1)[0]
         cols = [col for x in range(num_requests)]
     else:
-        cols = random.sample(_COLLS, num_requests)
+        cols = write_collections(num_requests)
 
     for x in range(num_requests):
         url = "/storage/" + cols[x]
