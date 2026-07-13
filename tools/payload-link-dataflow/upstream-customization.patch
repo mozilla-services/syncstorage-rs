@@ -16,59 +16,61 @@ If upstream's pipeline shape evolves and this reference diverges from
 our src/ tree, regenerate the diff against a fresh clone of upstream
 to keep the reference accurate. See README.md for the procedure. The
 SHA in upstream.txt is the upstream commit this diff was last reviewed
-against.
+against; the diff was verified to apply cleanly (`git apply --check`)
+against that revision when captured.
 
 ---
- .../spannerchangestreamstopubsub/SpannerChangeStreamsToPubSub.java | 38 +++++++++++++++++++-
- 1 file changed, 37 insertions(+), 1 deletion(-)
+--- a/v2/googlecloud-to-googlecloud/src/main/java/com/google/cloud/teleport/v2/templates/SpannerChangeStreamsToPubSub.java
++++ b/v2/googlecloud-to-googlecloud/src/main/java/com/google/cloud/teleport/v2/templates/SpannerChangeStreamsToPubSub.java
+@@ -15,6 +15,8 @@
+  */
+ package com.google.cloud.teleport.v2.templates;
 
-diff --git a/v2/googlecloud-to-googlecloud/src/main/java/com/google/cloud/teleport/v2/templates/spannerchangestreamstopubsub/SpannerChangeStreamsToPubSub.java b/v2/googlecloud-to-googlecloud/src/main/java/com/google/cloud/teleport/v2/templates/spannerchangestreamstopubsub/SpannerChangeStreamsToPubSub.java
---- a/v2/googlecloud-to-googlecloud/src/main/java/com/google/cloud/teleport/v2/templates/spannerchangestreamstopubsub/SpannerChangeStreamsToPubSub.java
-+++ b/v2/googlecloud-to-googlecloud/src/main/java/com/google/cloud/teleport/v2/templates/spannerchangestreamstopubsub/SpannerChangeStreamsToPubSub.java
-@@ -38,12 +38,16 @@
- import com.google.cloud.Timestamp;
- import com.google.cloud.spanner.Options.RpcPriority;
 +import com.fasterxml.jackson.databind.JsonNode;
 +import com.fasterxml.jackson.databind.ObjectMapper;
- import org.apache.beam.sdk.Pipeline;
+ import com.google.cloud.Timestamp;
+ import com.google.cloud.spanner.Options.RpcPriority;
+ import com.google.cloud.teleport.metadata.Template;
+@@ -31,8 +33,11 @@
  import org.apache.beam.sdk.PipelineResult;
  import org.apache.beam.sdk.io.gcp.spanner.SpannerConfig;
  import org.apache.beam.sdk.io.gcp.spanner.SpannerIO;
- import org.apache.beam.sdk.io.gcp.spanner.changestreams.model.DataChangeRecord;
++import org.apache.beam.sdk.io.gcp.spanner.changestreams.model.DataChangeRecord;
 +import org.apache.beam.sdk.io.gcp.spanner.changestreams.model.Mod;
  import org.apache.beam.sdk.options.PipelineOptionsFactory;
+ import org.apache.beam.sdk.options.ValueProvider;
 +import org.apache.beam.sdk.transforms.Filter;
  import org.slf4j.Logger;
  import org.slf4j.LoggerFactory;
-@@ -76,6 +80,8 @@
- public final class SpannerChangeStreamsToPubSub {
-   private static final Logger LOG =
-       LoggerFactory.getLogger(SpannerChangeStreamsToPubSub.class);
+
+@@ -75,6 +80,8 @@
+   private static final Logger LOG = LoggerFactory.getLogger(SpannerChangeStreamsToPubSub.class);
+   private static final String USE_RUNNER_V2_EXPERIMENT = "use_runner_v2";
 
 +  private static final ObjectMapper MAPPER = new ObjectMapper();
 +
    public static void main(String[] args) {
-     LOG.info("Starting Input Files to Pub/Sub");
-@@ -120,9 +126,39 @@
-                     .withInclusiveStartAt(startTimestamp)
-                     .withInclusiveEndAt(endTimestamp)
-                     .withRpcPriority(rpcPriority));
+     UncaughtExceptionLogger.register();
 
--    dataChangeRecord.apply("Write To Pub/Sub", new WriteToPubSub(options));
-+    dataChangeRecord
-+        .apply(
+@@ -201,6 +208,9 @@
+                 .withMetadataTable(metadataTableName)
+                 .withTvfNameList(tvfNameList))
+         .apply(
 +            "Filter Payload Link Actionable",
 +            Filter.by(SpannerChangeStreamsToPubSub::isPayloadLinkActionable))
-+        .apply("Write To Pub/Sub", new WriteToPubSub(options));
-
++        .apply(
+             "Convert each record to a PubsubMessage",
+             FileFormatFactorySpannerChangeStreamsToPubSub.newBuilder()
+                 .setOutputDataFormat(options.getOutputDataFormat())
+@@ -214,4 +224,37 @@
+                 .build());
      return pipeline.run();
    }
 +
 +  /**
-+   * Returns true iff at least one mod in the record references a non-null
-+   * {@code payload_link} on either side. Records whose every mod has both
-+   * old and new {@code payload_link} NULL are inert for the reconciler and
-+   * are dropped here. Malformed records pass through so the downstream
++   * Returns true iff at least one mod in the record references a non-null {@code payload_link} on
++   * either side. Records whose every mod has both old and new {@code payload_link} NULL are inert
++   * for the reconciler and are dropped here. Malformed records pass through so the downstream
 +   * reconciler / DLQ -- not this filter -- surface them.
 +   */
 +  static boolean isPayloadLinkActionable(DataChangeRecord record) {
@@ -87,9 +89,13 @@ diff --git a/v2/googlecloud-to-googlecloud/src/main/java/com/google/cloud/telepo
 +  }
 +
 +  private static String extractPayloadLink(String json) throws Exception {
-+    if (json == null || json.isEmpty()) return null;
++    if (json == null || json.isEmpty()) {
++      return null;
++    }
 +    JsonNode link = MAPPER.readTree(json).get("payload_link");
-+    if (link == null || link.isNull()) return null;
++    if (link == null || link.isNull()) {
++      return null;
++    }
 +    String s = link.asText();
 +    return s.isEmpty() ? null : s;
 +  }
