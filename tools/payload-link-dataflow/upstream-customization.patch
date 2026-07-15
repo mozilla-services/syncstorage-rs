@@ -1,23 +1,25 @@
 REFERENCE DOCUMENTATION ONLY -- NOT A BUILD INPUT.
 
-This unified diff shows the equivalent customization expressed as a
-patch against GoogleCloudPlatform/DataflowTemplates'
-Cloud_Spanner_Change_Streams_to_PubSub template. The actual build
-input is the standalone Java source tree under src/; this file exists
-so a reviewer can see at a glance what behaviour our pipeline adds
-relative to the upstream template.
+This unified diff shows **only the filter customization** we add on
+top of upstream's Cloud_Spanner_Change_Streams_to_PubSub template --
+a single Filter step that drops change records whose every mod has
+payload_link NULL on both sides. Malformed records pass through so
+the downstream reconciler / DLQ surface them.
 
-The customization is a single Filter step inserted between the change
-stream source and the Pub/Sub sink: records whose every mod has
-payload_link NULL on both sides are dropped; malformed records pass
-through so the downstream reconciler / DLQ surface them.
+Scope caveat: our pipeline diverges from upstream in more ways than
+this diff attempts to express -- sink shape, JSON wire format,
+dropped options, no Runner V2 injection, no Avro, and more. See the
+"Beyond the filter: other differences from upstream" section in
+README.md for a full prose enumeration, or run
+`./generate-full-delta.sh` to produce the complete diff on demand
+against the pinned upstream SHA.
 
-If upstream's pipeline shape evolves and this reference diverges from
-our src/ tree, regenerate the diff against a fresh clone of upstream
-to keep the reference accurate. See README.md for the procedure. The
-SHA in upstream.txt is the upstream commit this diff was last reviewed
-against; the diff was verified to apply cleanly (`git apply --check`)
-against that revision when captured.
+If upstream's pipeline shape evolves and this reference diverges
+from our src/ tree, regenerate against a fresh clone of upstream to
+keep the reference accurate. See README.md for the procedure. The
+SHA in upstream.txt is the upstream commit this diff was last
+reviewed against; the diff was verified to apply cleanly
+(`git apply --check`) against that revision when captured.
 
 ---
 --- a/v2/googlecloud-to-googlecloud/src/main/java/com/google/cloud/teleport/v2/templates/SpannerChangeStreamsToPubSub.java

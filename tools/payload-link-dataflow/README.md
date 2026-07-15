@@ -25,8 +25,9 @@ the upstream GoogleCloudPlatform/DataflowTemplates Java tree.
 | `src/test/java/.../PayloadLinkChangesToPubSubTest.java` | Unit tests for the filter predicate. |
 | `metadata.json` | Flex template parameter schema (consumed by `gcloud dataflow flex-template build`). |
 | `Dockerfile` | Multi-stage build: Maven → flex template launcher base image. |
-| `upstream-customization.patch` | **Reference documentation only.** Unified diff showing the equivalent customization expressed against the upstream template. Not a build input. |
+| `upstream-customization.patch` | **Reference documentation only.** Unified diff showing the **filter delta only** against the upstream template; see "Beyond the filter" below for the rest. Not a build input. |
 | `upstream.txt` | The upstream commit SHA the reference patch was last reviewed against. Update when re-reviewing intent against upstream. |
+| `generate-full-delta.sh` | On-demand: produces a unified diff of the **complete** delta between upstream (at the pinned SHA) and our impl. Not maintained as a checked-in artifact -- runs against the source tree at execution time. |
 | `README.md` | This file. |
 
 ## Build
@@ -87,6 +88,51 @@ old and new `payload_link` NULL -- the inert INSERT/DELETE noise from
 column-scoped change streams. Malformed records pass through so the
 reconciler / DLQ -- not this filter -- surfaces them.
 
+## Beyond the filter: other differences from upstream
+
+`upstream-customization.patch` expresses only the filter step. Our
+pipeline additionally diverges from upstream's
+`Cloud_Spanner_Change_Streams_to_PubSub` template in ways that diff
+does not attempt to capture. Run `./generate-full-delta.sh` to see
+the complete diff against the pinned upstream SHA; the substantive
+differences are:
+
+- **Sink swap.** `PubsubIO.writeStrings` + a custom `serializeRecord`,
+  not upstream's `FileFormatFactorySpannerChangeStreamsToPubSub`.
+  Emits raw JSON strings; no PubsubMessage attributes.
+- **JSON wire format.** Emits only `{commitTimestamp, modType,
+  tableName, mods[]}`. Omits fields upstream would emit:
+  `serverTransactionId`, `rowType[]`,
+  `numberOfRecordsInTransaction`,
+  `numberOfPartitionsInTransaction`, `partitionToken`,
+  `recordSequence`, `isLastRecordInTransactionInPartition`,
+  `valueCaptureType`.
+- **No Runner V2 experiment auto-injection.** Upstream mutates
+  `options.experiments` to append `use_runner_v2`; we don't.
+- **No `UncaughtExceptionLogger.register()`.** Uncaught exceptions
+  flow to the runner's default handler.
+- **No `@Template` / `TemplateCategory` annotations.** Upstream uses
+  the `com.google.cloud.teleport.metadata` annotation-driven
+  registrar for flex-template metadata. We register via
+  `metadata.json` + `gcloud dataflow flex-template build` instead --
+  simpler, no annotation-processor dependency.
+- **No support for these upstream options:** `spannerDatabaseRole`,
+  `useSpannerEmulatorHost`, `spannerHost`, `spannerMetadataTableName`,
+  `spannerChangeStreamTvfNameList`, `outputMessageMetadata`,
+  `outputDataFormat` (JSON/Avro switch), `pubsubAPI`. Our
+  `PayloadLinkOptions` deliberately has a smaller surface (~10
+  options vs. upstream's ~25).
+- **No ValueProvider indirection on options.** Upstream wraps
+  several config fields in `ValueProvider` for template
+  parameterisation; we take plain strings.
+- **No `enableStreamingEngine=true` / `streaming=true` mutation.**
+  Beam infers streaming from the source; we don't force it.
+
+These deltas were deliberate scope choices, not oversights. The
+filter-only patch is kept as the primary review artifact because
+it's small enough to eyeball, applies cleanly against the pinned
+SHA, and is insensitive to upstream churn on features we don't use.
+
 ## Output wire format
 
 Each surviving `DataChangeRecord` is serialized to a JSON Pub/Sub
@@ -127,5 +173,12 @@ git checkout <new-sha>
 git diff > ../tools/payload-link-dataflow/upstream-customization.patch
 echo "<new-sha>" > ../tools/payload-link-dataflow/upstream.txt
 ```
+
+After updating the SHA, run `./generate-full-delta.sh` and skim the
+output to check that our impl's other divergences (sink swap, JSON
+shape, dropped options -- see "Beyond the filter" above) still make
+sense against upstream's new state. If upstream restructured
+something we deliberately dropped, update the "Beyond the filter"
+bullets accordingly.
 
 This is purely a documentation refresh -- it does not affect the build.
