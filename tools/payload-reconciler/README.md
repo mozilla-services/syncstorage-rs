@@ -46,8 +46,6 @@ poetry install
 poetry run pytest
 ```
 
-`poetry.lock` is generated on first install (not yet checked in).
-
 Unit tests cover `parse_gs_url` and the per-message handler. The
 `drain` loop (sync-pull, budget vs. long-running exit conditions) has
 no unit coverage — exercise it against the Pub/Sub emulator when

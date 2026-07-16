@@ -94,7 +94,7 @@ def finalize_object(gcs_client: storage.Client, bucket: str, name: str) -> None:
         blob.patch()
         statsd.incr("payload_reconciler.finalizes")
     except gax_exceptions.NotFound:
-        log.warning("finalize 404: gs://%s/%s", bucket, name)
+        log.debug("finalize 404: gs://%s/%s", bucket, name)
         statsd.incr("payload_reconciler.gcs_404.finalize")
 
 
@@ -105,7 +105,7 @@ def delete_object(gcs_client: storage.Client, bucket: str, name: str) -> None:
         blob.delete()
         statsd.incr("payload_reconciler.orphan_deletes")
     except gax_exceptions.NotFound:
-        log.warning("delete 404: gs://%s/%s", bucket, name)
+        log.debug("delete 404: gs://%s/%s", bucket, name)
         statsd.incr("payload_reconciler.gcs_404.delete")
 
 
