@@ -168,6 +168,16 @@ impl Settings {
             ));
         }
 
+        // overriding limits must be > 0.
+        for (name, overrides) in &self.syncstorage.limits.collections {
+            if overrides.max_record_payload_bytes == Some(0) {
+                return Err(ConfigError::Message(format!(
+                    "Invalid SYNC_SYNCSTORAGE__LIMITS__COLLECTIONS: \
+                     \"{name}\" max_record_payload_bytes must be greater than 0"
+                )));
+            }
+        }
+
         if let Some(init_node_url) = &self.tokenserver.init_node_url {
             let url = Url::parse(init_node_url).map_err(|e| {
                 ConfigError::Message(format!("Invalid SYNC_TOKENSERVER__INIT_NODE_URL: {e}"))
@@ -406,6 +416,60 @@ mod test {
                 let err = Settings::with_env_and_config_file(None)
                     .expect_err("an unset tokenserver DATABASE_URL should fail when enabled");
                 assert!(err.to_string().contains("SYNC_TOKENSERVER__DATABASE_URL"));
+            },
+        );
+    }
+
+    #[test]
+    fn test_collection_limits_override_validates() {
+        temp_env::with_vars(
+            [
+                (
+                    "SYNC_SYNCSTORAGE__DATABASE_URL",
+                    Some(TEST_SYNCSTORAGE_DATABASE_URL),
+                ),
+                ("SYNC_TOKENSERVER__DATABASE_URL", None),
+                ("SYNC_TOKENSERVER__ENABLED", None),
+                (
+                    "SYNC_SYNCSTORAGE__LIMITS__COLLECTIONS",
+                    Some(r#"{"newtab-images":{"max_record_payload_bytes":20971520}}"#),
+                ),
+            ],
+            || {
+                let settings = Settings::with_env_and_config_file(None)
+                    .expect("a collection limits override should validate");
+                assert_eq!(
+                    settings
+                        .syncstorage
+                        .limits
+                        .collections
+                        .get("newtab-images")
+                        .and_then(|o| o.max_record_payload_bytes),
+                    Some(20_971_520)
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn test_zero_collection_override_fails() {
+        temp_env::with_vars(
+            [
+                (
+                    "SYNC_SYNCSTORAGE__DATABASE_URL",
+                    Some(TEST_SYNCSTORAGE_DATABASE_URL),
+                ),
+                ("SYNC_TOKENSERVER__DATABASE_URL", None),
+                ("SYNC_TOKENSERVER__ENABLED", None),
+                (
+                    "SYNC_SYNCSTORAGE__LIMITS__COLLECTIONS",
+                    Some(r#"{"tabs":{"max_record_payload_bytes":0}}"#),
+                ),
+            ],
+            || {
+                let err = Settings::with_env_and_config_file(None)
+                    .expect_err("a zero override should fail");
+                assert!(err.to_string().contains("must be greater than 0"));
             },
         );
     }

@@ -8,5 +8,6 @@ edition.workspace=true
 [dependencies]
 rand.workspace=true
 serde.workspace=true
+serde_json.workspace=true
 
 syncserver-common = { path = "../syncserver-common" }

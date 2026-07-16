@@ -979,3 +979,32 @@ async fn put_bso_offloads_to_gcs() {
         resp.response()
     );
 }
+
+fn limits_with_override(name: &str, max_record_payload_bytes: u32) -> ServerLimits {
+    let mut limits = ServerLimits::default();
+    limits.collections.insert(
+        name.to_owned(),
+        syncstorage_settings::CollectionLimitOverride {
+            max_record_payload_bytes: Some(max_record_payload_bytes),
+        },
+    );
+    limits
+}
+
+#[::core::prelude::v1::test]
+fn limits_json_advertises_collection_overrides() {
+    let limits = limits_with_override("newtab-images", 20_971_520);
+    let json: Value = serde_json::from_str(&build_limits_json(&limits)).unwrap();
+    assert_eq!(
+        json["collections"]["newtab-images"]["max_record_payload_bytes"],
+        json!(20_971_520)
+    );
+    assert!(json.get("max_record_payload_bytes").is_some());
+}
+
+#[::core::prelude::v1::test]
+fn limits_json_omits_collections_when_none_overridden() {
+    let json: Value = serde_json::from_str(&build_limits_json(&ServerLimits::default())).unwrap();
+    assert!(json.get("collections").is_none());
+    assert!(json.get("max_record_payload_bytes").is_some());
+}

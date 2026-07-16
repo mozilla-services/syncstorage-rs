@@ -1,5 +1,5 @@
 use actix_web::{
-    Error, FromRequest, HttpRequest,
+    Error, FromRequest, HttpMessage, HttpRequest,
     dev::Payload,
     http::header::{ContentType, Header},
     web::Data,
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize, de::IgnoredAny};
 use validator::Validate;
 
 use super::{
-    ACCEPTED_CONTENT_TYPES, RequestErrorLocation, validate_body_bso_id,
+    ACCEPTED_CONTENT_TYPES, CollectionParam, RequestErrorLocation, validate_body_bso_id,
     validate_body_bso_sortindex, validate_body_bso_ttl,
 };
 use crate::{server::ServerState, web::error::ValidationErrorKind};
@@ -82,7 +82,17 @@ impl FromRequest for BsoBody {
                 }
             };
 
-            let max_payload_size = state.limits.max_record_payload_bytes as usize;
+            // `max_record_payload_bytes` can be overridden per collection
+            let max_payload_size = {
+                let collection = CollectionParam::extrude(req.uri(), &mut req.extensions_mut())
+                    .ok()
+                    .flatten()
+                    .map(|c| c.collection);
+                match collection {
+                    Some(collection) => state.limits.max_record_payload_bytes_for(&collection),
+                    None => state.limits.max_record_payload_bytes,
+                }
+            } as usize;
 
             let bso = <actix_web::web::Json<BsoBody>>::from_request(&req, &mut payload)
                 .await

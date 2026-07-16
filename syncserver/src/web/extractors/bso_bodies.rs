@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use actix_web::{
-    Error, FromRequest, HttpRequest,
+    Error, FromRequest, HttpMessage, HttpRequest,
     dev::Payload,
     http::header::{ContentType, Header},
     web::Data,
@@ -13,7 +13,7 @@ use futures::{
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::{ACCEPTED_CONTENT_TYPES, BatchBsoBody, RequestErrorLocation};
+use super::{ACCEPTED_CONTENT_TYPES, BatchBsoBody, CollectionParam, RequestErrorLocation};
 use crate::{server::ServerState, web::error::ValidationErrorKind};
 
 #[derive(Default, Deserialize)]
@@ -110,7 +110,17 @@ impl FromRequest for BsoBodies {
             }
         };
 
-        let max_payload_size = state.limits.max_record_payload_bytes as usize;
+        // `max_record_payload_bytes` can be overridden per collection
+        let max_payload_size = {
+            let collection = CollectionParam::extrude(req.uri(), &mut req.extensions_mut())
+                .ok()
+                .flatten()
+                .map(|c| c.collection);
+            match collection {
+                Some(collection) => state.limits.max_record_payload_bytes_for(&collection),
+                None => state.limits.max_record_payload_bytes,
+            }
+        } as usize;
         let max_post_bytes = state.limits.max_post_bytes as usize;
 
         let fut = fut.and_then(move |body| {
