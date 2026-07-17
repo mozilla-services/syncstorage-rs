@@ -432,7 +432,8 @@ pub async fn post_collection(
                     payload,
                 )
                 .await?;
-                bso.payload = Some(String::new());
+                // payload was taken above; leave it None so only
+                // payload_link is set on the offloaded BSO.
                 bso.payload_link = Some(url);
             }
         }
@@ -778,7 +779,7 @@ pub async fn put_bso(
             payload,
         )
         .await?;
-        bso_req.body.payload = Some(String::new());
+        // payload was taken above; leave it None so only payload_link is set.
         payload_link = Some(url);
     }
 

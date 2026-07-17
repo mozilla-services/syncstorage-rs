@@ -1144,3 +1144,182 @@ async fn put_bso_preserves_expiry_on_partial_update() -> Result<(), DbError> {
     })
     .await
 }
+
+// payload_link (GCS offload) is currently a Spanner-only column, so these
+// tests are gated to the spanner backend. They exercise the mutual-exclusion
+// invariant between `payload` and `payload_link` on the read and write paths.
+#[cfg(feature = "spanner")]
+const GS_URL: &str = "gs://test-bucket/fxa/coll/b0/abcd";
+
+/// An offload write stores the link and leaves the inline payload NULL, which
+/// reads back as an empty `payload` alongside the `payload_link`.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn put_bso_offload_stores_payload_link() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+        let bid = "b0";
+
+        let mut bso = pbso(uid, coll, bid, None, None, Some(DEFAULT_BSO_TTL));
+        bso.payload_link = Some(GS_URL.to_owned());
+        db.put_bso(bso).await?;
+
+        let got = db.get_bso(gbso(uid, coll, bid)).await?.unwrap();
+        assert_eq!(got.payload_link.as_deref(), Some(GS_URL));
+        assert_eq!(got.payload, "");
+        Ok(())
+    })
+    .await
+}
+
+/// Writing an inline payload over a previously-offloaded BSO clears the link so
+/// the two columns never coexist.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn put_bso_inline_write_clears_payload_link() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+        let bid = "b0";
+
+        let mut offloaded = pbso(uid, coll, bid, None, None, Some(DEFAULT_BSO_TTL));
+        offloaded.payload_link = Some(GS_URL.to_owned());
+        db.put_bso(offloaded).await?;
+
+        db.put_bso(pbso(uid, coll, bid, Some("inline now"), None, None))
+            .await?;
+
+        let got = db.get_bso(gbso(uid, coll, bid)).await?.unwrap();
+        assert_eq!(got.payload, "inline now");
+        assert_eq!(got.payload_link, None);
+        Ok(())
+    })
+    .await
+}
+
+/// A metadata-only update (sortindex, no payload/link) preserves an existing
+/// offloaded row: the link stays and the payload stays NULL. Guards against the
+/// old `COALESCE(payload, '')` fallback resurfacing both columns.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn put_bso_sortindex_only_preserves_payload_link() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+        let bid = "b0";
+
+        let mut offloaded = pbso(uid, coll, bid, None, None, Some(DEFAULT_BSO_TTL));
+        offloaded.payload_link = Some(GS_URL.to_owned());
+        db.put_bso(offloaded).await?;
+
+        db.put_bso(pbso(uid, coll, bid, None, Some(9), None))
+            .await?;
+
+        let got = db.get_bso(gbso(uid, coll, bid)).await?.unwrap();
+        assert_eq!(got.payload_link.as_deref(), Some(GS_URL));
+        assert_eq!(got.payload, "");
+        assert_eq!(got.sortindex, Some(9));
+        Ok(())
+    })
+    .await
+}
+
+/// A metadata-only write (ttl/sortindex, no payload/link) to a *new* BSO
+/// creates it with an empty inline payload — matching historical Sync
+/// behavior — rather than a NULL payload that the read-path check would reject.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn put_bso_metadata_only_create_defaults_empty_payload() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+        let bid = "b0";
+
+        // No prior row: payload and payload_link both absent.
+        db.put_bso(pbso(uid, coll, bid, None, Some(3), Some(DEFAULT_BSO_TTL)))
+            .await?;
+
+        let got = db.get_bso(gbso(uid, coll, bid)).await?.unwrap();
+        assert_eq!(got.payload, "");
+        assert_eq!(got.payload_link, None);
+        assert_eq!(got.sortindex, Some(3));
+        Ok(())
+    })
+    .await
+}
+
+/// A single-BSO write that sets both payload and payload_link is rejected as a
+/// db integrity error before any DML runs.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn put_bso_rejects_both_payload_and_payload_link() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+        let bid = "b0";
+
+        let mut bso = pbso(uid, coll, bid, Some("inline"), None, Some(DEFAULT_BSO_TTL));
+        bso.payload_link = Some(GS_URL.to_owned());
+        let err = db.put_bso(bso).await.unwrap_err();
+        assert!(
+            err.to_string().contains("payload and payload_link"),
+            "unexpected error: {err}"
+        );
+        Ok(())
+    })
+    .await
+}
+
+/// The batched `post_bsos` write path also defaults a metadata-only create to
+/// an empty inline payload (mirrors the bulk ttl-update-without-data case).
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn post_bsos_metadata_only_create_defaults_empty_payload() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+
+        db.post_bsos(params::PostBsos {
+            user_id: hid(uid),
+            collection: coll.to_owned(),
+            bsos: vec![postbso("new0", None, Some(1), Some(DEFAULT_BSO_TTL))],
+            for_batch: false,
+        })
+        .await?;
+
+        let got = db.get_bso(gbso(uid, coll, "new0")).await?.unwrap();
+        assert_eq!(got.payload, "");
+        assert_eq!(got.payload_link, None);
+        Ok(())
+    })
+    .await
+}
+
+/// The same both-set rejection applies to the batched `post_bsos` write path.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn post_bsos_rejects_both_payload_and_payload_link() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+
+        let mut bso = postbso("b0", Some("inline"), None, None);
+        bso.payload_link = Some(GS_URL.to_owned());
+        let err = db
+            .post_bsos(params::PostBsos {
+                user_id: hid(uid),
+                collection: coll.to_owned(),
+                bsos: vec![bso],
+                for_batch: false,
+            })
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("payload and payload_link"),
+            "unexpected error: {err}"
+        );
+        Ok(())
+    })
+    .await
+}

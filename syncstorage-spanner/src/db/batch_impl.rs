@@ -15,7 +15,9 @@ use crate::error::DbError;
 
 use super::{
     PRETOUCH_TS, SpannerDb,
-    support::{IntoSpannerValue, as_type, null_value, struct_type_field},
+    support::{
+        IntoSpannerValue, as_type, null_value, struct_type_field, validate_payload_exclusive,
+    },
 };
 use crate::DbResult;
 
@@ -251,6 +253,7 @@ pub async fn do_append(
     // The incoming ids are used to exclude the payloads from the running total.
     let mut incoming_ids: Vec<String> = Vec::with_capacity(bsos.len());
     for bso in bsos {
+        validate_payload_exclusive(bso.payload.as_ref(), bso.payload_link.as_ref())?;
         if let Some(ref payload) = bso.payload {
             running_size += payload.len();
         }
