@@ -88,3 +88,21 @@ ALTER TABLE bsos
 ALTER TABLE batch_bsos
     ADD COLUMN payload_link STRING(MAX);
 
+-- payload is nullable: an offloaded BSO stores its payload in GCS
+-- (payload_link) and leaves payload NULL. (batch_bsos.payload is already
+-- nullable.)
+ALTER TABLE bsos
+    ALTER COLUMN payload STRING(MAX);
+
+-- Change stream that captures every write to payload_link on bsos and
+-- batch_bsos. A downstream reconciler (custom Dataflow flex template ->
+-- Pub/Sub -> Python cronjob) reads this stream to finalize newly
+-- committed payload objects (committed=true, customTime=MAX) and to
+-- garbage collect orphaned objects when a row's payload_link is replaced
+-- or removed -- including row-deletion-policy TTL deletes.
+CREATE CHANGE STREAM payload_link_changes
+    FOR bsos(payload_link), batch_bsos(payload_link)
+    OPTIONS (
+      retention_period = '7d',
+      value_capture_type = 'OLD_AND_NEW_VALUES'
+    );

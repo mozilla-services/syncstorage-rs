@@ -1,0 +1,91 @@
+{
+  "name": "Payload-link change stream to Pub/Sub (filtered)",
+  "description": "Reads the payload_link_changes Spanner change stream, drops records whose every mod has payload_link NULL on both sides, and publishes the remainder to Pub/Sub. Customization of the upstream GoogleCloudPlatform/DataflowTemplates Cloud_Spanner_Change_Streams_to_PubSub template.",
+  "parameters": [
+    {
+      "name": "spannerProjectId",
+      "label": "Spanner project ID",
+      "helpText": "GCP project that owns the Spanner instance.",
+      "paramType": "TEXT"
+    },
+    {
+      "name": "spannerInstanceId",
+      "label": "Spanner instance ID",
+      "helpText": "Spanner instance that holds the syncstorage database.",
+      "paramType": "TEXT"
+    },
+    {
+      "name": "spannerDatabase",
+      "label": "Spanner database",
+      "helpText": "Syncstorage database (contains the bsos and batch_bsos tables).",
+      "paramType": "TEXT"
+    },
+    {
+      "name": "spannerMetadataInstanceId",
+      "label": "Spanner metadata instance ID",
+      "helpText": "Spanner instance where the change stream's metadata table lives. May be the same as spannerInstanceId.",
+      "paramType": "TEXT"
+    },
+    {
+      "name": "spannerMetadataDatabase",
+      "label": "Spanner metadata database",
+      "helpText": "Spanner database where the change stream's metadata table lives. May be the same as spannerDatabase.",
+      "paramType": "TEXT"
+    },
+    {
+      "name": "changeStreamName",
+      "label": "Change stream name",
+      "helpText": "Name of the Spanner change stream to consume. Defaults to payload_link_changes.",
+      "paramType": "TEXT",
+      "isOptional": true
+    },
+    {
+      "name": "pubsubTopic",
+      "label": "Pub/Sub topic",
+      "helpText": "Fully-qualified Pub/Sub topic to publish actionable change records to (projects/<project>/topics/payload-link-changes).",
+      "paramType": "PUBSUB_TOPIC"
+    },
+    {
+      "name": "outputDataFormat",
+      "label": "Output data format",
+      "helpText": "Serialization format for each Pub/Sub message. JSON or AVRO.",
+      "paramType": "TEXT",
+      "isOptional": true
+    },
+    {
+      "name": "pubsubAPI",
+      "label": "Pub/Sub API",
+      "helpText": "PUBSUB_GRPC (default) or PUBSUB_HTTP.",
+      "paramType": "TEXT",
+      "isOptional": true
+    },
+    {
+      "name": "numShards",
+      "label": "Number of shards",
+      "helpText": "Initial number of shards for the change stream reader. Optional; tune for throughput.",
+      "paramType": "TEXT",
+      "isOptional": true
+    },
+    {
+      "name": "startTimestamp",
+      "label": "Start timestamp",
+      "helpText": "Inclusive start timestamp (RFC 3339). Omit to start from the current time when the pipeline launches.",
+      "paramType": "TEXT",
+      "isOptional": true
+    },
+    {
+      "name": "endTimestamp",
+      "label": "End timestamp",
+      "helpText": "Inclusive end timestamp (RFC 3339). Omit for an unbounded pipeline.",
+      "paramType": "TEXT",
+      "isOptional": true
+    },
+    {
+      "name": "rpcPriority",
+      "label": "RPC priority",
+      "helpText": "Spanner RPC priority: HIGH, MEDIUM, or LOW. Defaults to HIGH.",
+      "paramType": "TEXT",
+      "isOptional": true
+    }
+  ]
+}

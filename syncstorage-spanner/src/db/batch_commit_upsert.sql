@@ -1,8 +1,11 @@
--- bsos.payload/modified/expiry are NOT NULL with no schema default, so the
--- insert of INSERT OR UPDATE must supply a value for every column.  Each
--- driving `batch_bsos` row LEFT JOINs to a subquery `existing` row.  On update
--- it provides values to COALESCE over; on insert the join misses, `existing.*`
--- is NULL, and the COALESCE fallback applies.
+-- bsos.modified/expiry are NOT NULL with no schema default, so the insert of
+-- INSERT OR UPDATE must supply a value for every such column.  Each driving
+-- `batch_bsos` row LEFT JOINs to a subquery `existing` row.  On update it
+-- provides values to COALESCE over; on insert the join misses, `existing.*` is
+-- NULL, and the COALESCE fallback applies.  payload is nullable and mutually
+-- exclusive with payload_link: whichever the batch row supplies is written and
+-- the other is set NULL; when neither is supplied the existing row's values are
+-- preserved.
 INSERT OR UPDATE INTO bsos
     (fxa_uid, fxa_kid, collection_id, bso_id, sortindex, payload, modified, expiry,
      payload_link)
@@ -12,14 +15,23 @@ SELECT
     bb.collection_id,
     bb.batch_bso_id,
     COALESCE(bb.sortindex, existing.sortindex),
-    COALESCE(bb.payload, existing.payload, ''),
+    CASE
+        WHEN bb.payload IS NOT NULL THEN bb.payload
+        WHEN bb.payload_link IS NOT NULL THEN NULL
+        WHEN existing.payload_link IS NOT NULL THEN NULL
+        ELSE COALESCE(existing.payload, '')
+    END,
     @timestamp,
     COALESCE(
         TIMESTAMP_ADD(@timestamp, INTERVAL bb.ttl SECOND),
         existing.expiry,
         TIMESTAMP_ADD(@timestamp, INTERVAL @default_bso_ttl SECOND)
     ),
-    COALESCE(bb.payload_link, existing.payload_link)
+    CASE
+        WHEN bb.payload_link IS NOT NULL THEN bb.payload_link
+        WHEN bb.payload IS NOT NULL THEN NULL
+        ELSE existing.payload_link
+    END
   FROM batch_bsos AS bb
   LEFT JOIN (
       SELECT fxa_uid, fxa_kid, collection_id, bso_id,

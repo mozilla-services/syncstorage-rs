@@ -4931,6 +4931,7 @@ version = "0.23.3"
 dependencies = [
  "rand 0.10.1",
  "serde",
+ "serde_json",
  "syncserver-common",
 ]
 

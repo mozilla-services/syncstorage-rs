@@ -20,6 +20,7 @@
     - [API v1.0 (Obsolete)](syncstorage/api-1.0.md)
 - [Syncstorage DB - Postgres](syncstorage/syncstorage-postgres-db.md)
 - [Syncstorage DB - Spanner](syncstorage/syncstorage-spanner-db.md)
+    - [Payload Link Reconciler](tools/payload_link_reconciler.md)
 - [Tokenserver](tokenserver/tokenserver.md)
     - [Goals of Tokenserver](tokenserver/tokenserver-goals.md)
     - [Tokenserver API](tokenserver/tokenserver-api.md)

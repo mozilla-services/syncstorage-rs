@@ -25,7 +25,7 @@ use crate::{
 };
 use support::{
     ExecuteSqlRequestBuilder, IntoSpannerValue, StreamedResultSetAsync, as_type, null_value,
-    struct_type_field,
+    struct_type_field, validate_payload_exclusive,
 };
 
 mod batch_impl;
@@ -571,7 +571,10 @@ impl SpannerDb {
         bso: params::PostCollectionBso,
         timestamp: SyncTimestamp,
     ) -> DbResult<()> {
-        let has_payload_or_sortindex = bso.payload.is_some() || bso.sortindex.is_some();
+        validate_payload_exclusive(bso.payload.as_ref(), bso.payload_link.as_ref())?;
+
+        let has_payload_or_sortindex =
+            bso.payload.is_some() || bso.payload_link.is_some() || bso.sortindex.is_some();
 
         let (mut sqlparams, mut sqlparam_types) = params! {
             "fxa_uid" => user_id.fxa_uid.clone(),
@@ -589,12 +592,30 @@ impl SpannerDb {
             "COALESCE(existing.modified, @timestamp)"
         };
 
-        let payload_expr = if let Some(payload) = bso.payload {
-            sqlparam_types.insert("payload".to_owned(), payload.spanner_type());
-            sqlparams.insert("payload".to_owned(), payload.into_spanner_value());
-            "@payload"
-        } else {
-            "COALESCE(existing.payload, '')"
+        // payload and payload_link are mutually exclusive: an inline write sets
+        // payload and clears the link, an offload write sets the link and
+        // clears payload, and a metadata-only update preserves whichever the
+        // existing row holds.
+        let (payload_expr, payload_link_expr) = match (bso.payload, bso.payload_link) {
+            (Some(payload), _) => {
+                sqlparam_types.insert("payload".to_owned(), payload.spanner_type());
+                sqlparams.insert("payload".to_owned(), payload.into_spanner_value());
+                ("@payload", "NULL")
+            }
+            (None, Some(payload_link)) => {
+                sqlparam_types.insert("payload_link".to_owned(), payload_link.spanner_type());
+                sqlparams.insert("payload_link".to_owned(), payload_link.into_spanner_value());
+                ("NULL", "@payload_link")
+            }
+            // Metadata-only write: preserve the existing row. An offloaded row
+            // keeps its NULL payload; an inline row keeps its payload; a fresh
+            // insert (no existing row) defaults to an empty inline payload so
+            // the row still satisfies the exactly-one invariant.
+            (None, None) => (
+                "CASE WHEN existing.payload_link IS NOT NULL THEN NULL \
+                      ELSE COALESCE(existing.payload, '') END",
+                "existing.payload_link",
+            ),
         };
 
         let expiry_expr = if let Some(ttl) = bso.ttl {
@@ -615,16 +636,6 @@ impl SpannerDb {
             (", sortindex", ", @sortindex")
         } else {
             ("", "")
-        };
-
-        // payload_link is nullable; preserve the existing row's value when the
-        // request didn't supply one (NULL on insert).
-        let payload_link_expr = if let Some(payload_link) = bso.payload_link {
-            sqlparam_types.insert("payload_link".to_owned(), payload_link.spanner_type());
-            sqlparams.insert("payload_link".to_owned(), payload_link.into_spanner_value());
-            "@payload_link"
-        } else {
-            "existing.payload_link"
         };
 
         let sql = format!(
@@ -670,6 +681,7 @@ impl SpannerDb {
 
         let mut rows: Vec<Value> = Vec::with_capacity(bsos.len());
         for bso in bsos {
+            validate_payload_exclusive(bso.payload.as_ref(), bso.payload_link.as_ref())?;
             // Optional columns are encoded as NULL when the request omitted them
             let sortindex = bso
                 .sortindex
@@ -750,8 +762,15 @@ impl SpannerDb {
                  @collection_id,
                  incoming.bso_id,
                  COALESCE(incoming.sortindex, existing.sortindex),
-                 COALESCE(incoming.payload, existing.payload, ''),
-                 IF(incoming.payload IS NOT NULL OR incoming.sortindex IS NOT NULL,
+                 CASE
+                     WHEN incoming.payload IS NOT NULL THEN incoming.payload
+                     WHEN incoming.payload_link IS NOT NULL THEN NULL
+                     WHEN existing.payload_link IS NOT NULL THEN NULL
+                     ELSE COALESCE(existing.payload, '')
+                 END,
+                 IF(incoming.payload IS NOT NULL
+                        OR incoming.payload_link IS NOT NULL
+                        OR incoming.sortindex IS NOT NULL,
                     @timestamp,
                     COALESCE(existing.modified, @timestamp)),
                  COALESCE(
@@ -759,7 +778,11 @@ impl SpannerDb {
                      existing.expiry,
                      TIMESTAMP_ADD(@timestamp, INTERVAL @default_bso_ttl SECOND)
                  ),
-                 COALESCE(incoming.payload_link, existing.payload_link)
+                 CASE
+                     WHEN incoming.payload_link IS NOT NULL THEN incoming.payload_link
+                     WHEN incoming.payload IS NOT NULL THEN NULL
+                     ELSE existing.payload_link
+                 END
                FROM UNNEST(@bsos) AS incoming
                LEFT JOIN bsos AS existing
                  ON existing.fxa_uid = @fxa_uid

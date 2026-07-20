@@ -71,6 +71,8 @@ RUN poetry export --no-interaction --without dev --output requirements.txt --wit
     poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
     cd /app/tools/tokenserver && \
     poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
+    cd /app/tools/payload-reconciler && \
+    poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
     cd /app/tools/postgres && \
     if [ "$SYNCSTORAGE_DATABASE_BACKEND" = "postgres" ]; then \
         poetry export --no-interaction --without dev --output requirements.txt --without-hashes; \
@@ -86,6 +88,7 @@ RUN mkdir -p /app/wheels && \
     pip3 wheel --no-cache-dir -r /app/requirements.txt -w /app/wheels && \
     pip3 wheel --no-cache-dir -r /app/tools/integration_tests/requirements.txt -w /app/wheels && \
     pip3 wheel --no-cache-dir -r /app/tools/tokenserver/requirements.txt -w /app/wheels && \
+    pip3 wheel --no-cache-dir -r /app/tools/payload-reconciler/requirements.txt -w /app/wheels && \
     if [ "$SYNCSTORAGE_DATABASE_BACKEND" = "postgres" ] && [ -f /app/tools/postgres/requirements.txt ]; then \
         pip3 wheel --no-cache-dir -r /app/tools/postgres/requirements.txt -w /app/wheels; \
     fi
@@ -139,6 +142,7 @@ WORKDIR /app
 COPY --from=builder /app/requirements.txt /app/
 COPY --from=builder /app/tools/integration_tests/requirements.txt /app/tools/integration_tests/
 COPY --from=builder /app/tools/tokenserver/requirements.txt /app/tools/tokenserver/
+COPY --from=builder /app/tools/payload-reconciler/requirements.txt /app/tools/payload-reconciler/
 # See comment above where this requirements file is generated
 COPY --from=builder /app/tools/postgres/requirements.txt /app/tools/postgres/
 COPY --from=builder /app/wheels /tmp/wheels
@@ -149,6 +153,7 @@ RUN groupadd --gid 10001 app && \
 RUN pip3 install --break-system-packages --no-cache-dir --no-index --ignore-installed --find-links=/tmp/wheels -r /app/requirements.txt && \
     pip3 install --break-system-packages --no-cache-dir --no-index --ignore-installed --find-links=/tmp/wheels -r /app/tools/integration_tests/requirements.txt && \
     pip3 install --break-system-packages --no-cache-dir --no-index --ignore-installed --find-links=/tmp/wheels -r /app/tools/tokenserver/requirements.txt && \
+    pip3 install --break-system-packages --no-cache-dir --no-index --ignore-installed --find-links=/tmp/wheels -r /app/tools/payload-reconciler/requirements.txt && \
     if [ "$SYNCSTORAGE_DATABASE_BACKEND" = "postgres" ] && [ -f /app/tools/postgres/requirements.txt ]; then \
         pip3 install --break-system-packages --no-cache-dir --no-index --ignore-installed --find-links=/tmp/wheels -r /app/tools/postgres/requirements.txt; \
     fi && \
@@ -159,6 +164,7 @@ COPY --from=builder /app/version.json /app
 COPY --from=builder /app/tools/spanner /app/tools/spanner
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
 COPY --from=builder /app/tools/tokenserver /app/tools/tokenserver
+COPY --from=builder /app/tools/payload-reconciler /app/tools/payload-reconciler
 COPY --from=builder /app/tools/postgres /app/tools/postgres
 COPY --from=builder --chmod=0755 /app/scripts/prepare-spanner.sh /app/scripts/prepare-spanner.sh
 COPY --from=builder --chmod=0755 /app/scripts/start_mock_fxa_server.sh /app/scripts/start_mock_fxa_server.sh

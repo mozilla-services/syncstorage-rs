@@ -10,7 +10,7 @@ build
 ddb
 dist
 docs/_build
-*.xml
+*results.xml
 html_coverage
 .hgignore
 .idea
