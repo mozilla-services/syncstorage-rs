@@ -15,6 +15,9 @@ RUN mkdir -p /app
 ADD . /app
 WORKDIR /app
 
+RUN groupadd --gid 10001 app && \
+    useradd --uid 10001 --gid 10001 --home /app -s /usr/sbin/nologin app
+
 RUN \
     BUILD_DEPS="build-essential" && \
     apt-get update && \
