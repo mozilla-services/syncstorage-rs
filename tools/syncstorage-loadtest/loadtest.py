@@ -8,7 +8,7 @@ import json
 import os
 import random
 import time
-from typing import Any
+from typing import Any, Optional
 
 from molotov import scenario, setup_session, teardown_session
 from storage import StorageClient
@@ -31,6 +31,86 @@ _COLLS = ["bookmarks", "forms", "passwords", "history", "prefs"]
 _BATCH_MAX_COUNT = 100
 
 _DISABLE_DELETES = os.environ.get("DISABLE_DELETES", "false").lower() in ("true", "1")
+
+
+def _parse_large_payload_prob() -> float:
+    """Parse LARGE_PAYLOAD_PROB: fraction of BSOs given an expanded payload.
+
+    Set to 1.0 for 100% expanded payloads: every BSO written gets a large
+    payload. Set to 0.0 (the default) to leave expanded payloads off entirely,
+    so existing runs are unchanged.
+
+    This controls payload *size* only. Whether a write is offloaded to GCS is a
+    separate, per-collection server setting (gcs_payload_offload_collections);
+    to drive a fully offloaded collection at maximum size, target it via
+    OFFLOAD_COLLECTIONS and set this to 1.0.
+
+    Returns:
+        float: Probability in [0.0, 1.0]. Defaults to 0.0.
+
+    Raises:
+        ValueError: If the value is non-numeric or outside [0.0, 1.0].
+
+    """
+    raw = os.environ.get("LARGE_PAYLOAD_PROB", "0.0")
+    try:
+        prob = float(raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"LARGE_PAYLOAD_PROB must be a float in [0.0, 1.0], got {raw!r}"
+        ) from exc
+    if not 0.0 <= prob <= 1.0:
+        raise ValueError(f"LARGE_PAYLOAD_PROB must be in [0.0, 1.0], got {prob}")
+    return prob
+
+
+def _parse_large_payload_size() -> Optional[int]:
+    """Parse LARGE_PAYLOAD_SIZE: explicit target size (bytes) for large payloads.
+
+    When unset, large payloads instead target max_record_payload_bytes from the
+    server's /info/configuration response.
+
+    Returns:
+        Optional[int]: A positive byte count, or None when unset.
+
+    Raises:
+        ValueError: If set to a non-integer or non-positive value.
+
+    """
+    raw = os.environ.get("LARGE_PAYLOAD_SIZE")
+    if not raw:
+        return None
+    try:
+        size = int(raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"LARGE_PAYLOAD_SIZE must be a positive integer, got {raw!r}"
+        ) from exc
+    if size <= 0:
+        raise ValueError(f"LARGE_PAYLOAD_SIZE must be positive, got {size}")
+    return size
+
+
+def _parse_offload_collections() -> Optional[list[str]]:
+    """Parse OFFLOAD_COLLECTIONS: collections to target for writes.
+
+    These should match the server's gcs_payload_offload_collections. When unset,
+    writes fall back to the default _COLLS list.
+
+    Returns:
+        Optional[list[str]]: Collection names, or None when unset or empty.
+
+    """
+    raw = os.environ.get("OFFLOAD_COLLECTIONS")
+    if raw is None:
+        return None
+    names = [name.strip() for name in raw.split(",") if name.strip()]
+    return names or None
+
+
+_LARGE_PAYLOAD_PROB = _parse_large_payload_prob()
+_LARGE_PAYLOAD_SIZE = _parse_large_payload_size()
+_OFFLOAD_COLLECTIONS = _parse_offload_collections()
 
 
 def should_do(name: str) -> bool:
@@ -66,6 +146,64 @@ def get_num_requests(name: str) -> int:
             break
         count += 1
     return count
+
+
+def payload_target_length(is_large: bool, max_record_bytes: int) -> int:
+    """Choose a target payload length in bytes for a single BSO.
+
+    Large payloads target LARGE_PAYLOAD_SIZE when set, otherwise the server's
+    max_record_payload_bytes. Small payloads keep the historical Pareto skew
+    (min=300, mean~450). Both are capped at max_record_bytes.
+
+    Args:
+        is_large: When True, target an expanded payload; otherwise use the
+            historical small-skewed distribution.
+        max_record_bytes: The server's max_record_payload_bytes limit.
+
+    Returns:
+        int: Target payload length, capped at max_record_bytes.
+
+    """
+    if is_large:
+        target = _LARGE_PAYLOAD_SIZE or max_record_bytes
+    else:
+        target = int(random.paretovariate(3) * 300)
+    return min(target, max_record_bytes)
+
+
+def make_payload(length: int, filler: str) -> str:
+    """Build a payload string of the given length by repeating filler.
+
+    Args:
+        length: Desired payload length in characters.
+        filler: Non-empty seed string to repeat.
+
+    Returns:
+        str: A string of exactly `length` characters.
+
+    """
+    chunks = int((length / len(filler)) + 1)
+    return (filler * chunks)[:length]
+
+
+def write_collections(num: int) -> list[str]:
+    """Pick `num` collection names for a batch write.
+
+    When OFFLOAD_COLLECTIONS is configured, sample from it with replacement so
+    a small (often single-entry) set still satisfies any request count and all
+    writes land on offload-enabled collections. Otherwise preserve the default
+    behavior of sampling distinct names from _COLLS.
+
+    Args:
+        num: Number of collection names to return.
+
+    Returns:
+        list[str]: Selected collection names.
+
+    """
+    if _OFFLOAD_COLLECTIONS is not None:
+        return random.choices(_OFFLOAD_COLLECTIONS, k=num)
+    return random.sample(_COLLS, num)
 
 
 @setup_session()
@@ -113,6 +251,8 @@ async def test(session: Any) -> None:
     # GET requests to meta/global
     num_requests = min(get_num_requests("metaglobal"), config.get("max_post_records"))
     batch_max_count = min(_BATCH_MAX_COUNT, config.get("max_total_records"))
+    # Combined payload byte budget per POST request.
+    max_post_bytes = config.get("max_post_bytes")
 
     # Always GET info/collections
     # This is also a good opportunity to correct for timeskew.
@@ -162,34 +302,39 @@ async def test(session: Any) -> None:
 
     # Collections should be a single static entry if we're "transactional"
     if transact:
-        col = random.sample(_COLLS, 1)[0]
+        col = write_collections(1)[0]
         cols = [col for x in range(num_requests)]
     else:
-        cols = random.sample(_COLLS, num_requests)
+        cols = write_collections(num_requests)
 
     for x in range(num_requests):
         url = "/storage/" + cols[x]
         wbo_list: list[dict[str, str]] = []
         # Random batch size, skewed slightly towards the upper limit.
         items_per_batch = min(random.randint(20, batch_max_count + 80), batch_max_count)
+        # Cumulative payload bytes, kept under the server's per-request
+        # max_post_bytes so large payloads don't overflow a single POST.
+        batch_bytes = 0
         for _i in range(items_per_batch):
             randomness = os.urandom(10)
             id_bytes = base64.urlsafe_b64encode(randomness).rstrip(b"=")
             id_str = id_bytes.decode("utf8")
             id_str += str(int((time.time() % 100) * 100000))
-            # Random payload length.  They can be big, but skew small.
-            # This gives min=300, mean=450, max=config.max_record_payload_bytes
-            payload_length = min(
-                int(random.paretovariate(3) * 300),
-                config.get("max_record_payload_bytes"),
+            # Expanded payloads target the max size; otherwise skew small.
+            is_large = random.random() < _LARGE_PAYLOAD_PROB
+            payload_length = payload_target_length(
+                is_large, config.get("max_record_payload_bytes")
             )
+            # Stop packing once the budget is spent, but always send at least one.
+            if wbo_list and batch_bytes + payload_length > max_post_bytes:
+                break
 
             # XXX should be in the class
             token = storage.auth_token.decode("utf8")
-            payload_chunks = int((payload_length / len(token)) + 1)
-            payload = (token * payload_chunks)[:payload_length]
+            payload = make_payload(payload_length, token)
             wbo = {"id": id_str, "payload": payload}
             wbo_list.append(wbo)
+            batch_bytes += payload_length
 
         data = json.dumps(wbo_list)
         status = 200
@@ -209,8 +354,8 @@ async def test(session: Any) -> None:
                 url += "?batch=%s" % batch_id
 
         resp, result = await storage.post(url, data=data, statuses=(status,))
-        assert len(result["success"]) == items_per_batch, (
-            "Result success did not have expected number ofitems in batch {}".format(
+        assert len(result["success"]) == len(wbo_list), (
+            "Result success did not have expected number of items in batch {}".format(
                 result
             )
         )
