@@ -148,6 +148,24 @@ def get_num_requests(name: str) -> int:
     return count
 
 
+def collection_limit(config: dict[str, Any], collection: str, key: str) -> Any:
+    """Resolve a single server limit for a collection.
+
+    Args:
+        config: Parsed /info/configuration response.
+        collection: Collection name to resolve.
+        key: Limit name, e.g. "max_record_payload_bytes" or "max_post_bytes".
+
+    Returns:
+        Any: The per-collection override when set, otherwise the global value.
+
+    """
+    override = config.get("collections", {}).get(collection, {}).get(key)
+    if override is not None:
+        return override
+    return config.get(key)
+
+
 def payload_target_length(is_large: bool, max_record_bytes: int) -> int:
     """Choose a target payload length in bytes for a single BSO.
 
@@ -251,8 +269,6 @@ async def test(session: Any) -> None:
     # GET requests to meta/global
     num_requests = min(get_num_requests("metaglobal"), config.get("max_post_records"))
     batch_max_count = min(_BATCH_MAX_COUNT, config.get("max_total_records"))
-    # Combined payload byte budget per POST request.
-    max_post_bytes = config.get("max_post_bytes")
 
     # Always GET info/collections
     # This is also a good opportunity to correct for timeskew.
@@ -308,11 +324,15 @@ async def test(session: Any) -> None:
         cols = write_collections(num_requests)
 
     for x in range(num_requests):
-        url = "/storage/" + cols[x]
+        col = cols[x]
+        url = "/storage/" + col
+        # Resolve limits for this specific collection.
+        col_max_record_bytes = collection_limit(config, col, "max_record_payload_bytes")
+        col_max_post_bytes = collection_limit(config, col, "max_post_bytes")
         wbo_list: list[dict[str, str]] = []
         # Random batch size, skewed slightly towards the upper limit.
         items_per_batch = min(random.randint(20, batch_max_count + 80), batch_max_count)
-        # Cumulative payload bytes, kept under the server's per-request
+        # Cumulative payload bytes, kept under the collection's per-request
         # max_post_bytes so large payloads don't overflow a single POST.
         batch_bytes = 0
         for _i in range(items_per_batch):
@@ -322,11 +342,9 @@ async def test(session: Any) -> None:
             id_str += str(int((time.time() % 100) * 100000))
             # Expanded payloads target the max size; otherwise skew small.
             is_large = random.random() < _LARGE_PAYLOAD_PROB
-            payload_length = payload_target_length(
-                is_large, config.get("max_record_payload_bytes")
-            )
+            payload_length = payload_target_length(is_large, col_max_record_bytes)
             # Stop packing once the budget is spent, but always send at least one.
-            if wbo_list and batch_bytes + payload_length > max_post_bytes:
+            if wbo_list and batch_bytes + payload_length > col_max_post_bytes:
                 break
 
             # XXX should be in the class
