@@ -110,6 +110,7 @@ The following configuration options are available.
 | <span id="SYNC_TOKENSERVER__FXA_WEBHOOK_METRICS_ONLY"></span>SYNC_TOKENSERVER__FXA_WEBHOOK_METRICS_ONLY | false | Run the FxA webhook handler in metrics-only mode. Received events are counted but not processed. Only used if `FXA_WEBHOOK_ENABLED` is true. |
 | <span id="SYNC_TOKENSERVER__FXA_WEBHOOK_SET_CLIENT_ID"></span>SYNC_TOKENSERVER__FXA_WEBHOOK_SET_CLIENT_ID | None | Expected `aud` of FxA Security Event Tokens. Required for account event webhooks. |
 | <span id="SYNC_TOKENSERVER__FXA_WEBHOOK_SET_ISSUER"></span>SYNC_TOKENSERVER__FXA_WEBHOOK_SET_ISSUER | None | Expected `iss` of FxA Security Event Tokens. Required for account event webhooks. |
+| <span id="SYNC_TOKENSERVER__ALLOW_NEW_USERS"></span>SYNC_TOKENSERVER__ALLOW_NEW_USERS | true | Whether new users may be created. When disabled, only previously registered users can use the tokenserver service. |
 
 ### Tokenserver+FxA Integration
 

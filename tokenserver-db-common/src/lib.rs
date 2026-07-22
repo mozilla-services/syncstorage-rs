@@ -113,7 +113,7 @@ pub trait Db {
     fn metrics(&self) -> &Metrics;
 
     /// Gets the user with the given email and service ID.
-    /// If one doesn't exist, allocates a new user.
+    /// If one doesn't exist, and when configuration allows it, allocates a new user.
     async fn get_or_create_user(
         &mut self,
         params: params::GetOrCreateUser,
@@ -127,7 +127,11 @@ pub trait Db {
 
         if raw_users.is_empty() {
             // There are no users in the database with the given email and service ID, so
-            // allocate a new one.
+            // allocate a new one if allowed by configuration.
+            if !params.allow_new_users {
+                return Err(DbError::user_not_created(params.email.to_owned()));
+            }
+
             let allocate_user_result = self
                 .allocate_user(params.clone() as params::AllocateUser)
                 .await?;
@@ -193,6 +197,7 @@ pub trait Db {
                             client_state: raw_user.client_state.clone(),
                             keys_changed_at: raw_user.keys_changed_at,
                             capacity_release_rate: params.capacity_release_rate,
+                            allow_new_users: params.allow_new_users,
                         })
                         .await?
                     };
