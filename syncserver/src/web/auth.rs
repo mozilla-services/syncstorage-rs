@@ -19,11 +19,15 @@ use tokenserver_auth::TokenserverOrigin;
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::Uri;
 
+use crate::{
+    error::{ApiErrorKind, ApiResult},
+    server::ReverseProxyState,
+};
+
 use super::{
     error::{HawkErrorKind, ValidationErrorKind},
     extractors::RequestErrorLocation,
 };
-use crate::error::{ApiErrorKind, ApiResult};
 
 /// A parsed and authenticated JSON payload
 /// extracted from the signed `id` property
@@ -166,6 +170,7 @@ impl HawkPayload {
     pub fn extrude(
         header: &str,
         method: &str,
+        reverse_proxy_state: &ReverseProxyState,
         secrets: &Secrets,
         ci: &ConnectionInfo,
         uri: &Uri,
@@ -193,7 +198,15 @@ impl HawkPayload {
             Utc::now().timestamp() as u64
         };
 
-        HawkPayload::new(header, method, path.as_str(), host, port, secrets, expiry)
+        HawkPayload::new(
+            header,
+            method,
+            (reverse_proxy_state.get_webroot() + path.as_str()).as_str(),
+            host,
+            port,
+            secrets,
+            expiry,
+        )
     }
 }
 

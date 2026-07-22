@@ -21,6 +21,8 @@ pub struct Settings {
     /// Host address the server binds to. Default: "127.0.0.1". Use "0.0.0.0"
     /// inside containers so the port is reachable from the host.
     pub host: String,
+    /// public facing URL of the server
+    pub public_url: Option<String>,
     /// Keep-alive header value (seconds)
     pub actix_keep_alive: Option<u32>,
     /// The master secret, from which are derived
@@ -248,6 +250,7 @@ impl Default for Settings {
         Settings {
             port: 8000,
             host: "127.0.0.1".to_string(),
+            public_url: None,
             actix_keep_alive: None,
             master_secret: Secrets::default(),
             statsd_host: Some("localhost".to_owned()),
