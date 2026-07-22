@@ -1323,3 +1323,40 @@ async fn post_bsos_rejects_both_payload_and_payload_link() -> Result<(), DbError
     })
     .await
 }
+
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn get_collection_usage_only_links() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+
+        db.delete_storage(hid(uid)).await?;
+        let mut bso = pbso(uid, "test", "foo", None, None, Some(DEFAULT_BSO_TTL));
+        bso.payload_link = Some(GS_URL.to_owned());
+        db.put_bso(bso).await?;
+
+        let expected = HashMap::from([("test".to_owned(), 0)]);
+        let sizes = db.get_collection_usage(hid(uid)).await?;
+        assert_eq!(sizes, expected);
+        Ok(())
+    })
+    .await
+}
+
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn get_storage_usage_only_links() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+
+        db.delete_storage(hid(uid)).await?;
+        let mut bso = pbso(uid, "test", "baz", None, None, Some(DEFAULT_BSO_TTL));
+        bso.payload_link = Some(GS_URL.to_owned());
+        db.put_bso(bso).await?;
+
+        let usage = db.get_storage_usage(hid(uid)).await?;
+        assert_eq!(usage, 0);
+        Ok(())
+    })
+    .await
+}
