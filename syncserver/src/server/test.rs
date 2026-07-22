@@ -32,9 +32,14 @@ use syncstorage_db::{
 use syncstorage_settings::ServerLimits;
 
 use super::*;
-use crate::build_app;
-use crate::tokenserver;
-use crate::web::{auth::HawkPayload, extractors::BsoBody};
+use crate::{
+    build_app, tokenserver,
+    web::{
+        auth::HawkPayload,
+        extractors::BsoBody,
+        payload_offload::{build_client, build_control_client},
+    },
+};
 
 lazy_static! {
     static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
@@ -122,7 +127,23 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         gcs_payload_offload_collections: Arc::new(
             settings.syncstorage.gcs_payload_offload_collections.clone(),
         ),
-        gcs_endpoint: settings.syncstorage.gcs_endpoint.clone(),
+        gcs_client: match settings.syncstorage.gcs_payload_bucket {
+            Some(_) => Some(
+                build_client(settings.syncstorage.gcs_endpoint.as_deref())
+                    .await
+                    .expect("Could not build GCS client in get_test_state"),
+            ),
+            None => None,
+        },
+        gcs_control_client: match settings.syncstorage.gcs_payload_bucket {
+            Some(_) => Some(
+                build_control_client(settings.syncstorage.gcs_endpoint.as_deref())
+                    .await
+                    .expect("Could not build GCS control client in get_test_state"),
+            ),
+            None => None,
+        },
+        gcs_payload_max_concurrency: settings.syncstorage.gcs_payload_max_concurrency.max(1),
     }
 }
 
@@ -976,6 +997,69 @@ async fn put_bso_offloads_to_gcs() {
     assert!(
         resp.response().status().is_success(),
         "put_bso failed: {:?}",
+        resp.response()
+    );
+}
+
+#[actix_rt::test]
+async fn post_collection_offloads_to_gcs() {
+    let mut settings = get_test_settings();
+    if !settings.syncstorage.uses_spanner() {
+        // TODO: should be Spanner only (for now)
+        return;
+    }
+
+    // Mock GCS: expect one multipart upload per BSO in the batch. `times(3)` asserts all three
+    // BSOs were uploaded.
+    const BSO_COUNT: usize = 3;
+    let server = Server::run();
+    server.expect(
+        Expectation::matching(all_of![
+            request::method_path("POST", "/upload/storage/v1/b/test-bucket/o"),
+            request::query(url_decoded(contains(("uploadType", "multipart")))),
+            request::body(matches(r#""committed""#)),
+            request::body(matches(r#""false""#)),
+            request::body(matches(r#""customTime""#)),
+        ])
+        .times(BSO_COUNT)
+        .respond_with(
+            status_code(200)
+                .append_header("content-type", "application/json")
+                .body(
+                    serde_json::json!({
+                        "name": "test-object",
+                        "bucket": "test-bucket",
+                    })
+                    .to_string(),
+                ),
+        ),
+    );
+
+    settings.syncstorage.gcs_payload_bucket = Some("test-bucket".to_owned());
+    settings.syncstorage.gcs_payload_offload_collections = vec!["bookmarks".to_owned()];
+    settings.syncstorage.gcs_endpoint = Some(format!("http://{}", server.addr()));
+
+    let app = init_app!(settings).await;
+
+    let body = json!(
+        (0..BSO_COUNT)
+            .map(|i| json!({ "id": format!("bso{i}"), "payload": format!("payload-{i}") }))
+            .collect::<Vec<_>>()
+    );
+    let req = create_request(
+        http::Method::POST,
+        "/1.5/42/storage/bookmarks",
+        None,
+        Some(body),
+    )
+    .to_request();
+    let resp = app
+        .call(req)
+        .await
+        .expect("Could not get resp in post_collection_offloads_to_gcs");
+    assert!(
+        resp.response().status().is_success(),
+        "post_collection failed: {:?}",
         resp.response()
     );
 }

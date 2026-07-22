@@ -133,6 +133,10 @@ pub struct Settings {
     /// off-load path for all collections.
     pub gcs_payload_offload_collections: Vec<String>,
 
+    /// Maximum number of GCS payload uploads/downloads to run concurrently
+    /// within a single batch request.
+    pub gcs_payload_max_concurrency: usize,
+
     /// Override the GCS endpoint URL for testing (e.g. an httptest mock or
     /// fake-gcs-server instance). When set, anonymous credentials are used.
     /// Unset in prod deployments; setting it to a wrong value in prod would
@@ -166,6 +170,7 @@ impl Default for Settings {
             lbheartbeat_ttl_jitter: 25,
             gcs_payload_bucket: None,
             gcs_payload_offload_collections: Vec::new(),
+            gcs_payload_max_concurrency: 4,
             gcs_endpoint: None,
         }
     }
