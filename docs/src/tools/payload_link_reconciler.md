@@ -120,6 +120,22 @@ gcloud dataflow flex-template build \
 - `roles/pubsub.publisher` on the destination topic.
 - `roles/dataflow.worker`.
 
+### 2b. Dev/E2E Python publisher — `tools/payload-link-dataflow/payload-link-publisher-py/`
+
+Plain Python script (not Beam) that polls the
+`READ_payload_link_changes` TVF via `google.cloud.spanner.Client` and
+publishes the same JSON wire format the Java job produces. Sub-second
+startup, no JVM. **Dev/E2E only** — used by the compose stack
+described below; **Java remains the prod publisher.**
+
+Follows partition splits: reads `_root`, picks up child-partition
+tokens from `child_partitions_record`s, reads each child from its
+advertised `start_timestamp`, retires parents once their children are
+announced, and drops any partition that responds `OUT_OF_RANGE`.
+Required in practice — the emulator routes DataChangeRecords to child
+partitions immediately, so a `_root`-only reader sees zero DCRs. Full
+details in the tool's own README.
+
 ### 3. Pub/Sub topic + DLQ
 
 Provisioned from `webservices-infra/sync`:
@@ -203,6 +219,50 @@ message:
 Mod fields (`keys`, `oldValues`, `newValues`) carry **JSON strings**
 that the reconciler parses with a second `json.loads` — this matches
 Spanner's change-streams wire convention.
+
+---
+
+## Local e2e compose stack
+
+`make docker_run_reconciliation_e2e_tests` brings up a full-stack
+compose environment that exercises the entire pipeline against
+emulators:
+
+| Service | Image | Role |
+|---|---|---|
+| `sync-db` | Spanner emulator (existing) | Spanner + change stream |
+| `pubsub-emulator` | `google-cloud-cli:emulators` | Pub/Sub |
+| `fake-gcs` | `fsouza/fake-gcs-server` | GCS |
+| `reconciliation-setup` | one-shot | creates Pub/Sub topic + subscription + bucket |
+| `payload-link-publisher` | Python publisher (default) | polls change stream → publishes to Pub/Sub |
+| `payload-reconciler` | primary image, entrypoint override | drains Pub/Sub → patches/deletes GCS objects |
+| `syncserver` | primary image | offload enabled for all `test_storage.py` collections |
+| `e2e-tests` | primary image | runs `pytest tools/integration_tests/ tools/tokenserver/` |
+
+Two publisher variants:
+
+- **Python (default)** — `docker-compose.e2e.reconciliation.yaml`.
+  Sub-second startup; the day-to-day iteration path.
+- **Java (swap-in)** — layer
+  `docker-compose.e2e.reconciliation.java.yaml` on top. Runs the same
+  Java flex-template image under Beam's DirectRunner. See
+  `tools/payload-link-dataflow/README.md` for the exact invocation.
+  Use when you need to reproduce a Java-specific issue.
+
+The compose stack doubles as regression coverage for `test_storage.py`:
+by opting every collection the storage tests use into GCS offload, each
+BSO write flows through the offload path (upload + `payload_link`
+storage), and each read flows through `download_payload`. New
+reconciler-specific tests live in
+`tools/integration_tests/test_payload_link_reconciliation.py`, gated
+by a module-level `pytest.mark.skipif` on `GCS_PAYLOAD_BUCKET` so they
+auto-skip in the existing spanner e2e stack (where the env var is
+unset) and un-skip here.
+
+**Emulator fallback.** If a future Spanner emulator upgrade breaks
+`SELECT * FROM READ_payload_link_changes(...)`, the fall-back is the
+Java swap-in overlay above (or running the compose stack against a
+real dev Spanner instance).
 
 ---
 

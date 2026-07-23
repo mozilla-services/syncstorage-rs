@@ -219,3 +219,47 @@ jobs:
           tags: ${{ env.IMAGE_TAGS }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Payload-link Dataflow flex template (Java). GAR-only -- this image
+  # is consumed by webservices-infra to launch the Dataflow job; we do
+  # not mirror it to GHCR.
+  build-and-push-syncserver-payload-link-dataflow:
+    needs: check
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-build-and-push
+        id: setup
+        with:
+          workload_identity_provider: ${{ vars.GCPV2_GITHUB_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp_service_account: "${{ vars.SERVICE_ACCOUNT_NAME || 'artifact-writer' }}@moz-fx-sync-prod.iam.gserviceaccount.com"
+
+      - name: Compute tags (GAR only)
+        run: |
+          TAGS="us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-payload-link-dataflow:${IMAGE_TAG}"
+          if [[ "${PUSH_LATEST}" == "true" ]]; then
+            TAGS="$TAGS
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-payload-link-dataflow:latest"
+          fi
+          echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
+          echo "$TAGS" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+        env:
+          IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
+          PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
+
+      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        with:
+          context: tools/payload-link-dataflow
+          file: tools/payload-link-dataflow/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_TAGS }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
