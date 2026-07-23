@@ -501,6 +501,91 @@ mod test {
     }
 
     #[test]
+    fn test_gcs_offload_bucket_on_non_spanner_fails() {
+        // The default test DATABASE_URL is mysql, which has no payload_link
+        // column, so a configured off-load bucket must fail validation.
+        temp_env::with_vars(
+            [
+                (
+                    "SYNC_SYNCSTORAGE__DATABASE_URL",
+                    Some(TEST_SYNCSTORAGE_DATABASE_URL),
+                ),
+                ("SYNC_TOKENSERVER__DATABASE_URL", None),
+                ("SYNC_TOKENSERVER__ENABLED", None),
+                (
+                    "SYNC_SYNCSTORAGE__GCS_PAYLOAD_BUCKET",
+                    Some("sync-payloads"),
+                ),
+            ],
+            || {
+                let err = Settings::with_env_and_config_file(None)
+                    .expect_err("an off-load bucket on a non-spanner backend should fail");
+                assert!(err.to_string().contains("Spanner backend"));
+            },
+        );
+    }
+
+    #[test]
+    fn test_gcs_offload_collections_on_non_spanner_fails() {
+        // Opting collections into off-load without a bucket must also fail on
+        // a non-spanner backend.
+        temp_env::with_vars(
+            [
+                (
+                    "SYNC_SYNCSTORAGE__DATABASE_URL",
+                    Some(TEST_SYNCSTORAGE_DATABASE_URL),
+                ),
+                ("SYNC_TOKENSERVER__DATABASE_URL", None),
+                ("SYNC_TOKENSERVER__ENABLED", None),
+                (
+                    "SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS",
+                    Some("tabs,history"),
+                ),
+            ],
+            || {
+                let err = Settings::with_env_and_config_file(None)
+                    .expect_err("off-load collections on a non-spanner backend should fail");
+                assert!(err.to_string().contains("Spanner backend"));
+            },
+        );
+    }
+
+    #[test]
+    fn test_gcs_offload_on_spanner_validates() {
+        // The same off-load config validates against a spanner DATABASE_URL.
+        temp_env::with_vars(
+            [
+                (
+                    "SYNC_SYNCSTORAGE__DATABASE_URL",
+                    Some("spanner://projects/test/instances/test/databases/test"),
+                ),
+                ("SYNC_TOKENSERVER__DATABASE_URL", None),
+                ("SYNC_TOKENSERVER__ENABLED", None),
+                (
+                    "SYNC_SYNCSTORAGE__GCS_PAYLOAD_BUCKET",
+                    Some("sync-payloads"),
+                ),
+                (
+                    "SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS",
+                    Some("tabs,history"),
+                ),
+            ],
+            || {
+                let settings = Settings::with_env_and_config_file(None)
+                    .expect("off-load config should validate on spanner");
+                assert_eq!(
+                    settings.syncstorage.gcs_payload_bucket.as_deref(),
+                    Some("sync-payloads")
+                );
+                assert_eq!(
+                    settings.syncstorage.gcs_payload_offload_collections,
+                    vec!["tabs".to_owned(), "history".to_owned()]
+                );
+            },
+        );
+    }
+
+    #[test]
     fn test_disabled_tokenserver_does_not_require_database_url() {
         // A disabled Tokenserver should not require a DATABASE_URL.
         temp_env::with_vars(
