@@ -137,9 +137,9 @@ write is offloaded to GCS is a separate, per-collection server setting. To drive
 a fully offloaded collection at maximum size, set `OFFLOAD_COLLECTIONS` to that
 collection and `LARGE_PAYLOAD_PROB=1.0`.
 
-Individual payloads are always capped at `max_record_payload_bytes`, and each
-batch is automatically kept under the server's `max_post_bytes`, so a large
-enough payload results in fewer records per request.
+Individual payloads are capped at the target collection's
+`max_record_payload_bytes`, and each batch is kept under its `max_post_bytes`,
+so a large enough payload results in fewer records per request.
 
 Example — every write is a 5 MiB payload sent to the `tabs` collection:
 
@@ -161,8 +161,10 @@ must be configured for it:
   `gcs_payload_offload_collections` (syncstorage settings).
 - Raised limits to allow payloads beyond the 2.5 MiB default:
   `max_record_payload_bytes`, `max_post_bytes`, `max_request_bytes`, and
-  `max_total_bytes`. There is no per-collection limits endpoint — these are
-  global (`/info/configuration`), which the load test reads and respects.
+  `max_total_bytes`. These are read from `/info/configuration`. A collection
+  may also raise its own limits via the `collections` section of that
+  response; the load test resolves limits per target collection, preferring a
+  collection's override and falling back to the global value.
 - Any front-end proxy (e.g. nginx) request body-size limit raised to match.
 
 Note: many workers each holding multi-MiB payloads is a real memory footprint
