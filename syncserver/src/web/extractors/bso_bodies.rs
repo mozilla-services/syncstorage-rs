@@ -128,22 +128,9 @@ impl FromRequest for BsoBodies {
                 if !bso.is_object() {
                     return Err(invalid_json());
                 }
+
                 // Save all id's we get, check for missing id, or duplicate.
-                let bso_id = if let Some(id) = bso.get("id").and_then(serde_json::Value::as_str) {
-                    let id = id.to_string();
-                    if bso_ids.contains(&id) {
-                        return Err(ValidationErrorKind::FromDetails(
-                            "Input BSO has duplicate ID".to_owned(),
-                            RequestErrorLocation::Body,
-                            Some("bsos".to_owned()),
-                            Some("request.store.duplicate_bso_id"),
-                        )
-                        .into());
-                    } else {
-                        bso_ids.insert(id.clone());
-                        id
-                    }
-                } else {
+                let Some(id) = bso.get("id").and_then(serde_json::Value::as_str) else {
                     return Err(ValidationErrorKind::FromDetails(
                         "Input BSO has no ID".to_owned(),
                         RequestErrorLocation::Body,
@@ -152,6 +139,17 @@ impl FromRequest for BsoBodies {
                     )
                     .into());
                 };
+                let bso_id = id.to_string();
+                if bso_ids.contains(&bso_id) {
+                    return Err(ValidationErrorKind::FromDetails(
+                        "Input BSO has duplicate ID".to_owned(),
+                        RequestErrorLocation::Body,
+                        Some("bsos".to_owned()),
+                        Some("request.store.duplicate_bso_id"),
+                    )
+                    .into());
+                }
+                bso_ids.insert(bso_id.clone());
                 match BatchBsoBody::from_raw_bso(bso) {
                     Ok(b) => {
                         // Is this record too large? Deny if it is.
