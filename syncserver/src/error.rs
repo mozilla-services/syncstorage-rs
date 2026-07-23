@@ -97,6 +97,10 @@ impl ApiErrorKind {
 }
 
 impl ApiError {
+    pub fn internal(msg: impl Into<String>) -> Self {
+        ApiErrorKind::Internal(msg.into()).into()
+    }
+
     pub fn is_sentry_event(&self) -> bool {
         // Should we report this error to sentry?
         self.status.is_server_error()
