@@ -186,6 +186,24 @@ impl Settings {
             }
         }
 
+        // GCS payload off-load is only wired up for the Spanner backend. On
+        // mysql/postgres the payload_link column does not exist, so an
+        // off-loaded write would upload to GCS, clear the inline payload, then
+        // persist a row with no link and lose the payload. Refuse to boot when
+        // it's configured against a non-Spanner backend.
+        if self.syncstorage.enabled
+            && !self.syncstorage.uses_spanner()
+            && (self.syncstorage.gcs_payload_bucket.is_some()
+                || !self.syncstorage.gcs_payload_offload_collections.is_empty())
+        {
+            return Err(ConfigError::Message(
+                "GCS payload off-load (SYNC_SYNCSTORAGE__GCS_PAYLOAD_BUCKET / \
+                 SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS) is only \
+                 supported on the Spanner backend"
+                    .to_owned(),
+            ));
+        }
+
         if let Some(init_node_url) = &self.tokenserver.init_node_url {
             let url = Url::parse(init_node_url).map_err(|e| {
                 ConfigError::Message(format!("Invalid SYNC_TOKENSERVER__INIT_NODE_URL: {e}"))
