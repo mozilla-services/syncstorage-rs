@@ -61,7 +61,7 @@ impl FromRequest for BsoBodies {
 
             // Grab the max sizes
             let Some(state) = req.app_data::<Data<ServerState>>() else {
-                return Err(ApiError::internal("No app_data").into());
+                return Err(ApiError::no_server_state().into());
             };
             // `max_record_payload_bytes` can be overridden per collection
             let max_payload_size = {
