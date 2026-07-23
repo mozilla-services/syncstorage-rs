@@ -150,7 +150,7 @@ make spanner_test_with_coverage
 
 ## Clippy / formatting / audit
 
-Formatting checks are necessary before applying any code changes, as they 
+Formatting checks are necessary before applying any code changes, as they
 can capture problematic patterns or compiler issues in advance.
 
 ```bash
@@ -167,6 +167,8 @@ make clippy_release_spanner
 
 cargo audit                      # check dependencies for known CVEs (run by CI on every push)
 ```
+
+After editing Rust code, run clippy and the unit tests for the affected backend before finishing the task; the `rust-code-smell` skill covers changed files across backends.
 
 ## Python tooling
 
