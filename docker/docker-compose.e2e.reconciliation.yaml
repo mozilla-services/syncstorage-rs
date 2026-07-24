@@ -130,6 +130,9 @@ services:
       # Collections used by test_storage.py -- opts them all into offload
       # so test_storage.py exercises the offload path as regression
       # coverage. Extend if new collections appear in the test suite.
+      # Deliberately excludes xxx_usage: the /info/quota and
+      # /info/collection_usage tests need a non-offloaded collection since
+      # byte accounting reads the inline Spanner payload. Do not add it here.
       SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS: >-
         apis-1,crypto,meta,passwords,xxx_col,xxx_col1,xxx_col2,xxx_meh,xxxx,nonexistent
 
