@@ -391,6 +391,9 @@ impl Server {
             app_channel: settings.environment.clone(),
         });
         let glean_enabled = settings.syncstorage.glean_enabled;
+        // TODO(STOR-650): gate this behind the spanner build feature so
+        // non-spanner builds can't carry offload config at all. Startup
+        // validation (STOR-627) rejects it at runtime in the meantime.
         let gcs_payload_bucket = settings.syncstorage.gcs_payload_bucket.clone();
         let gcs_payload_offload_collections =
             Arc::new(settings.syncstorage.gcs_payload_offload_collections.clone());
