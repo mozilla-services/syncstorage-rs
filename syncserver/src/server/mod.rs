@@ -76,8 +76,8 @@ pub struct ServerState {
 
     /// Override the GCS endpoint URL (for testing). When set the GCS client
     /// is built with `.with_endpoint(...)` + anonymous credentials.
-    /// Debug-builds only; not available in release.
-    #[cfg(debug_assertions)]
+    /// Unset in prod; opt-in via `SYNC_SYNCSTORAGE__GCS_ENDPOINT` for
+    /// local/e2e testing against a fake-gcs-server or httptest mock.
     pub gcs_endpoint: Option<String>,
 }
 
@@ -394,7 +394,6 @@ impl Server {
         let gcs_payload_bucket = settings.syncstorage.gcs_payload_bucket.clone();
         let gcs_payload_offload_collections =
             Arc::new(settings.syncstorage.gcs_payload_offload_collections.clone());
-        #[cfg(debug_assertions)]
         let gcs_endpoint = settings.syncstorage.gcs_endpoint.clone();
         let worker_thread_count =
             calculate_worker_max_blocking_threads(settings.worker_max_blocking_threads);
@@ -444,7 +443,6 @@ impl Server {
                 glean_enabled,
                 gcs_payload_bucket: gcs_payload_bucket.clone(),
                 gcs_payload_offload_collections: Arc::clone(&gcs_payload_offload_collections),
-                #[cfg(debug_assertions)]
                 gcs_endpoint: gcs_endpoint.clone(),
             };
 

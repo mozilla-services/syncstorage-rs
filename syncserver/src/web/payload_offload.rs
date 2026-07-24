@@ -16,7 +16,6 @@
 
 use std::time::SystemTime;
 
-#[cfg(debug_assertions)]
 use google_cloud_auth::credentials::anonymous;
 use google_cloud_storage::client::{Storage, StorageControl};
 use syncstorage_db::UserIdentifier;
@@ -40,16 +39,15 @@ pub fn offload_bucket<'a>(state: &'a ServerState, collection: &str) -> Option<&'
         .then_some(bucket)
 }
 
-/// Build a GCS client honoring the (test-only) endpoint override stored on
+/// Build a GCS client honoring the endpoint override stored on
 /// [`ServerState`]. When the override is set we additionally use anonymous
 /// credentials so the SDK does not attempt to acquire Application Default
-/// Credentials against a mock server.
-async fn gcs_client(
-    #[cfg_attr(not(debug_assertions), allow(unused_variables))] state: &ServerState,
-) -> Result<Storage, ApiError> {
-    #[cfg_attr(not(debug_assertions), allow(unused_mut))]
+/// Credentials against a mock server. This is opt-in via the
+/// `SYNC_SYNCSTORAGE__GCS_ENDPOINT` setting (unset in prod deployments);
+/// setting it to the wrong value in prod would immediately break offload,
+/// so the opt-in is self-defeating as a stealth-security-degradation vector.
+async fn gcs_client(state: &ServerState) -> Result<Storage, ApiError> {
     let mut builder = Storage::builder();
-    #[cfg(debug_assertions)]
     if let Some(endpoint) = state.gcs_endpoint.as_deref() {
         builder = builder
             .with_endpoint(endpoint)
