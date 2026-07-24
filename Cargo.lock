@@ -4749,6 +4749,7 @@ dependencies = [
  "futures 0.3.32",
  "glean",
  "google-cloud-auth",
+ "google-cloud-gax",
  "google-cloud-storage",
  "google-cloud-wkt",
  "hawk",

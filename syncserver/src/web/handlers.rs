@@ -27,7 +27,7 @@ use crate::{
             BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, EmitApiMetric,
             HeartbeatRequest, MetaRequest, ReplyFormat, TestErrorRequest,
         },
-        payload_offload::{download_payload, offload_bucket, upload_payload},
+        payload_offload::{delete_payload, download_payload, offload_bucket, upload_payload},
         transaction::DbTransactionPool,
     },
 };
@@ -420,6 +420,7 @@ pub async fn post_collection(
     // This also covers the batched path: post_collection_batch reads from
     // `coll.bsos.valid` once the transaction is open, by which point each
     // entry's payload/payload_link have already been swapped.
+    let mut offload_urls: Vec<String> = Vec::new();
     if let Some(bucket) = offload_bucket(&state, &coll.collection) {
         for bso in coll.bsos.valid.iter_mut() {
             if let Some(payload) = bso.payload.take() {
@@ -432,6 +433,7 @@ pub async fn post_collection(
                     payload,
                 )
                 .await?;
+                offload_urls.push(url.clone()); // might need to delete on transaction failure
                 // payload was taken above; leave it None so only
                 // payload_link is set on the offloaded BSO.
                 bso.payload_link = Some(url);
@@ -439,7 +441,7 @@ pub async fn post_collection(
         }
     }
 
-    db_pool
+    let resp = db_pool
         .transaction_http(&request, async |db| {
             coll.emit_api_metric("request.post_collection");
             trace!("Collection: Post");
@@ -480,7 +482,15 @@ pub async fn post_collection(
                     "failed": coll.bsos.invalid,
                 })))
         })
-        .await
+        .await;
+
+    if resp.is_err() {
+        for url in offload_urls {
+            let _ = delete_payload(&url).await;
+        }
+    }
+
+    resp
 }
 
 // Append additional collection items into the given Batch, optionally commiting
@@ -783,7 +793,7 @@ pub async fn put_bso(
         payload_link = Some(url);
     }
 
-    db_pool
+    let resp = db_pool
         .transaction_http(&request, async |db| {
             bso_req.emit_api_metric("request.put_bso");
             let result = db
@@ -793,7 +803,7 @@ pub async fn put_bso(
                     id: bso_req.bso,
                     sortindex: bso_req.body.sortindex,
                     payload: bso_req.body.payload,
-                    payload_link,
+                    payload_link: payload_link.clone(),
                     ttl: bso_req.body.ttl,
                 })
                 .await?;
@@ -802,7 +812,14 @@ pub async fn put_bso(
                 .insert_header((X_LAST_MODIFIED, result.as_header()))
                 .json(result))
         })
-        .await
+        .await;
+
+    if resp.is_err()
+        && let Some(gcs_url) = &payload_link
+    {
+        let _ = delete_payload(gcs_url).await;
+    }
+    resp
 }
 
 #[utoipa::path(
