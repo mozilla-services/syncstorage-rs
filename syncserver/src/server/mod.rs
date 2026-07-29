@@ -96,18 +96,14 @@ impl ServerState {
     /// bucket.
     pub fn gcs_client(&self) -> Result<&Storage, ApiError> {
         self.gcs_client.as_ref().ok_or_else(|| {
-            ApiErrorKind::Internal("GCS off-load enabled but client not initialized".to_owned())
-                .into()
+            ApiError::internal("GCS off-load enabled but client not initialized")
         })
     }
 
     /// Shared GCS control-plane client.  Available when GCS off-load is enabled.
     pub fn gcs_control_client(&self) -> Result<&StorageControl, ApiError> {
         self.gcs_control_client.as_ref().ok_or_else(|| {
-            ApiErrorKind::Internal(
-                "GCS off-load enabled but control client not initialized".to_owned(),
-            )
-            .into()
+            ApiError::internal("GCS off-load enabled but control client not initialized")
         })
     }
 }
@@ -429,15 +425,14 @@ impl Server {
         let gcs_payload_offload_collections =
             Arc::new(settings.syncstorage.gcs_payload_offload_collections.clone());
         let gcs_payload_max_concurrency = settings.syncstorage.gcs_payload_max_concurrency.max(1);
-        let (gcs_client, gcs_control_client) = match gcs_payload_bucket {
-            Some(_) => {
-                let endpoint = settings.syncstorage.gcs_endpoint.as_deref();
-                (
-                    Some(build_client(endpoint).await?),
-                    Some(build_control_client(endpoint).await?),
-                )
-            }
-            None => (None, None),
+        let (gcs_client, gcs_control_client) = if gcs_payload_bucket.is_some() {
+            let endpoint = settings.syncstorage.gcs_endpoint.as_deref();
+            (
+                Some(build_client(endpoint).await?),
+                Some(build_control_client(endpoint).await?),
+            )
+        } else {
+            (None, None)
         };
         let worker_thread_count =
             calculate_worker_max_blocking_threads(settings.worker_max_blocking_threads);
