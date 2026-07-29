@@ -95,9 +95,9 @@ impl ServerState {
     /// Shared GCS client to use when [`crate::web::payload_offload::offload_bucket`] returns Some
     /// bucket.
     pub fn gcs_client(&self) -> Result<&Storage, ApiError> {
-        self.gcs_client.as_ref().ok_or_else(|| {
-            ApiError::internal("GCS off-load enabled but client not initialized")
-        })
+        self.gcs_client
+            .as_ref()
+            .ok_or_else(|| ApiError::internal("GCS off-load enabled but client not initialized"))
     }
 
     /// Shared GCS control-plane client.  Available when GCS off-load is enabled.

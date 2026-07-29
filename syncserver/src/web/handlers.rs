@@ -456,6 +456,8 @@ pub async fn post_collection(
 
         let user_id = &coll.user_id;
         let collection = coll.collection.as_str();
+        // fail-fast on first failure uploads; successful, orphaned uploads rely on GCS lifecyle
+        // policy for clean-up.
         let uploads: Vec<(usize, String)> = stream::iter(pending)
             .map(|(i, bso_id, payload)| {
                 let client = client.clone();
