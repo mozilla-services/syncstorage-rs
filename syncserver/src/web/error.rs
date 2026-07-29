@@ -223,6 +223,13 @@ impl From<ValidationErrorKind> for ActixError {
     }
 }
 
+impl From<ValidationError> for ActixError {
+    fn from(inner: ValidationError) -> Self {
+        let api_error: ApiError = inner.into();
+        api_error.into()
+    }
+}
+
 impl Serialize for ValidationError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

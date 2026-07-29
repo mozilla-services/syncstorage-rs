@@ -198,14 +198,14 @@ impl Settings {
 #[serde(default)]
 pub struct ServerLimits {
     /// Maximum combined size of BSO payloads for a single request, in bytes.
-    pub max_post_bytes: u32,
+    max_post_bytes: u32,
 
     /// Maximum BSO count for a single request.
     pub max_post_records: u32,
 
     /// Maximum size of an individual BSO payload, in bytes.
     /// At present is limited to 2.5MB
-    pub max_record_payload_bytes: u32,
+    max_record_payload_bytes: u32,
 
     /// Maximum `Content-Length` for all incoming requests, in bytes.
     ///
@@ -214,7 +214,7 @@ pub struct ServerLimits {
     /// really is configured to enforce exactly this limit,
     /// otherwise client requests may fail with a 413
     /// before even reaching the API.
-    pub max_request_bytes: u32,
+    max_request_bytes: u32,
 
     /// Maximum combined size of BSO payloads across a batch upload, in bytes.
     pub max_total_bytes: u32,
@@ -225,8 +225,12 @@ pub struct ServerLimits {
 
     /// Optional per-collection overrides of the limits above by collection name.
     ///
-    /// Configured as a JSON string mapping each collection name to an overrides object, e.g.
-    /// `SYNC_SYNCSTORAGE__LIMITS__COLLECTIONS='{"tabs":{"max_record_payload_bytes":202020}}'`.
+    /// Configured as a JSON string mapping each collection name to an overrides
+    /// object, e.g.
+    /// `SYNC_SYNCSTORAGE__LIMITS__COLLECTIONS='{"newtab-images":{"max_record_payload_bytes":20971520,"max_post_bytes":26214400,"max_request_bytes":26218496}}'`.
+    /// Supported override fields: `max_record_payload_bytes`,
+    /// `max_post_bytes`, `max_request_bytes`. Any field left unset inherits
+    /// the corresponding global limit.
     #[serde(
         default,
         deserialize_with = "deserialize_collection_limits",
@@ -235,35 +239,26 @@ pub struct ServerLimits {
     pub collections: HashMap<String, CollectionLimitOverride>,
 }
 
-/// Optional per-collection overrides of ServerLimits by collection name.
-///
-/// `None` means the collection inherits the global limit.  Currently only
-/// `max_record_payload_bytes` is supported.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct CollectionLimitOverride {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_record_payload_bytes: Option<u32>,
-}
-
-/// Deserialize the per-collection overrides from a JSON string.
-fn deserialize_collection_limits<'de, D>(
-    deserializer: D,
-) -> Result<HashMap<String, CollectionLimitOverride>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    serde_json::from_str(&s).map_err(serde::de::Error::custom)
-}
-
 impl ServerLimits {
-    /// The effective `max_record_payload_bytes` for `collection`.
-    pub fn max_record_payload_bytes_for(&self, collection: &str) -> u32 {
+    /// The effective
+    /// `max_record_payload_bytes`/`max_post_bytes``max_request_bytes` for
+    /// `collection`.
+    pub fn limits_for(&self, collection: Option<&str>) -> PerCollectionLimits {
         self.collections
-            .get(collection)
-            .and_then(|o| o.max_record_payload_bytes)
-            .unwrap_or(self.max_record_payload_bytes)
+            .get(collection.unwrap_or(""))
+            .map(|coll_limits| PerCollectionLimits::from(coll_limits, self))
+            .unwrap_or_else(|| PerCollectionLimits::from(&Default::default(), self))
+    }
+
+    /// The maximum `max_request_bytes` across the default and any
+    /// per-collection overrides. Used to size actix's `PayloadConfig` /
+    /// `JsonConfig` so overridden collections aren't rejected at the
+    /// resource level before per-collection enforcement runs.
+    pub fn effective_max_request_bytes(&self) -> u32 {
+        self.collections
+            .values()
+            .filter_map(|o| o.max_request_bytes)
+            .fold(self.max_request_bytes, u32::max)
     }
 }
 
@@ -283,6 +278,53 @@ impl Default for ServerLimits {
     }
 }
 
+/// Optional per-collection overrides of ServerLimits by collection name.
+///
+/// `None` for a field means the collection inherits the corresponding global
+/// limit.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CollectionLimitOverride {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_record_payload_bytes: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_post_bytes: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_request_bytes: Option<u32>,
+}
+
+/// Deserialize the per-collection overrides from a JSON string.
+fn deserialize_collection_limits<'de, D>(
+    deserializer: D,
+) -> Result<HashMap<String, CollectionLimitOverride>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    serde_json::from_str(&s).map_err(serde::de::Error::custom)
+}
+
+/// Per collection's [CollectionLimitOverride] resolved against [ServerLimits]
+pub struct PerCollectionLimits {
+    pub max_record_payload_bytes: u32,
+    pub max_post_bytes: u32,
+    pub max_request_bytes: u32,
+}
+
+impl PerCollectionLimits {
+    pub fn from(coll_limits: &CollectionLimitOverride, limits: &ServerLimits) -> Self {
+        Self {
+            max_record_payload_bytes: coll_limits
+                .max_record_payload_bytes
+                .unwrap_or(limits.max_record_payload_bytes),
+            max_post_bytes: coll_limits.max_post_bytes.unwrap_or(limits.max_post_bytes),
+            max_request_bytes: coll_limits
+                .max_request_bytes
+                .unwrap_or(limits.max_request_bytes),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -296,15 +338,13 @@ mod tests {
     #[test]
     fn collections_parses_json_string() {
         let parsed = deserialize(serde_json::json!(
-            r#"{"newtab-images":{"max_record_payload_bytes":20971520}}"#
+            r#"{"newtab-images":{"max_record_payload_bytes":20971520,"max_post_bytes":26214400,"max_request_bytes":26218496}}"#
         ))
         .unwrap();
-        assert_eq!(
-            parsed
-                .get("newtab-images")
-                .and_then(|o| o.max_record_payload_bytes),
-            Some(20_971_520)
-        );
+        let entry = parsed.get("newtab-images").expect("entry present");
+        assert_eq!(entry.max_record_payload_bytes, Some(20_971_520));
+        assert_eq!(entry.max_post_bytes, Some(26_214_400));
+        assert_eq!(entry.max_request_bytes, Some(26_218_496));
         assert_eq!(parsed.len(), 1);
     }
 
@@ -315,15 +355,70 @@ mod tests {
             "newtab-images".to_owned(),
             CollectionLimitOverride {
                 max_record_payload_bytes: Some(20_971_520),
+                ..Default::default()
             },
         );
         assert_eq!(
-            limits.max_record_payload_bytes_for("newtab-images"),
+            limits
+                .limits_for(Some("newtab-images"))
+                .max_record_payload_bytes,
             20_971_520
         );
         assert_eq!(
-            limits.max_record_payload_bytes_for("tabs"),
+            limits.limits_for(Some("tabs")).max_record_payload_bytes,
             DEFAULT_MAX_RECORD_PAYLOAD_BYTES
         );
+    }
+
+    #[test]
+    fn max_post_and_request_bytes_overrides() {
+        let mut limits = ServerLimits::default();
+        limits.collections.insert(
+            "newtab-images".to_owned(),
+            CollectionLimitOverride {
+                max_post_bytes: Some(26_214_400),
+                max_request_bytes: Some(26_218_496),
+                ..Default::default()
+            },
+        );
+        let images_limits = limits.limits_for(Some("newtab-images"));
+        assert_eq!(images_limits.max_post_bytes, 26_214_400);
+        assert_eq!(images_limits.max_request_bytes, 26_218_496);
+        let tabs_limits = limits.limits_for(Some("tabs"));
+        assert_eq!(tabs_limits.max_post_bytes, DEFAULT_MAX_POST_BYTES);
+        assert_eq!(tabs_limits.max_request_bytes, DEFAULT_MAX_REQUEST_BYTES);
+    }
+
+    #[test]
+    fn effective_max_request_bytes_picks_the_ceiling() {
+        let mut limits = ServerLimits::default();
+        // No overrides: the effective ceiling equals the default.
+        assert_eq!(
+            limits.effective_max_request_bytes(),
+            DEFAULT_MAX_REQUEST_BYTES
+        );
+
+        // An override *below* the default doesn't lower the ceiling.
+        limits.collections.insert(
+            "small".to_owned(),
+            CollectionLimitOverride {
+                max_request_bytes: Some(1024),
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            limits.effective_max_request_bytes(),
+            DEFAULT_MAX_REQUEST_BYTES
+        );
+
+        // An override *above* the default raises the ceiling to match.
+        limits.collections.insert(
+            "newtab-images".to_owned(),
+            CollectionLimitOverride {
+                max_request_bytes: Some(26_218_496),
+                ..Default::default()
+            },
+        );
+        assert_eq!(limits.effective_max_request_bytes(), 26_218_496);
     }
 }

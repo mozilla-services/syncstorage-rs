@@ -4836,6 +4836,7 @@ version = "0.23.3"
 dependencies = [
  "config",
  "num_cpus",
+ "regex",
  "serde",
  "slog-scope",
  "syncserver-common",
