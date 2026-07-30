@@ -340,16 +340,15 @@ pub async fn get_collection(
                 handle_not_found(db.get_bsos(params).await).map_err(Into::into)
             },
             async |mut bsos: Paginated<results::GetBso>| {
-                if let Some(client) = state.gcs_client.as_ref() {
-                    // Links for concurrent downloads with index to bind the payload back to the
-                    // bso
-                    let links: Vec<(usize, String)> = bsos
-                        .items
-                        .iter_mut()
-                        .enumerate()
-                        .filter_map(|(i, bso)| bso.payload_link.take().map(|link| (i, link)))
-                        .collect();
+                let links: Vec<(usize, String)> = bsos
+                    .items
+                    .iter_mut()
+                    .enumerate()
+                    .filter_map(|(i, bso)| bso.payload_link.take().map(|link| (i, link)))
+                    .collect();
 
+                if !links.is_empty() {
+                    let client = state.gcs_client()?;
                     let payloads: Vec<(usize, String)> = stream::iter(links)
                         .map(|(i, link)| {
                             let client = client.clone();
