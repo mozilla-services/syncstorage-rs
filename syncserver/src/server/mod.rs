@@ -29,7 +29,7 @@ use syncstorage_db::{DbError, DbPool, DbPoolImpl};
 use syncstorage_settings::{Deadman, ServerLimits};
 
 use crate::{
-    error::{ApiError, ApiErrorKind},
+    error::ApiError,
     tokenserver,
     web::{
         handlers, middleware,
