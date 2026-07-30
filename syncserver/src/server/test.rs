@@ -143,7 +143,7 @@ async fn get_test_state(settings: &Settings) -> ServerState {
             ),
             None => None,
         },
-        gcs_payload_max_concurrency: settings.syncstorage.gcs_payload_max_concurrency.max(1),
+        gcs_payload_max_concurrency: settings.syncstorage.gcs_payload_max_concurrency,
     }
 }
 

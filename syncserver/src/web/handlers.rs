@@ -355,7 +355,7 @@ pub async fn get_collection(
                             let client = client.clone();
                             async move { download_payload(&client, &link).await.map(|p| (i, p)) }
                         })
-                        .buffer_unordered(state.gcs_payload_max_concurrency)
+                        .buffer_unordered(state.gcs_payload_max_concurrency.get())
                         .try_collect()
                         .await?;
 
@@ -467,7 +467,7 @@ pub async fn post_collection(
                         .map(|url| (i, url))
                 }
             })
-            .buffer_unordered(state.gcs_payload_max_concurrency)
+            .buffer_unordered(state.gcs_payload_max_concurrency.get())
             .try_collect()
             .await?;
 

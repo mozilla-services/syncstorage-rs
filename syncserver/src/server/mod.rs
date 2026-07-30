@@ -88,7 +88,7 @@ pub struct ServerState {
     pub gcs_control_client: Option<StorageControl>,
 
     /// Maximum GCS uploads/downloads to run concurrently.
-    pub gcs_payload_max_concurrency: usize,
+    pub gcs_payload_max_concurrency: NonZeroUsize,
 }
 
 impl ServerState {
@@ -424,7 +424,7 @@ impl Server {
         let gcs_payload_bucket = settings.syncstorage.gcs_payload_bucket.clone();
         let gcs_payload_offload_collections =
             Arc::new(settings.syncstorage.gcs_payload_offload_collections.clone());
-        let gcs_payload_max_concurrency = settings.syncstorage.gcs_payload_max_concurrency.max(1);
+        let gcs_payload_max_concurrency = settings.syncstorage.gcs_payload_max_concurrency;
         let (gcs_client, gcs_control_client) = if gcs_payload_bucket.is_some() {
             let endpoint = settings.syncstorage.gcs_endpoint.as_deref();
             (
