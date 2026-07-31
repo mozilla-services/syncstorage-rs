@@ -126,6 +126,19 @@ def handle_message_body(
     success), so re-delivery is safe.
     """
     record: dict[str, Any] = json.loads(body)
+
+    # Ignore batch_bsos change records. A batch_bsos payload_link is a staging
+    # pointer: on batch commit it is copied into the permanent bsos row (which
+    # the change stream also reports, so the object is finalized via that bsos
+    # record) and the batch_bsos row is then deleted. Acting on that delete
+    # would remove a GCS object the committed bsos row still points at. Objects
+    # from batches that are abandoned or overwritten never reach bsos, stay
+    # committed=false, and are reclaimed by the GCS lifecycle policy. See
+    # STOR-657.
+    if record.get("tableName") == "batch_bsos":
+        statsd.incr("payload_reconciler.batch_bsos_skips")
+        return
+
     ops_performed = 0
     for mod in record.get("mods", []):
         old_values_str = mod.get("oldValues") or "{}"
