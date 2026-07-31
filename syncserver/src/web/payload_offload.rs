@@ -39,16 +39,16 @@ pub fn offload_bucket<'a>(state: &'a ServerState, collection: &str) -> Option<&'
         .then_some(bucket)
 }
 
-/// Build a GCS client honoring the endpoint override stored on
-/// [`ServerState`]. When the override is set we additionally use anonymous
-/// credentials so the SDK does not attempt to acquire Application Default
-/// Credentials against a mock server. This is opt-in via the
-/// `SYNC_SYNCSTORAGE__GCS_ENDPOINT` setting (unset in prod deployments);
-/// setting it to the wrong value in prod would immediately break offload,
-/// so the opt-in is self-defeating as a stealth-security-degradation vector.
-async fn gcs_client(state: &ServerState) -> Result<Storage, ApiError> {
+/// Build a GCS client honoring the `endpoint` override. When the override is
+/// set we additionally use anonymous credentials so the SDK does not attempt
+/// to acquire Application Default Credentials against a mock server. This is
+/// opt-in via the `SYNC_SYNCSTORAGE__GCS_ENDPOINT` setting (unset in prod
+/// deployments); setting it to the wrong value in prod would immediately break
+/// offload, so the opt-in is self-defeating as a stealth-security-degradation
+/// vector.
+pub async fn build_client(endpoint: Option<&str>) -> Result<Storage, ApiError> {
     let mut builder = Storage::builder();
-    if let Some(endpoint) = state.gcs_endpoint.as_deref() {
+    if let Some(endpoint) = endpoint {
         builder = builder
             .with_endpoint(endpoint)
             .with_credentials(anonymous::Builder::new().build());
@@ -65,7 +65,7 @@ async fn gcs_client(state: &ServerState) -> Result<Storage, ApiError> {
 /// The object is written with custom metadata `committed=false` and a
 /// `customTime` of the upload moment.
 pub async fn upload_payload(
-    state: &ServerState,
+    client: &Storage,
     bucket: &str,
     user_id: &UserIdentifier,
     collection: &str,
@@ -79,7 +79,6 @@ pub async fn upload_payload(
         bso_id,
         Uuid::new_v4().hyphenated()
     );
-    let client = gcs_client(state).await?;
 
     let custom_time: wkt::Timestamp = SystemTime::now()
         .try_into()
@@ -97,9 +96,8 @@ pub async fn upload_payload(
 
 /// Download payload bytes from a `gs://{bucket}/{object}` URL produced by
 /// [`upload_payload`] and return them as a UTF-8 string.
-pub async fn download_payload(state: &ServerState, gs_url: &str) -> Result<String, ApiError> {
+pub async fn download_payload(client: &Storage, gs_url: &str) -> Result<String, ApiError> {
     let (bucket, object) = parse_gs_url(gs_url)?;
-    let client = gcs_client(state).await?;
 
     let mut response = client
         .read_object(bucket_path(bucket), object.to_string())
@@ -115,20 +113,20 @@ pub async fn download_payload(state: &ServerState, gs_url: &str) -> Result<Strin
         .map_err(|e| ApiErrorKind::Internal(format!("invalid utf-8 in GCS payload: {e}")).into())
 }
 
-async fn gcs_control_client() -> Result<StorageControl, ApiError> {
-    StorageControl::builder()
+pub async fn build_control_client(endpoint: Option<&str>) -> Result<StorageControl, ApiError> {
+    let mut builder = StorageControl::builder();
+    if let Some(endpoint) = endpoint {
+        builder = builder
+            .with_endpoint(endpoint)
+            .with_credentials(anonymous::Builder::new().build());
+    }
+    builder
         .build()
         .await
         .map_err(|e| ApiErrorKind::Internal(format!("GCS builder error: {e}")).into())
 }
 
-pub async fn delete_payload(gs_url: &str) -> Result<(), ApiError> {
-    let client = gcs_control_client().await?;
-    delete_payload_with(&client, gs_url).await
-}
-
-/// Allowed a provided control client so a stub can be injected for testing.
-async fn delete_payload_with(client: &StorageControl, gs_url: &str) -> Result<(), ApiError> {
+pub async fn delete_payload(client: &StorageControl, gs_url: &str) -> Result<(), ApiError> {
     let (bucket, object) = parse_gs_url(gs_url)?;
     client
         .delete_object()
@@ -148,6 +146,17 @@ fn parse_gs_url(url: &str) -> Result<(&str, &str), ApiError> {
     url.strip_prefix("gs://")
         .and_then(|p| p.split_once('/'))
         .ok_or_else(|| ApiErrorKind::Internal(format!("invalid GCS URL: {url}")).into())
+}
+
+/// Reattach GCS results to their corresponding entries in `items` by index.
+pub fn reattach_by_index<T, V>(
+    items: &mut [T],
+    results: impl IntoIterator<Item = (usize, V)>,
+    mut apply: impl FnMut(&mut T, V),
+) {
+    for (i, value) in results {
+        apply(&mut items[i], value);
+    }
 }
 
 #[cfg(test)]
@@ -209,9 +218,9 @@ mod tests {
             deletes: deletes.clone(),
         });
 
-        delete_payload_with(&client, "gs://test-bucket/uid/bookmarks/bid/uuid")
+        delete_payload(&client, "gs://test-bucket/uid/bookmarks/bid/uuid")
             .await
-            .expect("delete_payload_with should succeed");
+            .expect("delete_payload should succeed");
 
         let recorded = deletes.lock().unwrap();
         assert_eq!(
@@ -227,11 +236,58 @@ mod tests {
     async fn delete_payload_surfaces_delete_error() {
         let client = StorageControl::from_stub(FailingStub);
 
-        let result = delete_payload_with(&client, "gs://test-bucket/uid/bookmarks/bid/uuid").await;
+        let result = delete_payload(&client, "gs://test-bucket/uid/bookmarks/bid/uuid").await;
 
         assert!(
             result.is_err(),
             "a failed GCS delete should surface as an error"
         );
+    }
+
+    #[test]
+    fn reattach_results_to_correct_slots() {
+        let mut items: Vec<Option<String>> = vec![None, None, None, None];
+        let results = vec![
+            (2, "two".to_owned()),
+            (0, "zero".to_owned()),
+            (3, "three".to_owned()),
+            (1, "one".to_owned()),
+        ];
+        reattach_by_index(&mut items, results, |slot, payload| *slot = Some(payload));
+        assert_eq!(
+            items,
+            vec![
+                Some("zero".to_owned()),
+                Some("one".to_owned()),
+                Some("two".to_owned()),
+                Some("three".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn reattach_only_indexed_slots() {
+        let mut items = vec![
+            "keep-0".to_owned(),
+            "keep-1".to_owned(),
+            "keep-2".to_owned(),
+        ];
+        let results = vec![(1, "replaced-1".to_owned())];
+        reattach_by_index(&mut items, results, |slot, v| *slot = v);
+        assert_eq!(
+            items,
+            vec![
+                "keep-0".to_owned(),
+                "replaced-1".to_owned(),
+                "keep-2".to_owned(),
+            ]
+        );
+    }
+
+    #[test]
+    fn reattach_empty_results_is_noop() {
+        let mut items = vec![1, 2, 3];
+        reattach_by_index(&mut items, Vec::<(usize, i32)>::new(), |slot, v| *slot = v);
+        assert_eq!(items, vec![1, 2, 3]);
     }
 }

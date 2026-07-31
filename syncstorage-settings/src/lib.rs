@@ -3,6 +3,7 @@
 use std::{
     cmp::min,
     collections::HashMap,
+    num::NonZeroUsize,
     time::{Duration, Instant},
 };
 
@@ -10,6 +11,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 use syncserver_common::{self, MAX_SPANNER_LOAD_SIZE};
 
 static KILOBYTE: u32 = 1024;
+
+/// Default for [`Settings::gcs_payload_max_concurrency`].
+const DEFAULT_GCS_PAYLOAD_MAX_CONCURRENCY: NonZeroUsize = NonZeroUsize::new(4).unwrap();
 static MEGABYTE: u32 = KILOBYTE * KILOBYTE;
 static GIGABYTE: u32 = MEGABYTE * 1_000;
 // Current limit of 2.5 MB
@@ -133,6 +137,10 @@ pub struct Settings {
     /// off-load path for all collections.
     pub gcs_payload_offload_collections: Vec<String>,
 
+    /// Maximum number of GCS payload uploads/downloads to run concurrently
+    /// within a single batch request.
+    pub gcs_payload_max_concurrency: NonZeroUsize,
+
     /// Override the GCS endpoint URL for testing (e.g. an httptest mock or
     /// fake-gcs-server instance). When set, anonymous credentials are used.
     /// Unset in prod deployments; setting it to a wrong value in prod would
@@ -166,6 +174,7 @@ impl Default for Settings {
             lbheartbeat_ttl_jitter: 25,
             gcs_payload_bucket: None,
             gcs_payload_offload_collections: Vec::new(),
+            gcs_payload_max_concurrency: DEFAULT_GCS_PAYLOAD_MAX_CONCURRENCY,
             gcs_endpoint: None,
         }
     }
