@@ -225,6 +225,8 @@ jobs:
   # not mirror it to GHCR.
   build-and-push-syncserver-payload-link-dataflow:
     needs: check
+    outputs:
+      image_tag: ${{ steps.setup.outputs.image_tag }}
     permissions:
       contents: read
       id-token: write
@@ -263,3 +265,61 @@ jobs:
           tags: ${{ env.IMAGE_TAGS }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Write the payload-link Dataflow flex-template spec (the container spec
+  # JSON) into the dev job bucket, pointing at the image published above.
+  # This spec is what tells the Dataflow job -- provisioned in
+  # webservices-infra via container_spec_gcs_path -- which container to run
+  # (STOR-648). Writing it does NOT relaunch a running job; it takes effect
+  # the next time the job is (re)started.
+  #
+  # dev only for now. stage/prod buckets will be added later (likely a
+  # matrix / GitHub environments), hence the parameterised vars below.
+  #
+  # Prerequisites (infra, out of this repo):
+  #   * the deploy SA has roles/storage.objectAdmin on the bucket (the
+  #     Dataflow SA already does, per webservices-infra), and
+  #   * that SA has a roles/iam.workloadIdentityUser binding for this repo's
+  #     WIF principal so Actions can impersonate it.
+  write-payload-link-dataflow-spec-dev:
+    needs: build-and-push-syncserver-payload-link-dataflow
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'push' &&
+        (github.ref_name == 'master' || startsWith(github.ref, 'refs/tags/'))
+      )
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - id: gcp-auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ vars.GCPV2_GITHUB_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.PAYLOAD_LINK_DATAFLOW_DEPLOY_SA || 'sync-nonprod-dev-payload-link@moz-fx-sync-nonprod.iam.gserviceaccount.com' }}
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Write dev flex-template spec
+        env:
+          BUCKET: ${{ vars.PAYLOAD_LINK_DATAFLOW_DEV_BUCKET || 'sync-nonprod-dev-payload-link-dataflow' }}
+          TAG: ${{ needs.build-and-push-syncserver-payload-link-dataflow.outputs.image_tag }}
+        run: |
+          IMAGE="us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-payload-link-dataflow:${TAG}"
+          # Stable spec consumed by the webservices-infra Dataflow job, plus a
+          # tag-versioned copy for reproducible rollback.
+          for SPEC in \
+            "gs://${BUCKET}/templates/syncserver-payload-link-dataflow.json" \
+            "gs://${BUCKET}/templates/syncserver-payload-link-dataflow-${TAG}.json"; do
+            gcloud dataflow flex-template build "${SPEC}" \
+              --image "${IMAGE}" \
+              --sdk-language JAVA \
+              --metadata-file tools/payload-link-dataflow/metadata.json
+          done
