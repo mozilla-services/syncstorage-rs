@@ -20,6 +20,17 @@ services:
         gcloud beta emulators pubsub start
         --host-port=0.0.0.0:8085
         --project=test-project
+    # The emulator is a JVM process; JAVA_TOOL_OPTIONS points it at a
+    # java.util.logging config that raises its level to WARNING so it
+    # stops logging every RPC at INFO. leakDetection=disabled silences
+    # netty's SEVERE ByteBuf-leak stack traces, which are an emulator
+    # internal quirk we don't care about in a throwaway test. STOR-654.
+    environment:
+      JAVA_TOOL_OPTIONS: >-
+        -Djava.util.logging.config.file=/pubsub-logging.properties
+        -Dio.netty.leakDetection.level=disabled
+    volumes:
+      - ./pubsub-emulator-logging.properties:/pubsub-logging.properties:ro
     ports:
       - "8085:8085"
     healthcheck:
@@ -36,6 +47,10 @@ services:
       - -host=0.0.0.0
       - -port=4443
       - -public-host=fake-gcs:4443
+      # Default level logs every storage request; the reconciler and
+      # syncserver hammer it, so drop to warn to keep the CI output
+      # readable. Override with FAKE_GCS_LOG_LEVEL=info to debug. STOR-654.
+      - -log-level=${FAKE_GCS_LOG_LEVEL:-warn}
     ports:
       - "4443:4443"
     healthcheck:
@@ -130,6 +145,9 @@ services:
       # Collections used by test_storage.py -- opts them all into offload
       # so test_storage.py exercises the offload path as regression
       # coverage. Extend if new collections appear in the test suite.
+      # Deliberately excludes xxx_usage: the /info/quota and
+      # /info/collection_usage tests need a non-offloaded collection since
+      # byte accounting reads the inline Spanner payload. Do not add it here.
       SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS: >-
         apis-1,crypto,meta,passwords,xxx_col,xxx_col1,xxx_col2,xxx_meh,xxxx,nonexistent
 

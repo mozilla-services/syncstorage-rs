@@ -2,7 +2,6 @@
 
 use std::{convert::Infallible, num::NonZeroUsize, sync::Arc, time::Duration};
 
-use crate::error::ApiError;
 use actix_cors::Cors;
 use actix_web::{
     App, FromRequest, HttpRequest, HttpResponse, HttpServer,
@@ -15,6 +14,11 @@ use actix_web::{
 use cadence::{Gauged, StatsdClient};
 use futures::future::{self, Ready};
 use glean::server_events::GleanEventsLogger;
+use google_cloud_storage::client::{Storage, StorageControl};
+use tokio::{sync::RwLock, time};
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
+
 use syncserver_common::{
     BlockingThreadpool, BlockingThreadpoolMetrics, Metrics, Taggable,
     middleware::sentry::SentryWrapper,
@@ -23,12 +27,15 @@ use syncserver_db_common::GetPoolStatus;
 use syncserver_settings::Settings;
 use syncstorage_db::{DbError, DbPool, DbPoolImpl};
 use syncstorage_settings::{Deadman, ServerLimits};
-use tokio::{sync::RwLock, time};
-use utoipa::OpenApi;
-use utoipa_swagger_ui::SwaggerUi;
 
-use crate::tokenserver;
-use crate::web::{handlers, middleware};
+use crate::{
+    error::ApiError,
+    tokenserver,
+    web::{
+        handlers, middleware,
+        payload_offload::{build_client, build_control_client},
+    },
+};
 
 pub use syncserver_settings::COLLECTION_ID_REGEX;
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
@@ -74,11 +81,31 @@ pub struct ServerState {
     /// Collections whose BSO payloads are off-loaded to GCS.
     pub gcs_payload_offload_collections: Arc<Vec<String>>,
 
-    /// Override the GCS endpoint URL (for testing). When set the GCS client
-    /// is built with `.with_endpoint(...)` + anonymous credentials.
-    /// Unset in prod; opt-in via `SYNC_SYNCSTORAGE__GCS_ENDPOINT` for
-    /// local/e2e testing against a fake-gcs-server or httptest mock.
-    pub gcs_endpoint: Option<String>,
+    /// Shared GCS client built at startup. `None` when GCS off-load is disabled.
+    pub gcs_client: Option<Storage>,
+
+    /// Shared GCS control-plane client built at startup.  `None` when GCS off-load is disabled.
+    pub gcs_control_client: Option<StorageControl>,
+
+    /// Maximum GCS uploads/downloads to run concurrently.
+    pub gcs_payload_max_concurrency: NonZeroUsize,
+}
+
+impl ServerState {
+    /// Shared GCS client to use when [`crate::web::payload_offload::offload_bucket`] returns Some
+    /// bucket.
+    pub fn gcs_client(&self) -> Result<&Storage, ApiError> {
+        self.gcs_client
+            .as_ref()
+            .ok_or_else(|| ApiError::internal("GCS off-load enabled but client not initialized"))
+    }
+
+    /// Shared GCS control-plane client.  Available when GCS off-load is enabled.
+    pub fn gcs_control_client(&self) -> Result<&StorageControl, ApiError> {
+        self.gcs_control_client.as_ref().ok_or_else(|| {
+            ApiError::internal("GCS off-load enabled but control client not initialized")
+        })
+    }
 }
 
 pub fn cfg_path(path: &str) -> String {
@@ -402,7 +429,16 @@ impl Server {
         let gcs_payload_bucket = settings.syncstorage.gcs_payload_bucket.clone();
         let gcs_payload_offload_collections =
             Arc::new(settings.syncstorage.gcs_payload_offload_collections.clone());
-        let gcs_endpoint = settings.syncstorage.gcs_endpoint.clone();
+        let gcs_payload_max_concurrency = settings.syncstorage.gcs_payload_max_concurrency;
+        let (gcs_client, gcs_control_client) = if gcs_payload_bucket.is_some() {
+            let endpoint = settings.syncstorage.gcs_endpoint.as_deref();
+            (
+                Some(build_client(endpoint).await?),
+                Some(build_control_client(endpoint).await?),
+            )
+        } else {
+            (None, None)
+        };
         let worker_thread_count =
             calculate_worker_max_blocking_threads(settings.worker_max_blocking_threads);
         let limits = Arc::new(settings.syncstorage.limits);
@@ -451,7 +487,9 @@ impl Server {
                 glean_enabled,
                 gcs_payload_bucket: gcs_payload_bucket.clone(),
                 gcs_payload_offload_collections: Arc::clone(&gcs_payload_offload_collections),
-                gcs_endpoint: gcs_endpoint.clone(),
+                gcs_client: gcs_client.clone(),
+                gcs_control_client: gcs_control_client.clone(),
+                gcs_payload_max_concurrency,
             };
 
             build_app!(

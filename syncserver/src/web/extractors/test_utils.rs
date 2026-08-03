@@ -68,10 +68,11 @@ pub fn make_state() -> ServerState {
         deadman: Arc::new(RwLock::new(Deadman::default())),
         glean_logger,
         glean_enabled: syncstorage_settings.glean_enabled,
+        gcs_client: None,
+        gcs_control_client: None,
         gcs_payload_bucket: None,
+        gcs_payload_max_concurrency: syncstorage_settings.gcs_payload_max_concurrency,
         gcs_payload_offload_collections: Arc::new(Vec::new()),
-        #[cfg(debug_assertions)]
-        gcs_endpoint: None,
     }
 }
 
