@@ -241,7 +241,7 @@ pub struct ServerLimits {
 
 impl ServerLimits {
     /// The effective
-    /// `max_record_payload_bytes`/`max_post_bytes``max_request_bytes` for
+    /// `max_record_payload_bytes`/`max_post_bytes`/`max_request_bytes` for
     /// `collection`.
     pub fn limits_for(&self, collection: Option<&str>) -> PerCollectionLimits {
         self.collections
