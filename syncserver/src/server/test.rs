@@ -29,7 +29,7 @@ use syncstorage_db::{
     DbPoolImpl, SyncTimestamp, params,
     results::{DeleteBso, GetBso, PutBso},
 };
-use syncstorage_settings::ServerLimits;
+use syncstorage_settings::{CollectionLimitOverride, ServerLimits};
 
 use super::*;
 use crate::{
@@ -1001,12 +1001,6 @@ async fn put_bso_offloads_to_gcs() {
     );
 }
 
-<<<<<<< HEAD
-fn limits_with_override(
-    name: &str,
-    override_: syncstorage_settings::CollectionLimitOverride,
-) -> ServerLimits {
-=======
 #[actix_rt::test]
 async fn post_collection_offloads_to_gcs() {
     let mut settings = get_test_settings();
@@ -1070,8 +1064,7 @@ async fn post_collection_offloads_to_gcs() {
     );
 }
 
-fn limits_with_override(name: &str, max_record_payload_bytes: u32) -> ServerLimits {
->>>>>>> master
+fn limits_with_override(name: &str, override_: CollectionLimitOverride) -> ServerLimits {
     let mut limits = ServerLimits::default();
     limits.collections.insert(name.to_owned(), override_);
     limits
@@ -1081,7 +1074,7 @@ fn limits_with_override(name: &str, max_record_payload_bytes: u32) -> ServerLimi
 fn limits_json_advertises_collection_overrides() {
     let limits = limits_with_override(
         "newtab-images",
-        syncstorage_settings::CollectionLimitOverride {
+        CollectionLimitOverride {
             max_record_payload_bytes: Some(20_971_520),
             max_post_bytes: Some(26_214_400),
             max_request_bytes: Some(26_218_496),

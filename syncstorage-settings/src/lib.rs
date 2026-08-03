@@ -255,7 +255,7 @@ impl ServerLimits {
     pub fn limits_for(&self, collection: Option<&str>) -> PerCollectionLimits {
         self.collections
             .get(collection.unwrap_or(""))
-            .map(|coll_limits| PerCollectionLimits::from(coll_limits, self))
+            .map(|override_| PerCollectionLimits::from(override_, self))
             .unwrap_or_else(|| PerCollectionLimits::from(&Default::default(), self))
     }
 
@@ -321,13 +321,13 @@ pub struct PerCollectionLimits {
 }
 
 impl PerCollectionLimits {
-    pub fn from(coll_limits: &CollectionLimitOverride, limits: &ServerLimits) -> Self {
+    pub fn from(override_: &CollectionLimitOverride, limits: &ServerLimits) -> Self {
         Self {
-            max_record_payload_bytes: coll_limits
+            max_record_payload_bytes: override_
                 .max_record_payload_bytes
                 .unwrap_or(limits.max_record_payload_bytes),
-            max_post_bytes: coll_limits.max_post_bytes.unwrap_or(limits.max_post_bytes),
-            max_request_bytes: coll_limits
+            max_post_bytes: override_.max_post_bytes.unwrap_or(limits.max_post_bytes),
+            max_request_bytes: override_
                 .max_request_bytes
                 .unwrap_or(limits.max_request_bytes),
         }
