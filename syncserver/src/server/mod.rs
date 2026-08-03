@@ -427,6 +427,10 @@ impl Server {
         let gcs_payload_max_concurrency = settings.syncstorage.gcs_payload_max_concurrency;
         let (gcs_client, gcs_control_client) = if gcs_payload_bucket.is_some() {
             let endpoint = settings.syncstorage.gcs_endpoint.as_deref();
+            #[cfg(not(debug_assertions))]
+            if let Some(endpoint) = endpoint {
+                warn!("GCS endpoint override used in release: {}", endpoint);
+            }
             (
                 Some(build_client(endpoint).await?),
                 Some(build_control_client(endpoint).await?),
