@@ -50,6 +50,7 @@ INT_POSTGRES_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__po
 INT_POSTGRES_NO_JWK_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__postgres-no-jwk-results.xml
 INT_MYSQL_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__mysql-results.xml
 INT_MYSQL_NO_JWK_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__mysql-no-jwk-results.xml
+INT_RECONCILIATION_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__reconciliation-results.xml
 
 clippy_mysql:
 	# Matches what's run in circleci
@@ -213,6 +214,25 @@ docker_run_spanner_e2e_tests:
 	 	--exit-code-from e2e-tests \
 	 	--abort-on-container-exit || exit_code=$$?
 	docker cp spanner-e2e-tests:/spanner_integration_results.xml ${INT_SPANNER_JUNIT_XML}
+	docker compose \
+		-f docker/docker-compose.spanner.yaml \
+		-f docker/docker-compose.e2e.spanner.yaml \
+		down -v --remove-orphans
+	exit $$exit_code
+
+.ONESHELL:
+docker_run_reconciliation_e2e_tests:
+	exit_code=0
+	RESULTS_FILENAME=reconciliation_integration_results.xml \
+	docker compose \
+		-f docker/docker-compose.spanner.yaml \
+		-f docker/docker-compose.e2e.spanner.yaml \
+		-f docker/docker-compose.e2e.reconciliation.yaml \
+		-f docker/docker-compose.e2e.jwk-cache.yaml \
+	 	up \
+	 	--exit-code-from e2e-tests \
+	 	--abort-on-container-exit || exit_code=$$?
+	docker cp spanner-e2e-tests:/reconciliation_integration_results.xml ${INT_RECONCILIATION_JUNIT_XML} || true
 	docker compose \
 		-f docker/docker-compose.spanner.yaml \
 		-f docker/docker-compose.e2e.spanner.yaml \

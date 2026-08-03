@@ -35,7 +35,7 @@ license = "MPL-2.0"
 actix-web = { version = "4", default-features = false, features = ["compat", "http2", "macros"] }
 async-trait = "0.1.89"
 docopt = "1.1"
-base64 = "0.22"
+base64 = "0.23"
 
 diesel = "2.3"
 diesel-async = { version = "0.9", features = ["mysql", "deadpool", "migrations", "async-connection-wrapper"] }
@@ -58,7 +58,7 @@ hostname = "0.4"
 hkdf = "0.13"
 hmac = "0.13"
 http = "1.4"
-jsonwebtoken = { version = "10.4", default-features = false, features = ["aws_lc_rs"] }
+jsonwebtoken = { version = "11.0", default-features = false, features = ["aws_lc_rs"] }
 lazy_static = "1.5"
 log = { version = "0.4", features = [
     "max_level_debug",

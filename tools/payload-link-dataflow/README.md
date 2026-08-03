@@ -28,6 +28,7 @@ the upstream GoogleCloudPlatform/DataflowTemplates Java tree.
 | `upstream-customization.patch` | **Reference documentation only.** Unified diff showing the **filter delta only** against the upstream template; see "Beyond the filter" below for the rest. Not a build input. |
 | `upstream.txt` | The upstream commit SHA the reference patch was last reviewed against. Update when re-reviewing intent against upstream. |
 | `generate-full-delta.sh` | On-demand: produces a unified diff of the **complete** delta between upstream (at the pinned SHA) and our impl. Not maintained as a checked-in artifact -- runs against the source tree at execution time. |
+| `payload-link-publisher-py/` | Dev/E2E-only Python variant of this publisher (not Beam, not shipped to prod). See its own README. |
 | `README.md` | This file. |
 
 ## Build
@@ -156,6 +157,47 @@ message of the form:
 Each mod field carries a **JSON string** (escaped) -- the downstream
 Python reconciler reads them with a second `json.loads` per mod. This
 matches the Spanner change-streams wire convention.
+
+## Running against the compose e2e stack
+
+The `docker_run_reconciliation_e2e_tests` Makefile target brings up
+Spanner + Pub/Sub + fake-GCS emulators and a publisher container
+locally. There are two publisher variants; both produce the exact same
+Pub/Sub wire format so the reconciler consumes either
+indistinguishably.
+
+### Default: Python publisher
+
+`docker/docker-compose.e2e.reconciliation.yaml` builds and runs the
+Python variant at `payload-link-publisher-py/`. Sub-second startup,
+no JVM. Use this for day-to-day iteration.
+
+```bash
+make docker_run_reconciliation_e2e_tests
+```
+
+### Swap-in: this Java publisher
+
+`docker/docker-compose.e2e.reconciliation.java.yaml` overrides the
+`payload-link-publisher` service to build **this** directory's Docker
+image and run the shaded JAR under Beam's DirectRunner (bypassing the
+flex-template launcher's Dataflow-submission entrypoint). Use when you
+need to reproduce a prod issue against the actual Java pipeline or
+verify wire-format parity between the two variants.
+
+```bash
+docker compose \
+  -f docker/docker-compose.spanner.yaml \
+  -f docker/docker-compose.e2e.spanner.yaml \
+  -f docker/docker-compose.e2e.reconciliation.yaml \
+  -f docker/docker-compose.e2e.reconciliation.java.yaml \
+  -f docker/docker-compose.e2e.jwk-cache.yaml \
+  up --exit-code-from e2e-tests --abort-on-container-exit
+```
+
+Expect a ~15-30s JVM+Beam warmup and a heavier memory footprint than
+the Python variant. If Docker's default resource limits are tight on
+your dev machine, bump them.
 
 ## Keeping the reference patch accurate
 

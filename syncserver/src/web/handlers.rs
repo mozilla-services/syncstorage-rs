@@ -10,6 +10,7 @@ use actix_web::{
     http::{StatusCode, header},
     web::Data,
 };
+use futures::stream::{self, StreamExt, TryStreamExt};
 use serde::Serialize;
 use serde_json::{Value, json};
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
@@ -27,7 +28,9 @@ use crate::{
             BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, EmitApiMetric,
             HeartbeatRequest, MetaRequest, ReplyFormat, TestErrorRequest,
         },
-        payload_offload::{download_payload, offload_bucket, upload_payload},
+        payload_offload::{
+            delete_payload, download_payload, offload_bucket, reattach_by_index, upload_payload,
+        },
         transaction::DbTransactionPool,
     },
 };
@@ -337,10 +340,27 @@ pub async fn get_collection(
                 handle_not_found(db.get_bsos(params).await).map_err(Into::into)
             },
             async |mut bsos: Paginated<results::GetBso>| {
-                for bso in bsos.items.iter_mut() {
-                    if let Some(link) = bso.payload_link.take() {
-                        bso.payload = download_payload(&state, &link).await?;
-                    }
+                let links: Vec<(usize, String)> = bsos
+                    .items
+                    .iter_mut()
+                    .enumerate()
+                    .filter_map(|(i, bso)| bso.payload_link.take().map(|link| (i, link)))
+                    .collect();
+
+                if !links.is_empty() {
+                    let client = state.gcs_client()?;
+                    let payloads: Vec<(usize, String)> = stream::iter(links)
+                        .map(|(i, link)| {
+                            let client = client.clone();
+                            async move { download_payload(&client, &link).await.map(|p| (i, p)) }
+                        })
+                        .buffer_unordered(state.gcs_payload_max_concurrency.get())
+                        .try_collect()
+                        .await?;
+
+                    reattach_by_index(&mut bsos.items, payloads, |bso, payload| {
+                        bso.payload = payload
+                    });
                 }
                 Ok(finish_get_collection(&coll, bsos).await)
             },
@@ -420,26 +440,46 @@ pub async fn post_collection(
     // This also covers the batched path: post_collection_batch reads from
     // `coll.bsos.valid` once the transaction is open, by which point each
     // entry's payload/payload_link have already been swapped.
+    let mut offload_urls: Vec<String> = Vec::new();
     if let Some(bucket) = offload_bucket(&state, &coll.collection) {
-        for bso in coll.bsos.valid.iter_mut() {
-            if let Some(payload) = bso.payload.take() {
-                let url = upload_payload(
-                    &state,
-                    bucket,
-                    &coll.user_id,
-                    &coll.collection,
-                    &bso.id,
-                    payload,
-                )
-                .await?;
-                // payload was taken above; leave it None so only
-                // payload_link is set on the offloaded BSO.
-                bso.payload_link = Some(url);
-            }
-        }
+        let client = state.gcs_client()?;
+        // Take the payloads for concurrent uploads, with index to bind the payload url back to
+        // the bso
+        let pending: Vec<(usize, String, String)> = coll
+            .bsos
+            .valid
+            .iter_mut()
+            .enumerate()
+            .filter_map(|(i, bso)| bso.payload.take().map(|p| (i, bso.id.clone(), p)))
+            .collect();
+
+        let user_id = &coll.user_id;
+        let collection = coll.collection.as_str();
+        // fail-fast on first failure uploads; successful, orphaned uploads rely on GCS lifecyle
+        // policy for clean-up.
+        let uploads: Vec<(usize, String)> = stream::iter(pending)
+            .map(|(i, bso_id, payload)| {
+                let client = client.clone();
+                async move {
+                    upload_payload(&client, bucket, user_id, collection, &bso_id, payload)
+                        .await
+                        .map(|url| (i, url))
+                }
+            })
+            .buffer_unordered(state.gcs_payload_max_concurrency.get())
+            .try_collect()
+            .await?;
+
+        // Track uploaded URLs so they can be cleaned up from GCS if the DB
+        // transaction below fails.
+        offload_urls.extend(uploads.iter().map(|(_, url)| url.clone()));
+
+        reattach_by_index(&mut coll.bsos.valid, uploads, |bso, url| {
+            bso.payload_link = Some(url)
+        });
     }
 
-    db_pool
+    let resp = db_pool
         .transaction_http(&request, async |db| {
             coll.emit_api_metric("request.post_collection");
             trace!("Collection: Post");
@@ -480,7 +520,18 @@ pub async fn post_collection(
                     "failed": coll.bsos.invalid,
                 })))
         })
-        .await
+        .await;
+
+    if resp.is_err()
+        && !offload_urls.is_empty()
+        && let Ok(client) = state.gcs_control_client()
+    {
+        for url in offload_urls {
+            let _ = delete_payload(client, &url).await;
+        }
+    }
+
+    resp
 }
 
 // Append additional collection items into the given Batch, optionally commiting
@@ -732,7 +783,7 @@ pub async fn get_bso(
                 if let Some(ref mut bso) = maybe_bso
                     && let Some(link) = bso.payload_link.take()
                 {
-                    bso.payload = download_payload(&state, &link).await?;
+                    bso.payload = download_payload(state.gcs_client()?, &link).await?;
                 }
                 Ok(maybe_bso.map_or_else(
                     || HttpResponse::NotFound().finish(),
@@ -771,7 +822,7 @@ pub async fn put_bso(
         && let Some(payload) = bso_req.body.payload.take()
     {
         let url = upload_payload(
-            &state,
+            state.gcs_client()?,
             bucket,
             &bso_req.user_id,
             &bso_req.collection,
@@ -783,7 +834,7 @@ pub async fn put_bso(
         payload_link = Some(url);
     }
 
-    db_pool
+    let resp = db_pool
         .transaction_http(&request, async |db| {
             bso_req.emit_api_metric("request.put_bso");
             let result = db
@@ -793,7 +844,7 @@ pub async fn put_bso(
                     id: bso_req.bso,
                     sortindex: bso_req.body.sortindex,
                     payload: bso_req.body.payload,
-                    payload_link,
+                    payload_link: payload_link.clone(),
                     ttl: bso_req.body.ttl,
                 })
                 .await?;
@@ -802,7 +853,15 @@ pub async fn put_bso(
                 .insert_header((X_LAST_MODIFIED, result.as_header()))
                 .json(result))
         })
-        .await
+        .await;
+
+    if resp.is_err()
+        && let Some(gcs_url) = &payload_link
+        && let Ok(client) = state.gcs_control_client()
+    {
+        let _ = delete_payload(client, gcs_url).await;
+    }
+    resp
 }
 
 #[utoipa::path(

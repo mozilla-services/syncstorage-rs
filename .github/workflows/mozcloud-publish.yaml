@@ -43,7 +43,7 @@ jobs:
       packages: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -72,7 +72,7 @@ jobs:
           IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
-      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           push: true
@@ -91,7 +91,7 @@ jobs:
       packages: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -121,7 +121,7 @@ jobs:
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - name: Build and push to prod GAR and ghcr
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           push: true
@@ -141,7 +141,7 @@ jobs:
           token_format: access_token
 
       - name: Log in to enterprise GAR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
         with:
           registry: us-docker.pkg.dev
           username: oauth2accesstoken
@@ -162,7 +162,7 @@ jobs:
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - name: Build and push to enterprise GAR
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           push: true
@@ -180,7 +180,7 @@ jobs:
       packages: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -209,13 +209,57 @@ jobs:
           IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
-      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           push: true
           build-args: |
             SYNCSTORAGE_DATABASE_BACKEND=mysql
             TOKENSERVER_DATABASE_BACKEND=mysql
+          tags: ${{ env.IMAGE_TAGS }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Payload-link Dataflow flex template (Java). GAR-only -- this image
+  # is consumed by webservices-infra to launch the Dataflow job; we do
+  # not mirror it to GHCR.
+  build-and-push-syncserver-payload-link-dataflow:
+    needs: check
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-build-and-push
+        id: setup
+        with:
+          workload_identity_provider: ${{ vars.GCPV2_GITHUB_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp_service_account: "${{ vars.SERVICE_ACCOUNT_NAME || 'artifact-writer' }}@moz-fx-sync-prod.iam.gserviceaccount.com"
+
+      - name: Compute tags (GAR only)
+        run: |
+          TAGS="us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-payload-link-dataflow:${IMAGE_TAG}"
+          if [[ "${PUSH_LATEST}" == "true" ]]; then
+            TAGS="$TAGS
+          us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-payload-link-dataflow:latest"
+          fi
+          echo "IMAGE_TAGS<<EOF" >> "$GITHUB_ENV"
+          echo "$TAGS" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+        env:
+          IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
+          PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
+
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: tools/payload-link-dataflow
+          file: tools/payload-link-dataflow/Dockerfile
+          push: true
           tags: ${{ env.IMAGE_TAGS }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

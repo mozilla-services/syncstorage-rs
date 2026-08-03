@@ -64,6 +64,7 @@ validator_derive = "0.20"
 woothee = "0.13"
 
 [dev-dependencies]
+google-cloud-gax = "1.11"
 httptest = "0.16"
 temp-env.workspace = true
 tokenserver-auth = { path = "../tokenserver-auth", features = ["test-support"] }

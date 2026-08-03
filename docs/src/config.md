@@ -87,6 +87,19 @@ The following configuration options are available.
 | <span id="SYNC_SYNCSTORAGE__LBHEARTBEAT_TTL_JITTER"></span>SYNC_SYNCSTORAGE__LBHEARTBEAT_TTL_JITTER | 25 | Jitter percentage for the load balancer heartbeat period |
 | <span id="SYNC_SYNCSTORAGE__STATSD_LABEL"></span>SYNC_SYNCSTORAGE__STATSD_LABEL | syncstorage | StatsD metrics label prefix |
 
+### Syncstorage Payload Off-load
+
+Off-loads large BSO payloads to a Google Cloud Storage bucket, storing the
+object URL in the `payload_link` column instead of the inline `payload`
+column. Supported on the Spanner backend only: setting either variable on a
+mysql or postgres backend fails startup, since those backends have no
+`payload_link` column and would silently drop the payload.
+
+| Env Var | Default Value | Description |
+| --- | --- | --- |
+| <span id="SYNC_SYNCSTORAGE__GCS_PAYLOAD_BUCKET"></span>SYNC_SYNCSTORAGE__GCS_PAYLOAD_BUCKET | unset | GCS bucket for off-loaded payloads. Unset disables off-load. |
+| <span id="SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS"></span>SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS | unset | Comma-separated collection names whose payloads are off-loaded. Empty disables off-load for all collections. |
+
 ### Tokenserver Database
 
 | Env Var | Default Value | Description |

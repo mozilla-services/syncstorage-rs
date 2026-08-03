@@ -67,7 +67,7 @@ poetry install
 Since this script calls `get_jwk.py` and it has a dependency on `autlib`, call the shell script using Poetry:
 
 ```bash
-poetry run ./generate-keys.sh 
+poetry run ./generate-keys.sh
 ```
 
 Otherwise, if in built virtual environment with installed Poetry dependencies:
@@ -118,6 +118,57 @@ SERVER_URL="http://localhost:8000" \
   OAUTH_PRIVATE_KEY_FILE="/path/to/load_test.pem" \
   poetry run molotov --workers 100 --duration 300 -v loadtest.py
 ```
+
+## Expanded payloads (GCS offload)
+
+The batch write path can generate larger-than-default payloads so you can load
+test collections whose payloads are offloaded to Google Cloud Storage. These
+knobs are opt-in via environment variables; unset, the load test behaves
+exactly as before.
+
+| Variable | Default | Effect |
+|---|---|---|
+| `LARGE_PAYLOAD_PROB` | `0.0` | Fraction (`0.0`–`1.0`) of BSOs given an expanded payload. `1.0` makes **every** payload large; `0.0` disables the feature. |
+| `LARGE_PAYLOAD_SIZE` | *(unset)* | Explicit target size in bytes for large payloads. When unset, large payloads target the server's `max_record_payload_bytes`. |
+| `OFFLOAD_COLLECTIONS` | *(unset)* | Comma-separated collection names to target for batch writes. Must match the server's `gcs_payload_offload_collections`. When unset, the default collections are used. |
+
+`LARGE_PAYLOAD_PROB`/`LARGE_PAYLOAD_SIZE` control payload **size**; whether a
+write is offloaded to GCS is a separate, per-collection server setting. To drive
+a fully offloaded collection at maximum size, set `OFFLOAD_COLLECTIONS` to that
+collection and `LARGE_PAYLOAD_PROB=1.0`.
+
+Individual payloads are capped at the target collection's
+`max_record_payload_bytes`, and each batch is kept under its `max_post_bytes`,
+so a large enough payload results in fewer records per request.
+
+Example — every write is a 5 MiB payload sent to the `tabs` collection:
+
+```bash
+SERVER_URL="http://localhost:8000" \
+  OAUTH_PRIVATE_KEY_FILE="/path/to/load_test.pem" \
+  LARGE_PAYLOAD_PROB=1.0 \
+  LARGE_PAYLOAD_SIZE=5242880 \
+  OFFLOAD_COLLECTIONS=tabs \
+  poetry run molotov --workers 100 --duration 300 -v loadtest.py
+```
+
+### Server-side prerequisites
+
+To actually exercise expanded/offloaded payloads end to end, the target server
+must be configured for it:
+
+- `gcs_payload_bucket` set and the target collection listed in
+  `gcs_payload_offload_collections` (syncstorage settings).
+- Raised limits to allow payloads beyond the 2.5 MiB default:
+  `max_record_payload_bytes`, `max_post_bytes`, `max_request_bytes`, and
+  `max_total_bytes`. These are read from `/info/configuration`. A collection
+  may also raise its own limits via the `collections` section of that
+  response; the load test resolves limits per target collection, preferring a
+  collection's override and falling back to the global value.
+- Any front-end proxy (e.g. nginx) request body-size limit raised to match.
+
+Note: many workers each holding multi-MiB payloads is a real memory footprint
+on the load-generating host — size the harness accordingly.
 
 ## Docker
 

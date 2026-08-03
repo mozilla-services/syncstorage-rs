@@ -79,6 +79,10 @@ warn_redundant_casts = true
 warn_return_any = true
 warn_unused_ignores = true
 warn_unreachable = true
+# The Python publisher lives inside a Java tool dir and has a top-level
+# ``utils.py`` that collides with tools/payload-reconciler/utils.py under root
+# discovery; exclude it here
+exclude = ['tools/payload-link-dataflow/payload-link-publisher-py']
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

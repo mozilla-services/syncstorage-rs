@@ -16,9 +16,8 @@
 
 use std::time::SystemTime;
 
-#[cfg(debug_assertions)]
 use google_cloud_auth::credentials::anonymous;
-use google_cloud_storage::client::Storage;
+use google_cloud_storage::client::{Storage, StorageControl};
 use syncstorage_db::UserIdentifier;
 use uuid::Uuid;
 
@@ -40,17 +39,16 @@ pub fn offload_bucket<'a>(state: &'a ServerState, collection: &str) -> Option<&'
         .then_some(bucket)
 }
 
-/// Build a GCS client honoring the (test-only) endpoint override stored on
-/// [`ServerState`]. When the override is set we additionally use anonymous
-/// credentials so the SDK does not attempt to acquire Application Default
-/// Credentials against a mock server.
-async fn gcs_client(
-    #[cfg_attr(not(debug_assertions), allow(unused_variables))] state: &ServerState,
-) -> Result<Storage, ApiError> {
-    #[cfg_attr(not(debug_assertions), allow(unused_mut))]
+/// Build a GCS client honoring the `endpoint` override. When the override is
+/// set we additionally use anonymous credentials so the SDK does not attempt
+/// to acquire Application Default Credentials against a mock server. This is
+/// opt-in via the `SYNC_SYNCSTORAGE__GCS_ENDPOINT` setting (unset in prod
+/// deployments); setting it to the wrong value in prod would immediately break
+/// offload, so the opt-in is self-defeating as a stealth-security-degradation
+/// vector.
+pub async fn build_client(endpoint: Option<&str>) -> Result<Storage, ApiError> {
     let mut builder = Storage::builder();
-    #[cfg(debug_assertions)]
-    if let Some(endpoint) = state.gcs_endpoint.as_deref() {
+    if let Some(endpoint) = endpoint {
         builder = builder
             .with_endpoint(endpoint)
             .with_credentials(anonymous::Builder::new().build());
@@ -67,7 +65,7 @@ async fn gcs_client(
 /// The object is written with custom metadata `committed=false` and a
 /// `customTime` of the upload moment.
 pub async fn upload_payload(
-    state: &ServerState,
+    client: &Storage,
     bucket: &str,
     user_id: &UserIdentifier,
     collection: &str,
@@ -81,7 +79,6 @@ pub async fn upload_payload(
         bso_id,
         Uuid::new_v4().hyphenated()
     );
-    let client = gcs_client(state).await?;
 
     let custom_time: wkt::Timestamp = SystemTime::now()
         .try_into()
@@ -99,9 +96,8 @@ pub async fn upload_payload(
 
 /// Download payload bytes from a `gs://{bucket}/{object}` URL produced by
 /// [`upload_payload`] and return them as a UTF-8 string.
-pub async fn download_payload(state: &ServerState, gs_url: &str) -> Result<String, ApiError> {
+pub async fn download_payload(client: &Storage, gs_url: &str) -> Result<String, ApiError> {
     let (bucket, object) = parse_gs_url(gs_url)?;
-    let client = gcs_client(state).await?;
 
     let mut response = client
         .read_object(bucket_path(bucket), object.to_string())
@@ -117,6 +113,31 @@ pub async fn download_payload(state: &ServerState, gs_url: &str) -> Result<Strin
         .map_err(|e| ApiErrorKind::Internal(format!("invalid utf-8 in GCS payload: {e}")).into())
 }
 
+pub async fn build_control_client(endpoint: Option<&str>) -> Result<StorageControl, ApiError> {
+    let mut builder = StorageControl::builder();
+    if let Some(endpoint) = endpoint {
+        builder = builder
+            .with_endpoint(endpoint)
+            .with_credentials(anonymous::Builder::new().build());
+    }
+    builder
+        .build()
+        .await
+        .map_err(|e| ApiErrorKind::Internal(format!("GCS builder error: {e}")).into())
+}
+
+pub async fn delete_payload(client: &StorageControl, gs_url: &str) -> Result<(), ApiError> {
+    let (bucket, object) = parse_gs_url(gs_url)?;
+    client
+        .delete_object()
+        .set_bucket(bucket_path(bucket))
+        .set_object(object)
+        .send()
+        .await
+        .inspect_err(|e| warn!("gcs payload cleanup failed for {gs_url}: {e}"))
+        .map_err(|e| ApiErrorKind::Internal(format!("cannot delete GCS object: {e}")).into())
+}
+
 fn bucket_path(bucket: &str) -> String {
     format!("projects/_/buckets/{bucket}")
 }
@@ -125,4 +146,148 @@ fn parse_gs_url(url: &str) -> Result<(&str, &str), ApiError> {
     url.strip_prefix("gs://")
         .and_then(|p| p.split_once('/'))
         .ok_or_else(|| ApiErrorKind::Internal(format!("invalid GCS URL: {url}")).into())
+}
+
+/// Reattach GCS results to their corresponding entries in `items` by index.
+pub fn reattach_by_index<T, V>(
+    items: &mut [T],
+    results: impl IntoIterator<Item = (usize, V)>,
+    mut apply: impl FnMut(&mut T, V),
+) {
+    for (i, value) in results {
+        apply(&mut items[i], value);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        future::Future,
+        sync::{Arc, Mutex},
+    };
+
+    use google_cloud_gax::{
+        error::{
+            Error,
+            rpc::{Code, Status},
+        },
+        options::RequestOptions,
+        response::Response,
+    };
+    use google_cloud_storage::{Result as GcsResult, client::StorageControl, model};
+
+    use super::*;
+
+    /// Stub to record delete_object
+    #[derive(Debug, Default)]
+    struct RecordingStub {
+        deletes: Arc<Mutex<Vec<(String, String)>>>,
+    }
+
+    impl google_cloud_storage::stub::StorageControl for RecordingStub {
+        fn delete_object(
+            &self,
+            req: model::DeleteObjectRequest,
+            _options: RequestOptions,
+        ) -> impl Future<Output = GcsResult<Response<()>>> + Send {
+            self.deletes
+                .lock()
+                .expect("deletes lock poisoned")
+                .push((req.bucket.clone(), req.object.clone()));
+            async move { Ok(Response::from(())) }
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct FailingStub;
+
+    impl google_cloud_storage::stub::StorageControl for FailingStub {
+        async fn delete_object(
+            &self,
+            _req: model::DeleteObjectRequest,
+            _options: RequestOptions,
+        ) -> GcsResult<Response<()>> {
+            Err(Error::service(Status::default().set_code(Code::Internal)))
+        }
+    }
+
+    #[actix_rt::test]
+    async fn delete_payload_issues_delete_for_parsed_url() {
+        let deletes = Arc::new(Mutex::new(Vec::new()));
+        let client = StorageControl::from_stub(RecordingStub {
+            deletes: deletes.clone(),
+        });
+
+        delete_payload(&client, "gs://test-bucket/uid/bookmarks/bid/uuid")
+            .await
+            .expect("delete_payload should succeed");
+
+        let recorded = deletes.lock().unwrap();
+        assert_eq!(
+            &*recorded,
+            &[(
+                "projects/_/buckets/test-bucket".to_owned(),
+                "uid/bookmarks/bid/uuid".to_owned(),
+            )],
+        );
+    }
+
+    #[actix_rt::test]
+    async fn delete_payload_surfaces_delete_error() {
+        let client = StorageControl::from_stub(FailingStub);
+
+        let result = delete_payload(&client, "gs://test-bucket/uid/bookmarks/bid/uuid").await;
+
+        assert!(
+            result.is_err(),
+            "a failed GCS delete should surface as an error"
+        );
+    }
+
+    #[test]
+    fn reattach_results_to_correct_slots() {
+        let mut items: Vec<Option<String>> = vec![None, None, None, None];
+        let results = vec![
+            (2, "two".to_owned()),
+            (0, "zero".to_owned()),
+            (3, "three".to_owned()),
+            (1, "one".to_owned()),
+        ];
+        reattach_by_index(&mut items, results, |slot, payload| *slot = Some(payload));
+        assert_eq!(
+            items,
+            vec![
+                Some("zero".to_owned()),
+                Some("one".to_owned()),
+                Some("two".to_owned()),
+                Some("three".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn reattach_only_indexed_slots() {
+        let mut items = vec![
+            "keep-0".to_owned(),
+            "keep-1".to_owned(),
+            "keep-2".to_owned(),
+        ];
+        let results = vec![(1, "replaced-1".to_owned())];
+        reattach_by_index(&mut items, results, |slot, v| *slot = v);
+        assert_eq!(
+            items,
+            vec![
+                "keep-0".to_owned(),
+                "replaced-1".to_owned(),
+                "keep-2".to_owned(),
+            ]
+        );
+    }
+
+    #[test]
+    fn reattach_empty_results_is_noop() {
+        let mut items = vec![1, 2, 3];
+        reattach_by_index(&mut items, Vec::<(usize, i32)>::new(), |slot, v| *slot = v);
+        assert_eq!(items, vec![1, 2, 3]);
+    }
 }

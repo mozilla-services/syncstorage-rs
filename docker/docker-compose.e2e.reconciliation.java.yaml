@@ -1,0 +1,43 @@
+# Optional swap-in overlay for the reconciliation e2e stack: replaces
+# the default Python publisher with the Java Dataflow flex template,
+# invoked directly via Beam's DirectRunner (no Dataflow submission).
+#
+# Layer on TOP of docker-compose.e2e.reconciliation.yaml:
+#
+#   docker compose \
+#     -f docker/docker-compose.spanner.yaml \
+#     -f docker/docker-compose.e2e.spanner.yaml \
+#     -f docker/docker-compose.e2e.reconciliation.yaml \
+#     -f docker/docker-compose.e2e.reconciliation.java.yaml \
+#     -f docker/docker-compose.e2e.jwk-cache.yaml \
+#     up --exit-code-from e2e-tests --abort-on-container-exit
+#
+# Wire-format compatibility with the Python default is a design
+# invariant; both should feed the reconciler indistinguishably.
+#
+# Notes:
+#  * ~15-30s JVM+Beam startup vs. sub-second for Python. If you're
+#    iterating on publisher logic, prefer the Python default.
+#  * Higher memory footprint. Bump docker resource limits if the
+#    container OOMs on a small dev machine.
+
+services:
+  payload-link-publisher:
+    build:
+      context: ../tools/payload-link-dataflow
+    entrypoint:
+      - java
+      - -cp
+      - /template/payload-link-dataflow.jar
+      - com.mozilla.sync.payloadlink.PayloadLinkChangesToPubSub
+      - --runner=DirectRunner
+      - --spannerProjectId=test-project
+      - --spannerInstanceId=test-instance
+      - --spannerDatabase=test-database
+      - --spannerMetadataInstanceId=test-instance
+      - --spannerMetadataDatabase=test-database
+      - --changeStreamName=payload_link_changes
+      - --pubsubTopic=projects/test-project/topics/payload-link-changes
+    environment:
+      SPANNER_EMULATOR_HOST: sync-db:9010
+      PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
