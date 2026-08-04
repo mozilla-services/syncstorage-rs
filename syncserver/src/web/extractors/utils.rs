@@ -2,12 +2,15 @@ use std::str::FromStr;
 
 use actix_web::{
     HttpRequest,
-    http::header::{Accept, Header, QualityItem},
+    http::header::{self, Accept, Header, QualityItem},
 };
 use mime::STAR_STAR;
 use serde::{Deserialize, Serialize};
 
-use crate::error::{ApiError, ApiErrorKind};
+use crate::{
+    error::{ApiError, ApiErrorKind},
+    web::error::{ValidationError, ValidationErrorKind},
+};
 
 /// UID parameter from URL path
 #[allow(dead_code)] // Not really dead, but Rust can't see the deserialized use.
@@ -67,6 +70,32 @@ pub fn get_accepted(req: &HttpRequest, accepted: &[&str], default: &'static str)
         }
     }
     "invalid".to_string()
+}
+
+/// Reject when the request advertises more bytes than this
+/// collection allows. Actix's resource-level `PayloadConfig` is
+/// sized to the *maximum* `max_request_bytes` across all overrides;
+/// this check enforces the *per-collection* ceiling.
+pub fn check_content_length(
+    req: &HttpRequest,
+    max_request_bytes: usize,
+) -> Result<(), ValidationError> {
+    if let Some(len) = req
+        .headers()
+        .get(header::CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<usize>().ok())
+        && len > max_request_bytes
+    {
+        return Err(ValidationErrorKind::FromDetails(
+            "size-limit-exceeded".to_owned(),
+            RequestErrorLocation::Header,
+            Some("Content-Length".to_owned()),
+            Some("request.validate.request_bytes_exceeded"),
+        )
+        .into());
+    }
+    Ok(())
 }
 
 #[cfg(test)]

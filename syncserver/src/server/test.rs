@@ -29,7 +29,7 @@ use syncstorage_db::{
     DbPoolImpl, SyncTimestamp, params,
     results::{DeleteBso, GetBso, PutBso},
 };
-use syncstorage_settings::ServerLimits;
+use syncstorage_settings::{CollectionLimitOverride, ServerLimits};
 
 use super::*;
 use crate::{
@@ -1064,26 +1064,39 @@ async fn post_collection_offloads_to_gcs() {
     );
 }
 
-fn limits_with_override(name: &str, max_record_payload_bytes: u32) -> ServerLimits {
+fn limits_with_override(name: &str, override_: CollectionLimitOverride) -> ServerLimits {
     let mut limits = ServerLimits::default();
-    limits.collections.insert(
-        name.to_owned(),
-        syncstorage_settings::CollectionLimitOverride {
-            max_record_payload_bytes: Some(max_record_payload_bytes),
-        },
-    );
+    limits.collections.insert(name.to_owned(), override_);
     limits
 }
 
 #[::core::prelude::v1::test]
 fn limits_json_advertises_collection_overrides() {
-    let limits = limits_with_override("newtab-images", 20_971_520);
+    let limits = limits_with_override(
+        "newtab-images",
+        CollectionLimitOverride {
+            max_record_payload_bytes: Some(20_971_520),
+            max_post_bytes: Some(26_214_400),
+            max_request_bytes: Some(26_218_496),
+        },
+    );
     let json: Value = serde_json::from_str(&build_limits_json(&limits)).unwrap();
     assert_eq!(
         json["collections"]["newtab-images"]["max_record_payload_bytes"],
         json!(20_971_520)
     );
+    assert_eq!(
+        json["collections"]["newtab-images"]["max_post_bytes"],
+        json!(26_214_400)
+    );
+    assert_eq!(
+        json["collections"]["newtab-images"]["max_request_bytes"],
+        json!(26_218_496)
+    );
+    // Global (default) fields are still advertised alongside the override map.
     assert!(json.get("max_record_payload_bytes").is_some());
+    assert!(json.get("max_post_bytes").is_some());
+    assert!(json.get("max_request_bytes").is_some());
 }
 
 #[::core::prelude::v1::test]
