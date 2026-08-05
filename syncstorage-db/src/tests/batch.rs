@@ -560,3 +560,66 @@ async fn pretouch() -> Result<(), DbError> {
     })
     .await
 }
+
+/// A batch that would create a bso with neither payload nor payload_link is not allowed
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn commit_batch_metadata_only_create_rejected() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = 9101;
+        let coll = "clients";
+
+        let bsos = vec![
+            postbso("ok0", Some("payload 0"), None, None),
+            postbso("meta0", None, Some(3), Some(1000)),
+        ];
+        let new_batch = db.create_batch(cb(uid, coll, bsos)).await?;
+        let batch = db.get_batch(gb(uid, coll, new_batch.id)).await?.unwrap();
+
+        let err = db
+            .commit_batch(params::CommitBatch {
+                user_id: hid(uid),
+                collection: coll.to_owned(),
+                batch,
+            })
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("payload and payload_link"),
+            "unexpected error: {err}"
+        );
+        assert!(err.to_string().contains("meta0"), "unexpected error: {err}");
+        Ok(())
+    })
+    .await
+}
+
+/// A metadata-only updates are allowed.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn commit_batch_metadata_only_update_ok() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = 9102;
+        let coll = "clients";
+
+        db.put_bso(pbso(uid, coll, "quux", Some("orig"), None, None))
+            .await?;
+
+        let new_batch = db
+            .create_batch(cb(uid, coll, vec![postbso("quux", None, Some(7), None)]))
+            .await?;
+        let batch = db.get_batch(gb(uid, coll, new_batch.id)).await?.unwrap();
+        db.commit_batch(params::CommitBatch {
+            user_id: hid(uid),
+            collection: coll.to_owned(),
+            batch,
+        })
+        .await?;
+
+        let got = db.get_bso(gbso(uid, coll, "quux")).await?.unwrap();
+        assert_eq!(got.payload, "orig");
+        assert_eq!(got.sortindex, Some(7));
+        Ok(())
+    })
+    .await
+}

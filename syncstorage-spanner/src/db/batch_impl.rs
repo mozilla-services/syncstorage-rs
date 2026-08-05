@@ -1,4 +1,7 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+};
 
 use async_trait::async_trait;
 use google_cloud_rust_raw::spanner::v1::type_pb::{StructType, Type, TypeCode};
@@ -187,6 +190,10 @@ impl BatchDb for SpannerDb {
             })
             .await?;
 
+        let metadata_only_ids = self
+            .metadata_only_batch_bso_ids(&params.user_id, collection_id, &params.batch.id)
+            .await?;
+
         {
             let mut timer2 = self.metrics.clone();
             timer2.start_timer("storage.spanner.apply_batch_upsert", None);
@@ -209,7 +216,8 @@ impl BatchDb for SpannerDb {
                 .await?
                 .params(sqlparams)
                 .param_types(sqlparam_types)
-                .execute_dml(&self.conn)
+                .execute(&self.conn)?
+                .validate_no_metadata_only_inserts(&metadata_only_ids)
                 .await?;
         }
 
@@ -226,6 +234,43 @@ impl BatchDb for SpannerDb {
                 .await?;
         }
         Ok(timestamp)
+    }
+}
+
+impl SpannerDb {
+    /// The staged `batch_bsos` ids that supply neither payload nor payload_link
+    async fn metadata_only_batch_bso_ids(
+        &mut self,
+        user_id: &UserIdentifier,
+        collection_id: i32,
+        batch_id: &str,
+    ) -> DbResult<HashSet<String>> {
+        let (sqlparams, sqlparam_types) = params! {
+            "fxa_uid" => user_id.fxa_uid.clone(),
+            "fxa_kid" => user_id.fxa_kid.clone(),
+            "collection_id" => collection_id,
+            "batch_id" => batch_id.to_owned(),
+        };
+        let mut rows = self
+            .sql(
+                "SELECT batch_bso_id
+                   FROM batch_bsos
+                  WHERE fxa_uid = @fxa_uid
+                    AND fxa_kid = @fxa_kid
+                    AND collection_id = @collection_id
+                    AND batch_id = @batch_id
+                    AND payload IS NULL
+                    AND payload_link IS NULL",
+            )
+            .await?
+            .params(sqlparams)
+            .param_types(sqlparam_types)
+            .execute(&self.conn)?;
+        let mut ids = HashSet::new();
+        while let Some(mut row) = rows.try_next().await? {
+            ids.insert(row[0].take_string_value());
+        }
+        Ok(ids)
     }
 }
 

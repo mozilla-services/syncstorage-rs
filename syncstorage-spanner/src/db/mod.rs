@@ -1,4 +1,9 @@
-use std::{collections::HashMap, convert::TryInto, fmt, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    convert::TryInto,
+    fmt,
+    sync::Arc,
+};
 
 use google_cloud_rust_raw::spanner::v1::{
     spanner::ExecuteSqlRequest,
@@ -573,6 +578,7 @@ impl SpannerDb {
     ) -> DbResult<()> {
         validate_payload_exclusive(bso.payload.as_ref(), bso.payload_link.as_ref())?;
 
+        let is_metadata_update = bso.payload.is_none() && bso.payload_link.is_none();
         let has_payload_or_sortindex =
             bso.payload.is_some() || bso.payload_link.is_some() || bso.sortindex.is_some();
 
@@ -655,15 +661,27 @@ impl SpannerDb {
                     AND fxa_kid = @fxa_kid
                     AND collection_id = @collection_id
                     AND bso_id = @bso_id
-             ) AS existing ON TRUE"
+             ) AS existing ON TRUE
+        THEN RETURN WITH ACTION AS action bso_id"
         );
 
-        self.sql(&sql)
+        let mut result = self
+            .sql(&sql)
             .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
-            .execute_dml(&self.conn)
-            .await?;
+            .execute(&self.conn)?;
+        let is_insert = result
+            .one_or_none()
+            .await?
+            .is_some_and(|row| row[1].get_string_value() == "INSERT");
+
+        if is_insert && is_metadata_update {
+            return Err(DbError::integrity(
+                "a BSO write cannot leave both payload and payload_link empty".to_owned(),
+            ));
+        }
+
         Ok(())
     }
 
@@ -680,8 +698,12 @@ impl SpannerDb {
         }
 
         let mut rows: Vec<Value> = Vec::with_capacity(bsos.len());
+        let mut metadata_only_ids: HashSet<String> = HashSet::new();
         for bso in bsos {
             validate_payload_exclusive(bso.payload.as_ref(), bso.payload_link.as_ref())?;
+            if bso.payload.is_none() && bso.payload_link.is_none() {
+                metadata_only_ids.insert(bso.id.clone());
+            }
             // Optional columns are encoded as NULL when the request omitted them
             let sortindex = bso
                 .sortindex
@@ -788,13 +810,14 @@ impl SpannerDb {
                  ON existing.fxa_uid = @fxa_uid
                 AND existing.fxa_kid = @fxa_kid
                 AND existing.collection_id = @collection_id
-                AND existing.bso_id = incoming.bso_id",
+                AND existing.bso_id = incoming.bso_id
+        THEN RETURN WITH ACTION AS action bso_id",
         )
         .await?
         .params(sqlparams)
         .param_types(sqlparam_types)
-        .execute_dml(&self.conn)
-        .await?;
-        Ok(())
+        .execute(&self.conn)?
+        .validate_no_metadata_only_inserts(&metadata_only_ids)
+        .await
     }
 }

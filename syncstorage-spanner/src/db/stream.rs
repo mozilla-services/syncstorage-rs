@@ -1,4 +1,7 @@
-use std::{collections::VecDeque, mem};
+use std::{
+    collections::{HashSet, VecDeque},
+    mem,
+};
 
 use futures::{Stream, StreamExt, stream::StreamFuture};
 use google_cloud_rust_raw::spanner::v1::{
@@ -8,7 +11,7 @@ use google_cloud_rust_raw::spanner::v1::{
 use grpcio::ClientSStreamReceiver;
 use protobuf::well_known_types::Value;
 
-use super::support::IntoSpannerValue;
+use super::support::{IntoSpannerValue, validate_no_metadata_only_inserts};
 use crate::{DbResult, error::DbError};
 
 pub struct StreamedResultSetAsync<T = ClientSStreamReceiver<PartialResultSet>> {
@@ -79,6 +82,26 @@ where
         } else {
             Ok(result)
         }
+    }
+
+    /// Using a `THEN RETURN WITH ACTION` result set to reject the transaction when any of
+    /// `metadata_only_ids` was an insert
+    pub async fn validate_no_metadata_only_inserts(
+        mut self,
+        metadata_only_ids: &HashSet<String>,
+    ) -> DbResult<()> {
+        let mut actions: Vec<(String, String)> = vec![];
+        while let Some(mut row) = self.try_next().await? {
+            let bso_id = row[0].take_string_value();
+            let action = row[1].take_string_value();
+            actions.push((bso_id, action));
+        }
+        validate_no_metadata_only_inserts(
+            metadata_only_ids,
+            actions
+                .iter()
+                .map(|(bso_id, action)| (bso_id.as_str(), action.as_str())),
+        )
     }
 
     /// Pull and process the next values from the Stream

@@ -49,3 +49,6 @@ SELECT
    AND bb.fxa_kid = @fxa_kid
    AND bb.collection_id = @collection_id
    AND bb.batch_id = @batch_id
+-- The action distinguishes an insert from an update, so we can check whether
+-- an insert was attempted with both an empty payload and empty payload link
+THEN RETURN WITH ACTION AS action bso_id

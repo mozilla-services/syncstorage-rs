@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use google_cloud_rust_raw::spanner::v1::{
     spanner::ExecuteSqlRequest,
@@ -131,6 +131,34 @@ pub fn validate_payload_exclusive(
         ));
     }
     Ok(())
+}
+
+pub const SPANNER_ACTION_INSERT: &str = "INSERT";
+
+/// Reject a write that created any bso with neither a payload nor a payload_link.
+pub fn validate_no_metadata_only_inserts<'a>(
+    metadata_only_ids: &HashSet<String>,
+    actions: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> DbResult<()> {
+    if metadata_only_ids.is_empty() {
+        return Ok(());
+    }
+    let mut offenders: Vec<&str> = actions
+        .into_iter()
+        .filter(|(bso_id, action)| {
+            *action == SPANNER_ACTION_INSERT && metadata_only_ids.contains(*bso_id)
+        })
+        .map(|(bso_id, _)| bso_id)
+        .collect();
+    if offenders.is_empty() {
+        return Ok(());
+    }
+    // Spanner returns rows unordered
+    offenders.sort_unstable();
+    Err(DbError::integrity(format!(
+        "a BSO write cannot leave both payload and payload_link empty (inserting BSOs: {})",
+        offenders.join(", ")
+    )))
 }
 
 #[derive(Default)]

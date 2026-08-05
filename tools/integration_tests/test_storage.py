@@ -1376,27 +1376,20 @@ def test_update_of_ttl_without_sending_data(st_ctx):
     bso = {"payload": "x", "ttl": 1}
     retry_put_json(app, root + "/storage/xxx_col2/TEST1", bso)
     retry_put_json(app, root + "/storage/xxx_col2/TEST2", bso)
-    # Before those expire, update ttl on one that exists
-    # and on one that does not.
+    # Before those expire, update ttl.
     time.sleep(0.2)
     bso = {"ttl": 10}
     retry_put_json(app, root + "/storage/xxx_col2/TEST2", bso)
-    retry_put_json(app, root + "/storage/xxx_col2/TEST3", bso)
     # Update some other field on TEST1, which should leave ttl untouched.
     bso = {"sortindex": 3}
     retry_put_json(app, root + "/storage/xxx_col2/TEST1", bso)
-    # If we wait, TEST1 should expire but the others should not.
+    # If we wait, TEST1 should expire but TEST2 should not.
     time.sleep(0.8)
     items = app.get(root + "/storage/xxx_col2?full=1").json
     items = dict((item["id"], item) for item in items)
-    assert sorted(list(items.keys())) == ["TEST2", "TEST3"]
+    assert sorted(list(items.keys())) == ["TEST2"]
     # The existing item should have retained its payload.
-    # The new item should have got a default payload of empty string.
     assert items["TEST2"]["payload"] == "x"
-    assert items["TEST3"]["payload"] == ""
-    ts2 = items["TEST2"]["modified"]
-    ts3 = items["TEST3"]["modified"]
-    assert ts2 < ts3
 
 
 def test_bulk_update_of_ttls_without_sending_data(st_ctx):
@@ -1408,33 +1401,28 @@ def test_bulk_update_of_ttls_without_sending_data(st_ctx):
     r = retry_post_json(app, root + "/storage/xxx_col2", bsos)
     ts1 = float(r.headers["X-Last-Modified"])
     # Before they expire, bulk-update the ttl to something longer.
-    # Also send data for some that don't exist yet.
+    # Only ids that already exist may be sent without data.
     # And just to be really tricky, we're also going to update
     # one of the payloads at the same time.
     time.sleep(0.2)
-    bsos = [{"id": str(i).zfill(2), "ttl": 10} for i in range(3, 7)]
+    bsos = [{"id": str(i).zfill(2), "ttl": 10} for i in range(3, 5)]
     bsos[0]["payload"] = "xx"
     r = retry_post_json(app, root + "/storage/xxx_col2", bsos)
-    assert len(r.json["success"]) == 4
+    assert len(r.json["success"]) == 2
     ts2 = float(r.headers["X-Last-Modified"])
     # If we wait then items 0, 1, 2 should have expired.
-    # Items 3, 4, 5, 6 should still exist.
+    # Items 3 and 4 should still exist.
     time.sleep(0.8)
     items = app.get(root + "/storage/xxx_col2?full=1").json
     items = dict((item["id"], item) for item in items)
-    assert sorted(list(items.keys())) == ["03", "04", "05", "06"]
+    assert sorted(list(items.keys())) == ["03", "04"]
     # Items 3 and 4 should have the specified payloads.
-    # Items 5 and 6 should have payload defaulted to empty string.
     assert items["03"]["payload"] == "xx"
     assert items["04"]["payload"] == "x"
-    assert items["05"]["payload"] == ""
-    assert items["06"]["payload"] == ""
     # All items created or modified by the request should get their
     # timestamps update.  Just bumping the ttl should not bump timestamp.
     assert items["03"]["modified"] == ts2
     assert items["04"]["modified"] == ts1
-    assert items["05"]["modified"] == ts2
-    assert items["06"]["modified"] == ts2
 
 
 def test_that_negative_integer_fields_are_not_accepted(st_ctx):
@@ -1954,7 +1942,8 @@ def test_batch_ttl_is_based_on_commit_timestamp(st_ctx):
     resp = retry_post_json(app, collection + "?batch=true", [], status=202)
     batch = resp.json["batch"]
     endpoint = collection + "?batch={0}".format(batch)
-    retry_post_json(app, endpoint, [{"id": "a", "ttl": 3}], status=202)
+    # A payload is required
+    retry_post_json(app, endpoint, [{"id": "a", "payload": "x", "ttl": 3}], status=202)
 
     # Put some time between upload timestamp and commit timestamp.
     time.sleep(1.5)

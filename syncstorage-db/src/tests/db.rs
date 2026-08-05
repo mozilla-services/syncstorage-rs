@@ -1225,25 +1225,24 @@ async fn put_bso_sortindex_only_preserves_payload_link() -> Result<(), DbError> 
     .await
 }
 
-/// A metadata-only write (ttl/sortindex, no payload/link) to a *new* BSO
-/// creates it with an empty inline payload — matching historical Sync
-/// behavior — rather than a NULL payload that the read-path check would reject.
+/// A metadata-only write (ttl/sortindex, no payload/link) to a *new* BSO is rejected.
 #[cfg(feature = "spanner")]
 #[tokio::test]
-async fn put_bso_metadata_only_create_defaults_empty_payload() -> Result<(), DbError> {
+async fn put_bso_metadata_only_create_rejected() -> Result<(), DbError> {
     with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "clients";
         let bid = "b0";
 
         // No prior row: payload and payload_link both absent.
-        db.put_bso(pbso(uid, coll, bid, None, Some(3), Some(DEFAULT_BSO_TTL)))
-            .await?;
-
-        let got = db.get_bso(gbso(uid, coll, bid)).await?.unwrap();
-        assert_eq!(got.payload, "");
-        assert_eq!(got.payload_link, None);
-        assert_eq!(got.sortindex, Some(3));
+        let err = db
+            .put_bso(pbso(uid, coll, bid, None, Some(3), Some(DEFAULT_BSO_TTL)))
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("payload and payload_link"),
+            "unexpected error: {err}"
+        );
         Ok(())
     })
     .await
@@ -1275,7 +1274,37 @@ async fn put_bso_rejects_both_payload_and_payload_link() -> Result<(), DbError> 
 /// an empty inline payload (mirrors the bulk ttl-update-without-data case).
 #[cfg(feature = "spanner")]
 #[tokio::test]
-async fn post_bsos_metadata_only_create_defaults_empty_payload() -> Result<(), DbError> {
+async fn post_bsos_metadata_only_create_rejected() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+
+        let err = db
+            .post_bsos(params::PostBsos {
+                user_id: hid(uid),
+                collection: coll.to_owned(),
+                bsos: vec![postbso("wibble", None, Some(1), Some(DEFAULT_BSO_TTL))],
+                for_batch: false,
+            })
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("payload and payload_link"),
+            "unexpected error: {err}"
+        );
+        assert!(
+            err.to_string().contains("wibble"),
+            "unexpected error: {err}"
+        );
+        Ok(())
+    })
+    .await
+}
+
+/// One bad create fails the whole request.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn post_bsos_metadata_only_update_ok_but_mixed_create_rejected() -> Result<(), DbError> {
     with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "clients";
@@ -1283,14 +1312,42 @@ async fn post_bsos_metadata_only_create_defaults_empty_payload() -> Result<(), D
         db.post_bsos(params::PostBsos {
             user_id: hid(uid),
             collection: coll.to_owned(),
-            bsos: vec![postbso("new0", None, Some(1), Some(DEFAULT_BSO_TTL))],
+            bsos: vec![postbso(
+                "exists",
+                Some("payload"),
+                None,
+                Some(DEFAULT_BSO_TTL),
+            )],
             for_batch: false,
         })
         .await?;
 
-        let got = db.get_bso(gbso(uid, coll, "new0")).await?.unwrap();
-        assert_eq!(got.payload, "");
-        assert_eq!(got.payload_link, None);
+        // Metadata-only
+        db.post_bsos(params::PostBsos {
+            user_id: hid(uid),
+            collection: coll.to_owned(),
+            bsos: vec![postbso("exists", None, Some(5), None)],
+            for_batch: false,
+        })
+        .await?;
+        let got = db.get_bso(gbso(uid, coll, "exists")).await?.unwrap();
+        assert_eq!(got.payload, "payload");
+        assert_eq!(got.sortindex, Some(5));
+
+        // valid create mixed with a metadata-only create
+        let err = db
+            .post_bsos(params::PostBsos {
+                user_id: hid(uid),
+                collection: coll.to_owned(),
+                bsos: vec![
+                    postbso("fresh", Some("ok"), None, Some(DEFAULT_BSO_TTL)),
+                    postbso("bad", None, Some(1), Some(DEFAULT_BSO_TTL)),
+                ],
+                for_batch: false,
+            })
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("bad"), "unexpected error: {err}");
         Ok(())
     })
     .await
