@@ -519,7 +519,10 @@ async fn put_bso() {
     let bytes = test_endpoint_with_body(
         http::Method::PUT,
         "/1.5/42/storage/bookmarks/wibble",
-        json!(BsoBody::default()),
+        json!(BsoBody {
+            payload: Some("wibble".to_string()),
+            ..Default::default()
+        }),
     )
     .await;
     let result: PutBso = serde_json::from_slice(&bytes).expect("Could not get result in put_bso");
