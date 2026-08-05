@@ -174,12 +174,15 @@ impl From<ValidationErrorKind> for ValidationError {
     fn from(kind: ValidationErrorKind) -> Self {
         trace!("Validation Error: {:?}", kind);
         let status = match kind {
-            ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name), _)
+            ValidationErrorKind::FromDetails(ref description, ref location, Some(ref name), _)
                 if *location == RequestErrorLocation::Header =>
             {
                 match name.to_ascii_lowercase().as_str() {
                     "accept" => StatusCode::NOT_ACCEPTABLE,
                     "content-type" => StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                    "content-length" if description == "size-limit-exceeded" => {
+                        StatusCode::PAYLOAD_TOO_LARGE
+                    }
                     _ => StatusCode::BAD_REQUEST,
                 }
             }
@@ -219,6 +222,13 @@ impl From<ValidationErrorKind> for ApiError {
 impl From<ValidationErrorKind> for ActixError {
     fn from(kind: ValidationErrorKind) -> Self {
         let api_error: ApiError = kind.into();
+        api_error.into()
+    }
+}
+
+impl From<ValidationError> for ActixError {
+    fn from(inner: ValidationError) -> Self {
+        let api_error: ApiError = inner.into();
         api_error.into()
     }
 }
