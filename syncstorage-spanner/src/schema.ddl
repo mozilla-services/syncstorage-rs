@@ -106,3 +106,13 @@ CREATE CHANGE STREAM payload_link_changes
       retention_period = '7d',
       value_capture_type = 'OLD_AND_NEW_VALUES'
     );
+
+-- Defines a fine-grained access role, only allowing read access to the change
+-- stream. The dataflow connector also requires write access to a metadata
+-- database for maintaining its internal state. This database should be
+-- separate from our main database (likely in the same instance, but it can
+-- reside in a separate instance if needed for performance reasons) to further
+-- restrict access to the dataflow connector
+CREATE ROLE payload_link_reader;
+GRANT SELECT ON CHANGE STREAM payload_link_changes TO ROLE payload_link_reader;
+GRANT EXECUTE ON TABLE FUNCTION READ_payload_link_changes TO ROLE payload_link_reader;
