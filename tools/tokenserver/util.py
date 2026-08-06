@@ -7,12 +7,32 @@ import sys
 import time
 import logging
 import base64
-import optparse
 import os
 import json
 from datetime import datetime
 
-from datadog import initialize, statsd
+# ``Metrics`` and ``add_metric_options`` now live in ``tools/common``; they
+# are re-exported here because the tokenserver scripts import them from this
+# module.  Resolution depends on the path: the deployment runs with
+# ``PYTHONPATH=/app/tools/tokenserver`` (so ``common`` needs ``tools/``
+# added), but pytest runs from the repo root (where the package is
+# ``tools.common``). Try both.
+try:
+    from common.metrics import Metrics, add_metric_options
+except ImportError:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from common.metrics import Metrics, add_metric_options
+
+__all__ = [
+    "Metrics",
+    "add_metric_options",
+    "configure_script_logging",
+    "encode_bytes_b64",
+    "format_key_id",
+    "get_timestamp",
+    "run_script",
+    "GCP_JSON_Formatter",
+]
 
 
 def encode_bytes_b64(value):
@@ -94,45 +114,3 @@ def format_key_id(keys_changed_at, key_hash):
 def get_timestamp():
     """Get current timestamp in milliseconds."""
     return int(time.time() * 1000)
-
-
-class Metrics:
-    """Wrapper for sending statsd metrics with a configured namespace."""
-
-    def __init__(self, opts, namespace=""):
-        options = dict(
-            namespace=namespace,
-            statsd_namespace=namespace,
-            statsd_host=getattr(opts, "metric_host"),
-            statsd_port=getattr(opts, "metric_port"),
-        )
-        self.prefix = options.get("namespace")
-        initialize(**options)
-
-    def incr(self, label, value=1, tags=None):
-        """Increment a statsd counter with the given label and optional tags."""
-        statsd.increment(label, value=value, tags=tags)
-
-    def gauge(self, label, value, tags=None):
-        """Record a point-in-time gauge value."""
-        statsd.gauge(label, value, tags=tags)
-
-    def timing(self, label, value_ms, tags=None):
-        """Record a timing value in milliseconds."""
-        statsd.timing(label, value_ms, tags=tags)
-
-
-def add_metric_options(parser: optparse.OptionParser):
-    """Add generic metric related options to an OptionParser"""
-    parser.add_option(
-        "",
-        "--metric_host",
-        default=os.environ.get("SYNC_STATSD_HOST"),
-        help="Metric host name",
-    )
-    parser.add_option(
-        "",
-        "--metric_port",
-        default=os.environ.get("SYNC_STATSD_PORT"),
-        help="Metric host port",
-    )
