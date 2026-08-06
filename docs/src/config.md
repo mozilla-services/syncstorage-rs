@@ -73,7 +73,7 @@ The following configuration options are available.
 | <span id="SYNC_SYNCSTORAGE__LIMITS__MAX_TOTAL_BYTES"></span>SYNC_SYNCSTORAGE__LIMITS__MAX_TOTAL_BYTES | 262,144,000 | Max BSO payload size per batch |
 | <span id="SYNC_SYNCSTORAGE__LIMITS__MAX_TOTAL_RECORDS"></span>SYNC_SYNCSTORAGE__LIMITS__MAX_TOTAL_RECORDS | 10,000 | Max BSO count per batch |
 | <span id="SYNC_SYNCSTORAGE__LIMITS__MAX_QUOTA_LIMIT"></span>SYNC_SYNCSTORAGE__LIMITS__MAX_QUOTA_LIMIT | 2,147,483,648 | Max storage quota per user (2 GB) |
-| <span id="SYNC_SYNCSTORAGE__LIMITS__COLLECTIONS"></span>SYNC_SYNCSTORAGE__LIMITS__COLLECTIONS | unset | Optional per-collection limit overrides, as a JSON object mapping collection name -> limits object (e.g. `{"tabs":{"max_record_payload_bytes":202020}}`). Only `max_record_payload_bytes` is supported currently. |
+| <span id="SYNC_SYNCSTORAGE__LIMITS__COLLECTIONS"></span>SYNC_SYNCSTORAGE__LIMITS__COLLECTIONS | unset | Optional per-collection limit overrides, as a JSON object mapping collection name -> limits object (e.g. `{"newtab-images":{"max_record_payload_bytes":20971520,"max_post_bytes":26214400,"max_request_bytes":26218496}}`). Supported override fields: `max_record_payload_bytes`, `max_post_bytes`, `max_request_bytes`. Any field left unset inherits the corresponding global limit. |
 
 ### Syncstorage Features
 

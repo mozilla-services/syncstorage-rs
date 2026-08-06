@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize, de::IgnoredAny};
 use validator::Validate;
 
 use super::{
-    ACCEPTED_CONTENT_TYPES, CollectionParam, RequestErrorLocation, validate_body_bso_id,
-    validate_body_bso_sortindex, validate_body_bso_ttl,
+    ACCEPTED_CONTENT_TYPES, CollectionParam, RequestErrorLocation, utils::check_content_length,
+    validate_body_bso_id, validate_body_bso_sortindex, validate_body_bso_ttl,
 };
 use crate::{server::ServerState, web::error::ValidationErrorKind};
 
@@ -82,18 +82,15 @@ impl FromRequest for BsoBody {
                 }
             };
 
-            // `max_record_payload_bytes` can be overridden per collection
-            let max_payload_size = {
-                let collection = CollectionParam::extrude(req.uri(), &mut req.extensions_mut())
-                    .ok()
-                    .flatten()
-                    .map(|c| c.collection);
-                match collection {
-                    Some(collection) => state.limits.max_record_payload_bytes_for(&collection),
-                    None => state.limits.max_record_payload_bytes,
-                }
-            } as usize;
+            // `max_record_payload_bytes` and `max_request_bytes` can each be
+            // overridden per collection.
+            let collection = CollectionParam::extrude(req.uri(), &mut req.extensions_mut())
+                .ok()
+                .flatten()
+                .map(|c| c.collection);
+            let coll_limits = state.limits.limits_for(collection.as_deref());
 
+            check_content_length(&req, coll_limits.max_request_bytes as usize)?;
             let bso = <actix_web::web::Json<BsoBody>>::from_request(&req, &mut payload)
                 .await
                 .map_err(|e| {
@@ -113,7 +110,7 @@ impl FromRequest for BsoBody {
                 .as_ref()
                 .map(std::string::String::len)
                 .unwrap_or_default()
-                > max_payload_size
+                > coll_limits.max_record_payload_bytes as usize
             {
                 return Err(ValidationErrorKind::FromDetails(
                     "payload too large".to_owned(),
