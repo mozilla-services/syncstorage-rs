@@ -36,12 +36,12 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -98,12 +98,12 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -142,7 +142,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -199,7 +199,7 @@ jobs:
       matrix:
         target: [spanner, mysql, postgres]
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -227,7 +227,7 @@ jobs:
       matrix:
         target: [spanner, mysql, postgres]
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -288,7 +288,7 @@ jobs:
       CARGO_INCREMENTAL: "0"
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -399,7 +399,7 @@ jobs:
           SYNC_SYNCSTORAGE__DATABASE_URL: postgresql://test:test@127.0.0.1/syncstorage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@9c978c66ab5564af606adee293b728670b2ca93c
+        uses: dorny/test-reporter@a53e41438c2381e621dc719a47a57180e30c7075
         if: always()
         with:
           name: Postgres Unit Tests
@@ -449,7 +449,7 @@ jobs:
       actions: write
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -474,11 +474,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.cache-postgres-image.outputs.cache-hit != 'true'
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
 
       - name: Build Postgres Docker image
         if: steps.cache-postgres-image.outputs.cache-hit != 'true'
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           push: false
@@ -505,7 +505,7 @@ jobs:
       checks: write
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -528,7 +528,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@9c978c66ab5564af606adee293b728670b2ca93c
+        uses: dorny/test-reporter@a53e41438c2381e621dc719a47a57180e30c7075
         if: always()
         with:
           name: Postgres E2E Tests
@@ -593,7 +593,7 @@ jobs:
       CARGO_INCREMENTAL: "0"
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -682,7 +682,7 @@ jobs:
           SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@9c978c66ab5564af606adee293b728670b2ca93c
+        uses: dorny/test-reporter@a53e41438c2381e621dc719a47a57180e30c7075
         if: always()
         with:
           name: MySQL Unit Tests
@@ -733,7 +733,7 @@ jobs:
       actions: write
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -758,11 +758,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.cache-mysql-image.outputs.cache-hit != 'true'
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
 
       - name: Build MySQL Docker image
         if: steps.cache-mysql-image.outputs.cache-hit != 'true'
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           push: false
@@ -789,7 +789,7 @@ jobs:
       checks: write
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -812,7 +812,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@9c978c66ab5564af606adee293b728670b2ca93c
+        uses: dorny/test-reporter@a53e41438c2381e621dc719a47a57180e30c7075
         if: always()
         with:
           name: MySQL E2E Tests
@@ -883,7 +883,7 @@ jobs:
       CARGO_INCREMENTAL: "0"
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -1001,7 +1001,7 @@ jobs:
         run: make spanner_test_with_coverage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@9c978c66ab5564af606adee293b728670b2ca93c
+        uses: dorny/test-reporter@a53e41438c2381e621dc719a47a57180e30c7075
         if: always()
         with:
           name: Spanner Unit Tests
@@ -1052,7 +1052,7 @@ jobs:
       actions: write
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -1077,11 +1077,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.cache-spanner-image.outputs.cache-hit != 'true'
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
 
       - name: Build Spanner Docker image (local artifact)
         if: steps.cache-spanner-image.outputs.cache-hit != 'true'
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           push: false
@@ -1108,7 +1108,7 @@ jobs:
       checks: write
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -1131,7 +1131,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@9c978c66ab5564af606adee293b728670b2ca93c
+        uses: dorny/test-reporter@a53e41438c2381e621dc719a47a57180e30c7075
         if: always()
         with:
           name: Spanner E2E Tests
@@ -1177,7 +1177,7 @@ jobs:
       checks: write
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -1200,7 +1200,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@29672c52a8220c09bd9f79b5b6cf6315f1763996
+        uses: dorny/test-reporter@a53e41438c2381e621dc719a47a57180e30c7075
         if: always()
         with:
           name: Reconciliation E2E Tests

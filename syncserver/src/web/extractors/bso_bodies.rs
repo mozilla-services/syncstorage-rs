@@ -10,7 +10,10 @@ use futures::future::LocalBoxFuture;
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::{ACCEPTED_CONTENT_TYPES, BatchBsoBody, CollectionParam, RequestErrorLocation};
+use super::{
+    ACCEPTED_CONTENT_TYPES, BatchBsoBody, CollectionParam, RequestErrorLocation,
+    utils::check_content_length,
+};
 use crate::{error::ApiError, server::ServerState, web::error::ValidationErrorKind};
 
 #[derive(Default, Deserialize)]
@@ -63,19 +66,14 @@ impl FromRequest for BsoBodies {
             let state = req
                 .app_data::<Data<ServerState>>()
                 .ok_or_else(ApiError::no_server_state)?;
-            // `max_record_payload_bytes` can be overridden per collection
-            let max_payload_size = {
-                let collection = CollectionParam::extrude(req.uri(), &mut req.extensions_mut())
-                    .ok()
-                    .flatten()
-                    .map(|c| c.collection);
-                match collection {
-                    Some(collection) => state.limits.max_record_payload_bytes_for(&collection),
-                    None => state.limits.max_record_payload_bytes,
-                }
-            } as usize;
-            let max_post_bytes = state.limits.max_post_bytes as usize;
+            // Grab limits that can be overridden per collection
+            let collection = CollectionParam::extrude(req.uri(), &mut req.extensions_mut())
+                .ok()
+                .flatten()
+                .map(|c| c.collection);
+            let coll_limits = state.limits.limits_for(collection.as_deref());
 
+            check_content_length(&req, coll_limits.max_request_bytes as usize)?;
             // Load the entire request into a String
             let body = <String>::from_request(&req, &mut payload)
                 .await
@@ -159,7 +157,8 @@ impl FromRequest for BsoBodies {
                             .map(std::string::String::len)
                             .unwrap_or_default();
                         total_payload_size += payload_size;
-                        if payload_size <= max_payload_size && total_payload_size <= max_post_bytes
+                        if payload_size <= coll_limits.max_record_payload_bytes as usize
+                            && total_payload_size <= coll_limits.max_post_bytes as usize
                         {
                             valid.push(b);
                         } else {
