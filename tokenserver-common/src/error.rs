@@ -178,6 +178,16 @@ impl TokenserverError {
             ..Self::default()
         }
     }
+
+    pub fn new_users_disabled() -> Self {
+        Self {
+            status: "new-users-disabled",
+            location: ErrorLocation::Body,
+            description: "New users are not allowed".to_owned(),
+            http_status: StatusCode::FORBIDDEN,
+            ..Self::default()
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

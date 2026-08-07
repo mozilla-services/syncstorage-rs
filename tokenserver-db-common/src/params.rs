@@ -35,6 +35,7 @@ pub struct GetOrCreateUser {
     pub client_state: String,
     pub keys_changed_at: Option<i64>,
     pub capacity_release_rate: Option<f32>,
+    pub allow_new_users: bool,
 }
 
 pub type AllocateUser = GetOrCreateUser;
