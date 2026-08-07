@@ -37,8 +37,8 @@ use crate::{
     },
 };
 
+pub use syncserver_settings::COLLECTION_ID_REGEX;
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
-pub const COLLECTION_ID_REGEX: &str = r"[a-zA-Z0-9._-]{1,32}";
 pub const SYNC_DOCS_URL: &str =
     "https://mozilla-services.readthedocs.io/en/latest/storage/apis-1.5.html";
 pub const TOKENSERVER_DOCS_URL: &str =
@@ -215,14 +215,17 @@ macro_rules! build_app {
             .service(
                 web::resource(&cfg_path("/storage/{collection}"))
                     .app_data(
-                        // Declare the payload limit for "normal" collections.
-                        web::PayloadConfig::new($limits.max_request_bytes as usize),
+                        // The resource-level payload limit is the ceiling
+                        // across the default and any per-collection overrides;
+                        // extractors enforce the actual per-collection
+                        // `max_request_bytes` once the collection is known.
+                        web::PayloadConfig::new($limits.effective_max_request_bytes() as usize),
                     )
                     .app_data(
                         // Declare the payload limits for "JSON" payloads
                         // (Specify "text/plain" for legacy client reasons)
                         web::JsonConfig::default()
-                            .limit($limits.max_request_bytes as usize)
+                            .limit($limits.effective_max_request_bytes() as usize)
                             .content_type(|ct| ct == mime::TEXT_PLAIN),
                     )
                     .route(web::delete().to(handlers::delete_collection))
@@ -231,10 +234,12 @@ macro_rules! build_app {
             )
             .service(
                 web::resource(&cfg_path("/storage/{collection}/{bso}"))
-                    .app_data(web::PayloadConfig::new($limits.max_request_bytes as usize))
+                    .app_data(web::PayloadConfig::new(
+                        $limits.effective_max_request_bytes() as usize,
+                    ))
                     .app_data(
                         web::JsonConfig::default()
-                            .limit($limits.max_request_bytes as usize)
+                            .limit($limits.effective_max_request_bytes() as usize)
                             .content_type(|ct| ct == mime::TEXT_PLAIN),
                     )
                     .route(web::delete().to(handlers::delete_bso))
@@ -427,6 +432,10 @@ impl Server {
         let gcs_payload_max_concurrency = settings.syncstorage.gcs_payload_max_concurrency;
         let (gcs_client, gcs_control_client) = if gcs_payload_bucket.is_some() {
             let endpoint = settings.syncstorage.gcs_endpoint.as_deref();
+            #[cfg(not(debug_assertions))]
+            if let Some(endpoint) = endpoint {
+                warn!("GCS endpoint override used in release: {}", endpoint);
+            }
             (
                 Some(build_client(endpoint).await?),
                 Some(build_control_client(endpoint).await?),

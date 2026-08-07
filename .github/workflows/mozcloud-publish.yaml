@@ -43,7 +43,7 @@ jobs:
       packages: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -72,7 +72,7 @@ jobs:
           IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
-      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           push: true
@@ -91,7 +91,7 @@ jobs:
       packages: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -121,7 +121,7 @@ jobs:
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - name: Build and push to prod GAR and ghcr
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           push: true
@@ -141,7 +141,7 @@ jobs:
           token_format: access_token
 
       - name: Log in to enterprise GAR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
         with:
           registry: us-docker.pkg.dev
           username: oauth2accesstoken
@@ -162,7 +162,7 @@ jobs:
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - name: Build and push to enterprise GAR
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           push: true
@@ -180,7 +180,7 @@ jobs:
       packages: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -209,7 +209,7 @@ jobs:
           IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
-      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           push: true
@@ -225,13 +225,15 @@ jobs:
   # not mirror it to GHCR.
   build-and-push-syncserver-payload-link-dataflow:
     needs: check
+    outputs:
+      image_tag: ${{ steps.setup.outputs.image_tag }}
     permissions:
       contents: read
       id-token: write
       packages: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
 
@@ -255,7 +257,7 @@ jobs:
           IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
-      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: tools/payload-link-dataflow
           file: tools/payload-link-dataflow/Dockerfile
@@ -263,3 +265,61 @@ jobs:
           tags: ${{ env.IMAGE_TAGS }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Write the payload-link Dataflow flex-template spec (the container spec
+  # JSON) into the dev job bucket, pointing at the image published above.
+  # This spec is what tells the Dataflow job -- provisioned in
+  # webservices-infra via container_spec_gcs_path -- which container to run
+  # (STOR-648). Writing it does NOT relaunch a running job; it takes effect
+  # the next time the job is (re)started.
+  #
+  # dev only for now. stage/prod buckets will be added later (likely a
+  # matrix / GitHub environments), hence the parameterised vars below.
+  #
+  # Prerequisites (infra, out of this repo):
+  #   * the deploy SA has roles/storage.objectAdmin on the bucket (the
+  #     Dataflow SA already does, per webservices-infra), and
+  #   * that SA has a roles/iam.workloadIdentityUser binding for this repo's
+  #     WIF principal so Actions can impersonate it.
+  write-payload-link-dataflow-spec-dev:
+    needs: build-and-push-syncserver-payload-link-dataflow
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'push' &&
+        (github.ref_name == 'master' || startsWith(github.ref, 'refs/tags/'))
+      )
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - id: gcp-auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ vars.GCPV2_GITHUB_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.PAYLOAD_LINK_DATAFLOW_DEPLOY_SA || 'sync-nonprod-dev-payload-link@moz-fx-sync-nonprod.iam.gserviceaccount.com' }}
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Write dev flex-template spec
+        env:
+          BUCKET: ${{ vars.PAYLOAD_LINK_DATAFLOW_DEV_BUCKET || 'sync-nonprod-dev-payload-link-dataflow' }}
+          TAG: ${{ needs.build-and-push-syncserver-payload-link-dataflow.outputs.image_tag }}
+        run: |
+          IMAGE="us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-payload-link-dataflow:${TAG}"
+          # Stable spec consumed by the webservices-infra Dataflow job, plus a
+          # tag-versioned copy for reproducible rollback.
+          for SPEC in \
+            "gs://${BUCKET}/templates/syncserver-payload-link-dataflow.json" \
+            "gs://${BUCKET}/templates/syncserver-payload-link-dataflow-${TAG}.json"; do
+            gcloud dataflow flex-template build "${SPEC}" \
+              --image "${IMAGE}" \
+              --sdk-language JAVA \
+              --metadata-file tools/payload-link-dataflow/metadata.json
+          done
