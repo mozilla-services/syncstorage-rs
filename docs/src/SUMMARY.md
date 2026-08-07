@@ -21,6 +21,7 @@
 - [Syncstorage DB - Postgres](syncstorage/syncstorage-postgres-db.md)
 - [Syncstorage DB - Spanner](syncstorage/syncstorage-spanner-db.md)
     - [Payload Link Reconciler](tools/payload_link_reconciler.md)
+    - [Payload Offload Infrastructure](tools/payload-offload-infrastructure.md)
 - [Tokenserver](tokenserver/tokenserver.md)
     - [Goals of Tokenserver](tokenserver/tokenserver-goals.md)
     - [Tokenserver API](tokenserver/tokenserver-api.md)
