@@ -163,6 +163,8 @@ COPY --from=builder /app/bin /app/bin
 COPY --from=builder /app/version.json /app
 COPY --from=builder /app/tools/spanner /app/tools/spanner
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
+# Shared helpers imported by the tokenserver scripts and the gcs reconciler.
+COPY --from=builder /app/tools/common /app/tools/common
 COPY --from=builder /app/tools/tokenserver /app/tools/tokenserver
 COPY --from=builder /app/tools/payload-reconciler /app/tools/payload-reconciler
 COPY --from=builder /app/tools/postgres /app/tools/postgres

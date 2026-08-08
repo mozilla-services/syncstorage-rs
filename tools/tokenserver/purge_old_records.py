@@ -417,7 +417,7 @@ def main(args=None):
     logger = util.configure_script_logging(opts, logger_name=LOGGER)
 
     # set up metrics:
-    metrics = util.Metrics(opts, namespace="tokenserver")
+    metrics = util.Metrics.from_opts(opts, namespace="tokenserver")
 
     if len(args) == 0:
         parser.print_usage()
