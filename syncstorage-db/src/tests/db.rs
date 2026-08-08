@@ -1225,25 +1225,24 @@ async fn put_bso_sortindex_only_preserves_payload_link() -> Result<(), DbError> 
     .await
 }
 
-/// A metadata-only write (ttl/sortindex, no payload/link) to a *new* BSO
-/// creates it with an empty inline payload — matching historical Sync
-/// behavior — rather than a NULL payload that the read-path check would reject.
+/// A metadata-only write (ttl/sortindex, no payload/link) to a *new* BSO is rejected.
 #[cfg(feature = "spanner")]
 #[tokio::test]
-async fn put_bso_metadata_only_create_defaults_empty_payload() -> Result<(), DbError> {
+async fn put_bso_metadata_only_create_rejected() -> Result<(), DbError> {
     with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = *UID;
         let coll = "clients";
         let bid = "b0";
 
         // No prior row: payload and payload_link both absent.
-        db.put_bso(pbso(uid, coll, bid, None, Some(3), Some(DEFAULT_BSO_TTL)))
-            .await?;
-
-        let got = db.get_bso(gbso(uid, coll, bid)).await?.unwrap();
-        assert_eq!(got.payload, "");
-        assert_eq!(got.payload_link, None);
-        assert_eq!(got.sortindex, Some(3));
+        let err = db
+            .put_bso(pbso(uid, coll, bid, None, Some(3), Some(DEFAULT_BSO_TTL)))
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("payload and payload_link"),
+            "unexpected error: {err}"
+        );
         Ok(())
     })
     .await

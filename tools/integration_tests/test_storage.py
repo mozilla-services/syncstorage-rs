@@ -1376,27 +1376,20 @@ def test_update_of_ttl_without_sending_data(st_ctx):
     bso = {"payload": "x", "ttl": 1}
     retry_put_json(app, root + "/storage/xxx_col2/TEST1", bso)
     retry_put_json(app, root + "/storage/xxx_col2/TEST2", bso)
-    # Before those expire, update ttl on one that exists
-    # and on one that does not.
+    # Before those expire, update ttl.
     time.sleep(0.2)
     bso = {"ttl": 10}
     retry_put_json(app, root + "/storage/xxx_col2/TEST2", bso)
-    retry_put_json(app, root + "/storage/xxx_col2/TEST3", bso)
     # Update some other field on TEST1, which should leave ttl untouched.
     bso = {"sortindex": 3}
     retry_put_json(app, root + "/storage/xxx_col2/TEST1", bso)
-    # If we wait, TEST1 should expire but the others should not.
+    # If we wait, TEST1 should expire but TEST2 should not.
     time.sleep(0.8)
     items = app.get(root + "/storage/xxx_col2?full=1").json
     items = dict((item["id"], item) for item in items)
-    assert sorted(list(items.keys())) == ["TEST2", "TEST3"]
+    assert sorted(list(items.keys())) == ["TEST2"]
     # The existing item should have retained its payload.
-    # The new item should have got a default payload of empty string.
     assert items["TEST2"]["payload"] == "x"
-    assert items["TEST3"]["payload"] == ""
-    ts2 = items["TEST2"]["modified"]
-    ts3 = items["TEST3"]["modified"]
-    assert ts2 < ts3
 
 
 def test_bulk_update_of_ttls_without_sending_data(st_ctx):

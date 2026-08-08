@@ -573,6 +573,7 @@ impl SpannerDb {
     ) -> DbResult<()> {
         validate_payload_exclusive(bso.payload.as_ref(), bso.payload_link.as_ref())?;
 
+        let is_metadata_update = bso.payload.is_none() && bso.payload_link.is_none();
         let has_payload_or_sortindex =
             bso.payload.is_some() || bso.payload_link.is_some() || bso.sortindex.is_some();
 
@@ -655,15 +656,27 @@ impl SpannerDb {
                     AND fxa_kid = @fxa_kid
                     AND collection_id = @collection_id
                     AND bso_id = @bso_id
-             ) AS existing ON TRUE"
+             ) AS existing ON TRUE
+        THEN RETURN WITH ACTION AS action bso_id"
         );
 
-        self.sql(&sql)
+        let mut result = self
+            .sql(&sql)
             .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
-            .execute_dml(&self.conn)
-            .await?;
+            .execute(&self.conn)?;
+        let is_insert = result
+            .one_or_none()
+            .await?
+            .is_some_and(|row| row[1].get_string_value() == "INSERT");
+
+        if is_insert && is_metadata_update {
+            return Err(DbError::integrity(
+                "a BSO write cannot leave both payload and payload_link empty".to_owned(),
+            ));
+        }
+
         Ok(())
     }
 
