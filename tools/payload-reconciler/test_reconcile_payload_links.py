@@ -27,12 +27,12 @@ def _gcs_mock() -> MagicMock:
     return MagicMock()
 
 
-def _msg(mods: list[dict[str, str]]) -> bytes:
+def _msg(mods: list[dict[str, str]], table: str = "bsos") -> bytes:
     return json.dumps(
         {
             "commitTimestamp": "2026-06-29T00:00:00Z",
             "modType": "UPDATE",
-            "tableName": "bsos",
+            "tableName": table,
             "mods": mods,
         }
     ).encode()
@@ -117,6 +117,27 @@ def test_both_null_records_noop_skip(monkeypatch: pytest.MonkeyPatch) -> None:
     blob.patch.assert_not_called()
     blob.delete.assert_not_called()
     statsd_incr.assert_any_call("payload_reconciler.noop_skips")
+
+
+def test_batch_bsos_records_are_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
+    """batch_bsos changes are staging noise and must never touch GCS (STOR-657).
+
+    On batch commit the staging row's payload_link is copied into bsos and the
+    staging row is deleted; acting on that delete would remove a live object.
+    """
+    statsd_incr = MagicMock()
+    monkeypatch.setattr(statsd_singleton, "incr", statsd_incr)
+    gcs = _gcs_mock()
+
+    # A delete-shaped mod that would delete the object on a bsos record.
+    reconciler.handle_message_body(
+        gcs, BUCKET, _msg([_mod(LINK_A, None)], table="batch_bsos")
+    )
+
+    blob = gcs.bucket.return_value.blob.return_value
+    blob.delete.assert_not_called()
+    blob.patch.assert_not_called()
+    statsd_incr.assert_any_call("payload_reconciler.batch_bsos_skips")
 
 
 def test_finalize_404_is_success(monkeypatch: pytest.MonkeyPatch) -> None:
