@@ -556,6 +556,7 @@ async fn test_node_allocation() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
     assert_eq!(user.node, "https://node1");
@@ -609,6 +610,7 @@ async fn test_allocation_to_least_loaded_node() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -620,6 +622,7 @@ async fn test_allocation_to_least_loaded_node() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -663,6 +666,7 @@ async fn test_allocation_is_not_allowed_to_downed_nodes() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await;
     let error = result.unwrap_err();
@@ -704,6 +708,7 @@ async fn test_allocation_is_not_allowed_to_backoff_nodes() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await;
     let error = result.unwrap_err();
@@ -744,6 +749,7 @@ async fn test_node_reassignment_when_records_are_replaced() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
     let user1 = db
@@ -768,6 +774,7 @@ async fn test_node_reassignment_when_records_are_replaced() -> DbResult<()> {
             client_state: "bbbb".to_owned(),
             keys_changed_at: Some(1235),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -816,6 +823,7 @@ async fn test_node_reassignment_not_done_for_retired_users() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -827,6 +835,7 @@ async fn test_node_reassignment_not_done_for_retired_users() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -884,6 +893,7 @@ async fn test_node_reassignment_and_removal() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -895,6 +905,7 @@ async fn test_node_reassignment_and_removal() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -906,6 +917,7 @@ async fn test_node_reassignment_and_removal() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -917,6 +929,7 @@ async fn test_node_reassignment_and_removal() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -949,6 +962,7 @@ async fn test_node_reassignment_and_removal() -> DbResult<()> {
                 client_state: user.client_state.clone(),
                 keys_changed_at: user.keys_changed_at,
                 capacity_release_rate: None,
+                allow_new_users: true,
             })
             .await?;
 
@@ -978,6 +992,7 @@ async fn test_node_reassignment_and_removal() -> DbResult<()> {
                 client_state: user.client_state.clone(),
                 keys_changed_at: user.keys_changed_at,
                 capacity_release_rate: None,
+                allow_new_users: true,
             })
             .await?;
 
@@ -1034,6 +1049,7 @@ async fn test_gradual_release_of_node_capacity() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -1051,6 +1067,7 @@ async fn test_gradual_release_of_node_capacity() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -1070,6 +1087,7 @@ async fn test_gradual_release_of_node_capacity() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -1087,6 +1105,7 @@ async fn test_gradual_release_of_node_capacity() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -1105,6 +1124,7 @@ async fn test_gradual_release_of_node_capacity() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -1122,6 +1142,7 @@ async fn test_gradual_release_of_node_capacity() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -1140,6 +1161,7 @@ async fn test_gradual_release_of_node_capacity() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await;
 
@@ -1185,6 +1207,7 @@ async fn test_correct_created_at_used_during_node_reassignment() -> DbResult<()>
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -1204,6 +1227,7 @@ async fn test_correct_created_at_used_during_node_reassignment() -> DbResult<()>
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -1245,6 +1269,7 @@ async fn test_correct_created_at_used_during_user_retrieval() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
@@ -1261,11 +1286,52 @@ async fn test_correct_created_at_used_during_user_retrieval() -> DbResult<()> {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            allow_new_users: true,
         })
         .await?;
 
     // The user's timestamp should be equal to the one generated when the user was created
     assert_eq!(user1.created_at, user2.created_at);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_no_new_user_allocation() -> DbResult<()> {
+    let pool = db_pool().await?;
+    let mut db = pool.get().await?;
+
+    let service_id = db
+        .get_service_id(params::GetServiceId {
+            service: "sync-1.5".to_owned(),
+        })
+        .await?
+        .id;
+
+    // Add a node
+    db.post_node(params::PostNode {
+        service_id,
+        node: "https://node1".to_owned(),
+        current_load: 4,
+        capacity: 8,
+        available: 1,
+        ..Default::default()
+    })
+    .await?;
+
+    // Try to create a user
+    let result = db
+        .get_or_create_user(params::GetOrCreateUser {
+            service_id,
+            generation: 1234,
+            email: "test4@test.com".to_owned(),
+            client_state: "aaaa".to_owned(),
+            keys_changed_at: Some(1234),
+            capacity_release_rate: None,
+            allow_new_users: false,
+        })
+        .await;
+    assert!(result.unwrap_err().is_user_not_created());
 
     Ok(())
 }

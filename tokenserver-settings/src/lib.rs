@@ -77,6 +77,9 @@ pub struct Settings {
     pub fxa_webhook_set_client_id: Option<String>,
     /// The `iss` of Security Event Tokens received on the account events webhook endpoint.
     pub fxa_webhook_set_issuer: Option<String>,
+    /// Whether new users may register to the Tokenserver.
+    /// Defaults to true.
+    pub allow_new_users: bool,
 }
 
 impl Default for Settings {
@@ -108,6 +111,7 @@ impl Default for Settings {
             fxa_webhook_metrics_only: false,
             fxa_webhook_set_client_id: None,
             fxa_webhook_set_issuer: None,
+            allow_new_users: true,
         }
     }
 }

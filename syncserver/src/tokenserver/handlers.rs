@@ -462,6 +462,7 @@ mod tests {
             set_verifiers,
             fxa_webhook_enabled: true,
             fxa_webhook_metrics_only: false,
+            allow_new_users: true,
         }
     }
 
