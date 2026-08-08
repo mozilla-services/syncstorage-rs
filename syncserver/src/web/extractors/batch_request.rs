@@ -1,5 +1,5 @@
 use actix_web::{
-    Error, FromRequest, HttpRequest,
+    Error, FromRequest, HttpMessage, HttpRequest,
     dev::Payload,
     web::{Data, Query},
 };
@@ -9,7 +9,7 @@ use validator::{Validate, ValidationError};
 
 use syncserver_common::X_WEAVE_RECORDS;
 
-use super::{RequestErrorLocation, TRUE_REGEX, request_error};
+use super::{CollectionParam, RequestErrorLocation, TRUE_REGEX, request_error};
 use crate::{
     error::ApiError,
     server::ServerState,
@@ -80,10 +80,16 @@ impl FromRequest for BatchRequestOpt {
             };
 
             let limits = &state.limits;
+            // `max_post_bytes` can be overridden per collection.
+            let collection = CollectionParam::extrude(req.uri(), &mut req.extensions_mut())
+                .ok()
+                .flatten()
+                .map(|c| c.collection);
+            let coll_limits = limits.limits_for(collection.as_deref());
 
             let checks = [
                 (X_WEAVE_RECORDS, limits.max_post_records),
-                ("X-Weave-Bytes", limits.max_post_bytes),
+                ("X-Weave-Bytes", coll_limits.max_post_bytes),
                 ("X-Weave-Total-Records", limits.max_total_records),
                 ("X-Weave-Total-Bytes", limits.max_total_bytes),
             ];
