@@ -41,9 +41,14 @@ from typing import Any
 from google.api_core import exceptions as gax_exceptions
 from google.cloud import pubsub_v1
 from google.cloud import storage
-from statsd.defaults.env import statsd
 
-from utils import parse_gs_url
+# Run by path (``python3 .../reconcile_payload_links.py``), so ``sys.path[0]``
+# is this directory and the shared ``tools/common`` package is not importable
+# without help. Add ``tools/`` before importing from it.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from common.metrics import Metrics  # noqa: E402  (needs the path insert)
+from utils import parse_gs_url  # noqa: E402
 
 # Pinned far-future timestamp -- makes daysSinceCustomTime permanently
 # negative so GCS lifecycle rules that GC uncommitted objects by
@@ -64,6 +69,12 @@ logging.basicConfig(
     level=logging.INFO,
 )
 log = logging.getLogger("payload-reconciler")
+
+metrics = Metrics(
+    namespace="payload_reconciler",
+    host=os.environ.get("SYNC_STATSD_HOST") or os.environ.get("STATSD_HOST"),
+    port=os.environ.get("SYNC_STATSD_PORT") or os.environ.get("STATSD_PORT"),
+)
 
 
 def get_env() -> tuple[str, str, str, int | None]:
@@ -92,10 +103,10 @@ def finalize_object(gcs_client: storage.Client, bucket: str, name: str) -> None:
     blob.custom_time = MAX_CUSTOM_TIME
     try:
         blob.patch()
-        statsd.incr("payload_reconciler.finalizes")
+        metrics.incr("finalizes")
     except gax_exceptions.NotFound:
         log.debug("finalize 404: gs://%s/%s", bucket, name)
-        statsd.incr("payload_reconciler.gcs_404.finalize")
+        metrics.incr("gcs_404", tags=["op:finalize"])
 
 
 def delete_object(gcs_client: storage.Client, bucket: str, name: str) -> None:
@@ -103,10 +114,10 @@ def delete_object(gcs_client: storage.Client, bucket: str, name: str) -> None:
     blob = gcs_client.bucket(bucket).blob(name)
     try:
         blob.delete()
-        statsd.incr("payload_reconciler.orphan_deletes")
+        metrics.incr("orphan_deletes")
     except gax_exceptions.NotFound:
         log.debug("delete 404: gs://%s/%s", bucket, name)
-        statsd.incr("payload_reconciler.gcs_404.delete")
+        metrics.incr("gcs_404", tags=["op:delete"])
 
 
 def _require_bucket(seen: str, expected: str) -> None:
@@ -148,7 +159,7 @@ def handle_message_body(
     if ops_performed == 0:
         # Defensive: the Dataflow filter should have dropped this record.
         # Counting noop_skips lets us alert when the filter regresses.
-        statsd.incr("payload_reconciler.noop_skips")
+        metrics.incr("noop_skips")
 
 
 def drain(
@@ -217,7 +228,7 @@ def drain(
                     "handler error on message_id=%s; leaving unacked for retry / DLQ",
                     received.message.message_id,
                 )
-                statsd.incr("payload_reconciler.errors.handler")
+                metrics.incr("errors", tags=["kind:handler"])
 
         if ack_ids:
             sub_client.acknowledge(

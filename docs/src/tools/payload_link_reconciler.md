@@ -181,7 +181,8 @@ modes* below.
 | `PUBSUB_SUBSCRIPTION` | yes | — | `payload-link-reconciler-sub` in prod. |
 | `GCS_PAYLOAD_BUCKET` | yes | — | Cross-bucket links abort the message. |
 | `RUN_BUDGET_SECONDS` | no | — | Set (e.g. `240`) → cronjob mode; drain up to N seconds then exit 0. Unset → long-running mode; poll forever, never exit on idle. |
-| `STATSD_HOST`, `STATSD_PORT` | no | — | Standard `statsd.defaults.env` pair. |
+| `SYNC_STATSD_HOST` | no | localhost | statsd metrics server host. |
+| `SYNC_STATSD_PORT` | no | 8125 | statsd metrics server port. |
 
 **Service account requires:**
 
@@ -271,10 +272,10 @@ real dev Spanner instance).
 | Symptom | Cause | Behaviour |
 |---|---|---|
 | Spike in `payload_reconciler.noop_skips` | Dataflow filter is letting inert records through | Investigate; should be ~0 if the filter works. Records still ack — no harm but extra Pub/Sub cost. |
-| Sustained `payload_reconciler.gcs_404.finalize` | Lifecycle rule reclaimed the object before the reconciler finalized it, OR the same message redelivered after a successful prior run (at-least-once tax) | Acceptable up to a low background level. Sharp rise = lifecycle window too aggressive vs. cronjob cadence. |
-| Sustained `payload_reconciler.gcs_404.delete` | Object was already deleted (redelivery or concurrent cleanup) | Acceptable; idempotent by design. |
+| Sustained `payload_reconciler.gcs_404` with `op:finalize` | Lifecycle rule reclaimed the object before the reconciler finalized it, OR the same message redelivered after a successful prior run (at-least-once tax) | Acceptable up to a low background level. Sharp rise = lifecycle window too aggressive vs. cronjob cadence. |
+| Sustained `payload_reconciler.gcs_404` with `op:delete` | Object was already deleted (redelivery or concurrent cleanup) | Acceptable; idempotent by design. |
 | Messages in `payload-link-changes-dlq` | Repeated handler exceptions on the same message after 5 retries (malformed JSON, cross-bucket link, GCS auth failure) | Inspect the DLQ payload; fix and re-publish or discard. The main subscription continues to drain. |
-| `payload_reconciler.errors.handler` non-zero | Same as above before reaching DLQ. | Same. |
+| `payload_reconciler.errors` with `kind:handler` non-zero | Same as above before reaching DLQ. | Same. |
 
 A `payload_link` pointing at a bucket other than `GCS_PAYLOAD_BUCKET`
 raises `ValueError` and the message is left unacked — it retries up to
