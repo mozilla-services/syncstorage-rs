@@ -15,7 +15,8 @@ package-mode = false
 [tool.poetry.dependencies]
 google-cloud-pubsub = "^2.23.0"
 google-cloud-storage = "^2.18.0"
-statsd = "^4.0.1"
+# dogstatsd, for the tag support the plain statsd client lacks.
+datadog = "^0.51.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.3"
@@ -35,7 +36,8 @@ ignore_missing_imports = true
 strict = true
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+# ".." puts tools/ on the path so the shared common package is importable.
+pythonpath = [".", ".."]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
