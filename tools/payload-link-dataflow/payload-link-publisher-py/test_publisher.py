@@ -145,6 +145,34 @@ def test_serialize_record_wire_shape() -> None:
     assert json.loads(m["newValues"]) == {"payload_link": "gs://b/u/c/bso/uuid-b"}
 
 
+def test_serialize_record_carries_transaction_fields() -> None:
+    """TTL deletes surface transactionTag + isSystemTransaction for the reconciler."""
+    dcr = {
+        "commit_timestamp": datetime.datetime(2026, 6, 30, tzinfo=datetime.UTC),
+        "mod_type": "DELETE",
+        "table_name": "batch_bsos",
+        "transaction_tag": "RowDeletionPolicy",
+        "is_system_transaction": True,
+        "mods": [{"keys": "{}", "old_values": LINK_A, "new_values": None}],
+    }
+    out = json.loads(serialize_record(dcr))
+    assert out["transactionTag"] == "RowDeletionPolicy"
+    assert out["isSystemTransaction"] is True
+
+
+def test_serialize_record_transaction_fields_default_for_client_writes() -> None:
+    """A record with no transaction metadata reads as a non-TTL client write."""
+    dcr = {
+        "commit_timestamp": datetime.datetime(2026, 6, 30, tzinfo=datetime.UTC),
+        "mod_type": "DELETE",
+        "table_name": "batch_bsos",
+        "mods": [{"keys": "{}", "old_values": LINK_A, "new_values": None}],
+    }
+    out = json.loads(serialize_record(dcr))
+    assert out["transactionTag"] == ""
+    assert out["isSystemTransaction"] is False
+
+
 def test_serialize_record_defaults_empty_values_to_empty_object_string() -> None:
     """None old/new_values must become the string ``"{}"`` (matches Java)."""
     dcr = {

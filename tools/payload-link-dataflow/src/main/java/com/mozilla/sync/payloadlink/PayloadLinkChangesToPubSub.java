@@ -26,11 +26,14 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The output JSON shape is intentionally minimal -- one object per
  * {@code DataChangeRecord} with {@code commitTimestamp}, {@code modType},
- * {@code tableName}, and a {@code mods} array. Each mod carries
- * {@code keys}, {@code oldValues}, and {@code newValues} as raw JSON
- * strings (matching the Spanner change-streams wire format), so the
- * downstream Python reconciler reads them with a second
- * {@code json.loads} per mod.
+ * {@code tableName}, {@code transactionTag}, {@code isSystemTransaction},
+ * and a {@code mods} array. Each mod carries {@code keys},
+ * {@code oldValues}, and {@code newValues} as raw JSON strings (matching
+ * the Spanner change-streams wire format), so the downstream Python
+ * reconciler reads them with a second {@code json.loads} per mod. The
+ * transaction fields let the reconciler tell a TTL delete
+ * ({@code transactionTag} "RowDeletionPolicy", {@code isSystemTransaction}
+ * true) from a client-driven batch commit handoff.
  */
 public final class PayloadLinkChangesToPubSub {
 
@@ -128,6 +131,13 @@ public final class PayloadLinkChangesToPubSub {
             root.put("commitTimestamp", r.getCommitTimestamp().toString());
             root.put("modType", r.getModType().toString());
             root.put("tableName", r.getTableName());
+            // TTL row-deletion-policy deletes carry transaction_tag
+            // "RowDeletionPolicy" and is_system_transaction true; the reconciler
+            // uses these to tell an abandoned batch from a batch commit handoff.
+            root.put(
+                "transactionTag",
+                r.getTransactionTag() == null ? "" : r.getTransactionTag());
+            root.put("isSystemTransaction", r.isSystemTransaction());
             ArrayNode modsArr = root.putArray("mods");
             for (Mod mod : r.getMods()) {
                 ObjectNode modNode = modsArr.addObject();

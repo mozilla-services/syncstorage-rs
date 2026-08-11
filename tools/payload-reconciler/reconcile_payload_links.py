@@ -137,6 +137,23 @@ def handle_message_body(
     success), so re-delivery is safe.
     """
     record: dict[str, Any] = json.loads(body)
+    table_name = record.get("tableName")
+
+    # A batch_bsos payload_link is a staging pointer. syncstorage only removes a
+    # batch_bsos row inside the commit transaction, and that same commit copies
+    # the link into the permanent bsos row, so deleting the object on that
+    # removal would drop one the committed bsos row still points at. We skip the
+    # delete for a batch_bsos row removed by a client transaction (the commit
+    # handoff). A batch_bsos row removed by a TTL system transaction is instead a
+    # genuinely abandoned batch, so its object should go. Spanner tags TTL
+    # row deletion policy deletes with transaction_tag "RowDeletionPolicy" and
+    # is_system_transaction true; a client delete has neither. bsos changes and
+    # batch_bsos overwrites are unaffected. See STOR-657.
+    is_ttl_delete = (
+        bool(record.get("isSystemTransaction"))
+        and record.get("transactionTag") == "RowDeletionPolicy"
+    )
+
     ops_performed = 0
     for mod in record.get("mods", []):
         old_values_str = mod.get("oldValues") or "{}"
@@ -151,6 +168,13 @@ def handle_message_body(
             ops_performed += 1
 
         if old_link and old_link != new_link:
+            # A batch_bsos row removed (new_link None) by a non-TTL transaction
+            # is the commit handoff: the object now belongs to bsos, so skip.
+            if table_name == "batch_bsos" and new_link is None and not is_ttl_delete:
+                metrics.incr("batch_commit_skips")
+                # Recognized and intentionally skipped, not filter noise.
+                ops_performed += 1
+                continue
             bucket, name = parse_gs_url(old_link)
             _require_bucket(bucket, expected_bucket)
             delete_object(gcs_client, bucket, name)

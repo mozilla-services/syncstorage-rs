@@ -165,12 +165,19 @@ Sync-pull drain loop with two deployment modes selected by whether
 
 For each mod in the change record:
 
-- New `payload_link` non-null → `blob.patch()` setting
-  `metadata.committed = "true"` and `customTime =
-  "9999-12-31T23:59:59Z"`.
-- Old `payload_link` non-null and ≠ new → `blob.delete()`.
+- New `payload_link` present: `blob.patch()` sets
+  `metadata.committed = "true"` and `customTime = "9999-12-31T23:59:59Z"`.
+- Old `payload_link` present and not equal to the new value: `blob.delete()`,
+  with one exception. A `batch_bsos` row whose link was removed by a client
+  transaction is the batch commit handoff, not an orphan. On commit the link is
+  copied into the permanent `bsos` row inside the same transaction, so deleting
+  the object would drop one `bsos` still points at. Those removals are skipped
+  (`payload_reconciler.batch_commit_skips`). A `batch_bsos` removal by a TTL
+  system transaction (`transactionTag` "RowDeletionPolicy",
+  `isSystemTransaction` true) is a genuinely abandoned batch and is deleted.
+  `bsos` changes and `batch_bsos` overwrites are unaffected. See STOR-657.
 
-Both operations tolerate `404 NotFound` as success — see *Failure
+Both operations tolerate `404 NotFound` as success, see *Failure
 modes* below.
 
 **Environment**
@@ -207,6 +214,8 @@ message:
   "commitTimestamp": "2026-06-30T00:00:00.000000000Z",
   "modType": "UPDATE",
   "tableName": "bsos",
+  "transactionTag": "",
+  "isSystemTransaction": false,
   "mods": [
     {
       "keys": "{\"fxa_uid\":\"...\",\"fxa_kid\":\"...\",\"collection_id\":1,\"bso_id\":\"...\"}",
