@@ -22,7 +22,7 @@ safe and no ordering key is needed.
 
 | File | Purpose |
 |---|---|
-| `pyproject.toml` | Poetry project: `google-cloud-pubsub`, `google-cloud-storage`, `statsd`. |
+| `pyproject.toml` | Poetry project: `google-cloud-pubsub`, `google-cloud-storage`, `datadog`. |
 | `reconcile_payload_links.py` | Entry point: sync-pull drain loop + per-message handler. |
 | `utils.py` | `parse_gs_url()` — mirrors the Rust uploader's URL grammar. |
 | `test_utils.py` | Tests for `parse_gs_url`. |
@@ -36,7 +36,8 @@ safe and no ordering key is needed.
 | `PUBSUB_SUBSCRIPTION` | yes | e.g. `payload-link-reconciler-sub`. |
 | `GCS_PAYLOAD_BUCKET` | yes | The bucket the syncserver writes payloads into. Cross-bucket links abort the message and route it to the DLQ. |
 | `RUN_BUDGET_SECONDS` | no | Selects deployment mode. **Set** (e.g. `240`): cronjob mode -- drain up to that many seconds then exit 0. **Unset**: long-running mode -- poll forever, never exit on idle; the deployment supervises restarts. Cronjob mode is the default deployment. |
-| `STATSD_HOST` / `STATSD_PORT` | no | Standard `statsd.defaults.env` env-var pair. |
+| `SYNC_STATSD_HOST` | no | statsd server host. |
+| `SYNC_STATSD_PORT` | no | statsd server port. |
 
 ## Local install / tests
 
@@ -60,10 +61,10 @@ Statsd counters (all under the `payload_reconciler.` prefix):
 - `noop_skips` — message processed with zero ops. Should be ~0 if the
   Dataflow filter is working; non-zero is the alarm bell that the
   filter regressed.
-- `gcs_404.finalize` / `gcs_404.delete` — 404 on the respective op.
+- `gcs_404` + `op:finalize` / `op:delete` — 404 on the respective op.
   Expected non-zero under at-least-once redelivery (idempotency tax);
   a sharp rise suggests upstream state is gone unexpectedly.
-- `errors.handler` — Sustained non-zero values feed the DLQ.
+- `errors` + `kind:handler` — Sustained non-zero values feed the DLQ.
 
 ## Deployment
 
