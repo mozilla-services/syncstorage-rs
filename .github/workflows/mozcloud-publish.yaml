@@ -303,7 +303,7 @@ jobs:
         with:
           token_format: access_token
           workload_identity_provider: ${{ vars.GCPV2_GITHUB_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.PAYLOAD_LINK_DATAFLOW_DEPLOY_SA || 'sync-nonprod-dev-payload-link@moz-fx-sync-nonprod.iam.gserviceaccount.com' }}
+          service_account: ${{ vars.PAYLOAD_LINK_DATAFLOW_DEPLOY_SA || 'sync-nonprod-dev-tmpl-pub@moz-fx-sync-nonprod.iam.gserviceaccount.com' }}
 
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
