@@ -26,19 +26,12 @@ def _gcs_mock() -> MagicMock:
     return MagicMock()
 
 
-def _msg(
-    mods: list[dict[str, str]],
-    table: str = "bsos",
-    transaction_tag: str = "",
-    is_system_transaction: bool = False,
-) -> bytes:
+def _msg(mods: list[dict[str, str]], table: str = "bsos") -> bytes:
     return json.dumps(
         {
             "commitTimestamp": "2026-06-29T00:00:00Z",
             "modType": "UPDATE",
             "tableName": table,
-            "transactionTag": transaction_tag,
-            "isSystemTransaction": is_system_transaction,
             "mods": mods,
         }
     ).encode()
@@ -120,11 +113,13 @@ def test_both_null_records_noop_skip(statsd_incr: MagicMock) -> None:
     statsd_incr.assert_any_call("noop_skips")
 
 
-def test_batch_bsos_commit_handoff_delete_is_skipped(statsd_incr: MagicMock) -> None:
-    """A client-driven batch_bsos removal is the commit handoff: never delete.
+def test_batch_bsos_removal_delete_is_skipped(statsd_incr: MagicMock) -> None:
+    """Interim: any batch_bsos row removal is skipped, never deletes the object.
 
-    On commit the link is copied into bsos and the staging row is deleted in the
-    same client transaction, so the object is still live (STOR-657).
+    On a batch commit the staging row is deleted in the same transaction that
+    moves its link into bsos, so deleting here would drop a live object
+    (STOR-657). We cannot yet tell that handoff from a genuine removal, so all
+    batch_bsos removals are skipped for now; the proper fix is STOR-668.
     """
     gcs = _gcs_mock()
 
@@ -135,27 +130,7 @@ def test_batch_bsos_commit_handoff_delete_is_skipped(statsd_incr: MagicMock) -> 
     blob = gcs.bucket.return_value.blob.return_value
     blob.delete.assert_not_called()
     blob.patch.assert_not_called()
-    statsd_incr.assert_any_call("batch_commit_skips")
-
-
-def test_batch_bsos_ttl_delete_deletes(statsd_incr: MagicMock) -> None:
-    """A TTL removal of a batch_bsos row is an abandoned batch: delete its object."""
-    gcs = _gcs_mock()
-
-    reconciler.handle_message_body(
-        gcs,
-        BUCKET,
-        _msg(
-            [_mod(LINK_A, None)],
-            table="batch_bsos",
-            transaction_tag="RowDeletionPolicy",
-            is_system_transaction=True,
-        ),
-    )
-
-    blob = gcs.bucket.return_value.blob.return_value
-    blob.delete.assert_called_once()
-    statsd_incr.assert_any_call("orphan_deletes")
+    statsd_incr.assert_any_call("batch_bsos_skips")
 
 
 def test_batch_bsos_overwrite_still_deletes(statsd_incr: MagicMock) -> None:

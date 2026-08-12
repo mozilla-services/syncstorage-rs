@@ -168,14 +168,16 @@ For each mod in the change record:
 - New `payload_link` present: `blob.patch()` sets
   `metadata.committed = "true"` and `customTime = "9999-12-31T23:59:59Z"`.
 - Old `payload_link` present and not equal to the new value: `blob.delete()`,
-  with one exception. A `batch_bsos` row whose link was removed by a client
-  transaction is the batch commit handoff, not an orphan. On commit the link is
-  copied into the permanent `bsos` row inside the same transaction, so deleting
-  the object would drop one `bsos` still points at. Those removals are skipped
-  (`payload_reconciler.batch_commit_skips`). A `batch_bsos` removal by a TTL
-  system transaction (`transactionTag` "RowDeletionPolicy",
-  `isSystemTransaction` true) is a genuinely abandoned batch and is deleted.
-  `bsos` changes and `batch_bsos` overwrites are unaffected. See STOR-657.
+  with one interim exception. Any `batch_bsos` row removal is skipped
+  (`payload_reconciler.batch_bsos_skips`). On a batch commit syncstorage deletes
+  the `batch_bsos` row in the same transaction that copies its link into the
+  permanent `bsos` row, so deleting the object would drop one `bsos` still
+  points at (the STOR-657 bug). `batch_bsos` has no deletion policy of its own,
+  so TTL expiry and `user_collections` deletes arrive as cascade deletes with no
+  tag that separates them from the commit handoff, so all `batch_bsos` removals
+  are skipped for now. That leaks the object for those genuine deletes; the
+  proper fix tags the batch commit transaction so only it is skipped. See
+  STOR-668. `bsos` changes and `batch_bsos` overwrites are unaffected.
 
 Both operations tolerate `404 NotFound` as success, see *Failure
 modes* below.
@@ -227,8 +229,12 @@ message:
 ```
 
 Mod fields (`keys`, `oldValues`, `newValues`) carry **JSON strings**
-that the reconciler parses with a second `json.loads` — this matches
+that the reconciler parses with a second `json.loads`, matching
 Spanner's change-streams wire convention.
+
+`transactionTag` and `isSystemTransaction` are carried on the wire as
+groundwork for STOR-668 (tag-based batch commit detection). The
+reconciler does not consume them yet.
 
 ---
 
