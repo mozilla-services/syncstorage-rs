@@ -3,22 +3,28 @@ package com.mozilla.sync.payloadlink;
 import com.google.cloud.Timestamp;
 import java.util.Arrays;
 import java.util.Collections;
+import org.apache.beam.sdk.io.gcp.spanner.SpannerConfig;
 import org.apache.beam.sdk.io.gcp.spanner.changestreams.model.DataChangeRecord;
 import org.apache.beam.sdk.io.gcp.spanner.changestreams.model.Mod;
 import org.apache.beam.sdk.io.gcp.spanner.changestreams.model.ModType;
 import org.apache.beam.sdk.io.gcp.spanner.changestreams.model.ValueCaptureType;
+import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Unit tests for {@link PayloadLinkChangesToPubSub#isPayloadLinkActionable}.
+ * Unit tests for {@link PayloadLinkChangesToPubSub#isPayloadLinkActionable}
+ * and {@link PayloadLinkChangesToPubSub#buildSpannerConfig}.
  *
- * <p>The filter is the sole customization this template adds over the
- * upstream Spanner-CS-to-Pub/Sub template; its semantics are load-bearing
- * for the downstream reconciler and Pub/Sub volume budget. Test cases
- * mirror the column-scoped change-stream shapes for {@code payload_link}.
+ * <p>The filter is the sole transform-level customization this template adds
+ * over the upstream Spanner-CS-to-Pub/Sub template; its semantics are
+ * load-bearing for the downstream reconciler and Pub/Sub volume budget. Test
+ * cases mirror the column-scoped change-stream shapes for
+ * {@code payload_link}.
  *
  * <p>Note: {@link DataChangeRecord} constructor signatures have shifted
  * across Beam releases. If a Beam version bump breaks compilation here,
@@ -110,6 +116,48 @@ public class PayloadLinkChangesToPubSubTest {
     public void emptyJsonStrings_treatedAsNull_dropped() {
         DataChangeRecord r = recordWithMods(new Mod("{}", "", ""));
         assertFalse(PayloadLinkChangesToPubSub.isPayloadLinkActionable(r));
+    }
+
+    @Test
+    public void databaseRoleUnset_isNotAppliedToConfig() {
+        SpannerConfig config = PayloadLinkChangesToPubSub.buildSpannerConfig(options());
+        assertNull(
+            "an unset role must leave the config on plain IAM auth",
+            config.getDatabaseRole());
+    }
+
+    @Test
+    public void databaseRoleSet_isAppliedToConfig() {
+        PayloadLinkOptions options = options();
+        options.setSpannerDatabaseRole("payload_link_reader");
+
+        SpannerConfig config = PayloadLinkChangesToPubSub.buildSpannerConfig(options);
+        assertEquals("payload_link_reader", config.getDatabaseRole().get());
+    }
+
+    @Test
+    public void databaseRoleDoesNotDisturbOtherConfig() {
+        PayloadLinkOptions options = options();
+        options.setSpannerDatabaseRole("payload_link_reader");
+
+        SpannerConfig config = PayloadLinkChangesToPubSub.buildSpannerConfig(options);
+        assertEquals("test-project", config.getProjectId().get());
+        assertEquals("test-instance", config.getInstanceId().get());
+        assertEquals("test-database", config.getDatabaseId().get());
+    }
+
+    /**
+     * Minimal options for {@code buildSpannerConfig}. Built without
+     * {@code withValidation()} so the {@code @Required} options this method
+     * does not read can stay unset.
+     */
+    private static PayloadLinkOptions options() {
+        PayloadLinkOptions options =
+            PipelineOptionsFactory.create().as(PayloadLinkOptions.class);
+        options.setSpannerProjectId("test-project");
+        options.setSpannerInstanceId("test-instance");
+        options.setSpannerDatabase("test-database");
+        return options;
     }
 
     private static DataChangeRecord recordWithMods(Mod... mods) {

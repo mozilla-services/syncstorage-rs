@@ -80,6 +80,35 @@ The Dataflow job's service account needs:
 - `roles/pubsub.publisher` on the destination topic
 - `roles/dataflow.worker`
 
+### Fine-grained access control (optional)
+
+Pass `spannerDatabaseRole` to read the change stream under a Spanner
+database role instead of a database-wide IAM grant. `payload_link_reader`
+in `syncstorage-spanner/src/schema.ddl` is that role: it holds `SELECT`
+on `payload_link_changes` and `EXECUTE` on the generated
+`READ_payload_link_changes` table function, and nothing else.
+
+The role applies to the change stream read only. Beam's
+`MetadataSpannerConfigFactory` deliberately does not copy `databaseRole`
+onto the connector's metadata database config, so that connection still
+uses the service account's own IAM grants. Two consequences, both from
+[Spanner's FGAC guidance](https://docs.cloud.google.com/spanner/docs/fgac-change-streams):
+
+- `spannerMetadataDatabase` **must** be a different database than
+  `spannerDatabase`. The connector needs database-level write access for
+  its partition state, and that grant would override the role's
+  restrictions on the database being read.
+- the service account must **not** hold `roles/spanner.databaseUser` on
+  `spannerDatabase` -- it bypasses fine-grained access control outright.
+  Grant `roles/spanner.fineGrainedAccessUser`, plus
+  `roles/spanner.databaseRoleUser` conditioned on the role resource,
+  instead.
+
+If the metadata tables share the syncstorage database, setting
+`spannerDatabaseRole` buys nothing security-wise: the role is assumed,
+but the database-level grant the connector needs supersedes it.
+Provision a dedicated metadata database first.
+
 ## Filter behaviour
 
 `PayloadLinkChangesToPubSub.isPayloadLinkActionable` keeps a
@@ -117,12 +146,16 @@ differences are:
   registrar for flex-template metadata. We register via
   `metadata.json` + `gcloud dataflow flex-template build` instead --
   simpler, no annotation-processor dependency.
-- **No support for these upstream options:** `spannerDatabaseRole`,
+- **No support for these upstream options:**
   `useSpannerEmulatorHost`, `spannerHost`, `spannerMetadataTableName`,
   `spannerChangeStreamTvfNameList`, `outputMessageMetadata`,
   `outputDataFormat` (JSON/Avro switch), `pubsubAPI`. Our
-  `PayloadLinkOptions` deliberately has a smaller surface (~10
-  options vs. upstream's ~25).
+  `PayloadLinkOptions` deliberately has a smaller surface (~11
+  options vs. upstream's ~25). `spannerDatabaseRole` was ported over
+  from upstream in STOR-661 -- see "Fine-grained access control" above.
+  Note we default it to `""` and guard on empty, where upstream leaves
+  it null and guards on null; this matches how `startTimestamp` /
+  `endTimestamp` are already handled here.
 - **No ValueProvider indirection on options.** Upstream wraps
   several config fields in `ValueProvider` for template
   parameterisation; we take plain strings.
