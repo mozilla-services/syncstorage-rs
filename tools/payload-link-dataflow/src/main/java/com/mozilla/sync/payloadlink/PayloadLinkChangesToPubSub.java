@@ -13,6 +13,7 @@ import org.apache.beam.sdk.io.gcp.spanner.SpannerIO;
 import org.apache.beam.sdk.io.gcp.spanner.changestreams.model.DataChangeRecord;
 import org.apache.beam.sdk.io.gcp.spanner.changestreams.model.Mod;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
+import org.apache.beam.sdk.options.ValueProvider.StaticValueProvider;
 import org.apache.beam.sdk.transforms.Filter;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.values.TypeDescriptors;
@@ -53,11 +54,7 @@ public final class PayloadLinkChangesToPubSub {
     static PipelineResult run(PayloadLinkOptions options) {
         Pipeline pipeline = Pipeline.create(options);
 
-        SpannerConfig spannerConfig = SpannerConfig.create()
-            .withProjectId(options.getSpannerProjectId())
-            .withInstanceId(options.getSpannerInstanceId())
-            .withDatabaseId(options.getSpannerDatabase())
-            .withRpcPriority(options.getRpcPriority());
+        SpannerConfig spannerConfig = buildSpannerConfig(options);
 
         Timestamp startTimestamp = options.getStartTimestamp().isEmpty()
             ? Timestamp.now()
@@ -89,6 +86,34 @@ public final class PayloadLinkChangesToPubSub {
                 PubsubIO.writeStrings().to(options.getPubsubTopic()));
 
         return pipeline.run();
+    }
+
+    /**
+     * Builds the change stream reader's {@link SpannerConfig}, optionally
+     * assuming a Spanner database role for fine-grained access control.
+     *
+     * <p>The role scopes the change stream read only. Beam's
+     * {@code MetadataSpannerConfigFactory} deliberately does not copy
+     * {@code databaseRole} onto the connector's metadata database config, so
+     * that connection still authenticates with the job service account's own
+     * IAM grants. Per Spanner's FGAC guidance the metadata database therefore
+     * has to be a different database than the one being read, otherwise the
+     * database-level grant it needs overrides the role's restrictions.
+     */
+    static SpannerConfig buildSpannerConfig(PayloadLinkOptions options) {
+        SpannerConfig spannerConfig = SpannerConfig.create()
+            .withProjectId(options.getSpannerProjectId())
+            .withInstanceId(options.getSpannerInstanceId())
+            .withDatabaseId(options.getSpannerDatabase())
+            .withRpcPriority(options.getRpcPriority());
+
+        String databaseRole = options.getSpannerDatabaseRole();
+        if (!databaseRole.isEmpty()) {
+            spannerConfig =
+                spannerConfig.withDatabaseRole(StaticValueProvider.of(databaseRole));
+        }
+
+        return spannerConfig;
     }
 
     /**

@@ -22,6 +22,16 @@ public interface PayloadLinkOptions extends DataflowPipelineOptions {
     String getSpannerDatabase();
     void setSpannerDatabase(String value);
 
+    @Description(
+        "Spanner database role to assume when reading the change stream, for "
+        + "fine-grained access control. The role needs SELECT on the change "
+        + "stream and EXECUTE on its read function. Applies to the change "
+        + "stream read only -- the connector's metadata database always "
+        + "authenticates via IAM. Empty -> assume no role.")
+    @Default.String("")
+    String getSpannerDatabaseRole();
+    void setSpannerDatabaseRole(String value);
+
     @Required
     @Description("Spanner instance where the change stream's metadata table lives.")
     String getSpannerMetadataInstanceId();

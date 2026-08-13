@@ -21,6 +21,13 @@
       "paramType": "TEXT"
     },
     {
+      "name": "spannerDatabaseRole",
+      "label": "Spanner database role",
+      "helpText": "Spanner database role to assume when reading the change stream, for fine-grained access control (e.g. payload_link_reader). The role needs SELECT on the change stream and EXECUTE on its read function. Requires spannerMetadataDatabase to be a different database than spannerDatabase, and the job service account must not hold roles/spanner.databaseUser on spannerDatabase. Omit to rely on IAM-level access.",
+      "paramType": "TEXT",
+      "isOptional": true
+    },
+    {
       "name": "spannerMetadataInstanceId",
       "label": "Spanner metadata instance ID",
       "helpText": "Spanner instance where the change stream's metadata table lives. May be the same as spannerInstanceId.",
