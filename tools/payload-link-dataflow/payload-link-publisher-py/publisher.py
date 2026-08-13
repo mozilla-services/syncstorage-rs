@@ -90,6 +90,8 @@ def serialize_record(dcr: dict[str, Any]) -> str:
           "commitTimestamp": "…",
           "modType": "INSERT|UPDATE|DELETE",
           "tableName": "bsos|batch_bsos",
+          "transactionTag": "RowDeletionPolicy for TTL deletes, else empty",
+          "isSystemTransaction": true for TTL deletes, else false,
           "mods": [
             {"keys": "<json-string>", "oldValues": "<json-string>", "newValues": "<json-string>"}
           ]
@@ -118,6 +120,8 @@ def serialize_record(dcr: dict[str, Any]) -> str:
         "commitTimestamp": commit_ts_str,
         "modType": dcr.get("mod_type") or "",
         "tableName": dcr.get("table_name") or "",
+        "transactionTag": dcr.get("transaction_tag") or "",
+        "isSystemTransaction": bool(dcr.get("is_system_transaction")),
         "mods": mods_out,
     }
     return json.dumps(payload)
@@ -134,10 +138,13 @@ def serialize_record(dcr: dict[str, Any]) -> str:
 #     [2] child_partitions_record   ARRAY<STRUCT>  (partition splits)
 #
 #   DataChangeRecord STRUCT (only the fields we consume are named):
-#     [0] commit_timestamp                          TIMESTAMP
-#     [4] table_name                                STRING
-#     [6] mods                                      ARRAY<STRUCT<Mod>>
-#     [7] mod_type                                  STRING (INSERT|UPDATE|DELETE)
+#     [0]  commit_timestamp                         TIMESTAMP
+#     [4]  table_name                               STRING
+#     [6]  mods                                     ARRAY<STRUCT<Mod>>
+#     [7]  mod_type                                 STRING (INSERT|UPDATE|DELETE)
+#     [11] transaction_tag                          STRING ("RowDeletionPolicy" for TTL)
+#     [12] is_system_transaction                    BOOL (true for TTL deletes)
+#   (11/12 sit at the tail and may be absent on older emulators; read guarded.)
 #
 #   Mod STRUCT: [keys JSON, new_values JSON, old_values JSON]
 #     (Note: emulator orders new before old; we key by name in the dict.)
@@ -150,6 +157,8 @@ _DCR_COMMIT_TS = 0
 _DCR_TABLE_NAME = 4
 _DCR_MODS = 6
 _DCR_MOD_TYPE = 7
+_DCR_TRANSACTION_TAG = 11
+_DCR_IS_SYSTEM_TRANSACTION = 12
 
 _MOD_KEYS = 0
 _MOD_NEW_VALUES = 1
@@ -163,6 +172,20 @@ _CPR_CHILD_PARTITIONS = 2
 
 _CHILD_TOKEN = 0
 _CHILD_PARENT_TOKENS = 1
+
+
+def _dcr_field(raw_dcr: Any, idx: int) -> Any:
+    """Positional DataChangeRecord field, or None if the struct is shorter.
+
+    The transaction-metadata fields sit at the end of the struct and may be
+    absent on some Spanner emulator revisions; a short struct then reads as
+    None (treated as a non-TTL/client transaction downstream) rather than
+    raising.
+    """
+    try:
+        return raw_dcr[idx]
+    except (IndexError, TypeError):
+        return None
 
 
 def _dcr_to_dict(raw_dcr: Any) -> dict[str, Any] | None:
@@ -187,6 +210,8 @@ def _dcr_to_dict(raw_dcr: Any) -> dict[str, Any] | None:
         "table_name": raw_dcr[_DCR_TABLE_NAME],
         "mods": mods_out,
         "mod_type": raw_dcr[_DCR_MOD_TYPE],
+        "transaction_tag": _dcr_field(raw_dcr, _DCR_TRANSACTION_TAG),
+        "is_system_transaction": _dcr_field(raw_dcr, _DCR_IS_SYSTEM_TRANSACTION),
     }
 
 

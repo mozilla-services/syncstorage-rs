@@ -26,12 +26,12 @@ def _gcs_mock() -> MagicMock:
     return MagicMock()
 
 
-def _msg(mods: list[dict[str, str]]) -> bytes:
+def _msg(mods: list[dict[str, str]], table: str = "bsos") -> bytes:
     return json.dumps(
         {
             "commitTimestamp": "2026-06-29T00:00:00Z",
             "modType": "UPDATE",
-            "tableName": "bsos",
+            "tableName": table,
             "mods": mods,
         }
     ).encode()
@@ -111,6 +111,43 @@ def test_both_null_records_noop_skip(statsd_incr: MagicMock) -> None:
     blob.patch.assert_not_called()
     blob.delete.assert_not_called()
     statsd_incr.assert_any_call("noop_skips")
+
+
+def test_batch_bsos_removal_delete_is_skipped(statsd_incr: MagicMock) -> None:
+    """Interim: any batch_bsos row removal is skipped, never deletes the object.
+
+    On a batch commit the staging row is deleted in the same transaction that
+    moves its link into bsos, so deleting here would drop a live object
+    (STOR-657). We cannot yet tell that handoff from a genuine removal, so all
+    batch_bsos removals are skipped for now; the proper fix is STOR-668.
+    """
+    gcs = _gcs_mock()
+
+    reconciler.handle_message_body(
+        gcs, BUCKET, _msg([_mod(LINK_A, None)], table="batch_bsos")
+    )
+
+    blob = gcs.bucket.return_value.blob.return_value
+    blob.delete.assert_not_called()
+    blob.patch.assert_not_called()
+    statsd_incr.assert_any_call("batch_bsos_skips")
+
+
+def test_batch_bsos_overwrite_still_deletes(statsd_incr: MagicMock) -> None:
+    """Re-appending the same id in an open batch (link A to B) orphans A.
+
+    That is a client UPDATE, not a removal, so A must still be deleted and B
+    finalized; the commit-handoff skip only covers removals.
+    """
+    gcs = _gcs_mock()
+
+    reconciler.handle_message_body(
+        gcs, BUCKET, _msg([_mod(LINK_A, LINK_B)], table="batch_bsos")
+    )
+
+    assert gcs.bucket.return_value.blob.call_count == 2
+    statsd_incr.assert_any_call("finalizes")
+    statsd_incr.assert_any_call("orphan_deletes")
 
 
 def test_finalize_404_is_success(statsd_incr: MagicMock) -> None:

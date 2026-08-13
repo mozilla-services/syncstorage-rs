@@ -137,6 +137,8 @@ def handle_message_body(
     success), so re-delivery is safe.
     """
     record: dict[str, Any] = json.loads(body)
+    table_name = record.get("tableName")
+
     ops_performed = 0
     for mod in record.get("mods", []):
         old_values_str = mod.get("oldValues") or "{}"
@@ -151,6 +153,21 @@ def handle_message_body(
             ops_performed += 1
 
         if old_link and old_link != new_link:
+            # Interim: skip the delete for any batch_bsos row removal. On a batch
+            # commit syncstorage deletes the batch_bsos row in the same
+            # transaction that copies its link into the permanent bsos row, so
+            # deleting the object here would drop one bsos still points at (the
+            # STOR-657 bug). We cannot yet tell that commit handoff from a
+            # genuine removal: batch_bsos has no deletion policy of its own, so
+            # TTL expiry and user_collections deletes both arrive as cascade
+            # deletes with no distinguishing tag. Skipping them all leaks the
+            # object for those genuine deletes; the proper fix tags the batch
+            # commit transaction so only it is skipped. See STOR-668.
+            if table_name == "batch_bsos" and new_link is None:
+                metrics.incr("batch_bsos_skips")
+                # Recognized and intentionally skipped, not filter noise.
+                ops_performed += 1
+                continue
             bucket, name = parse_gs_url(old_link)
             _require_bucket(bucket, expected_bucket)
             delete_object(gcs_client, bucket, name)
