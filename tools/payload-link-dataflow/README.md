@@ -137,8 +137,6 @@ differences are:
   `numberOfPartitionsInTransaction`, `partitionToken`,
   `recordSequence`, `isLastRecordInTransactionInPartition`,
   `valueCaptureType`.
-- **No Runner V2 experiment auto-injection.** Upstream mutates
-  `options.experiments` to append `use_runner_v2`; we don't.
 - **No `UncaughtExceptionLogger.register()`.** Uncaught exceptions
   flow to the runner's default handler.
 - **No `@Template` / `TemplateCategory` annotations.** Upstream uses
@@ -159,13 +157,23 @@ differences are:
 - **No ValueProvider indirection on options.** Upstream wraps
   several config fields in `ValueProvider` for template
   parameterisation; we take plain strings.
-- **No `enableStreamingEngine=true` / `streaming=true` mutation.**
-  Beam infers streaming from the source; we don't force it.
+- **No explicit `streaming=true` mutation.** Beam infers streaming
+  from the source (`SpannerIO.readChangeStream` is
+  `@UnboundedPerElement`) and `DataflowRunner` flips the flag at
+  translation time.
 
 These deltas were deliberate scope choices, not oversights. The
 filter-only patch is kept as the primary review artifact because
 it's small enough to eyeball, applies cleanly against the pinned
 SHA, and is insensitive to upstream churn on features we don't use.
+
+`main()` matches upstream on two pipeline-shape invariants that are
+not deployment choices for this source: it appends `use_runner_v2`
+to `options.experiments` and calls `setEnableStreamingEngine(true)`.
+`BundleFinalizer` (used by `SpannerIO.readChangeStream`) requires the
+Dataflow Portable Runner ("Runner V2"), and V2 streaming jobs
+require Streaming Engine -- so both settings are pinned in code
+rather than left to launch-time flags.
 
 ## Output wire format
 
