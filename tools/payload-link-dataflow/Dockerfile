@@ -27,7 +27,11 @@ RUN mvn -B -e dependency:go-offline
 COPY src /build/src
 RUN mvn -B -e package
 
-FROM gcr.io/dataflow-templates-base/java17-template-launcher-base:latest
+# Pinned to a specific dated release, not ":latest", so the launcher's Beam
+# version can't drift out from under the pipeline's pinned beam.version in
+# pom.xml. Bump both together when upgrading Beam. Find newer tags at:
+#   https://gcr.io/v2/dataflow-templates-base/java17-template-launcher-base/tags/list
+FROM gcr.io/dataflow-templates-base/java17-template-launcher-base:20260803-rc00
 
 ENV FLEX_TEMPLATE_JAVA_MAIN_CLASS=com.mozilla.sync.payloadlink.PayloadLinkChangesToPubSub
 ENV FLEX_TEMPLATE_JAVA_CLASSPATH=/template/payload-link-dataflow.jar

@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.cloud.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
@@ -48,6 +51,21 @@ public final class PayloadLinkChangesToPubSub {
             .fromArgs(args)
             .withValidation()
             .as(PayloadLinkOptions.class);
+
+        // BundleFinalizer (used by SpannerIO.readChangeStream) requires the
+        // Dataflow Portable Runner ("Runner V2"), and V2 for streaming jobs
+        // requires Streaming Engine. Both are pipeline-shape invariants of
+        // this source, not deployment choices -- pinning them here means
+        // every launch path (flex-template, java -jar, tests) gets it right
+        // without having to remember to pass the flags.
+        List<String> experiments = new ArrayList<>(
+            Optional.ofNullable(options.getExperiments()).orElse(List.of()));
+        if (!experiments.contains("use_runner_v2")) {
+            experiments.add("use_runner_v2");
+        }
+        options.setExperiments(experiments);
+        options.setEnableStreamingEngine(true);
+
         run(options);
     }
 
