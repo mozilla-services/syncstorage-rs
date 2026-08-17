@@ -14,10 +14,11 @@
 //! `customTime` set to upload time; a later step flips `committed` to `true`
 //! once the database row is durably visible.
 
-use std::time::SystemTime;
+use std::{collections::HashMap, time::SystemTime};
 
 use google_cloud_auth::credentials::anonymous;
 use google_cloud_storage::client::{Storage, StorageControl};
+use syncserver_common::Metrics;
 use syncstorage_db::UserIdentifier;
 use uuid::Uuid;
 
@@ -27,6 +28,12 @@ use crate::{
 };
 
 const COMMITTED_METADATA_KEY: &str = "committed";
+
+/// Counter for the best-effort GCS cleanup that runs when the database
+/// transaction of an offloading write fails. Tagged with the `handler` that
+/// issued it, a `result` of `success`, `failure` or `skipped`, and on failure
+/// a `reason`.
+pub const CLEANUP_METRIC: &str = "storage.gcs.payload.cleanup";
 
 /// Return the GCS bucket name if `collection` is opted into payload off-load
 /// and a bucket is configured. `None` disables off-load for this request.
@@ -126,16 +133,50 @@ pub async fn build_control_client(endpoint: Option<&str>) -> Result<StorageContr
         .map_err(|e| ApiErrorKind::Internal(format!("GCS builder error: {e}")).into())
 }
 
-pub async fn delete_payload(client: &StorageControl, gs_url: &str) -> Result<(), ApiError> {
-    let (bucket, object) = parse_gs_url(gs_url)?;
-    client
+/// Tags for a [`CLEANUP_METRIC`] emission from `handler` with `result`.
+pub fn cleanup_tags(handler: &str, result: &str) -> HashMap<String, String> {
+    HashMap::from([
+        ("handler".to_owned(), handler.to_owned()),
+        ("result".to_owned(), result.to_owned()),
+    ])
+}
+
+fn cleanup_failure_tags(handler: &str, reason: &str) -> HashMap<String, String> {
+    let mut tags = cleanup_tags(handler, "failure");
+    tags.insert("reason".to_owned(), reason.to_owned());
+    tags
+}
+
+pub async fn delete_payload(
+    client: &StorageControl,
+    gs_url: &str,
+    metrics: &Metrics,
+    handler: &str,
+) -> Result<(), ApiError> {
+    let (bucket, object) = match parse_gs_url(gs_url) {
+        Ok(parsed) => parsed,
+        Err(e) => {
+            metrics.incr_with_tags(CLEANUP_METRIC, cleanup_failure_tags(handler, "invalid_url"));
+            return Err(e);
+        }
+    };
+
+    let result = client
         .delete_object()
         .set_bucket(bucket_path(bucket))
         .set_object(object)
         .send()
-        .await
-        .inspect_err(|e| warn!("gcs payload cleanup failed for {gs_url}: {e}"))
-        .map_err(|e| ApiErrorKind::Internal(format!("cannot delete GCS object: {e}")).into())
+        .await;
+
+    match &result {
+        Ok(_) => metrics.incr_with_tags(CLEANUP_METRIC, cleanup_tags(handler, "success")),
+        Err(e) => {
+            warn!("gcs payload cleanup failed for {gs_url}: {e}");
+            metrics.incr_with_tags(CLEANUP_METRIC, cleanup_failure_tags(handler, "gcs_error"));
+        }
+    }
+
+    result.map_err(|e| ApiErrorKind::Internal(format!("cannot delete GCS object: {e}")).into())
 }
 
 fn bucket_path(bucket: &str) -> String {
@@ -218,9 +259,14 @@ mod tests {
             deletes: deletes.clone(),
         });
 
-        delete_payload(&client, "gs://test-bucket/uid/bookmarks/bid/uuid")
-            .await
-            .expect("delete_payload should succeed");
+        delete_payload(
+            &client,
+            "gs://test-bucket/uid/bookmarks/bid/uuid",
+            &Metrics::noop(),
+            "put_bso",
+        )
+        .await
+        .expect("delete_payload should succeed");
 
         let recorded = deletes.lock().unwrap();
         assert_eq!(
@@ -236,7 +282,13 @@ mod tests {
     async fn delete_payload_surfaces_delete_error() {
         let client = StorageControl::from_stub(FailingStub);
 
-        let result = delete_payload(&client, "gs://test-bucket/uid/bookmarks/bid/uuid").await;
+        let result = delete_payload(
+            &client,
+            "gs://test-bucket/uid/bookmarks/bid/uuid",
+            &Metrics::noop(),
+            "put_bso",
+        )
+        .await;
 
         assert!(
             result.is_err(),

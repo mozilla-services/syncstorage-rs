@@ -440,6 +440,10 @@ pub async fn post_collection(
     // This also covers the batched path: post_collection_batch reads from
     // `coll.bsos.valid` once the transaction is open, by which point each
     // entry's payload/payload_link have already been swapped.
+
+    // Cloned up front: `coll` is moved into the transaction closure below, but
+    // the GCS cleanup after it needs to emit metrics.
+    let metrics = coll.metrics.clone();
     let mut offload_urls: Vec<String> = Vec::new();
     if let Some(bucket) = offload_bucket(&state, &coll.collection) {
         let client = state.gcs_client()?;
@@ -527,7 +531,7 @@ pub async fn post_collection(
         && let Ok(client) = state.gcs_control_client()
     {
         for url in offload_urls {
-            let _ = delete_payload(client, &url).await;
+            let _ = delete_payload(client, &url, &metrics, "post_collection").await;
         }
     }
 
@@ -817,6 +821,9 @@ pub async fn put_bso(
     state: Data<ServerState>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
+    // Cloned up front: `bso_req` is moved into the transaction closure below,
+    // but the GCS cleanup after it needs to emit metrics.
+    let metrics = bso_req.metrics.clone();
     let mut payload_link = None;
     if let Some(bucket) = offload_bucket(&state, &bso_req.collection)
         && let Some(payload) = bso_req.body.payload.take()
@@ -859,7 +866,7 @@ pub async fn put_bso(
         && let Some(gcs_url) = &payload_link
         && let Ok(client) = state.gcs_control_client()
     {
-        let _ = delete_payload(client, gcs_url).await;
+        let _ = delete_payload(client, gcs_url, &metrics, "put_bso").await;
     }
     resp
 }
