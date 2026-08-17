@@ -348,6 +348,30 @@ mod tests {
         );
     }
 
+    #[actix_rt::test]
+    async fn delete_payload_counts_a_gcs_failure() {
+        let client = StorageControl::from_stub(FailingStub);
+        let (metrics, recorded) = recording_metrics();
+
+        delete_payload(
+            &client,
+            "gs://test-bucket/uid/bookmarks/bid/uuid",
+            &metrics,
+            "post_collection",
+        )
+        .await
+        .expect_err("a failed GCS delete should surface as an error");
+
+        let emitted = recorded.lock().unwrap().join("\n");
+        assert!(
+            emitted.contains(CLEANUP_METRIC)
+                && emitted.contains("result:failure")
+                && emitted.contains("reason:gcs_error")
+                && emitted.contains("handler:post_collection"),
+            "unexpected cleanup metric: {emitted}"
+        );
+    }
+
     #[test]
     fn reattach_results_to_correct_slots() {
         let mut items: Vec<Option<String>> = vec![None, None, None, None];
