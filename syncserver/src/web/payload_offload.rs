@@ -372,6 +372,31 @@ mod tests {
         );
     }
 
+    #[actix_rt::test]
+    async fn delete_payload_counts_an_unparseable_url() {
+        let deletes = Arc::new(Mutex::new(Vec::new()));
+        let client = StorageControl::from_stub(RecordingStub {
+            deletes: deletes.clone(),
+        });
+        let (metrics, recorded) = recording_metrics();
+
+        delete_payload(&client, "not-a-gs-url", &metrics, "put_bso")
+            .await
+            .expect_err("an unparseable URL should surface as an error");
+
+        assert!(
+            deletes.lock().unwrap().is_empty(),
+            "no delete should be issued for an unparseable URL"
+        );
+        let emitted = recorded.lock().unwrap().join("\n");
+        assert!(
+            emitted.contains(CLEANUP_METRIC)
+                && emitted.contains("result:failure")
+                && emitted.contains("reason:invalid_url"),
+            "unexpected cleanup metric: {emitted}"
+        );
+    }
+
     #[test]
     fn reattach_results_to_correct_slots() {
         let mut items: Vec<Option<String>> = vec![None, None, None, None];
