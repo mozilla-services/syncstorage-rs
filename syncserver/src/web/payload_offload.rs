@@ -207,6 +207,7 @@ mod tests {
         sync::{Arc, Mutex},
     };
 
+    use cadence::{MetricSink, StatsdClient};
     use google_cloud_gax::{
         error::{
             Error,
@@ -218,6 +219,34 @@ mod tests {
     use google_cloud_storage::{Result as GcsResult, client::StorageControl, model};
 
     use super::*;
+
+    /// Sink that keeps every statsd line so tests can assert on emissions.
+    #[derive(Debug)]
+    struct RecordingSink(Arc<Mutex<Vec<String>>>);
+
+    impl MetricSink for RecordingSink {
+        fn emit(&self, metric: &str) -> std::io::Result<usize> {
+            self.0
+                .lock()
+                .expect("metrics lock poisoned")
+                .push(metric.to_owned());
+            Ok(metric.len())
+        }
+    }
+
+    /// A [`Metrics`] backed by a [`RecordingSink`], alongside its recording.
+    fn recording_metrics() -> (Metrics, Arc<Mutex<Vec<String>>>) {
+        let recorded = Arc::new(Mutex::new(Vec::new()));
+        let client = StatsdClient::builder("", RecordingSink(recorded.clone())).build();
+        (
+            Metrics {
+                client: Some(Arc::new(client)),
+                tags: HashMap::default(),
+                timer: None,
+            },
+            recorded,
+        )
+    }
 
     /// Stub to record delete_object
     #[derive(Debug, Default)]
@@ -275,6 +304,29 @@ mod tests {
                 "projects/_/buckets/test-bucket".to_owned(),
                 "uid/bookmarks/bid/uuid".to_owned(),
             )],
+        );
+    }
+
+    #[actix_rt::test]
+    async fn delete_payload_counts_a_success() {
+        let client = StorageControl::from_stub(RecordingStub::default());
+        let (metrics, recorded) = recording_metrics();
+
+        delete_payload(
+            &client,
+            "gs://test-bucket/uid/bookmarks/bid/uuid",
+            &metrics,
+            "put_bso",
+        )
+        .await
+        .expect("delete_payload should succeed");
+
+        let emitted = recorded.lock().unwrap().join("\n");
+        assert!(
+            emitted.contains(CLEANUP_METRIC)
+                && emitted.contains("result:success")
+                && emitted.contains("handler:put_bso"),
+            "unexpected cleanup metric: {emitted}"
         );
     }
 
