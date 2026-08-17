@@ -29,7 +29,8 @@ use crate::{
             HeartbeatRequest, MetaRequest, ReplyFormat, TestErrorRequest,
         },
         payload_offload::{
-            delete_payload, download_payload, offload_bucket, reattach_by_index, upload_payload,
+            CLEANUP_METRIC, cleanup_tags, delete_payload, download_payload, offload_bucket,
+            reattach_by_index, upload_payload,
         },
         transaction::DbTransactionPool,
     },
@@ -526,12 +527,20 @@ pub async fn post_collection(
         })
         .await;
 
-    if resp.is_err()
-        && !offload_urls.is_empty()
-        && let Ok(client) = state.gcs_control_client()
-    {
-        for url in offload_urls {
-            let _ = delete_payload(client, &url, &metrics, "post_collection").await;
+    if resp.is_err() && !offload_urls.is_empty() {
+        match state.gcs_control_client() {
+            Ok(client) => {
+                for url in offload_urls {
+                    let _ = delete_payload(client, &url, &metrics, "post_collection").await;
+                }
+            }
+            // No client to clean up with: the objects are left to the
+            // reconciler, so count them rather than dropping the signal.
+            Err(_) => metrics.count_with_tags(
+                CLEANUP_METRIC,
+                offload_urls.len() as i64,
+                cleanup_tags("post_collection", "skipped"),
+            ),
         }
     }
 
@@ -864,9 +873,17 @@ pub async fn put_bso(
 
     if resp.is_err()
         && let Some(gcs_url) = &payload_link
-        && let Ok(client) = state.gcs_control_client()
     {
-        let _ = delete_payload(client, gcs_url, &metrics, "put_bso").await;
+        match state.gcs_control_client() {
+            Ok(client) => {
+                let _ = delete_payload(client, gcs_url, &metrics, "put_bso").await;
+            }
+            // No client to clean up with: the object is left to the
+            // reconciler, so count it rather than dropping the signal.
+            Err(_) => {
+                metrics.incr_with_tags(CLEANUP_METRIC, cleanup_tags("put_bso", "skipped"));
+            }
+        }
     }
     resp
 }
