@@ -43,10 +43,16 @@ and reads a change stream in the legacy project.
 ```mermaid
 flowchart TB
     subgraph v1["GCPv1: moz-fx-sync-nonprod-904c (cloudops-infra)"]
-        spanner["Spanner
+        syncdb["Spanner syncdb
         instance: sync
         database: syncdb-dev
         change stream: payload_link_changes"]
+    end
+
+    subgraph v1["GCPv1: moz-fx-sync-nonprod-904c (cloudops-infra)"]
+        meta-db["Spanner dataflow metadata db
+        instance: sync
+        database: syncdb-pldf-meta-dev"]
     end
 
     subgraph high["moz-fx-webservices-high-nonpro (global-platform-admin)"]
@@ -68,12 +74,14 @@ flowchart TB
         template spec, staging, tmp")]
     end
 
-    spanner -->|change stream read| df
+    syncdb -->|change stream read| df
     df -->|publish| topic
+    df -->|job state tracking| meta-db
     jobbucket -.->|template spec| df
     topic -->|pull subscription| gke
     gke -->|finalize and delete objects| payloads
-    gke -->|read and write payloads| spanner
+    gke -->|read and write payloads| syncdb
+
 ```
 
 Note that the workloads do not run in the tenant project. Sync is
