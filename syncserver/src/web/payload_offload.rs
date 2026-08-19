@@ -153,30 +153,22 @@ pub async fn delete_payload(
     metrics: &Metrics,
     handler: &str,
 ) -> Result<(), ApiError> {
-    let (bucket, object) = match parse_gs_url(gs_url) {
-        Ok(parsed) => parsed,
-        Err(e) => {
-            metrics.incr_with_tags(CLEANUP_METRIC, cleanup_failure_tags(handler, "invalid_url"));
-            return Err(e);
-        }
-    };
+    let (bucket, object) = parse_gs_url(gs_url).inspect_err(|_| {
+        metrics.incr_with_tags(CLEANUP_METRIC, cleanup_failure_tags(handler, "invalid_url"))
+    })?;
 
-    let result = client
+    client
         .delete_object()
         .set_bucket(bucket_path(bucket))
         .set_object(object)
         .send()
-        .await;
-
-    match &result {
-        Ok(_) => metrics.incr_with_tags(CLEANUP_METRIC, cleanup_tags(handler, "success")),
-        Err(e) => {
+        .await
+        .inspect(|_| metrics.incr_with_tags(CLEANUP_METRIC, cleanup_tags(handler, "success")))
+        .inspect_err(|e| {
             warn!("gcs payload cleanup failed for {gs_url}: {e}");
             metrics.incr_with_tags(CLEANUP_METRIC, cleanup_failure_tags(handler, "gcs_error"));
-        }
-    }
-
-    result.map_err(|e| ApiErrorKind::Internal(format!("cannot delete GCS object: {e}")).into())
+        })
+        .map_err(|e| ApiErrorKind::Internal(format!("cannot delete GCS object: {e}")).into())
 }
 
 fn bucket_path(bucket: &str) -> String {
