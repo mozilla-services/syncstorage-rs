@@ -133,17 +133,62 @@ pub async fn build_control_client(endpoint: Option<&str>) -> Result<StorageContr
         .map_err(|e| ApiErrorKind::Internal(format!("GCS builder error: {e}")).into())
 }
 
-/// Tags for a [`CLEANUP_METRIC`] emission from `handler` with `result`.
-pub fn cleanup_tags(handler: &str, result: &str) -> HashMap<String, String> {
-    HashMap::from([
-        ("handler".to_owned(), handler.to_owned()),
-        ("result".to_owned(), result.to_owned()),
-    ])
+/// The write handler a [`CLEANUP_METRIC`] emission came from.
+#[derive(Clone, Copy, Debug)]
+pub enum CleanupHandler {
+    PutBso,
+    PostCollection,
 }
 
-fn cleanup_failure_tags(handler: &str, reason: &str) -> HashMap<String, String> {
-    let mut tags = cleanup_tags(handler, "failure");
-    tags.insert("reason".to_owned(), reason.to_owned());
+impl CleanupHandler {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::PutBso => "put_bso",
+            Self::PostCollection => "post_collection",
+        }
+    }
+}
+
+/// The outcome of a cleanup attempt, as the `result` and `reason` tags.
+#[derive(Clone, Copy, Debug)]
+pub enum CleanupResult {
+    Success,
+    /// No GCS control client was available, so no delete was attempted.
+    Skipped,
+    /// The `gs://` URL did not parse, so no delete was issued.
+    InvalidUrl,
+    /// GCS rejected the delete.
+    GcsError,
+}
+
+impl CleanupResult {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Success => "success",
+            Self::Skipped => "skipped",
+            Self::InvalidUrl | Self::GcsError => "failure",
+        }
+    }
+
+    /// The `reason` tag, set for the failure variants only.
+    fn reason(self) -> Option<&'static str> {
+        match self {
+            Self::Success | Self::Skipped => None,
+            Self::InvalidUrl => Some("invalid_url"),
+            Self::GcsError => Some("gcs_error"),
+        }
+    }
+}
+
+/// Tags for a [`CLEANUP_METRIC`] emission from `handler` with `result`.
+pub fn cleanup_tags(handler: CleanupHandler, result: CleanupResult) -> HashMap<String, String> {
+    let mut tags = HashMap::from([
+        ("handler".to_owned(), handler.as_str().to_owned()),
+        ("result".to_owned(), result.as_str().to_owned()),
+    ]);
+    if let Some(reason) = result.reason() {
+        tags.insert("reason".to_owned(), reason.to_owned());
+    }
     tags
 }
 
@@ -151,10 +196,13 @@ pub async fn delete_payload(
     client: &StorageControl,
     gs_url: &str,
     metrics: &Metrics,
-    handler: &str,
+    handler: CleanupHandler,
 ) -> Result<(), ApiError> {
     let (bucket, object) = parse_gs_url(gs_url).inspect_err(|_| {
-        metrics.incr_with_tags(CLEANUP_METRIC, cleanup_failure_tags(handler, "invalid_url"))
+        metrics.incr_with_tags(
+            CLEANUP_METRIC,
+            cleanup_tags(handler, CleanupResult::InvalidUrl),
+        )
     })?;
 
     client
@@ -163,10 +211,18 @@ pub async fn delete_payload(
         .set_object(object)
         .send()
         .await
-        .inspect(|_| metrics.incr_with_tags(CLEANUP_METRIC, cleanup_tags(handler, "success")))
+        .inspect(|_| {
+            metrics.incr_with_tags(
+                CLEANUP_METRIC,
+                cleanup_tags(handler, CleanupResult::Success),
+            )
+        })
         .inspect_err(|e| {
             warn!("gcs payload cleanup failed for {gs_url}: {e}");
-            metrics.incr_with_tags(CLEANUP_METRIC, cleanup_failure_tags(handler, "gcs_error"));
+            metrics.incr_with_tags(
+                CLEANUP_METRIC,
+                cleanup_tags(handler, CleanupResult::GcsError),
+            );
         })
         .map_err(|e| ApiErrorKind::Internal(format!("cannot delete GCS object: {e}")).into())
 }
@@ -284,7 +340,7 @@ mod tests {
             &client,
             "gs://test-bucket/uid/bookmarks/bid/uuid",
             &Metrics::noop(),
-            "put_bso",
+            CleanupHandler::PutBso,
         )
         .await
         .expect("delete_payload should succeed");
@@ -308,7 +364,7 @@ mod tests {
             &client,
             "gs://test-bucket/uid/bookmarks/bid/uuid",
             &metrics,
-            "put_bso",
+            CleanupHandler::PutBso,
         )
         .await
         .expect("delete_payload should succeed");
@@ -330,7 +386,7 @@ mod tests {
             &client,
             "gs://test-bucket/uid/bookmarks/bid/uuid",
             &Metrics::noop(),
-            "put_bso",
+            CleanupHandler::PutBso,
         )
         .await;
 
@@ -349,7 +405,7 @@ mod tests {
             &client,
             "gs://test-bucket/uid/bookmarks/bid/uuid",
             &metrics,
-            "post_collection",
+            CleanupHandler::PostCollection,
         )
         .await
         .expect_err("a failed GCS delete should surface as an error");
@@ -372,7 +428,7 @@ mod tests {
         });
         let (metrics, recorded) = recording_metrics();
 
-        delete_payload(&client, "not-a-gs-url", &metrics, "put_bso")
+        delete_payload(&client, "not-a-gs-url", &metrics, CleanupHandler::PutBso)
             .await
             .expect_err("an unparseable URL should surface as an error");
 
