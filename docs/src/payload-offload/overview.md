@@ -119,6 +119,31 @@ That window is normally seconds to a few minutes, set by the reconciler's
 cronjob cadence, and it is always far shorter than the 30 day lifecycle
 window.
 
+## Life of a read
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant client as Sync client
+    participant sync as syncserver
+    participant db as Spanner
+    participant gcs as GCS
+
+    client->>sync: GET /storage/collection, full records
+    sync->>db: read rows
+    db-->>sync: rows, some carrying payload_link
+    Note over sync,db: the transaction closes here
+    sync->>gcs: download each linked object, concurrently
+    gcs-->>sync: payload bytes
+    Note over sync: payload_link cleared, payload filled in
+    sync-->>client: 200 OK, ordinary BSOs
+```
+
+The order matters. Downloads happen after the transaction closes, so a slow
+GCS read never holds a Spanner transaction open. A request that only asks for
+BSO ids never touches GCS at all, and neither does a collection with no
+offloaded records, since there are no links to resolve.
+
 ## Life of an object
 
 Every GCS object is in one of three states, and the whole design is a matter
