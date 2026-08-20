@@ -119,14 +119,28 @@ gcloud dataflow flex-template build \
   change-stream connector keeps its partition-state table. Recommend
   a dedicated database in prod for isolation.
 - `changeStreamName=payload_link_changes`.
+- `spannerDatabaseRole=payload_link_reader` — the fine-grained access
+  role the job reads the stream through, created by the DDL in
+  `syncstorage-spanner/src/schema.ddl`. If the role is absent the job
+  fails at startup rather than falling back to broader access.
 - `pubsubTopic=projects/<PROJECT>/topics/payload-link-changes`.
 
 **Service account requires:**
 
-- `roles/spanner.databaseReader` on the syncstorage database.
-- `roles/spanner.databaseUser` on the metadata database.
+- `roles/spanner.databaseUser` on the syncstorage database. This one
+  grant covers both reading the change stream and maintaining the
+  connector's partition metadata, and in dev the metadata table shares
+  `syncdb-dev`. Where the metadata database is separate, the grant is
+  needed on both. Note the IAM grant targets the `-904c` project, so it
+  is applied out of band; see
+  [GCP Infrastructure](payload-offload-infrastructure.md#out-of-band-steps).
+- Membership of the `payload_link_reader` database role, which is what
+  actually narrows the job to the change stream. The IAM grant alone
+  does not let it read BSO rows.
 - `roles/pubsub.publisher` on the destination topic.
-- `roles/dataflow.worker`.
+- `roles/storage.objectAdmin` on the Dataflow job bucket, for `staging/`
+  and `tmp/`.
+- `roles/dataflow.worker` at the project level.
 
 ### 2b. Dev/E2E Python publisher — `tools/payload-link-dataflow/payload-link-publisher-py/`
 
