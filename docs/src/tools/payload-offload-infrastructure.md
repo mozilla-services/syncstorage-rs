@@ -159,9 +159,62 @@ Names are derived from `${application}-${realm}-${environment}` in
 | Flex template image | `us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-payload-link-dataflow` |
 | Template spec | `gs://sync-nonprod-dev-payload-link-dataflow/templates/syncserver-payload-link-dataflow.json` |
 
-Only dev is built out today. Stage and prod will need the same set, plus
-a dedicated Spanner metadata database rather than sharing the syncdb
-database as dev does.
+Only dev is built out today.
+
+## Standing up stage or prod
+
+Everything below is per environment. Names derive from
+`${application}-${realm}-${environment}`, so copying the dev Terraform
+into the target environment directory produces the right names without
+editing them.
+
+1. **Terraform.** Copy `bucket.tf`, `pubsub.tf`, `dataflow.tf` and
+   `dataflow_iam.tf` from `sync/tf/dev/` into the target environment
+   directory in webservices-infra.
+
+2. **A dedicated Spanner metadata database.** The change stream
+   connector keeps its partition state in a Spanner database of its own.
+   Dev shares `syncdb-dev` for convenience; stage and prod should each
+   get a separate database, for example `syncdb-pldf-meta-stage`, so the
+   connector holds no write access to the syncstorage database. This is
+   a cloudops-infra change.
+
+3. **DDL.** Apply the change stream and the `payload_link_reader` role to
+   the target database. See [Out-of-band steps](#out-of-band-steps).
+
+4. **Cross-project IAM.** A `-904c` admin grants the new environment's
+   Dataflow service account `roles/spanner.databaseUser` on the
+   syncstorage database and on the metadata database.
+
+5. **Template spec.** Add a `write-payload-link-dataflow-spec-<env>` job
+   to `.github/workflows/mozcloud-publish.yaml`, and make sure the
+   environment's `-tmpl-pub` service account exists first. The spec has
+   to be in the bucket before the Terraform job resource is applied.
+
+6. **Job deletion behaviour.** Dev runs with `on_delete = "cancel"` and
+   `skip_wait_on_job_termination = true` so test iterations are fast.
+   Stage and prod want `on_delete = "drain"` and the provider default for
+   the wait, so a replaced job finishes publishing what it has already
+   read instead of dropping it.
+
+7. **Reconciler cronjob.** Enable `payloadReconciler` in the
+   environment's values file in `sync/k8s/sync/`. The chart requires
+   `runBudgetSeconds` to be less than `activeDeadlineSeconds`.
+
+8. **Measure before enabling on prod.** The change stream costs Spanner
+   storage that has not been quantified. Turning the stream on ahead of
+   any offload traffic is the cheap way to find out. Tracked by
+   STOR-639.
+
+Enabled APIs need no change. `project_services` in
+`projects/tf/webservices/locals.tf` feeds both the prod and nonprod
+project modules, so `moz-fx-sync-prod` already has them.
+
+Note that provisioning the pipeline is safe on its own. Offload does
+nothing until `SYNC_SYNCSTORAGE__GCS_PAYLOAD_BUCKET` and
+`SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS` are both set on
+syncserver, so an environment can carry the whole pipeline with zero
+traffic through it while it is verified.
 
 ## Enabled GCP APIs
 
