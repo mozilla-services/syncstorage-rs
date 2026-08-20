@@ -17,6 +17,13 @@ use super::extractors::{
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::{MetricsWrapper, ServerState};
 
+/// Transaction tag set on the batch commit so the payload-link reconciler can
+/// tell a commit handoff (keep the object, its link just moved into bsos) from a
+/// genuine batch_bsos removal (TTL expiry or a user_collections delete, whose
+/// object should go). Must match `BATCH_COMMIT_TRANSACTION_TAG` in
+/// tools/payload-reconciler/reconcile_payload_links.py. See STOR-668.
+pub const BATCH_COMMIT_TRANSACTION_TAG: &str = "batch_commit";
+
 /// In-transaction outcome for [`DbTransactionPool::transaction_action`].
 enum InTxOutcome<R> {
     /// Continue post-transaction processing with this value and the resource timestamp extracted
@@ -35,6 +42,9 @@ pub struct DbTransactionPool {
     collection: Option<String>,
     bso_opt: Option<String>,
     precondition: PreConditionHeaderOpt,
+    /// Tag applied to the transaction before it opens, so Spanner records it on
+    /// the change stream. Set by the batch-commit handler. See STOR-668.
+    transaction_tag: Option<String>,
 }
 
 fn set_extra(req: &HttpRequest, connection_info: ConnectionInfo) {
@@ -61,6 +71,14 @@ fn ensure_last_modified(resp: &mut HttpResponse, resource_ts: SyncTimestamp) {
 }
 
 impl DbTransactionPool {
+    /// Tag the transaction this pool opens. The tag is applied to the db before
+    /// the transaction begins, so Spanner records it on the change stream
+    /// (no-op on other backends). Used to mark the batch commit. See STOR-668.
+    pub fn with_transaction_tag(mut self, tag: impl Into<String>) -> Self {
+        self.transaction_tag = Some(tag.into());
+        self
+    }
+
     /// Perform an action inside of a DB transaction. If the action fails, the
     /// transaction is rolled back. If the action succeeds, the transaction is
     /// NOT committed. Further processing is required before we are sure the
@@ -75,6 +93,12 @@ impl DbTransactionPool {
     {
         // Get connection from pool
         let mut db = self.pool.get().await?;
+
+        // Tag the transaction before it opens so Spanner records the tag on the
+        // change stream (no-op on other backends). Must happen before begin.
+        if let Some(tag) = self.transaction_tag.clone() {
+            db.set_transaction_tag(tag);
+        }
 
         // Lock for transaction
         let result = match (self.get_lock_collection(), self.is_read) {
@@ -299,6 +323,7 @@ impl FromRequest for DbTransactionPool {
                 collection,
                 bso_opt,
                 precondition,
+                transaction_tag: None,
             };
 
             req.extensions_mut().insert(pool.clone());
