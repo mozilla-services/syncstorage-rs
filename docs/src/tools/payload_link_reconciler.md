@@ -224,7 +224,36 @@ modes* below.
 **Deployment.** Default is a K8s cronjob (~5 min cadence) with
 `RUN_BUDGET_SECONDS` set. When lower finalize-flip latency matters,
 deploy as a K8s Deployment without `RUN_BUDGET_SECONDS` to run
-long-running. Manifests live in `webservices-infra/sync`.
+long-running. The cronjob template is
+`sync/k8s/sync/templates/payload-reconciler-cronjob.yaml` in
+webservices-infra, gated on `payloadReconciler.enabled`. Note it lives in
+the `sync` chart rather than `sync-jobs`. Enabling it in dev is tracked
+by STOR-676.
+
+Four settings in that manifest are load bearing, and changing any of them
+breaks an assumption the script relies on:
+
+- `concurrencyPolicy: Forbid`. A run that overruns its window is never
+  joined by a second one. The subscription is the queue, so the next tick
+  simply picks up where the last left off. Two concurrent drains would
+  race on the same messages, which is survivable given idempotency but
+  wastes the ack deadline.
+- `backoffLimit: 0`. No in-window retry. Every operation is idempotent
+  and unacked messages come back on their own, so the next scheduled run
+  *is* the retry. A backoff would just re-drain the same queue sooner.
+- `runBudgetSeconds` strictly less than `activeDeadlineSeconds`. The
+  chart fails the render if this is violated. The budget is what makes
+  the drain loop exit cleanly on its own; if the deadline fired first the
+  pod would be killed mid-message and the run would always look failed.
+- The command override. The image entrypoint is the syncserver binary, so
+  the cronjob invokes
+  `python3 /app/tools/payload-reconciler/reconcile_payload_links.py`
+  explicitly. Invoking by path is also what puts the script's directory
+  on `sys.path`, which is how its `import utils` resolves.
+
+Credentials come from workload identity: the pod runs as the tenant GKE
+service account, which holds the two roles listed above. There is no key
+file and no secret mounted.
 
 ---
 
