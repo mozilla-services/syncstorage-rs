@@ -15,19 +15,27 @@ BSO row's `payload_link` column points at it. A separate pipeline must:
   `payload_link` was replaced (UPDATE) or removed (DELETE, including
   Spanner row-deletion-policy TTL deletes).
 
-Objects whose syncserver upload failed — either the request never
-reached the Spanner commit, or Spanner rolled the write back — *may*
-never receive a finalize. Syncserver's write path attempts an
-inline best-effort finalize as soon as such a case is detected, but
-that attempt can itself fail (transient GCS error, process exit,
-etc.), leaving the object stranded at `committed=false` with its
-upload-time `customTime`. Anything that slips through is reaped by a
-GCS **lifecycle policy** (configured out-of-band in
-`webservices-infra/sync`) that deletes objects whose `customTime` is
-older than N days. Flipping `customTime` to the max sentinel is what
-protects committed objects from that policy — `daysSinceCustomTime`
-goes permanently negative once finalized, so the policy cannot touch
-them regardless of object age.
+An object whose write never reached a Spanner commit never receives a
+finalize, and there are two shapes of that. If the database transaction
+fails or rolls back, syncserver issues an inline best-effort **delete**
+of the objects it uploaded for that request and ignores the result. If an
+upload itself fails, the request is abandoned fail-fast and objects
+already uploaded for it are not cleaned up inline at all. Either way an
+object can be left stranded at `committed=false` with its upload-time
+`customTime`.
+
+Anything that slips through is reaped by a GCS **lifecycle policy**
+(`bucket.tf` in `webservices-infra/sync`) that deletes objects whose
+`customTime` is more than **30 days** old. Flipping `customTime` to the
+max sentinel is what protects committed objects from that policy:
+`daysSinceCustomTime` goes permanently negative once finalized, so the
+policy cannot touch them regardless of object age.
+
+The 30 day window is the safety margin for the whole asynchronous arm. It
+has to comfortably exceed the worst case time from upload to finalize,
+which is set by the cronjob cadence plus any Pub/Sub or Dataflow backlog.
+At a five minute cadence the margin is four orders of magnitude, so the
+number only becomes interesting if the pipeline is stopped for weeks.
 
 This document covers that pipeline. It consumes the
 `payload_link_changes` Spanner change stream defined in
