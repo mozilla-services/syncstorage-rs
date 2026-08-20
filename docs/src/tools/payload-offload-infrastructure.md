@@ -174,10 +174,9 @@ editing them.
 
 2. **A dedicated Spanner metadata database.** The change stream
    connector keeps its partition state in a Spanner database of its own.
-   Dev shares `syncdb-dev` for convenience; stage and prod should each
-   get a separate database, for example `syncdb-pldf-meta-stage`, so the
-   connector holds no write access to the syncstorage database. This is
-   a cloudops-infra change.
+   Each environment should get a separate database, for example
+   `syncdb-pldf-meta-stage`, so the connector holds no write access
+   to the syncstorage database. This is a cloudops-infra change.
 
 3. **DDL.** Apply the change stream and the `payload_link_reader` role to
    the target database. See [Out-of-band steps](#out-of-band-steps).
@@ -191,11 +190,13 @@ editing them.
    environment's `-tmpl-pub` service account exists first. The spec has
    to be in the bucket before the Terraform job resource is applied.
 
-6. **Job deletion behaviour.** Dev runs with `on_delete = "cancel"` and
-   `skip_wait_on_job_termination = true` so test iterations are fast.
-   Stage and prod want `on_delete = "drain"` and the provider default for
-   the wait, so a replaced job finishes publishing what it has already
-   read instead of dropping it.
+6. **Job deletion behaviour.** Keep `on_delete = "cancel"`. This is not a
+   dev-only shortcut: the SpannerIO change stream connector does not
+   support draining at all, so `"drain"` is never the right setting for
+   this pipeline. See
+   [Draining a change streams pipeline](https://docs.cloud.google.com/spanner/docs/change-streams/use-dataflow#draining).
+   The change stream's 7 day retention is what covers the gap while a
+   replacement job comes up.
 
 7. **Reconciler cronjob.** Enable `payloadReconciler` in the
    environment's values file in `sync/k8s/sync/`. The chart requires
@@ -203,8 +204,7 @@ editing them.
 
 8. **Measure before enabling on prod.** The change stream costs Spanner
    storage that has not been quantified. Turning the stream on ahead of
-   any offload traffic is the cheap way to find out. Tracked by
-   STOR-639.
+   any offload traffic is the cheap way to find out.
 
 Enabled APIs need no change. `project_services` in
 `projects/tf/webservices/locals.tf` feeds both the prod and nonprod

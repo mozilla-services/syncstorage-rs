@@ -63,9 +63,9 @@ flowchart LR
 **Synchronous, in the request path.** On a write, syncserver uploads the
 payload to GCS *before* it opens the database transaction, then commits a row
 carrying the resulting URL. On a read, it fetches the row first, then
-downloads the payload from GCS *after* the transaction commits, and swaps it
-back into the `payload` field so the client sees an ordinary BSO. Clients
-never learn that offload exists.
+downloads the payload from GCS *after* the database read transaction is
+completed, and swaps it back into the `payload` field so the client sees an
+ordinary BSO. Clients never learn that offload exists.
 
 **Asynchronous, behind the request.** A change stream on the `payload_link`
 column feeds a Dataflow job, which publishes the interesting records to
@@ -251,11 +251,4 @@ This is a work in progress. As of this writing:
 
 - Only the dev environment is built out. Stage and prod need the same set of
   resources plus a dedicated Spanner metadata database.
-- A `batch_bsos` row removal is currently skipped wholesale rather than
-  distinguishing a batch commit handoff from a genuine delete, which leaks
-  the object in the genuine case. See STOR-668.
-- Syncserver emits no metrics on the offload path itself. Upload and download
-  latency, and the rollback cleanup, are invisible.
-- Change stream storage cost in prod has not been measured. See STOR-639.
-- The Dataflow job is launched with `on_delete = "cancel"` for testing.
-  Production wants `"drain"`.
+- Change stream storage cost in prod has not been measured.

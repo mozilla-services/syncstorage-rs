@@ -255,8 +255,7 @@ deploy as a K8s Deployment without `RUN_BUDGET_SECONDS` to run
 long-running. The cronjob template is
 `sync/k8s/sync/templates/payload-reconciler-cronjob.yaml` in
 webservices-infra, gated on `payloadReconciler.enabled`. Note it lives in
-the `sync` chart rather than `sync-jobs`. Enabling it in dev is tracked
-by STOR-676.
+the `sync` chart rather than `sync-jobs`.
 
 Four settings in that manifest are load bearing, and changing any of them
 breaks an assumption the script relies on:
@@ -374,7 +373,7 @@ working.
 | `orphan_deletes` | Objects deleted because a row stopped pointing at them | Tracks overwrite and delete volume |
 | `gcs_404` `op:finalize` | Finalize target was gone | Low and flat |
 | `gcs_404` `op:delete` | Delete target was already gone | Low and flat, redeliveries are normal |
-| `batch_bsos_skips` | A `batch_bsos` removal was skipped | Non-zero and expected until STOR-668 |
+| `batch_bsos_skips` | A `batch_bsos` removal was skipped | Non-zero and expected while the blanket skip is in place |
 | `noop_skips` | A record arrived with nothing to do | Near zero; the Dataflow filter should have dropped it |
 | `errors` `kind:handler` | Handler raised, message left unacked | Zero |
 
@@ -393,11 +392,6 @@ Worth alerting on:
   Pub/Sub metric rather than one of ours, and it is the most direct
   measure of finalize latency. It should sit in minutes. The 30 day
   lifecycle window is the deadline it must never approach.
-
-Note a real gap here: syncserver itself emits nothing on the offload
-path. There are no counters or timers on upload, download, or the inline
-cleanup after a failed transaction, so the synchronous half of the system
-is invisible and its latency cost is unmeasured.
 
 ---
 
