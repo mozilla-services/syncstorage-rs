@@ -45,15 +45,43 @@ This document covers that pipeline. It consumes the
 
 ## Architecture
 
-```text
-Spanner change stream         Custom Dataflow             Pub/Sub                Reconciler
-─────────────────────       ─────────────────────       ────────────────       ─────────────────────────
-payload_link_changes  ──►   forked flex template   ──►  payload-link-changes ──►  Python cronjob:
-(OLD_AND_NEW_VALUES,         (filters out records       topic + DLQ                - new link → finalize object
- 7d retention)                with both old & new        pull subscription           (committed=true, customTime=MAX)
-                              payload_link NULL)                                   - old link → delete object
-                                                                                   - both idempotent
+```mermaid
+flowchart LR
+    stream[("Spanner change stream
+    payload_link_changes
+    OLD_AND_NEW_VALUES, 7d retention")]
+
+    subgraph dataflow["Custom Dataflow flex template"]
+        filter{"payload_link NULL
+        on both sides?"}
+    end
+
+    drop(["dropped"])
+    topic["Pub/Sub
+    payload-link-changes"]
+    dlq["Pub/Sub
+    payload-link-changes-dlq"]
+
+    subgraph reconciler["Reconciler cronjob"]
+        route{"which side
+        carries a link?"}
+        finalize["finalize the object
+        committed=true
+        customTime=MAX"]
+        delete["delete the object"]
+    end
+
+    stream -->|DataChangeRecord| filter
+    filter -->|yes| drop
+    filter -->|"no, publish as JSON"| topic
+    topic -->|pull subscription| route
+    topic -.->|"after 5 failed deliveries"| dlq
+    route -->|new link| finalize
+    route -->|"old link, replaced or removed"| delete
 ```
+
+Both reconciler actions are idempotent, so a redelivered record is
+harmless.
 
 ## Components
 
