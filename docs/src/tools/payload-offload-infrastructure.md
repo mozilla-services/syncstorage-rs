@@ -42,15 +42,16 @@ and reads a change stream in the legacy project.
 
 ```mermaid
 flowchart TB
+    gha["GitHub Actions
+    syncstorage-rs"]
+
     subgraph v1["GCPv1: moz-fx-sync-nonprod-904c (cloudops-infra)"]
         syncdb["Spanner syncdb
         instance: sync
         database: syncdb-dev
-        change stream: payload_link_changes"]
-    end
-
-    subgraph v1["GCPv1: moz-fx-sync-nonprod-904c (cloudops-infra)"]
-        meta-db["Spanner dataflow metadata db
+        change stream: payload_link_changes
+        access role: payload_link_reader"]
+        metadb["Spanner Dataflow metadata
         instance: sync
         database: syncdb-pldf-meta-dev"]
     end
@@ -63,10 +64,12 @@ flowchart TB
 
     subgraph tenant["GCPv2 tenant: moz-fx-sync-nonprod (webservices-infra)"]
         df["Dataflow flex template job
-        sync-nonprod-dev-payload-link-dataflow"]
+        sync-nonprod-dev-payload-link-dataflow
+        dedicated VPC and firewall"]
         topic["Pub/Sub
-        payload-link-changes
-        + DLQ"]
+        payload-link-changes"]
+        dlq["Pub/Sub
+        payload-link-changes-dlq"]
         payloads[("GCS
         sync-nonprod-dev-syncstorage-payloads")]
         jobbucket[("GCS
@@ -74,13 +77,16 @@ flowchart TB
         template spec, staging, tmp")]
     end
 
-    syncdb -->|change stream read| df
-    df -->|publish| topic
-    df -->|job state tracking| meta-db
+    gha -.->|"publish template spec, via WIF"| jobbucket
     jobbucket -.->|template spec| df
+    syncdb -->|change stream read| df
+    df -->|partition state| metadb
+    df -->|publish| topic
     topic -->|pull subscription| gke
+    topic -.->|"after 5 failed deliveries"| dlq
     gke -->|finalize and delete objects| payloads
-    gke -->|read and write payloads| syncdb
+    gke -->|upload and download payloads| payloads
+    gke -->|read and write BSO rows| syncdb
 
 ```
 
