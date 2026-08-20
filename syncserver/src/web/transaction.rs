@@ -1,6 +1,6 @@
 use actix_http::{BoxedPayloadStream, Error, HttpMessage, Method, StatusCode, header::HeaderValue};
 use actix_web::dev::Payload;
-use actix_web::http::header;
+use actix_web::http::header::HeaderName;
 use actix_web::web::Data;
 use actix_web::{FromRequest, HttpRequest, HttpResponse};
 use futures::FutureExt;
@@ -17,13 +17,13 @@ use super::extractors::{
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::{MetricsWrapper, ServerState};
 
-/// In-transaction outcome for [`DbTransactionPool::transaction_http_then`].
+/// In-transaction outcome for [`DbTransactionPool::transaction_action`].
 enum InTxOutcome<R> {
-    /// Continue post-transaction processing with this value and the resource
-    /// timestamp extracted inside the transaction.
+    /// Continue post-transaction processing with this value and the resource timestamp extracted
+    /// inside the transaction.
     Continue(R, SyncTimestamp),
-    /// Short-circuit response (e.g., precondition failed) that bypasses the
-    /// post-transaction `finalize` step.
+    /// Short-circuit response (e.g., precondition failed) that bypasses both `X-Last-Modified`
+    /// injection and the post-transaction `finalize` step.
     Response(HttpResponse),
 }
 
@@ -47,6 +47,17 @@ fn set_extra(req: &HttpRequest, connection_info: ConnectionInfo) {
         "spanner_connection_idle".to_owned(),
         connection_info.spanner_idle.to_string(),
     );
+}
+
+/// Set `X-Last-Modified` from the resource timestamp unless the response already carries one.
+fn ensure_last_modified(resp: &mut HttpResponse, resource_ts: SyncTimestamp) {
+    if !resp.headers().contains_key(X_LAST_MODIFIED)
+        && let Ok(ts_header) = HeaderValue::from_str(&resource_ts.as_header())
+    {
+        trace!("📝 Setting X-Last-Modfied {ts_header:?}");
+        resp.headers_mut()
+            .insert(HeaderName::from_static(X_LAST_MODIFIED), ts_header);
+    }
 }
 
 impl DbTransactionPool {
@@ -108,6 +119,54 @@ impl DbTransactionPool {
         Ok(resp)
     }
 
+    fn precondition_response(&self, resource_ts: SyncTimestamp) -> Option<HttpResponse> {
+        let precondition = self.precondition.opt.as_ref()?;
+        let status = match precondition {
+            PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= *header_ts => {
+                StatusCode::NOT_MODIFIED
+            }
+            PreConditionHeader::IfUnmodifiedSince(header_ts) if resource_ts > *header_ts => {
+                StatusCode::PRECONDITION_FAILED
+            }
+            _ => return None,
+        };
+        Some(
+            HttpResponse::build(status)
+                .insert_header((X_LAST_MODIFIED, resource_ts.as_header()))
+                .finish(),
+        )
+    }
+
+    /// Shared in-transaction precondition check and action for the `transaction_http*` fns.
+    async fn transaction_action<A, R>(
+        &self,
+        request: &HttpRequest,
+        action: A,
+    ) -> Result<(InTxOutcome<R>, Box<dyn Db<Error = DbError>>), ApiError>
+    where
+        A: AsyncFnOnce(&mut dyn Db<Error = DbError>) -> Result<R, ApiError>,
+    {
+        let in_tx = async |db: &mut dyn Db<Error = DbError>| -> Result<InTxOutcome<R>, ApiError> {
+            // set the extra information for all requests so we capture default err handlers.
+            set_extra(request, db.get_connection_info());
+            let resource_ts = db
+                .extract_resource(
+                    self.user_id.clone(),
+                    self.collection.clone(),
+                    self.bso_opt.clone(),
+                )
+                .await?;
+
+            if let Some(resp) = self.precondition_response(resource_ts) {
+                return Ok(InTxOutcome::Response(resp));
+            }
+
+            Ok(InTxOutcome::Continue(action(db).await?, resource_ts))
+        };
+
+        self.transaction_internal(request, in_tx).await
+    }
+
     /// Perform an action inside of a DB transaction. This method will rollback
     /// if the HTTP response is an error.
     pub async fn transaction_http<A>(
@@ -118,55 +177,15 @@ impl DbTransactionPool {
     where
         A: AsyncFnOnce(&mut dyn Db<Error = DbError>) -> Result<HttpResponse, ApiError>,
     {
-        let check_precondition = async |db: &mut dyn Db<Error = DbError>| {
-            // set the extra information for all requests so we capture default err handlers.
-            set_extra(request, db.get_connection_info());
-            let resource_ts = db
-                .extract_resource(
-                    self.user_id.clone(),
-                    self.collection.clone(),
-                    self.bso_opt.clone(),
-                )
-                .await
-                .map_err(ApiError::from)?;
-
-            if let Some(precondition) = &self.precondition.opt {
-                let status = match precondition {
-                    PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= *header_ts => {
-                        StatusCode::NOT_MODIFIED
-                    }
-                    PreConditionHeader::IfUnmodifiedSince(header_ts)
-                        if resource_ts > *header_ts =>
-                    {
-                        StatusCode::PRECONDITION_FAILED
-                    }
-                    _ => StatusCode::OK,
-                };
-                if status != StatusCode::OK {
-                    return Ok(HttpResponse::build(status)
-                        .insert_header((X_LAST_MODIFIED, resource_ts.as_header()))
-                        .finish());
-                };
+        let (outcome, mut db) = self.transaction_action(request, action).await?;
+        let resp = match outcome {
+            InTxOutcome::Response(resp) => resp,
+            InTxOutcome::Continue(mut resp, resource_ts) => {
+                // See if we already extracted one and use that if possible
+                ensure_last_modified(&mut resp, resource_ts);
+                resp
             }
-
-            let mut resp = action(db).await?;
-
-            // See if we already extracted one and use that if possible
-            if !resp.headers().contains_key(X_LAST_MODIFIED)
-                && let Ok(ts_header) = HeaderValue::from_str(&resource_ts.as_header())
-            {
-                trace!("📝 Setting X-Last-Modfied {ts_header:?}");
-                resp.headers_mut()
-                    .insert(header::HeaderName::from_static(X_LAST_MODIFIED), ts_header);
-            }
-
-            Ok(resp)
         };
-
-        let (resp, mut db) = self
-            .transaction_internal(request, check_precondition)
-            .await?;
-        // match on error and return a composed HttpResponse (so we can use the tags?)
 
         // HttpResponse can contain an internal error
         match resp.error() {
@@ -196,55 +215,14 @@ impl DbTransactionPool {
         A: AsyncFnOnce(&mut dyn Db<Error = DbError>) -> Result<R, ApiError>,
         F: AsyncFnOnce(R) -> Result<HttpResponse, ApiError>,
     {
-        let in_tx = async |db: &mut dyn Db<Error = DbError>| -> Result<InTxOutcome<R>, ApiError> {
-            set_extra(request, db.get_connection_info());
-            let resource_ts = db
-                .extract_resource(
-                    self.user_id.clone(),
-                    self.collection.clone(),
-                    self.bso_opt.clone(),
-                )
-                .await
-                .map_err(ApiError::from)?;
-
-            if let Some(precondition) = &self.precondition.opt {
-                let status = match precondition {
-                    PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= *header_ts => {
-                        StatusCode::NOT_MODIFIED
-                    }
-                    PreConditionHeader::IfUnmodifiedSince(header_ts)
-                        if resource_ts > *header_ts =>
-                    {
-                        StatusCode::PRECONDITION_FAILED
-                    }
-                    _ => StatusCode::OK,
-                };
-                if status != StatusCode::OK {
-                    return Ok(InTxOutcome::Response(
-                        HttpResponse::build(status)
-                            .insert_header((X_LAST_MODIFIED, resource_ts.as_header()))
-                            .finish(),
-                    ));
-                };
-            }
-
-            let r = action(db).await?;
-            Ok(InTxOutcome::Continue(r, resource_ts))
-        };
-
-        let (outcome, mut db) = self.transaction_internal(request, in_tx).await?;
+        let (outcome, mut db) = self.transaction_action(request, action).await?;
         db.commit().await?;
 
         match outcome {
             InTxOutcome::Response(resp) => Ok(resp),
             InTxOutcome::Continue(r, resource_ts) => {
                 let mut resp = finalize(r).await?;
-                if !resp.headers().contains_key(X_LAST_MODIFIED)
-                    && let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header())
-                {
-                    resp.headers_mut()
-                        .insert(header::HeaderName::from_static(X_LAST_MODIFIED), ts_header);
-                }
+                ensure_last_modified(&mut resp, resource_ts);
                 Ok(resp)
             }
         }
