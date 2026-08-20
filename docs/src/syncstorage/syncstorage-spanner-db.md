@@ -101,7 +101,8 @@ Enables `/info/collections`, `/info/collection_counts`, and `/info/collection_us
 | `collection_id` | `INT64`        | PK (part 3), FK to `user_collections`.                               |
 | `bso_id`        | `STRING(MAX)`  | Unique ID within a collection. PK (part 4).                          |
 | `sortindex`     | `INT64`        | Indicates record importance for syncing (optional).                  |
-| `payload`       | `STRING(MAX)`  | Payload bytes (e.g. an encrypted JSON blob). `NOT NULL`.             |
+| `payload`       | `STRING(MAX)`  | Payload bytes (e.g. an encrypted JSON blob). Nullable: an offloaded BSO leaves this NULL and sets `payload_link` instead. |
+| `payload_link`  | `STRING(MAX)`  | `gs://` URL of the payload when it is stored in GCS rather than inline. NULL for an ordinary BSO. See [Payload Offload](../payload-offload/overview.md). |
 | `modified`      | `TIMESTAMP`    | Server-assigned modification timestamp.                              |
 | `expiry`        | `TIMESTAMP`    | Absolute expiration time. Spanner's row deletion policy prunes rows older than `expiry`. |
 
@@ -145,6 +146,7 @@ The 13 standard collections expected by clients have fixed reserved IDs (1–13)
 | `batch_bso_id`  | `STRING(MAX)`  | Unique ID within a batch. PK (part 5).                                 |
 | `sortindex`     | `INT64`        | Optional; nullable since the upload may not set every field per item.  |
 | `payload`       | `STRING(MAX)`  | Optional; nullable for the same reason.                                |
+| `payload_link`  | `STRING(MAX)`  | `gs://` URL of a staged offloaded payload. Copied into the permanent `bsos` row at commit. See [Payload Offload](../payload-offload/overview.md). |
 | `ttl`           | `INT64`        | Time-to-live in seconds, optional.                                     |
 
 `INTERLEAVE IN PARENT batches ON DELETE CASCADE`. Note there is no `modified` column, the modification timestamp is assigned at commit time when rows are upserted into `bsos`.
