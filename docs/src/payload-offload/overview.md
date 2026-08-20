@@ -119,6 +119,45 @@ That window is normally seconds to a few minutes, set by the reconciler's
 cronjob cadence, and it is always far shorter than the 30 day lifecycle
 window.
 
+## Life of an object
+
+Every GCS object is in one of three states, and the whole design is a matter
+of which transitions are allowed.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Uploaded : syncserver writes it
+    Uploaded --> Committed : reconciler finalizes it
+    Uploaded --> Deleted : rollback cleanup, inline
+    Uploaded --> Deleted : lifecycle policy, at 30 days
+    Committed --> Deleted : link replaced, or row removed
+    Committed --> Committed : finalize again, no-op
+    Deleted --> Deleted : delete again, 404 is success
+    Deleted --> [*]
+
+    note right of Uploaded
+        committed=false
+        customTime = upload time
+        the lifecycle policy can reach it
+    end note
+
+    note right of Committed
+        committed=true
+        customTime = 9999-12-31T23:59:59Z
+        the lifecycle policy cannot reach it
+    end note
+```
+
+The important asymmetry: an object in `Uploaded` has two independent ways to
+die, and an object in `Committed` has exactly one, which only a change stream
+record can trigger. Age alone never deletes a committed object, because
+pinning `customTime` to its maximum makes `daysSinceCustomTime` permanently
+negative.
+
+The two self-loops are not decoration. Pub/Sub delivers at least once, so
+both operations are written to be safe to repeat, and a `404 NotFound` is
+treated as success rather than as an error.
+
 ## Why it holds together
 
 The design rests on a handful of invariants. Most of the subtlety in the code
