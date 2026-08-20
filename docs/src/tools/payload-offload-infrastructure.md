@@ -150,9 +150,12 @@ Names are derived from `${application}-${realm}-${environment}` in
 | Dataflow job bucket | `sync-nonprod-dev-payload-link-dataflow`, us-west1 |
 | Dataflow job | `sync-nonprod-dev-payload-link-dataflow`, us-west1 |
 | Dataflow service account | `sync-nonprod-dev-payload-link@moz-fx-sync-nonprod.iam.gserviceaccount.com` |
+| Template publisher service account | `sync-nonprod-dev-tmpl-pub@moz-fx-sync-nonprod.iam.gserviceaccount.com` |
+| Dataflow VPC | `sync-nonprod-dev-dataflow`, internal ingress on tcp 12345-12346 |
 | Pub/Sub topic | `payload-link-changes` |
 | Pub/Sub DLQ | `payload-link-changes-dlq`, 5 delivery attempts |
 | Reconciler subscription | `payload-link-reconciler-sub`, 60s ack, 7d retention |
+| DLQ inspection subscription | `payload-link-changes-dlq-sub`, 7d retention |
 | Flex template image | `us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-payload-link-dataflow` |
 | Template spec | `gs://sync-nonprod-dev-payload-link-dataflow/templates/syncserver-payload-link-dataflow.json` |
 
@@ -262,8 +265,18 @@ environment fails to come up.
 3. Publish the flex template spec into the job bucket before the
    Terraform job resource is applied, or the job has nothing to launch.
    The `write-payload-link-dataflow-spec-dev` job in
-   `.github/workflows/mozcloud-publish.yaml` does this on publish. To do
-   it manually:
+   `.github/workflows/mozcloud-publish.yaml` does this on publish.
+
+   CI does not use the pipeline service account for this. A separate
+   `-tmpl-pub` account exists purely to upload the spec, and the
+   syncstorage-rs GitHub Actions workflow impersonates it through
+   workload identity federation. Its bucket grant carries an IAM
+   condition restricting writes to the `templates/` prefix, so CI cannot
+   touch the runtime `staging/` or `tmp/` paths, and it holds nothing on
+   Spanner or Pub/Sub. Both accounts are defined in
+   `sync/tf/dev/dataflow_iam.tf`.
+
+   To publish manually:
 
    ```console
    gcloud dataflow flex-template build \
