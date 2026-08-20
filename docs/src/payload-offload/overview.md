@@ -24,6 +24,42 @@ Tracking epic: STOR-372, "Expand spanner storage beyond 2.5MB".
 The system splits cleanly into a synchronous half that a user request waits
 on, and an asynchronous half that runs behind it.
 
+```mermaid
+flowchart LR
+    client(["Sync client"])
+
+    subgraph request["Request path, synchronous"]
+        syncserver["syncserver"]
+    end
+
+    spanner[("Spanner
+    bsos.payload_link")]
+    gcs[("GCS
+    payload bucket")]
+
+    subgraph cleanup["Cleanup path, asynchronous"]
+        stream["Change stream
+        payload_link_changes"]
+        dataflow["Dataflow
+        drop inert records"]
+        topic["Pub/Sub
+        payload-link-changes"]
+        reconciler["Reconciler
+        cronjob"]
+    end
+
+    client -->|"BSO read and write"| syncserver
+    syncserver -->|"step 1: upload payload"| gcs
+    syncserver -->|"step 2: commit the link"| spanner
+    gcs -->|"resolve payload on read"| syncserver
+
+    spanner --> stream
+    stream --> dataflow
+    dataflow --> topic
+    topic --> reconciler
+    reconciler -->|"finalize or delete"| gcs
+```
+
 **Synchronous, in the request path.** On a write, syncserver uploads the
 payload to GCS *before* it opens the database transaction, then commits a row
 carrying the resulting URL. On a read, it fetches the row first, then
