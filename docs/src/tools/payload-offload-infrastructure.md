@@ -110,7 +110,7 @@ identity on the tenant GKE service account.
 | Dataflow service account and IAM | `sync/tf/dev/dataflow_iam.tf` | webservices-infra |
 | Pub/Sub topics, subscriptions, DLQ routing | `sync/tf/dev/pubsub.tf` | webservices-infra |
 | Spanner instance, database, DDL, database IAM | `projects/sync` | cloudops-infra |
-| Change stream DDL source of truth | `syncstorage-spanner/src/schema.ddl` | syncstorage-rs |
+| Change stream and access role DDL source of truth | `syncstorage-spanner/src/schema.ddl` | syncstorage-rs |
 | Dataflow flex template image and metadata | `tools/payload-link-dataflow/` | syncstorage-rs |
 | Image build and template spec publish | `.github/workflows/mozcloud-publish.yaml` | syncstorage-rs |
 | Helm charts for sync, tokenserver, sync-jobs, sync-test | `sync/k8s/` | webservices-infra |
@@ -145,6 +145,7 @@ Names are derived from `${application}-${realm}-${environment}` in
 | Spanner project | `moz-fx-sync-nonprod-904c` |
 | Spanner instance and database | `sync` / `syncdb-dev` |
 | Change stream | `payload_link_changes` |
+| Spanner database role | `payload_link_reader` |
 | Payload bucket | `sync-nonprod-dev-syncstorage-payloads`, us-west1 |
 | Dataflow job bucket | `sync-nonprod-dev-payload-link-dataflow`, us-west1 |
 | Dataflow job | `sync-nonprod-dev-payload-link-dataflow`, us-west1 |
@@ -216,6 +217,11 @@ job runs as a dedicated per environment service account holding only
 `roles/spanner.databaseUser` on one database, rather than the Compute
 Engine default account which carries `roles/editor`.
 
+Spanner access is narrowed a second time inside the database. The job
+runs under the `payload_link_reader` database role, which is granted
+`SELECT` on the one change stream and `EXECUTE` on its read function and
+nothing else, so the IAM grant alone does not let the job read BSO rows.
+
 ## Out-of-band steps
 
 Three things are not managed by Terraform and have to be done by hand in
@@ -226,6 +232,20 @@ environment fails to come up.
    `syncstorage-spanner/src/schema.ddl` is not auto-applied. Run
    `gcloud spanner databases ddl update` against the target database
    after merging.
+
+   That same DDL block also creates the fine-grained access role the
+   Dataflow job reads through:
+
+   ```sql
+   CREATE ROLE payload_link_reader;
+   GRANT SELECT ON CHANGE STREAM payload_link_changes TO ROLE payload_link_reader;
+   GRANT EXECUTE ON TABLE FUNCTION READ_payload_link_changes TO ROLE payload_link_reader;
+   ```
+
+   The job is launched with `spannerDatabaseRole = "payload_link_reader"`
+   (see `sync/tf/dev/dataflow.tf`), so if the role does not exist the job
+   fails at startup rather than falling back to broader access. Apply the
+   role and its grants in the same DDL update as the change stream.
 
 2. Grant the Dataflow service account `roles/spanner.databaseUser` on
    the Spanner database. This targets `-904c`, where the webservices
