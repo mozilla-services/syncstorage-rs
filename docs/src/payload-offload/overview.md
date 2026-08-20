@@ -76,6 +76,49 @@ row points at any more.
 The asynchronous half is not on the critical path. If it stalls, reads and
 writes keep working and cleanup falls behind.
 
+## Life of a write
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant client as Sync client
+    participant sync as syncserver
+    participant gcs as GCS
+    participant db as Spanner
+    participant rec as Reconciler
+
+    client->>sync: POST /storage/collection
+    Note over sync: collection is opted into offload
+    sync->>gcs: write object, committed=false, customTime=now
+    gcs-->>sync: gs:// URL
+    sync->>db: commit row, payload_link set, payload NULL
+
+    alt commit succeeds
+        db-->>sync: modified timestamp
+        sync-->>client: 200 OK
+        db->>rec: change record, via change stream and Pub/Sub
+        rec->>gcs: patch committed=true, customTime=MAX
+        Note over gcs: object is now permanent
+    else commit fails
+        db-->>sync: error
+        sync->>gcs: best effort delete
+        sync-->>client: error
+        Note over gcs: if that delete fails,<br/>the lifecycle policy reaps it at 30 days
+    end
+```
+
+A few things worth knowing about that upload step. Uploads for a multi-BSO
+POST run concurrently, bounded by `gcs_payload_max_concurrency`, and they
+fail fast: the first upload error abandons the request, and any object already
+uploaded is left for the lifecycle policy rather than deleted inline. The
+compensating delete only runs when the database transaction fails, and its
+result is ignored, because the lifecycle policy is a sufficient second line.
+
+Between the upload and the finalize the object exists but is not protected.
+That window is normally seconds to a few minutes, set by the reconciler's
+cronjob cadence, and it is always far shorter than the 30 day lifecycle
+window.
+
 ## Why it holds together
 
 The design rests on a handful of invariants. Most of the subtlety in the code
