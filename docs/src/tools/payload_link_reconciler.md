@@ -333,6 +333,46 @@ real dev Spanner instance).
 
 ---
 
+## Metrics
+
+The reconciler emits statsd counters under the `payload_reconciler`
+namespace. Everything the pipeline can tell you about itself is in this
+list, so it is worth knowing what each one looks like when things are
+working.
+
+| Metric | Meaning | Healthy shape |
+|---|---|---|
+| `finalizes` | Objects flipped to `committed=true` | Tracks offloaded write volume |
+| `orphan_deletes` | Objects deleted because a row stopped pointing at them | Tracks overwrite and delete volume |
+| `gcs_404` `op:finalize` | Finalize target was gone | Low and flat |
+| `gcs_404` `op:delete` | Delete target was already gone | Low and flat, redeliveries are normal |
+| `batch_bsos_skips` | A `batch_bsos` removal was skipped | Non-zero and expected until STOR-668 |
+| `noop_skips` | A record arrived with nothing to do | Near zero; the Dataflow filter should have dropped it |
+| `errors` `kind:handler` | Handler raised, message left unacked | Zero |
+
+Worth alerting on:
+
+- Anything at all in `payload-link-changes-dlq`. A message only lands
+  there after five failed deliveries, so it means a record cannot be
+  handled and needs a human. Inspect it through
+  `payload-link-changes-dlq-sub`.
+- `errors` `kind:handler` sustained above zero.
+- `noop_skips` climbing, which means the Dataflow filter regressed and
+  the pipeline is paying Pub/Sub for records it discards.
+- `gcs_404` `op:finalize` rising as a share of `finalizes`, which is the
+  signal that objects are being reaped before they get finalized.
+- Oldest unacked message age on `payload-link-reconciler-sub`. This is a
+  Pub/Sub metric rather than one of ours, and it is the most direct
+  measure of finalize latency. It should sit in minutes. The 30 day
+  lifecycle window is the deadline it must never approach.
+
+Note a real gap here: syncserver itself emits nothing on the offload
+path. There are no counters or timers on upload, download, or the inline
+cleanup after a failed transaction, so the synchronous half of the system
+is invisible and its latency cost is unmeasured.
+
+---
+
 ## Failure modes
 
 | Symptom | Cause | Behaviour |
