@@ -15,19 +15,27 @@ BSO row's `payload_link` column points at it. A separate pipeline must:
   `payload_link` was replaced (UPDATE) or removed (DELETE, including
   Spanner row-deletion-policy TTL deletes).
 
-Objects whose syncserver upload failed — either the request never
-reached the Spanner commit, or Spanner rolled the write back — *may*
-never receive a finalize. Syncserver's write path attempts an
-inline best-effort finalize as soon as such a case is detected, but
-that attempt can itself fail (transient GCS error, process exit,
-etc.), leaving the object stranded at `committed=false` with its
-upload-time `customTime`. Anything that slips through is reaped by a
-GCS **lifecycle policy** (configured out-of-band in
-`webservices-infra/sync`) that deletes objects whose `customTime` is
-older than N days. Flipping `customTime` to the max sentinel is what
-protects committed objects from that policy — `daysSinceCustomTime`
-goes permanently negative once finalized, so the policy cannot touch
-them regardless of object age.
+An object whose write never reached a Spanner commit never receives a
+finalize, and there are two shapes of that. If the database transaction
+fails or rolls back, syncserver issues an inline best-effort **delete**
+of the objects it uploaded for that request and ignores the result. If an
+upload itself fails, the request is abandoned fail-fast and objects
+already uploaded for it are not cleaned up inline at all. Either way an
+object can be left stranded at `committed=false` with its upload-time
+`customTime`.
+
+Anything that slips through is reaped by a GCS **lifecycle policy**
+(`bucket.tf` in `webservices-infra/sync`) that deletes objects whose
+`customTime` is more than **30 days** old. Flipping `customTime` to the
+max sentinel is what protects committed objects from that policy:
+`daysSinceCustomTime` goes permanently negative once finalized, so the
+policy cannot touch them regardless of object age.
+
+The 30 day window is the safety margin for the whole asynchronous arm. It
+has to comfortably exceed the worst case time from upload to finalize,
+which is set by the cronjob cadence plus any Pub/Sub or Dataflow backlog.
+At a five minute cadence the margin is four orders of magnitude, so the
+number only becomes interesting if the pipeline is stopped for weeks.
 
 This document covers that pipeline. It consumes the
 `payload_link_changes` Spanner change stream defined in
@@ -37,15 +45,43 @@ This document covers that pipeline. It consumes the
 
 ## Architecture
 
-```text
-Spanner change stream         Custom Dataflow             Pub/Sub                Reconciler
-─────────────────────       ─────────────────────       ────────────────       ─────────────────────────
-payload_link_changes  ──►   forked flex template   ──►  payload-link-changes ──►  Python cronjob:
-(OLD_AND_NEW_VALUES,         (filters out records       topic + DLQ                - new link → finalize object
- 7d retention)                with both old & new        pull subscription           (committed=true, customTime=MAX)
-                              payload_link NULL)                                   - old link → delete object
-                                                                                   - both idempotent
+```mermaid
+flowchart LR
+    stream[("Spanner change stream
+    payload_link_changes
+    OLD_AND_NEW_VALUES, 7d retention")]
+
+    subgraph dataflow["Custom Dataflow flex template"]
+        filter{"payload_link NULL
+        on both sides?"}
+    end
+
+    drop(["dropped"])
+    topic["Pub/Sub
+    payload-link-changes"]
+    dlq["Pub/Sub
+    payload-link-changes-dlq"]
+
+    subgraph reconciler["Reconciler cronjob"]
+        route{"which side
+        carries a link?"}
+        finalize["finalize the object
+        committed=true
+        customTime=MAX"]
+        delete["delete the object"]
+    end
+
+    stream -->|DataChangeRecord| filter
+    filter -->|yes| drop
+    filter -->|"no, publish as JSON"| topic
+    topic -->|pull subscription| route
+    topic -.->|"after 5 failed deliveries"| dlq
+    route -->|new link| finalize
+    route -->|"old link, replaced or removed"| delete
 ```
+
+Both reconciler actions are idempotent, so a redelivered record is
+harmless.
 
 ## Components
 
@@ -111,14 +147,28 @@ gcloud dataflow flex-template build \
   change-stream connector keeps its partition-state table. Recommend
   a dedicated database in prod for isolation.
 - `changeStreamName=payload_link_changes`.
+- `spannerDatabaseRole=payload_link_reader` — the fine-grained access
+  role the job reads the stream through, created by the DDL in
+  `syncstorage-spanner/src/schema.ddl`. If the role is absent the job
+  fails at startup rather than falling back to broader access.
 - `pubsubTopic=projects/<PROJECT>/topics/payload-link-changes`.
 
 **Service account requires:**
 
-- `roles/spanner.databaseReader` on the syncstorage database.
-- `roles/spanner.databaseUser` on the metadata database.
+- `roles/spanner.databaseUser` on the syncstorage database. This one
+  grant covers both reading the change stream and maintaining the
+  connector's partition metadata, and in dev the metadata table shares
+  `syncdb-dev`. Where the metadata database is separate, the grant is
+  needed on both. Note the IAM grant targets the `-904c` project, so it
+  is applied out of band; see
+  [GCP Infrastructure](payload-offload-infrastructure.md#out-of-band-steps).
+- Membership of the `payload_link_reader` database role, which is what
+  actually narrows the job to the change stream. The IAM grant alone
+  does not let it read BSO rows.
 - `roles/pubsub.publisher` on the destination topic.
-- `roles/dataflow.worker`.
+- `roles/storage.objectAdmin` on the Dataflow job bucket, for `staging/`
+  and `tmp/`.
+- `roles/dataflow.worker` at the project level.
 
 ### 2b. Dev/E2E Python publisher — `tools/payload-link-dataflow/payload-link-publisher-py/`
 
@@ -202,7 +252,35 @@ modes* below.
 **Deployment.** Default is a K8s cronjob (~5 min cadence) with
 `RUN_BUDGET_SECONDS` set. When lower finalize-flip latency matters,
 deploy as a K8s Deployment without `RUN_BUDGET_SECONDS` to run
-long-running. Manifests live in `webservices-infra/sync`.
+long-running. The cronjob template is
+`sync/k8s/sync/templates/payload-reconciler-cronjob.yaml` in
+webservices-infra, gated on `payloadReconciler.enabled`. Note it lives in
+the `sync` chart rather than `sync-jobs`.
+
+Four settings in that manifest are load bearing, and changing any of them
+breaks an assumption the script relies on:
+
+- `concurrencyPolicy: Forbid`. A run that overruns its window is never
+  joined by a second one. The subscription is the queue, so the next tick
+  simply picks up where the last left off. Two concurrent drains would
+  race on the same messages, which is survivable given idempotency but
+  wastes the ack deadline.
+- `backoffLimit: 0`. No in-window retry. Every operation is idempotent
+  and unacked messages come back on their own, so the next scheduled run
+  *is* the retry. A backoff would just re-drain the same queue sooner.
+- `runBudgetSeconds` strictly less than `activeDeadlineSeconds`. The
+  chart fails the render if this is violated. The budget is what makes
+  the drain loop exit cleanly on its own; if the deadline fired first the
+  pod would be killed mid-message and the run would always look failed.
+- The command override. The image entrypoint is the syncserver binary, so
+  the cronjob invokes
+  `python3 /app/tools/payload-reconciler/reconcile_payload_links.py`
+  explicitly. Invoking by path is also what puts the script's directory
+  on `sys.path`, which is how its `import utils` resolves.
+
+Credentials come from workload identity: the pod runs as the tenant GKE
+service account, which holds the two roles listed above. There is no key
+file and no secret mounted.
 
 ---
 
@@ -279,6 +357,41 @@ unset) and un-skip here.
 `SELECT * FROM READ_payload_link_changes(...)`, the fall-back is the
 Java swap-in overlay above (or running the compose stack against a
 real dev Spanner instance).
+
+---
+
+## Metrics
+
+The reconciler emits statsd counters under the `payload_reconciler`
+namespace. Everything the pipeline can tell you about itself is in this
+list, so it is worth knowing what each one looks like when things are
+working.
+
+| Metric | Meaning | Healthy shape |
+|---|---|---|
+| `finalizes` | Objects flipped to `committed=true` | Tracks offloaded write volume |
+| `orphan_deletes` | Objects deleted because a row stopped pointing at them | Tracks overwrite and delete volume |
+| `gcs_404` `op:finalize` | Finalize target was gone | Low and flat |
+| `gcs_404` `op:delete` | Delete target was already gone | Low and flat, redeliveries are normal |
+| `batch_bsos_skips` | A `batch_bsos` removal was skipped | Non-zero and expected while the blanket skip is in place |
+| `noop_skips` | A record arrived with nothing to do | Near zero; the Dataflow filter should have dropped it |
+| `errors` `kind:handler` | Handler raised, message left unacked | Zero |
+
+Worth alerting on:
+
+- Anything at all in `payload-link-changes-dlq`. A message only lands
+  there after five failed deliveries, so it means a record cannot be
+  handled and needs a human. Inspect it through
+  `payload-link-changes-dlq-sub`.
+- `errors` `kind:handler` sustained above zero.
+- `noop_skips` climbing, which means the Dataflow filter regressed and
+  the pipeline is paying Pub/Sub for records it discards.
+- `gcs_404` `op:finalize` rising as a share of `finalizes`, which is the
+  signal that objects are being reaped before they get finalized.
+- Oldest unacked message age on `payload-link-reconciler-sub`. This is a
+  Pub/Sub metric rather than one of ours, and it is the most direct
+  measure of finalize latency. It should sit in minutes. The 30 day
+  lifecycle window is the deadline it must never approach.
 
 ---
 

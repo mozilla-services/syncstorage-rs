@@ -26,7 +26,7 @@ graph LR
 
   %% Main flow
   SignIn --> FxA
-  FxA --> OAuth 
+  FxA --> OAuth
   OAuth --> PresentToken
   PresentToken --> Tokenserver
   Tokenserver --> AssignNode
@@ -137,8 +137,21 @@ graph TD
   CredentialStorage --> FirefoxAccounts
 ```
 
+### Payload Offload
+
+On the Spanner backend, a collection can be opted into storing its BSO
+payloads in a Google Cloud Storage bucket instead of inline in the database,
+which lifts the per-record size ceiling. The BSO row keeps a `gs://` URL in a
+`payload_link` column, and syncserver resolves it on read so clients see an
+ordinary BSO either way. A Spanner change stream feeds an asynchronous
+reconciler that keeps the bucket and the database in agreement.
+
+Offload is off by default and touches nothing for a collection that is not
+opted in. See [Payload Offload](payload-offload/overview.md) for the flow, and
+[GCP Infrastructure](tools/payload-offload-infrastructure.md) for where the
+pieces run.
+
 ## Tokenserver
 ![image](assets/tokenserver-architecture.png)
 
-The intent of this file is inspired by a very sensible [blog post](https://matklad.github.io/2021/02/06/ARCHITECTURE.md.html) many developers are familiar with regarding the necessity to illustrate systems with clarity. Given Sync's complexity and interrelationships with other architectures, this 
-
+The intent of this file is inspired by a very sensible [blog post](https://matklad.github.io/2021/02/06/ARCHITECTURE.md.html) many developers are familiar with regarding the necessity to illustrate systems with clarity. Given Sync's complexity and interrelationships with other architectures, this
