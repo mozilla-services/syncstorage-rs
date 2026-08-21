@@ -168,7 +168,7 @@ stateDiagram-v2
 
     note right of Committed
         committed=true
-        customTime = 9999-12-31T23:59:59Z
+        customTime = 2200-12-31T23:59:59Z
         the lifecycle policy cannot reach it
     end note
 ```
@@ -197,7 +197,7 @@ is in preserving one of them.
    nothing has promised to keep it.
 
 3. **Finalizing is what makes an object permanent.** The reconciler flips
-   `committed=true` and pins `customTime` to `9999-12-31T23:59:59Z`. That
+   `committed=true` and pins `customTime` to `2200-12-31T23:59:59Z`. That
    pushes `daysSinceCustomTime` permanently negative, so the bucket's
    lifecycle policy can never reach the object again, no matter how old it
    gets.

@@ -9,7 +9,7 @@ BSO row's `payload_link` column points at it. A separate pipeline must:
 
 - **Finalize** newly-committed objects — flip metadata to
   `committed=true` and pin `customTime` to its maximum value
-  (`9999-12-31T23:59:59Z`) so the bucket's lifecycle policy (see
+  (`2200-12-31T23:59:59Z`) so the bucket's lifecycle policy (see
   below) cannot reclaim them.
 - **Garbage-collect orphans** — delete GCS objects whose row's
   `payload_link` was replaced (UPDATE) or removed (DELETE, including
@@ -216,7 +216,7 @@ Sync-pull drain loop with two deployment modes selected by whether
 For each mod in the change record:
 
 - New `payload_link` present: `blob.patch()` sets
-  `metadata.committed = "true"` and `customTime = "9999-12-31T23:59:59Z"`.
+  `metadata.committed = "true"` and `customTime = "2200-12-31T23:59:59Z"`.
 - Old `payload_link` present and not equal to the new value: `blob.delete()`,
   with one interim exception. Any `batch_bsos` row removal is skipped
   (`payload_reconciler.batch_bsos_skips`). On a batch commit syncstorage deletes

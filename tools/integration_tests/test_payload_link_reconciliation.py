@@ -96,7 +96,7 @@ def test_upload_finalizes_object(st_ctx: dict[str, Any], gcs: storage.Client) ->
     assert blob is not None
     # customTime should be pinned to the far-future sentinel.
     assert blob.custom_time is not None
-    assert blob.custom_time.year == 9999
+    assert blob.custom_time.year == 2200
 
 
 def test_update_deletes_old_object(st_ctx: dict[str, Any], gcs: storage.Client) -> None:
