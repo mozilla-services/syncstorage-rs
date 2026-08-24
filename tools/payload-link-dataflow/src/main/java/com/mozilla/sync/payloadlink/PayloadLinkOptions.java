@@ -42,6 +42,18 @@ public interface PayloadLinkOptions extends DataflowPipelineOptions {
     String getSpannerMetadataDatabase();
     void setSpannerMetadataDatabase(String value);
 
+    @Description(
+        "Partition metadata table name in spannerMetadataDatabase. Empty -> "
+        + "Beam auto-generates a random name at pipeline construction. Pin "
+        + "for streaming jobs: --update and cancel-then-restart both need "
+        + "the new job to point at the previous job's metadata table to "
+        + "resume from watermarks; otherwise it reinitializes and reads "
+        + "from startTimestamp (defaulting to pipeline-launch time), "
+        + "silently dropping records committed between the two jobs.")
+    @Default.String("")
+    String getSpannerMetadataTableName();
+    void setSpannerMetadataTableName(String value);
+
     @Description("Spanner change stream to consume.")
     @Default.String("payload_link_changes")
     String getChangeStreamName();
