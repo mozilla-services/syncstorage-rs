@@ -31,9 +31,8 @@ const COMMITTED_METADATA_KEY: &str = "committed";
 
 /// Counter for the best-effort GCS cleanup that runs when the database
 /// transaction of an offloading write fails. Tagged with the `handler` that
-/// issued it, a `result` of `success`, `failure` or `skipped`, and on failure
-/// a `reason`.
-pub const CLEANUP_METRIC: &str = "storage.gcs.payload.cleanup";
+/// issued it, a `result` of `success` or `failure`, and on failure a `reason`.
+const CLEANUP_METRIC: &str = "storage.gcs.payload.cleanup";
 
 /// Return the GCS bucket name if `collection` is opted into payload off-load
 /// and a bucket is configured. `None` disables off-load for this request.
@@ -151,10 +150,8 @@ impl CleanupHandler {
 
 /// The outcome of a cleanup attempt, as the `result` and `reason` tags.
 #[derive(Clone, Copy, Debug)]
-pub enum CleanupResult {
+enum CleanupResult {
     Success,
-    /// No GCS control client was available, so no delete was attempted.
-    Skipped,
     /// The `gs://` URL did not parse, so no delete was issued.
     InvalidUrl,
     /// GCS rejected the delete.
@@ -165,7 +162,6 @@ impl CleanupResult {
     fn as_str(self) -> &'static str {
         match self {
             Self::Success => "success",
-            Self::Skipped => "skipped",
             Self::InvalidUrl | Self::GcsError => "failure",
         }
     }
@@ -173,7 +169,7 @@ impl CleanupResult {
     /// The `reason` tag, set for the failure variants only.
     fn reason(self) -> Option<&'static str> {
         match self {
-            Self::Success | Self::Skipped => None,
+            Self::Success => None,
             Self::InvalidUrl => Some("invalid_url"),
             Self::GcsError => Some("gcs_error"),
         }
@@ -181,7 +177,7 @@ impl CleanupResult {
 }
 
 /// Tags for a [`CLEANUP_METRIC`] emission from `handler` with `result`.
-pub fn cleanup_tags(handler: CleanupHandler, result: CleanupResult) -> HashMap<String, String> {
+fn cleanup_tags(handler: CleanupHandler, result: CleanupResult) -> HashMap<String, String> {
     let mut tags = HashMap::from([
         ("handler".to_owned(), handler.as_str().to_owned()),
         ("result".to_owned(), result.as_str().to_owned()),
@@ -255,7 +251,8 @@ mod tests {
         sync::{Arc, Mutex},
     };
 
-    use cadence::{MetricSink, StatsdClient};
+    use cadence::{SpyMetricSink, StatsdClient};
+    use crossbeam_channel::Receiver;
     use google_cloud_gax::{
         error::{
             Error,
@@ -268,24 +265,11 @@ mod tests {
 
     use super::*;
 
-    /// Sink that keeps every statsd line so tests can assert on emissions.
-    #[derive(Debug)]
-    struct RecordingSink(Arc<Mutex<Vec<String>>>);
-
-    impl MetricSink for RecordingSink {
-        fn emit(&self, metric: &str) -> std::io::Result<usize> {
-            self.0
-                .lock()
-                .expect("metrics lock poisoned")
-                .push(metric.to_owned());
-            Ok(metric.len())
-        }
-    }
-
-    /// A [`Metrics`] backed by a [`RecordingSink`], alongside its recording.
-    fn recording_metrics() -> (Metrics, Arc<Mutex<Vec<String>>>) {
-        let recorded = Arc::new(Mutex::new(Vec::new()));
-        let client = StatsdClient::builder("", RecordingSink(recorded.clone())).build();
+    /// A [`Metrics`] that records every statsd line, alongside the receiver
+    /// those lines arrive on.
+    fn recording_metrics() -> (Metrics, Receiver<Vec<u8>>) {
+        let (recorded, sink) = SpyMetricSink::new();
+        let client = StatsdClient::builder("", sink).build();
         (
             Metrics {
                 client: Some(Arc::new(client)),
@@ -294,6 +278,15 @@ mod tests {
             },
             recorded,
         )
+    }
+
+    /// Every statsd line emitted so far, joined for substring assertions.
+    fn emitted(recorded: &Receiver<Vec<u8>>) -> String {
+        recorded
+            .try_iter()
+            .map(|line| String::from_utf8(line).expect("statsd line was not utf-8"))
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     /// Stub to record delete_object
@@ -369,7 +362,7 @@ mod tests {
         .await
         .expect("delete_payload should succeed");
 
-        let emitted = recorded.lock().unwrap().join("\n");
+        let emitted = emitted(&recorded);
         assert!(
             emitted.contains(CLEANUP_METRIC)
                 && emitted.contains("result:success")
@@ -410,7 +403,7 @@ mod tests {
         .await
         .expect_err("a failed GCS delete should surface as an error");
 
-        let emitted = recorded.lock().unwrap().join("\n");
+        let emitted = emitted(&recorded);
         assert!(
             emitted.contains(CLEANUP_METRIC)
                 && emitted.contains("result:failure")
@@ -436,7 +429,7 @@ mod tests {
             deletes.lock().unwrap().is_empty(),
             "no delete should be issued for an unparseable URL"
         );
-        let emitted = recorded.lock().unwrap().join("\n");
+        let emitted = emitted(&recorded);
         assert!(
             emitted.contains(CLEANUP_METRIC)
                 && emitted.contains("result:failure")
