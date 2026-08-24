@@ -40,6 +40,13 @@
       "paramType": "TEXT"
     },
     {
+      "name": "spannerMetadataTableName",
+      "label": "Spanner metadata table name",
+      "helpText": "Partition metadata table name in spannerMetadataDatabase. Omit to let Beam auto-generate a random name. Pin for streaming jobs so --update and cancel-then-restart can reuse the previous job's watermarks; otherwise the new job reinitializes and drops records committed between the two jobs. The table is created on demand if it does not already exist.",
+      "paramType": "TEXT",
+      "isOptional": true
+    },
+    {
       "name": "changeStreamName",
       "label": "Change stream name",
       "helpText": "Name of the Spanner change stream to consume. Defaults to payload_link_changes.",

@@ -69,9 +69,13 @@ gcloud dataflow flex-template run payload-link-dataflow-<DATE> \
   --parameters spannerDatabase=<DATABASE> \
   --parameters spannerMetadataInstanceId=<METADATA_INSTANCE> \
   --parameters spannerMetadataDatabase=<METADATA_DATABASE> \
+  --parameters spannerMetadataTableName=Metadata_payload_link \
   --parameters changeStreamName=payload_link_changes \
   --parameters pubsubTopic=projects/<PROJECT>/topics/payload-link-changes
 ```
+
+`spannerMetadataTableName` is optional but strongly recommended for
+streaming launches -- see "Job update and restart continuity" below.
 
 The Dataflow job's service account needs:
 - `roles/spanner.databaseReader` on the syncstorage database
@@ -109,6 +113,35 @@ If the metadata tables share the syncstorage database, setting
 but the database-level grant the connector needs supersedes it.
 Provision a dedicated metadata database first.
 
+### Job update and restart continuity
+
+Pass `spannerMetadataTableName` on any streaming (unbounded) launch so
+`--update` and cancel-then-restart can resume from the previous job's
+watermarks. The connector generates the partition metadata table name
+inside `expand()` from a `UUID.randomUUID()` call, and that string
+gets baked into the pipeline graph; if the new job's binary produces
+a different UUID, it reinitializes against a fresh empty table and
+reads from `startTimestamp` (defaulting to `Timestamp.now()`),
+silently dropping records committed between the two jobs.
+
+Pick any Spanner-legal identifier -- e.g. `Metadata_payload_link` -- and
+keep it stable across launches. The connector creates the table on
+first initialization if it does not already exist, then reuses it.
+Beam's own recommendation: *"you have to explicitly set the metadata
+table name parameter of the new job when updating it. Use the value
+of the `metadataTable` pipeline option from the job you are
+updating."*
+
+Notes on stop modes:
+
+- `--update`: preserves Dataflow's checkpointed state but does **not**
+  transfer the metadata table binding -- pin the name or lose state.
+- `--cancel`: leaves the metadata table intact; the next launch with
+  the same name resumes cleanly.
+- `--drain`: the change stream connector does not support drain
+  (per [Google's guidance](https://docs.cloud.google.com/spanner/docs/change-streams/use-dataflow#draining)).
+  Use `--cancel` or `--update` instead.
+
 ## Filter behaviour
 
 `PayloadLinkChangesToPubSub.isPayloadLinkActionable` keeps a
@@ -145,15 +178,11 @@ differences are:
   `metadata.json` + `gcloud dataflow flex-template build` instead --
   simpler, no annotation-processor dependency.
 - **No support for these upstream options:**
-  `useSpannerEmulatorHost`, `spannerHost`, `spannerMetadataTableName`,
+  `useSpannerEmulatorHost`, `spannerHost`,
   `spannerChangeStreamTvfNameList`, `outputMessageMetadata`,
   `outputDataFormat` (JSON/Avro switch), `pubsubAPI`. Our
-  `PayloadLinkOptions` deliberately has a smaller surface (~11
-  options vs. upstream's ~25). `spannerDatabaseRole` was ported over
-  from upstream in STOR-661 -- see "Fine-grained access control" above.
-  Note we default it to `""` and guard on empty, where upstream leaves
-  it null and guards on null; this matches how `startTimestamp` /
-  `endTimestamp` are already handled here.
+  `PayloadLinkOptions` deliberately has a smaller surface (~12
+  options vs. upstream's ~25).
 - **No ValueProvider indirection on options.** Upstream wraps
   several config fields in `ValueProvider` for template
   parameterisation; we take plain strings.

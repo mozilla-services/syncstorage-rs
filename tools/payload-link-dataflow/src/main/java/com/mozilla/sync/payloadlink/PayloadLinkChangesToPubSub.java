@@ -81,16 +81,21 @@ public final class PayloadLinkChangesToPubSub {
             ? Timestamp.MAX_VALUE
             : Timestamp.parseTimestamp(options.getEndTimestamp());
 
+        SpannerIO.ReadChangeStream readChangeStream = SpannerIO.readChangeStream()
+            .withSpannerConfig(spannerConfig)
+            .withMetadataInstance(options.getSpannerMetadataInstanceId())
+            .withMetadataDatabase(options.getSpannerMetadataDatabase())
+            .withChangeStreamName(options.getChangeStreamName())
+            .withInclusiveStartAt(startTimestamp)
+            .withInclusiveEndAt(endTimestamp);
+
+        String metadataTable = options.getSpannerMetadataTableName();
+        if (!metadataTable.isEmpty()) {
+            readChangeStream = readChangeStream.withMetadataTable(metadataTable);
+        }
+
         pipeline
-            .apply(
-                "Read From Spanner Change Stream",
-                SpannerIO.readChangeStream()
-                    .withSpannerConfig(spannerConfig)
-                    .withMetadataInstance(options.getSpannerMetadataInstanceId())
-                    .withMetadataDatabase(options.getSpannerMetadataDatabase())
-                    .withChangeStreamName(options.getChangeStreamName())
-                    .withInclusiveStartAt(startTimestamp)
-                    .withInclusiveEndAt(endTimestamp))
+            .apply("Read From Spanner Change Stream", readChangeStream)
             .apply(
                 "Filter Payload Link Actionable",
                 Filter.by(PayloadLinkChangesToPubSub::isPayloadLinkActionable))
