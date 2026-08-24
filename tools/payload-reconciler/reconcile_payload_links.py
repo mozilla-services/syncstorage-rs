@@ -55,7 +55,7 @@ from utils import parse_gs_url  # noqa: E402
 # daysSinceCustomTime > N can never touch a committed payload
 # regardless of object age.
 MAX_CUSTOM_TIME = datetime.datetime(
-    9999, 12, 31, 23, 59, 59, tzinfo=datetime.timezone.utc
+    2200, 12, 31, 23, 59, 59, tzinfo=datetime.timezone.utc
 )
 
 # Custom metadata key the syncserver writer sets to "false" on upload;

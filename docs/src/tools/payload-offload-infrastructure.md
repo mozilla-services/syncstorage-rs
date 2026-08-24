@@ -42,15 +42,16 @@ and reads a change stream in the legacy project.
 
 ```mermaid
 flowchart TB
+    gha["GitHub Actions
+    syncstorage-rs"]
+
     subgraph v1["GCPv1: moz-fx-sync-nonprod-904c (cloudops-infra)"]
         syncdb["Spanner syncdb
         instance: sync
         database: syncdb-dev
-        change stream: payload_link_changes"]
-    end
-
-    subgraph v1["GCPv1: moz-fx-sync-nonprod-904c (cloudops-infra)"]
-        meta-db["Spanner dataflow metadata db
+        change stream: payload_link_changes
+        access role: payload_link_reader"]
+        metadb["Spanner Dataflow metadata
         instance: sync
         database: syncdb-pldf-meta-dev"]
     end
@@ -63,10 +64,12 @@ flowchart TB
 
     subgraph tenant["GCPv2 tenant: moz-fx-sync-nonprod (webservices-infra)"]
         df["Dataflow flex template job
-        sync-nonprod-dev-payload-link-dataflow"]
+        sync-nonprod-dev-payload-link-dataflow
+        dedicated VPC and firewall"]
         topic["Pub/Sub
-        payload-link-changes
-        + DLQ"]
+        payload-link-changes"]
+        dlq["Pub/Sub
+        payload-link-changes-dlq"]
         payloads[("GCS
         sync-nonprod-dev-syncstorage-payloads")]
         jobbucket[("GCS
@@ -74,13 +77,16 @@ flowchart TB
         template spec, staging, tmp")]
     end
 
-    syncdb -->|change stream read| df
-    df -->|publish| topic
-    df -->|job state tracking| meta-db
+    gha -.->|"publish template spec, via WIF"| jobbucket
     jobbucket -.->|template spec| df
+    syncdb -->|change stream read| df
+    df -->|partition state| metadb
+    df -->|publish| topic
     topic -->|pull subscription| gke
+    topic -.->|"after 5 failed deliveries"| dlq
     gke -->|finalize and delete objects| payloads
-    gke -->|read and write payloads| syncdb
+    gke -->|upload and download payloads| payloads
+    gke -->|read and write BSO rows| syncdb
 
 ```
 
@@ -104,7 +110,7 @@ identity on the tenant GKE service account.
 | Dataflow service account and IAM | `sync/tf/dev/dataflow_iam.tf` | webservices-infra |
 | Pub/Sub topics, subscriptions, DLQ routing | `sync/tf/dev/pubsub.tf` | webservices-infra |
 | Spanner instance, database, DDL, database IAM | `projects/sync` | cloudops-infra |
-| Change stream DDL source of truth | `syncstorage-spanner/src/schema.ddl` | syncstorage-rs |
+| Change stream and access role DDL source of truth | `syncstorage-spanner/src/schema.ddl` | syncstorage-rs |
 | Dataflow flex template image and metadata | `tools/payload-link-dataflow/` | syncstorage-rs |
 | Image build and template spec publish | `.github/workflows/mozcloud-publish.yaml` | syncstorage-rs |
 | Helm charts for sync, tokenserver, sync-jobs, sync-test | `sync/k8s/` | webservices-infra |
@@ -139,19 +145,76 @@ Names are derived from `${application}-${realm}-${environment}` in
 | Spanner project | `moz-fx-sync-nonprod-904c` |
 | Spanner instance and database | `sync` / `syncdb-dev` |
 | Change stream | `payload_link_changes` |
+| Spanner database role | `payload_link_reader` |
 | Payload bucket | `sync-nonprod-dev-syncstorage-payloads`, us-west1 |
 | Dataflow job bucket | `sync-nonprod-dev-payload-link-dataflow`, us-west1 |
 | Dataflow job | `sync-nonprod-dev-payload-link-dataflow`, us-west1 |
 | Dataflow service account | `sync-nonprod-dev-payload-link@moz-fx-sync-nonprod.iam.gserviceaccount.com` |
+| Template publisher service account | `sync-nonprod-dev-tmpl-pub@moz-fx-sync-nonprod.iam.gserviceaccount.com` |
+| Dataflow VPC | `sync-nonprod-dev-dataflow`, internal ingress on tcp 12345-12346 |
 | Pub/Sub topic | `payload-link-changes` |
 | Pub/Sub DLQ | `payload-link-changes-dlq`, 5 delivery attempts |
 | Reconciler subscription | `payload-link-reconciler-sub`, 60s ack, 7d retention |
+| DLQ inspection subscription | `payload-link-changes-dlq-sub`, 7d retention |
 | Flex template image | `us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-payload-link-dataflow` |
 | Template spec | `gs://sync-nonprod-dev-payload-link-dataflow/templates/syncserver-payload-link-dataflow.json` |
 
-Only dev is built out today. Stage and prod will need the same set, plus
-a dedicated Spanner metadata database rather than sharing the syncdb
-database as dev does.
+Only dev is built out today.
+
+## Standing up stage or prod
+
+Everything below is per environment. Names derive from
+`${application}-${realm}-${environment}`, so copying the dev Terraform
+into the target environment directory produces the right names without
+editing them.
+
+1. **Terraform.** Copy `bucket.tf`, `pubsub.tf`, `dataflow.tf` and
+   `dataflow_iam.tf` from `sync/tf/dev/` into the target environment
+   directory in webservices-infra.
+
+2. **A dedicated Spanner metadata database.** The change stream
+   connector keeps its partition state in a Spanner database of its own.
+   Each environment should get a separate database, for example
+   `syncdb-pldf-meta-stage`, so the connector holds no write access
+   to the syncstorage database. This is a cloudops-infra change.
+
+3. **DDL.** Apply the change stream and the `payload_link_reader` role to
+   the target database. See [Out-of-band steps](#out-of-band-steps).
+
+4. **Cross-project IAM.** A `-904c` admin grants the new environment's
+   Dataflow service account `roles/spanner.databaseUser` on the
+   syncstorage database and on the metadata database.
+
+5. **Template spec.** Add a `write-payload-link-dataflow-spec-<env>` job
+   to `.github/workflows/mozcloud-publish.yaml`, and make sure the
+   environment's `-tmpl-pub` service account exists first. The spec has
+   to be in the bucket before the Terraform job resource is applied.
+
+6. **Job deletion behaviour.** Keep `on_delete = "cancel"`. This is not a
+   dev-only shortcut: the SpannerIO change stream connector does not
+   support draining at all, so `"drain"` is never the right setting for
+   this pipeline. See
+   [Draining a change streams pipeline](https://docs.cloud.google.com/spanner/docs/change-streams/use-dataflow#draining).
+   The change stream's 7 day retention is what covers the gap while a
+   replacement job comes up.
+
+7. **Reconciler cronjob.** Enable `payloadReconciler` in the
+   environment's values file in `sync/k8s/sync/`. The chart requires
+   `runBudgetSeconds` to be less than `activeDeadlineSeconds`.
+
+8. **Measure before enabling on prod.** The change stream costs Spanner
+   storage that has not been quantified. Turning the stream on ahead of
+   any offload traffic is the cheap way to find out.
+
+Enabled APIs need no change. `project_services` in
+`projects/tf/webservices/locals.tf` feeds both the prod and nonprod
+project modules, so `moz-fx-sync-prod` already has them.
+
+Note that provisioning the pipeline is safe on its own. Offload does
+nothing until `SYNC_SYNCSTORAGE__GCS_PAYLOAD_BUCKET` and
+`SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS` are both set on
+syncserver, so an environment can carry the whole pipeline with zero
+traffic through it while it is verified.
 
 ## Enabled GCP APIs
 
@@ -210,6 +273,11 @@ job runs as a dedicated per environment service account holding only
 `roles/spanner.databaseUser` on one database, rather than the Compute
 Engine default account which carries `roles/editor`.
 
+Spanner access is narrowed a second time inside the database. The job
+runs under the `payload_link_reader` database role, which is granted
+`SELECT` on the one change stream and `EXECUTE` on its read function and
+nothing else, so the IAM grant alone does not let the job read BSO rows.
+
 ## Out-of-band steps
 
 Three things are not managed by Terraform and have to be done by hand in
@@ -220,6 +288,20 @@ environment fails to come up.
    `syncstorage-spanner/src/schema.ddl` is not auto-applied. Run
    `gcloud spanner databases ddl update` against the target database
    after merging.
+
+   That same DDL block also creates the fine-grained access role the
+   Dataflow job reads through:
+
+   ```sql
+   CREATE ROLE payload_link_reader;
+   GRANT SELECT ON CHANGE STREAM payload_link_changes TO ROLE payload_link_reader;
+   GRANT EXECUTE ON TABLE FUNCTION READ_payload_link_changes TO ROLE payload_link_reader;
+   ```
+
+   The job is launched with `spannerDatabaseRole = "payload_link_reader"`
+   (see `sync/tf/dev/dataflow.tf`), so if the role does not exist the job
+   fails at startup rather than falling back to broader access. Apply the
+   role and its grants in the same DDL update as the change stream.
 
 2. Grant the Dataflow service account `roles/spanner.databaseUser` on
    the Spanner database. This targets `-904c`, where the webservices
@@ -236,8 +318,18 @@ environment fails to come up.
 3. Publish the flex template spec into the job bucket before the
    Terraform job resource is applied, or the job has nothing to launch.
    The `write-payload-link-dataflow-spec-dev` job in
-   `.github/workflows/mozcloud-publish.yaml` does this on publish. To do
-   it manually:
+   `.github/workflows/mozcloud-publish.yaml` does this on publish.
+
+   CI does not use the pipeline service account for this. A separate
+   `-tmpl-pub` account exists purely to upload the spec, and the
+   syncstorage-rs GitHub Actions workflow impersonates it through
+   workload identity federation. Its bucket grant carries an IAM
+   condition restricting writes to the `templates/` prefix, so CI cannot
+   touch the runtime `staging/` or `tmp/` paths, and it holds nothing on
+   Spanner or Pub/Sub. Both accounts are defined in
+   `sync/tf/dev/dataflow_iam.tf`.
+
+   To publish manually:
 
    ```console
    gcloud dataflow flex-template build \

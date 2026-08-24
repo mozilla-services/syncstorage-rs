@@ -43,6 +43,10 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        # Keep markdown's two-space line break. Without this the hook strips
+        # them and collapses the line into the one above, e.g. every term in
+        # docs/src/glossary.md would run into its own definition.
+        args: [--markdown-linebreak-ext=md]
         exclude: ^Cargo\.lock$
       - id: end-of-file-fixer
         exclude: ^Cargo\.lock$
