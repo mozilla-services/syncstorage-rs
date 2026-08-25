@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::TryInto, fmt, sync::Arc};
 
 use google_cloud_rust_raw::spanner::v1::{
-    spanner::ExecuteSqlRequest,
+    spanner::{ExecuteSqlRequest, RequestOptions},
     transaction::TransactionSelector,
     type_pb::{StructType, Type, TypeCode},
 };
@@ -81,6 +81,13 @@ struct SpannerDbSession {
     execute_sql_count: u64,
     /// Whether update_collection has already been called
     updated_collection: bool,
+    /// Optional Spanner transaction tag. When set, it is applied to the
+    /// taggable requests in the transaction (begin, execute, commit; Rollback
+    /// has no request options and produces no committed change records) so
+    /// Spanner records it on the change stream. Used to mark the batch commit so
+    /// the payload-link reconciler can tell a commit handoff from a genuine
+    /// delete. See STOR-668.
+    transaction_tag: Option<String>,
 }
 
 impl SpannerDb {
@@ -183,9 +190,23 @@ impl SpannerDb {
         Ok(self.session.transaction.clone())
     }
 
+    /// Build `RequestOptions` carrying this session's transaction tag, if one is
+    /// set. Applied to every request in the transaction so Spanner records the
+    /// tag on the change stream (see [`SpannerDbSession::transaction_tag`]).
+    pub(super) fn request_options(&self) -> Option<RequestOptions> {
+        self.session.transaction_tag.as_ref().map(|tag| {
+            let mut options = RequestOptions::new();
+            options.set_transaction_tag(tag.clone());
+            options
+        })
+    }
+
     async fn sql_request(&mut self, sql: &str) -> DbResult<ExecuteSqlRequest> {
         let mut sqlr = ExecuteSqlRequest::new();
         sqlr.set_sql(sql.to_owned());
+        if let Some(options) = self.request_options() {
+            sqlr.set_request_options(options);
+        }
         if let Some(transaction) = self.get_transaction().await? {
             sqlr.set_transaction(transaction);
             let session = &mut self.session;
