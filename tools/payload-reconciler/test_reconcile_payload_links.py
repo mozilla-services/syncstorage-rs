@@ -26,12 +26,15 @@ def _gcs_mock() -> MagicMock:
     return MagicMock()
 
 
-def _msg(mods: list[dict[str, str]], table: str = "bsos") -> bytes:
+def _msg(
+    mods: list[dict[str, str]], table: str = "bsos", transaction_tag: str = ""
+) -> bytes:
     return json.dumps(
         {
             "commitTimestamp": "2026-06-29T00:00:00Z",
             "modType": "UPDATE",
             "tableName": table,
+            "transactionTag": transaction_tag,
             "mods": mods,
         }
     ).encode()
@@ -113,13 +116,35 @@ def test_both_null_records_noop_skip(statsd_incr: MagicMock) -> None:
     statsd_incr.assert_any_call("noop_skips")
 
 
-def test_batch_bsos_removal_delete_is_skipped(statsd_incr: MagicMock) -> None:
-    """Interim: any batch_bsos row removal is skipped, never deletes the object.
+def test_batch_commit_handoff_is_skipped(statsd_incr: MagicMock) -> None:
+    """A batch_bsos removal tagged as the batch commit is skipped, never deleted.
 
-    On a batch commit the staging row is deleted in the same transaction that
-    moves its link into bsos, so deleting here would drop a live object
-    (STOR-657). We cannot yet tell that handoff from a genuine removal, so all
-    batch_bsos removals are skipped for now; the proper fix is STOR-668.
+    On commit the link moves into bsos in the same transaction, so its object is
+    still live (STOR-657); the batch commit transaction tag identifies it.
+    """
+    gcs = _gcs_mock()
+
+    reconciler.handle_message_body(
+        gcs,
+        BUCKET,
+        _msg(
+            [_mod(LINK_A, None)],
+            table="batch_bsos",
+            transaction_tag=reconciler.BATCH_COMMIT_TRANSACTION_TAG,
+        ),
+    )
+
+    blob = gcs.bucket.return_value.blob.return_value
+    blob.delete.assert_not_called()
+    blob.patch.assert_not_called()
+    statsd_incr.assert_any_call("batch_commit_skips")
+
+
+def test_batch_bsos_untagged_removal_deletes(statsd_incr: MagicMock) -> None:
+    """An untagged batch_bsos removal is a genuine delete (TTL or storage delete).
+
+    TTL expiry and user_collections deletes reach batch_bsos as cascade deletes
+    with no batch commit tag, so the object must be removed. See STOR-668.
     """
     gcs = _gcs_mock()
 
@@ -128,9 +153,8 @@ def test_batch_bsos_removal_delete_is_skipped(statsd_incr: MagicMock) -> None:
     )
 
     blob = gcs.bucket.return_value.blob.return_value
-    blob.delete.assert_not_called()
-    blob.patch.assert_not_called()
-    statsd_incr.assert_any_call("batch_bsos_skips")
+    blob.delete.assert_called_once()
+    statsd_incr.assert_any_call("orphan_deletes")
 
 
 def test_batch_bsos_overwrite_still_deletes(statsd_incr: MagicMock) -> None:

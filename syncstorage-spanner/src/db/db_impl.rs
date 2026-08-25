@@ -22,6 +22,13 @@ pub(super) const PRETOUCH_TS: &str = "0001-01-01T00:00:00.00Z";
 
 #[async_trait(?Send)]
 impl Db for SpannerDb {
+    fn set_transaction_tag(&mut self, tag: String) {
+        // Stored on the session and applied to begin, every execute, and commit
+        // (see SpannerDb::request_options) so Spanner records it on the change
+        // stream. Must be called before the transaction is opened. See STOR-668.
+        self.session.transaction_tag = Some(tag);
+    }
+
     async fn lock_for_read(&mut self, params: params::LockCollection) -> DbResult<()> {
         // Begin a transaction
         self.begin(false).await?;
@@ -123,6 +130,9 @@ impl Db for SpannerDb {
     }
 
     async fn begin(&mut self, for_write: bool) -> DbResult<()> {
+        // Spanner records the transaction tag from beginTransaction, so it must
+        // be set here for the whole transaction to be tagged. See STOR-668.
+        let request_options = self.request_options();
         let spanner = &self.conn;
         let mut options = TransactionOptions::new();
         if for_write {
@@ -134,6 +144,9 @@ impl Db for SpannerDb {
         let mut req = BeginTransactionRequest::new();
         req.set_session(spanner.session.get_name().to_owned());
         req.set_options(options);
+        if let Some(request_options) = request_options {
+            req.set_request_options(request_options);
+        }
         let mut transaction = spanner
             .client
             .begin_transaction_async_opt(&req, spanner.session_opt()?)?
@@ -153,12 +166,16 @@ impl Db for SpannerDb {
             return Ok(());
         }
 
+        let request_options = self.request_options();
         if let Some(transaction) = self.get_transaction().await? {
             let spanner = &self.conn;
 
             let mut req = CommitRequest::new();
             req.set_session(spanner.session.get_name().to_owned());
             req.set_transaction_id(transaction.get_id().to_vec());
+            if let Some(request_options) = request_options {
+                req.set_request_options(request_options);
+            }
             spanner
                 .client
                 .commit_async_opt(&req, spanner.session_opt()?)?

@@ -71,6 +71,12 @@ impl<E> Clone for Box<dyn DbPool<Error = E>> {
 
 #[async_trait(?Send)]
 pub trait Db: BatchDb {
+    /// Tag the transaction opened for this request, if the backend supports it.
+    /// Must be called before the transaction is opened. Only the Spanner backend
+    /// acts on this (it sets the tag on every request so Spanner records it on
+    /// the change stream); other backends ignore it. See STOR-668.
+    fn set_transaction_tag(&mut self, _tag: String) {}
+
     async fn lock_for_read(&mut self, params: params::LockCollection) -> Result<(), Self::Error>;
 
     async fn lock_for_write(&mut self, params: params::LockCollection) -> Result<(), Self::Error>;

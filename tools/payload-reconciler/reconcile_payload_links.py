@@ -63,6 +63,15 @@ MAX_CUSTOM_TIME = datetime.datetime(
 # Must match payload_offload.rs::COMMITTED_METADATA_KEY.
 COMMITTED_METADATA_KEY = "committed"
 
+# Transaction tag syncstorage sets on the batch commit. A batch_bsos row removed
+# under this tag is the commit handoff: its payload link just moved into the
+# permanent bsos row in the same transaction, so its GCS object must be kept.
+# Any other batch_bsos removal (TTL expiry or a user_collections delete, both
+# cascade deletes that carry no such tag) is a genuine delete whose object
+# should go. Must match BATCH_COMMIT_TRANSACTION_TAG in
+# syncserver/src/web/transaction.rs. See STOR-668.
+BATCH_COMMIT_TRANSACTION_TAG = "batch_commit"
+
 logging.basicConfig(
     format='{"datetime": "%(asctime)s", "level": "%(levelname)s", "message": "%(message)s"}',
     stream=sys.stdout,
@@ -138,6 +147,7 @@ def handle_message_body(
     """
     record: dict[str, Any] = json.loads(body)
     table_name = record.get("tableName")
+    transaction_tag = record.get("transactionTag")
 
     ops_performed = 0
     for mod in record.get("mods", []):
@@ -153,18 +163,19 @@ def handle_message_body(
             ops_performed += 1
 
         if old_link and old_link != new_link:
-            # Interim: skip the delete for any batch_bsos row removal. On a batch
-            # commit syncstorage deletes the batch_bsos row in the same
-            # transaction that copies its link into the permanent bsos row, so
-            # deleting the object here would drop one bsos still points at (the
-            # STOR-657 bug). We cannot yet tell that commit handoff from a
-            # genuine removal: batch_bsos has no deletion policy of its own, so
-            # TTL expiry and user_collections deletes both arrive as cascade
-            # deletes with no distinguishing tag. Skipping them all leaks the
-            # object for those genuine deletes; the proper fix tags the batch
-            # commit transaction so only it is skipped. See STOR-668.
-            if table_name == "batch_bsos" and new_link is None:
-                metrics.incr("batch_bsos_skips")
+            # Skip the delete only for a batch commit handoff: a batch_bsos row
+            # removed under the batch commit transaction tag. On commit the link
+            # moves into the permanent bsos row in the same transaction, so its
+            # object must be kept (deleting it was the STOR-657 bug). Any other
+            # batch_bsos removal (TTL expiry or a user_collections delete, both
+            # cascade deletes that carry no such tag) is a genuine delete and its
+            # object should go. See STOR-668.
+            if (
+                table_name == "batch_bsos"
+                and new_link is None
+                and transaction_tag == BATCH_COMMIT_TRANSACTION_TAG
+            ):
+                metrics.incr("batch_commit_skips")
                 # Recognized and intentionally skipped, not filter noise.
                 ops_performed += 1
                 continue

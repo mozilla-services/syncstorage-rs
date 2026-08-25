@@ -32,7 +32,7 @@ use crate::{
             CleanupHandler, delete_payload, download_payload, offload_bucket, reattach_by_index,
             upload_payload,
         },
-        transaction::DbTransactionPool,
+        transaction::{BATCH_COMMIT_TRANSACTION_TAG, DbTransactionPool},
     },
 };
 
@@ -483,6 +483,16 @@ pub async fn post_collection(
             bso.payload_link = Some(url)
         });
     }
+
+    // Tag the transaction as a batch commit so Spanner records it on the change
+    // stream and the payload-link reconciler can tell a commit handoff from a
+    // genuine batch_bsos removal. No-op on non-Spanner backends, and harmless on
+    // the non-batch fallthrough. See STOR-668.
+    let db_pool = if coll.batch.as_ref().is_some_and(|batch| batch.commit) {
+        db_pool.with_transaction_tag(BATCH_COMMIT_TRANSACTION_TAG)
+    } else {
+        db_pool
+    };
 
     let resp = db_pool
         .transaction_http(&request, async |db| {
