@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use actix_web::{
     Error, FromRequest, HttpMessage, HttpRequest,
+    body::{BodyStream, to_bytes_limited},
     dev::Payload,
     http::header::{ContentType, Header},
     web::Data,
@@ -12,7 +13,7 @@ use serde_json::Value;
 
 use super::{
     ACCEPTED_CONTENT_TYPES, BatchBsoBody, CollectionParam, RequestErrorLocation,
-    utils::check_content_length,
+    utils::{check_content_length, size_limit_exceeded},
 };
 use crate::{error::ApiError, server::ServerState, web::error::ValidationErrorKind};
 
@@ -37,7 +38,7 @@ impl FromRequest for BsoBodies {
     /// No collection id is used, so payload checks are not done here.
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let mut payload = payload.take();
+        let payload = payload.take();
 
         Box::pin(async move {
             // Only try and parse the body if its a valid content-type
@@ -74,18 +75,25 @@ impl FromRequest for BsoBodies {
             let coll_limits = state.limits.limits_for(collection.as_deref());
 
             check_content_length(&req, coll_limits.max_request_bytes as usize)?;
-            // Load the entire request into a String
-            let body = <String>::from_request(&req, &mut payload)
-                .await
-                .map_err(|e| {
+            // Load the entire request, holding it to the same limit as it's
+            // read: a chunked request has no Content-Length to check
+            let body = match to_bytes_limited(
+                BodyStream::new(payload),
+                coll_limits.max_request_bytes as usize,
+            )
+            .await
+            {
+                Ok(Ok(body)) => body,
+                Ok(Err(e)) => {
                     warn!("⚠️ Payload read error: {:?}", e);
-                    ValidationErrorKind::FromDetails(
-                        "Mimetype/encoding/content-length error".to_owned(),
-                        RequestErrorLocation::Header,
-                        None,
-                        None,
-                    )
-                })?;
+                    return Err(unreadable_body());
+                }
+                Err(_) => return Err(size_limit_exceeded().into()),
+            };
+            let Ok(body) = std::str::from_utf8(&body) else {
+                warn!("⚠️ Payload read error: body is not utf-8");
+                return Err(unreadable_body());
+            };
 
             // Get all the raw / values
             let bsos: Vec<Value> = if content_type == "application/newlines" {
@@ -100,7 +108,7 @@ impl FromRequest for BsoBodies {
                     }
                 }
                 bsos
-            } else if let Ok(json_vals) = serde_json::from_str::<Vec<Value>>(&body) {
+            } else if let Ok(json_vals) = serde_json::from_str::<Vec<Value>>(body) {
                 json_vals
             } else {
                 // Per Python version, BSO's must json deserialize
@@ -173,6 +181,17 @@ impl FromRequest for BsoBodies {
             Ok(BsoBodies { valid, invalid })
         })
     }
+}
+
+/// Return an error for a request body we couldn't read
+fn unreadable_body() -> Error {
+    ValidationErrorKind::FromDetails(
+        "Mimetype/encoding/content-length error".to_owned(),
+        RequestErrorLocation::Header,
+        None,
+        None,
+    )
+    .into()
 }
 
 /// Return an Invalid JSON error
