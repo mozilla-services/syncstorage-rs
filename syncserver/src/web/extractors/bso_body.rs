@@ -1,5 +1,6 @@
 use actix_web::{
     Error, FromRequest, HttpMessage, HttpRequest,
+    body::{BodyStream, to_bytes_limited},
     dev::Payload,
     http::header::{ContentType, Header},
     web::Data,
@@ -9,7 +10,8 @@ use serde::{Deserialize, Serialize, de::IgnoredAny};
 use validator::Validate;
 
 use super::{
-    ACCEPTED_CONTENT_TYPES, CollectionParam, RequestErrorLocation, utils::check_content_length,
+    ACCEPTED_CONTENT_TYPES, CollectionParam, RequestErrorLocation,
+    utils::{check_content_length, size_limit_exceeded},
     validate_body_bso_id, validate_body_bso_sortindex, validate_body_bso_ttl,
 };
 use crate::{server::ServerState, web::error::ValidationErrorKind};
@@ -41,7 +43,7 @@ impl FromRequest for BsoBody {
         // with an empty payload so we strictly read the request body payload once
         // and dispense with it
         let req = req.clone();
-        let mut payload = payload.take();
+        let payload = payload.take();
 
         Box::pin(async move {
             // Only try and parse the body if its a valid content-type
@@ -68,6 +70,12 @@ impl FromRequest for BsoBody {
                 )
                 .into());
             }
+            // A single BSO is never a series of newline delimited records.
+            // `Json` used to turn this away for us before we parsed the body
+            // ourselves, so keep returning what it did.
+            if content_type == "application/newlines" {
+                return Err(bad_bso_body("Content type error."));
+            }
             let state = match req.app_data::<Data<ServerState>>() {
                 Some(s) => s,
                 None => {
@@ -91,18 +99,25 @@ impl FromRequest for BsoBody {
             let coll_limits = state.limits.limits_for(collection.as_deref());
 
             check_content_length(&req, coll_limits.max_request_bytes as usize)?;
-            let bso = <actix_web::web::Json<BsoBody>>::from_request(&req, &mut payload)
-                .await
-                .map_err(|e| {
-                    warn!("⚠️ Could not parse BSO Body: {:?}", e);
-
-                    ValidationErrorKind::FromDetails(
-                        e.to_string(),
-                        RequestErrorLocation::Body,
-                        Some("bso".to_owned()),
-                        Some("request.validate.bad_bso_body"),
-                    )
-                })?;
+            // Load the body, holding it to the same limit as it's read: a
+            // chunked request has no Content-Length to check
+            let body = match to_bytes_limited(
+                BodyStream::new(payload),
+                coll_limits.max_request_bytes as usize,
+            )
+            .await
+            {
+                Ok(Ok(body)) => body,
+                Ok(Err(e)) => {
+                    warn!("⚠️ Could not read BSO Body: {:?}", e);
+                    return Err(bad_bso_body(&e.to_string()));
+                }
+                Err(_) => return Err(size_limit_exceeded().into()),
+            };
+            let bso: BsoBody = serde_json::from_slice(&body).map_err(|e| {
+                warn!("⚠️ Could not parse BSO Body: {:?}", e);
+                bad_bso_body(&e.to_string())
+            })?;
 
             // Check the max payload size manually with our desired limit
             if bso
@@ -128,7 +143,18 @@ impl FromRequest for BsoBody {
                 )
                 .into());
             }
-            Ok(bso.into_inner())
+            Ok(bso)
         })
     }
+}
+
+/// Return an error for a BSO body we couldn't read or parse
+fn bad_bso_body(description: &str) -> Error {
+    ValidationErrorKind::FromDetails(
+        description.to_owned(),
+        RequestErrorLocation::Body,
+        Some("bso".to_owned()),
+        Some("request.validate.bad_bso_body"),
+    )
+    .into()
 }
