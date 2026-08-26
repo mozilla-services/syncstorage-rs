@@ -64,6 +64,8 @@ validator_derive = "0.20"
 woothee = "0.13"
 
 [dev-dependencies]
+# Receiver half of cadence's SpyMetricSink, used to assert on emitted metrics.
+crossbeam-channel = "0.5"
 google-cloud-gax = "1.11"
 httptest = "0.16"
 temp-env.workspace = true

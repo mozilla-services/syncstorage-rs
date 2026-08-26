@@ -14,10 +14,11 @@
 //! `customTime` set to upload time; a later step flips `committed` to `true`
 //! once the database row is durably visible.
 
-use std::time::SystemTime;
+use std::{collections::HashMap, time::SystemTime};
 
 use google_cloud_auth::credentials::anonymous;
 use google_cloud_storage::client::{Storage, StorageControl};
+use syncserver_common::Metrics;
 use syncstorage_db::UserIdentifier;
 use uuid::Uuid;
 
@@ -27,6 +28,11 @@ use crate::{
 };
 
 const COMMITTED_METADATA_KEY: &str = "committed";
+
+/// Counter for the best-effort GCS cleanup that runs when the database
+/// transaction of an offloading write fails. Tagged with the `handler` that
+/// issued it, a `result` of `success` or `failure`, and on failure a `reason`.
+const CLEANUP_METRIC: &str = "storage.gcs.payload.cleanup";
 
 /// Return the GCS bucket name if `collection` is opted into payload off-load
 /// and a bucket is configured. `None` disables off-load for this request.
@@ -126,15 +132,94 @@ pub async fn build_control_client(endpoint: Option<&str>) -> Result<StorageContr
         .map_err(|e| ApiErrorKind::Internal(format!("GCS builder error: {e}")).into())
 }
 
-pub async fn delete_payload(client: &StorageControl, gs_url: &str) -> Result<(), ApiError> {
-    let (bucket, object) = parse_gs_url(gs_url)?;
+/// The write handler a [`CLEANUP_METRIC`] emission came from.
+#[derive(Clone, Copy, Debug)]
+pub enum CleanupHandler {
+    PutBso,
+    PostCollection,
+}
+
+impl CleanupHandler {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::PutBso => "put_bso",
+            Self::PostCollection => "post_collection",
+        }
+    }
+}
+
+/// The outcome of a cleanup attempt, as the `result` and `reason` tags.
+#[derive(Clone, Copy, Debug)]
+enum CleanupResult {
+    Success,
+    /// The `gs://` URL did not parse, so no delete was issued.
+    InvalidUrl,
+    /// GCS rejected the delete.
+    GcsError,
+}
+
+impl CleanupResult {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Success => "success",
+            Self::InvalidUrl | Self::GcsError => "failure",
+        }
+    }
+
+    /// The `reason` tag, set for the failure variants only.
+    fn reason(self) -> Option<&'static str> {
+        match self {
+            Self::Success => None,
+            Self::InvalidUrl => Some("invalid_url"),
+            Self::GcsError => Some("gcs_error"),
+        }
+    }
+}
+
+/// Tags for a [`CLEANUP_METRIC`] emission from `handler` with `result`.
+fn cleanup_tags(handler: CleanupHandler, result: CleanupResult) -> HashMap<String, String> {
+    let mut tags = HashMap::from([
+        ("handler".to_owned(), handler.as_str().to_owned()),
+        ("result".to_owned(), result.as_str().to_owned()),
+    ]);
+    if let Some(reason) = result.reason() {
+        tags.insert("reason".to_owned(), reason.to_owned());
+    }
+    tags
+}
+
+pub async fn delete_payload(
+    client: &StorageControl,
+    gs_url: &str,
+    metrics: &Metrics,
+    handler: CleanupHandler,
+) -> Result<(), ApiError> {
+    let (bucket, object) = parse_gs_url(gs_url).inspect_err(|_| {
+        metrics.incr_with_tags(
+            CLEANUP_METRIC,
+            cleanup_tags(handler, CleanupResult::InvalidUrl),
+        )
+    })?;
+
     client
         .delete_object()
         .set_bucket(bucket_path(bucket))
         .set_object(object)
         .send()
         .await
-        .inspect_err(|e| warn!("gcs payload cleanup failed for {gs_url}: {e}"))
+        .inspect(|_| {
+            metrics.incr_with_tags(
+                CLEANUP_METRIC,
+                cleanup_tags(handler, CleanupResult::Success),
+            )
+        })
+        .inspect_err(|e| {
+            warn!("gcs payload cleanup failed for {gs_url}: {e}");
+            metrics.incr_with_tags(
+                CLEANUP_METRIC,
+                cleanup_tags(handler, CleanupResult::GcsError),
+            );
+        })
         .map_err(|e| ApiErrorKind::Internal(format!("cannot delete GCS object: {e}")).into())
 }
 
@@ -166,6 +251,8 @@ mod tests {
         sync::{Arc, Mutex},
     };
 
+    use cadence::{SpyMetricSink, StatsdClient};
+    use crossbeam_channel::Receiver;
     use google_cloud_gax::{
         error::{
             Error,
@@ -177,6 +264,30 @@ mod tests {
     use google_cloud_storage::{Result as GcsResult, client::StorageControl, model};
 
     use super::*;
+
+    /// A [`Metrics`] that records every statsd line, alongside the receiver
+    /// those lines arrive on.
+    fn recording_metrics() -> (Metrics, Receiver<Vec<u8>>) {
+        let (recorded, sink) = SpyMetricSink::new();
+        let client = StatsdClient::builder("", sink).build();
+        (
+            Metrics {
+                client: Some(Arc::new(client)),
+                tags: HashMap::default(),
+                timer: None,
+            },
+            recorded,
+        )
+    }
+
+    /// Every statsd line emitted so far, joined for substring assertions.
+    fn emitted(recorded: &Receiver<Vec<u8>>) -> String {
+        recorded
+            .try_iter()
+            .map(|line| String::from_utf8(line).expect("statsd line was not utf-8"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
 
     /// Stub to record delete_object
     #[derive(Debug, Default)]
@@ -218,9 +329,14 @@ mod tests {
             deletes: deletes.clone(),
         });
 
-        delete_payload(&client, "gs://test-bucket/uid/bookmarks/bid/uuid")
-            .await
-            .expect("delete_payload should succeed");
+        delete_payload(
+            &client,
+            "gs://test-bucket/uid/bookmarks/bid/uuid",
+            &Metrics::noop(),
+            CleanupHandler::PutBso,
+        )
+        .await
+        .expect("delete_payload should succeed");
 
         let recorded = deletes.lock().unwrap();
         assert_eq!(
@@ -233,14 +349,92 @@ mod tests {
     }
 
     #[actix_rt::test]
+    async fn delete_payload_counts_a_success() {
+        let client = StorageControl::from_stub(RecordingStub::default());
+        let (metrics, recorded) = recording_metrics();
+
+        delete_payload(
+            &client,
+            "gs://test-bucket/uid/bookmarks/bid/uuid",
+            &metrics,
+            CleanupHandler::PutBso,
+        )
+        .await
+        .expect("delete_payload should succeed");
+
+        let emitted = emitted(&recorded);
+        assert!(
+            emitted.contains(CLEANUP_METRIC)
+                && emitted.contains("result:success")
+                && emitted.contains("handler:put_bso"),
+            "unexpected cleanup metric: {emitted}"
+        );
+    }
+
+    #[actix_rt::test]
     async fn delete_payload_surfaces_delete_error() {
         let client = StorageControl::from_stub(FailingStub);
 
-        let result = delete_payload(&client, "gs://test-bucket/uid/bookmarks/bid/uuid").await;
+        let result = delete_payload(
+            &client,
+            "gs://test-bucket/uid/bookmarks/bid/uuid",
+            &Metrics::noop(),
+            CleanupHandler::PutBso,
+        )
+        .await;
 
         assert!(
             result.is_err(),
             "a failed GCS delete should surface as an error"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn delete_payload_counts_a_gcs_failure() {
+        let client = StorageControl::from_stub(FailingStub);
+        let (metrics, recorded) = recording_metrics();
+
+        delete_payload(
+            &client,
+            "gs://test-bucket/uid/bookmarks/bid/uuid",
+            &metrics,
+            CleanupHandler::PostCollection,
+        )
+        .await
+        .expect_err("a failed GCS delete should surface as an error");
+
+        let emitted = emitted(&recorded);
+        assert!(
+            emitted.contains(CLEANUP_METRIC)
+                && emitted.contains("result:failure")
+                && emitted.contains("reason:gcs_error")
+                && emitted.contains("handler:post_collection"),
+            "unexpected cleanup metric: {emitted}"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn delete_payload_counts_an_unparseable_url() {
+        let deletes = Arc::new(Mutex::new(Vec::new()));
+        let client = StorageControl::from_stub(RecordingStub {
+            deletes: deletes.clone(),
+        });
+        let (metrics, recorded) = recording_metrics();
+
+        delete_payload(&client, "not-a-gs-url", &metrics, CleanupHandler::PutBso)
+            .await
+            .expect_err("an unparseable URL should surface as an error");
+
+        assert!(
+            deletes.lock().unwrap().is_empty(),
+            "no delete should be issued for an unparseable URL"
+        );
+        let emitted = emitted(&recorded);
+        assert!(
+            emitted.contains(CLEANUP_METRIC)
+                && emitted.contains("result:failure")
+                && emitted.contains("reason:invalid_url"),
+            "unexpected cleanup metric: {emitted}"
         );
     }
 
