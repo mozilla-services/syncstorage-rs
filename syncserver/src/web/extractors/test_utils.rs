@@ -20,7 +20,9 @@ use tokio::sync::RwLock;
 use syncserver_common;
 use syncserver_settings::{Secrets, Settings as GlobalSettings};
 use syncstorage_db::mock::{MockDb, MockDbPool};
-use syncstorage_settings::{Deadman, ServerLimits, Settings as SyncstorageSettings};
+use syncstorage_settings::{
+    CollectionLimitOverride, Deadman, ServerLimits, Settings as SyncstorageSettings,
+};
 
 use super::CollectionPostRequest;
 use crate::{server::ServerState, web::auth::HawkPayload};
@@ -44,6 +46,11 @@ pub fn make_db() -> MockDb {
 }
 
 pub fn make_state() -> ServerState {
+    make_state_with_limits(Arc::clone(&SERVER_LIMITS))
+}
+
+/// A [ServerState] with the given limits, e.g. per collection overrides.
+pub fn make_state_with_limits(limits: Arc<ServerLimits>) -> ServerState {
     let syncserver_settings = GlobalSettings::default();
     let syncstorage_settings = SyncstorageSettings::default();
     let glean_logger = Arc::new(GleanEventsLogger {
@@ -55,8 +62,8 @@ pub fn make_state() -> ServerState {
     });
     ServerState {
         db_pool: Box::new(MockDbPool::new()),
-        limits: Arc::clone(&SERVER_LIMITS),
-        limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
+        limits_json: serde_json::to_string(&*limits).unwrap(),
+        limits,
         port: 8000,
         metrics: syncserver_common::metrics_from_opts(
             &syncstorage_settings.statsd_label,
@@ -74,6 +81,22 @@ pub fn make_state() -> ServerState {
         gcs_payload_max_concurrency: syncstorage_settings.gcs_payload_max_concurrency,
         gcs_payload_offload_collections: Arc::new(Vec::new()),
     }
+}
+
+/// [ServerLimits] overriding `max_request_bytes` for a single collection.
+pub fn limits_with_max_request_bytes(
+    collection: &str,
+    max_request_bytes: u32,
+) -> Arc<ServerLimits> {
+    let mut limits = ServerLimits::default();
+    limits.collections.insert(
+        collection.to_owned(),
+        CollectionLimitOverride {
+            max_request_bytes: Some(max_request_bytes),
+            ..Default::default()
+        },
+    );
+    Arc::new(limits)
 }
 
 pub fn extract_body_as_str(sresponse: ServiceResponse) -> String {
@@ -117,8 +140,15 @@ pub async fn post_collection(
     qs: &str,
     body: &serde_json::Value,
 ) -> Result<CollectionPostRequest, Error> {
+    post_collection_with_state(qs, body, make_state()).await
+}
+
+pub async fn post_collection_with_state(
+    qs: &str,
+    body: &serde_json::Value,
+    state: ServerState,
+) -> Result<CollectionPostRequest, Error> {
     let payload = HawkPayload::test_default(*USER_ID);
-    let state = make_state();
     let secrets = Arc::clone(&SECRETS);
     let path = format!(
         "/1.5/{}/storage/tabs{}{}",
