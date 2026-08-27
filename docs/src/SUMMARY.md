@@ -9,6 +9,7 @@
 - [Application Architecture](architecture.md)
 - [Application Configuration](config.md)
 - [Testing](testing.md)
+    - [Load Testing](tools/load-testing.md)
 - [Release Process](release-process.md)
 - [Frequently Asked Questions](faq.md)
 - [Data Types](data-types.md)
