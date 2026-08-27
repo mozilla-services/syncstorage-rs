@@ -172,10 +172,32 @@ on the load-generating host — size the harness accordingly.
 
 ## Docker
 
-To run it inside docker:
+Build and run this directory's image:
 
 ```bash
-docker run -e TEST_REPO=https://github.com/mozilla-services/syncstorage-loadtest -e TEST_NAME=test tarekziade/molotov:latest
+docker build . --tag syncstorage-loadtest:local
+
+docker run --rm --net=host \
+  -e SERVER_URL="http://localhost:8000#secretValue" \
+  syncstorage-loadtest:local \
+  -c "molotov --processes 1 --workers 5 --duration 60 -v loadtest.py"
 ```
+
+## Full offload pipeline on docker
+
+For the offload and change-stream load tests (STOR-628, STOR-629) there is a
+compose rig that stands up syncserver with offload enabled, a Spanner emulator
+carrying the change stream, Pub/Sub, GCS, the publisher, the reconciler and
+this load test, then reports whether the pipeline drained clean:
+
+```bash
+make loadtest-offload-image
+make loadtest-offload-handler        # 100% offloaded
+make loadtest-offload-report
+make loadtest-offload-down
+```
+
+See `docs/src/tools/load-testing.md` for the runbook, the knobs, and the GCP
+dev path.
 
 Happy Breaking!
