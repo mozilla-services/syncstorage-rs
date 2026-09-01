@@ -207,17 +207,27 @@ is in preserving one of them.
    it. There is no scanner, no sweeper, and no age-based deletion of
    finalized objects.
 
-5. **Every reconciler operation is idempotent, and 404 counts as success.**
+5. **A batch commit is a handoff, not a delete.** Batched writes land in
+   `batch_bsos` first, and committing the batch moves the link into the
+   permanent `bsos` row and drops the staging row in one transaction. The
+   change stream reports that as a row that stopped pointing at the object,
+   which under invariant 4 alone would delete a live payload. Syncstorage
+   tags that transaction `batch_commit` and the reconciler skips the delete
+   when it sees the tag. Every other `batch_bsos` removal, TTL expiry and
+   `user_collections` cascade deletes among them, carries no tag and is
+   treated as a real delete.
+
+6. **Every reconciler operation is idempotent, and 404 counts as success.**
    Pub/Sub is at-least-once, so the same record is sometimes handled twice.
    Finalizing an already finalized object and deleting an already deleted one
    are both no-ops.
 
-6. **The subscription is the retry queue.** The reconciler acks only what it
+7. **The subscription is the retry queue.** The reconciler acks only what it
    handled. An unacked message comes back, and after five failed attempts it
    lands in a dead-letter topic rather than blocking the queue. There is no
    in-process retry loop and no in-window Kubernetes retry.
 
-7. **The bucket lifecycle policy is the backstop.** Anything uploaded and
+8. **The bucket lifecycle policy is the backstop.** Anything uploaded and
    never finalized, because the request died, the transaction rolled back, or
    the inline cleanup failed, is deleted 30 days after upload. That is the
    only thing standing between a crashed write and an object that leaks
