@@ -90,8 +90,15 @@ impl FromRequest for BsoBodies {
                 }
                 Err(_) => return Err(size_limit_exceeded().into()),
             };
-            let Ok(body) = std::str::from_utf8(&body) else {
-                warn!("⚠️ Payload read error: body is not utf-8");
+            // Decode with the request's charset instead of assuming utf-8,
+            // as `String`'s extractor did for us before
+            let encoding = req.encoding().map_err(|e| {
+                warn!("⚠️ Payload read error: {:?}", e);
+                unreadable_body()
+            })?;
+            let Some(body) = encoding.decode_without_bom_handling_and_without_replacement(&body)
+            else {
+                warn!("⚠️ Payload read error: could not decode the body");
                 return Err(unreadable_body());
             };
 
@@ -108,7 +115,7 @@ impl FromRequest for BsoBodies {
                     }
                 }
                 bsos
-            } else if let Ok(json_vals) = serde_json::from_str::<Vec<Value>>(body) {
+            } else if let Ok(json_vals) = serde_json::from_str::<Vec<Value>>(&body) {
                 json_vals
             } else {
                 // Per Python version, BSO's must json deserialize
