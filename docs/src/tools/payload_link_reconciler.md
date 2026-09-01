@@ -424,7 +424,13 @@ Worth alerting on:
 - Anything at all in `payload-link-changes-dlq`. A message only lands
   there after five failed deliveries, so it means a record cannot be
   handled and needs a human. Inspect it through
-  `payload-link-changes-dlq-sub`.
+  `payload-link-changes-dlq-sub`. Note the DLQ is terminal: its
+  subscription carries no dead-letter policy of its own, so a message
+  sits there until the 7 day retention drops it and no further queue
+  catches it. That is the same 7 days as the change stream retention,
+  so once a dead-lettered record ages out the underlying change is
+  unrecoverable from both. Seven days is a response deadline, not a
+  margin.
 - `errors` `kind:handler` sustained above zero.
 - `noop_skips` climbing, which means the Dataflow filter regressed and
   the pipeline is paying Pub/Sub for records it discards.
