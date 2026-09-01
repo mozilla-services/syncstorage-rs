@@ -30,6 +30,7 @@ pytestmark = pytest.mark.skipif(
 
 
 PAYLOAD_BUCKET = os.environ.get("GCS_PAYLOAD_BUCKET", "")
+PAYLOAD_PREFIX = os.environ.get("GCS_PAYLOAD_PREFIX", "v1")
 POLL_TIMEOUT_SECONDS = int(os.environ.get("RECONCILER_POLL_TIMEOUT", "30"))
 POLL_INTERVAL_SECONDS = 0.5
 
@@ -76,8 +77,8 @@ def _list_blobs(gcs: storage.Client, prefix: str) -> list[storage.Blob]:
     return list(gcs.bucket(PAYLOAD_BUCKET).list_blobs(prefix=prefix))
 
 
-def _prefix_for(st_ctx: dict[str, Any], bso_id: str) -> str:
-    return f"{st_ctx['fxa_uid']}/{OFFLOAD_COLLECTION}/{bso_id}/"
+def _prefix_for(st_ctx: dict[str, Any]) -> str:
+    return f"{PAYLOAD_PREFIX}/{st_ctx['fxa_uid']}/"
 
 
 def test_upload_finalizes_object(st_ctx: dict[str, Any], gcs: storage.Client) -> None:
@@ -86,7 +87,7 @@ def test_upload_finalizes_object(st_ctx: dict[str, Any], gcs: storage.Client) ->
     _put_bso(st_ctx, bso_id)
 
     def committed_blob() -> storage.Blob | None:
-        for blob in _list_blobs(gcs, _prefix_for(st_ctx, bso_id)):
+        for blob in _list_blobs(gcs, _prefix_for(st_ctx)):
             blob.reload()
             if (blob.metadata or {}).get("committed") == "true":
                 return blob
@@ -104,7 +105,7 @@ def test_update_deletes_old_object(st_ctx: dict[str, Any], gcs: storage.Client) 
     bso_id = "reconcile-update"
     _put_bso(st_ctx, bso_id, payload="a" * 300_000)
     old = _wait_for(
-        lambda: (_list_blobs(gcs, _prefix_for(st_ctx, bso_id)) or [None])[0],
+        lambda: (_list_blobs(gcs, _prefix_for(st_ctx)) or [None])[0],
         "initial object exists",
     )
     assert old is not None
@@ -123,7 +124,7 @@ def test_delete_removes_object(st_ctx: dict[str, Any], gcs: storage.Client) -> N
     bso_id = "reconcile-delete"
     _put_bso(st_ctx, bso_id)
     blob = _wait_for(
-        lambda: (_list_blobs(gcs, _prefix_for(st_ctx, bso_id)) or [None])[0],
+        lambda: (_list_blobs(gcs, _prefix_for(st_ctx)) or [None])[0],
         "object exists after upload",
     )
     assert blob is not None

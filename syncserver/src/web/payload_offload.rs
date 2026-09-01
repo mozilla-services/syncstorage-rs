@@ -10,6 +10,8 @@
 //! resolved by downloading from GCS after the database transaction commits,
 //! and `payload_link` is cleared before the response is rendered.
 //!
+//! Object names are formatted as `{gcs_payload_prefix}/{fxa_uid}/{uuid}`.
+//!
 //! Objects are written with the custom metadata `committed=false` and a
 //! `customTime` set to upload time; a later step flips `committed` to `true`
 //! once the database row is durably visible.
@@ -65,24 +67,22 @@ pub async fn build_client(endpoint: Option<&str>) -> Result<Storage, ApiError> {
         .map_err(|e| ApiErrorKind::Internal(format!("GCS builder error: {e}")).into())
 }
 
-/// Upload `payload` to `bucket` under the key `{fxa_uid}/{collection}/{bso_id}`
-/// and return the resulting `gs://` URL.
+/// Upload `payload` to `bucket` under the key `{prefix}/{fxa_uid}/{uuid}` and
+/// return the resulting `gs://` URL.
 ///
 /// The object is written with custom metadata `committed=false` and a
 /// `customTime` of the upload moment.
 pub async fn upload_payload(
     client: &Storage,
     bucket: &str,
+    prefix: &str,
     user_id: &UserIdentifier,
-    collection: &str,
-    bso_id: &str,
     payload: String,
 ) -> Result<String, ApiError> {
     let object_name = format!(
-        "{}/{}/{}/{}",
+        "{}/{}/{}",
+        prefix,
         user_id.fxa_uid,
-        collection,
-        bso_id,
         Uuid::new_v4().hyphenated()
     );
 
