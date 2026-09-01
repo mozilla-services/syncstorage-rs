@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   sbom:
-    uses: mozilla/ssdlc-actions/.github/workflows/ssdlc-sbom.yml@67469fc3fe171a60e2bf7b6911167812a23c6325
+    uses: mozilla/ssdlc-actions/.github/workflows/ssdlc-sbom.yml@9ecc28ba241cdaa0b207cc2c352c2faa954732f8
     with:
       sbom_name: ${{ github.ref_name }}
     permissions:
