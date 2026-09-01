@@ -265,3 +265,10 @@ This is a work in progress. As of this writing:
 - Only the dev environment is built out. Stage and prod need the same set of
   resources plus a dedicated Spanner metadata database.
 - Change stream storage cost in prod has not been measured.
+- The synchronous half is barely instrumented. The rollback cleanup emits
+  `storage.gcs.payload.cleanup`, but there are no counters or timers on
+  upload or download, so how much latency offload adds to a request is not
+  something metrics can currently answer.
+- Load testing of both halves is still in flight, so the numbers above for
+  the upload-to-finalize window are reasoned from the cronjob cadence
+  rather than observed under load.
