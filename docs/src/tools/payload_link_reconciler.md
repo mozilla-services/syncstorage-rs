@@ -144,8 +144,10 @@ gcloud dataflow flex-template build \
 - `spannerProjectId`, `spannerInstanceId`, `spannerDatabase` — the
   syncstorage Spanner database.
 - `spannerMetadataInstanceId`, `spannerMetadataDatabase` — where the
-  change-stream connector keeps its partition-state table. Recommend
-  a dedicated database in prod for isolation.
+  change-stream connector keeps its partition-state table. Dev uses a
+  dedicated database, `syncdb-pldf-meta-dev`, so the connector holds no
+  write access to the syncstorage database. Every environment should do
+  the same.
 - `changeStreamName=payload_link_changes`.
 - `spannerDatabaseRole=payload_link_reader` — the fine-grained access
   role the job reads the stream through, created by the DDL in
@@ -155,12 +157,11 @@ gcloud dataflow flex-template build \
 
 **Service account requires:**
 
-- `roles/spanner.databaseUser` on the syncstorage database. This one
-  grant covers both reading the change stream and maintaining the
-  connector's partition metadata, and in dev the metadata table shares
-  `syncdb-dev`. Where the metadata database is separate, the grant is
-  needed on both. Note the IAM grant targets the `-904c` project, so it
-  is applied out of band; see
+- `roles/spanner.databaseUser` on the syncstorage database and on the
+  metadata database. The one role covers both reading the change stream
+  and maintaining the connector's partition metadata, but since the two
+  live in separate databases the grant is needed on each. Note the IAM
+  grant targets the `-904c` project, so it is applied out of band; see
   [GCP Infrastructure](payload-offload-infrastructure.md#out-of-band-steps).
 - Membership of the `payload_link_reader` database role, which is what
   actually narrows the job to the change stream. The IAM grant alone

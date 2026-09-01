@@ -144,6 +144,7 @@ Names are derived from `${application}-${realm}-${environment}` in
 | Tenant project | `moz-fx-sync-nonprod`, number `960020799362` |
 | Spanner project | `moz-fx-sync-nonprod-904c` |
 | Spanner instance and database | `sync` / `syncdb-dev` |
+| Dataflow metadata database | `sync` / `syncdb-pldf-meta-dev` |
 | Change stream | `payload_link_changes` |
 | Spanner database role | `payload_link_reader` |
 | Payload bucket | `sync-nonprod-dev-syncstorage-payloads`, us-west1 |
