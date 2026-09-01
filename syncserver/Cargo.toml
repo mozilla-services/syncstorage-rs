@@ -59,7 +59,7 @@ tokio = { workspace = true, features = ["macros", "sync"] }
 urlencoding = "2.1"
 utoipa.workspace = true
 utoipa-swagger-ui.workspace = true
-validator = "0.20"
+validator = "0.21"
 validator_derive = "0.20"
 woothee = "0.13"
 
