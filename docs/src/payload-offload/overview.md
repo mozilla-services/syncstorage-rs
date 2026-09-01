@@ -113,6 +113,9 @@ fail fast: the first upload error abandons the request, and any object already
 uploaded is left for the lifecycle policy rather than deleted inline. The
 compensating delete only runs when the database transaction fails, and its
 result is ignored, because the lifecycle policy is a sufficient second line.
+Ignored is not unobserved: the attempt is counted as
+`storage.gcs.payload.cleanup`, tagged with the handler and whether the delete
+landed, which is how you find out an object leaked.
 
 Between the upload and the finalize the object exists but is not protected.
 That window is normally seconds to a few minutes, set by the reconciler's
