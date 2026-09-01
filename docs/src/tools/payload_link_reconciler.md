@@ -385,7 +385,7 @@ working.
 | `orphan_deletes` | Objects deleted because a row stopped pointing at them | Tracks overwrite and delete volume |
 | `gcs_404` `op:finalize` | Finalize target was gone | Low and flat |
 | `gcs_404` `op:delete` | Delete target was already gone | Low and flat, redeliveries are normal |
-| `batch_bsos_skips` | A `batch_bsos` removal was skipped | Non-zero and expected while the blanket skip is in place |
+| `batch_commit_skips` | A `batch_bsos` removal carrying the `batch_commit` transaction tag was kept rather than deleted | Tracks batch commit volume on offloaded collections |
 | `noop_skips` | A record arrived with nothing to do | Near zero; the Dataflow filter should have dropped it |
 | `errors` `kind:handler` | Handler raised, message left unacked | Zero |
 
