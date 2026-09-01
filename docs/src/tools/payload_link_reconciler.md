@@ -148,6 +148,17 @@ gcloud dataflow flex-template build \
   dedicated database, `syncdb-pldf-meta-dev`, so the connector holds no
   write access to the syncstorage database. Every environment should do
   the same.
+- `spannerMetadataTableName=Metadata_payload_link` names the
+  partition-state table itself. Optional in the template, but pin it on
+  any streaming launch. Left unset, the connector generates a random
+  table name inside `expand()` and bakes it into the pipeline graph, so a
+  `--update` or a cancel-then-relaunch comes up against a fresh empty
+  table, reads from `Timestamp.now()`, and silently drops every record
+  committed between the two jobs. The name only has to be a legal Spanner
+  identifier and stable for the life of the environment; the connector
+  creates the table on first use.
+  See "Job update and restart continuity" in
+  `tools/payload-link-dataflow/README.md`.
 - `changeStreamName=payload_link_changes`.
 - `spannerDatabaseRole=payload_link_reader` — the fine-grained access
   role the job reads the stream through, created by the DDL in
@@ -405,6 +416,7 @@ Worth alerting on:
 | Sustained `payload_reconciler.gcs_404` with `op:delete` | Object was already deleted (redelivery or concurrent cleanup) | Acceptable; idempotent by design. |
 | Messages in `payload-link-changes-dlq` | Repeated handler exceptions on the same message after 5 retries (malformed JSON, cross-bucket link, GCS auth failure) | Inspect the DLQ payload; fix and re-publish or discard. The main subscription continues to drain. |
 | `payload_reconciler.errors` with `kind:handler` non-zero | Same as above before reaching DLQ. | Same. |
+| Finalize latency jumps after a Dataflow deploy, with a gap in `finalizes` | The job relaunched against a fresh partition-metadata table and resumed from `Timestamp.now()` | Records committed during the gap are lost for good; the change stream's 7 day retention only helps if you notice in time. Check that `spannerMetadataTableName` is pinned and unchanged. |
 
 A `payload_link` pointing at a bucket other than `GCS_PAYLOAD_BUCKET`
 raises `ValueError` and the message is left unacked — it retries up to
