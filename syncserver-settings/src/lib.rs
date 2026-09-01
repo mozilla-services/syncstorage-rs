@@ -222,6 +222,13 @@ impl Settings {
             ));
         }
 
+        // The prefix for the offload gcs object name cannot be empty.
+        if self.syncstorage.enabled && self.syncstorage.gcs_payload_prefix.is_empty() {
+            return Err(ConfigError::Message(
+                "SYNC_SYNCSTORAGE__GCS_PAYLOAD_PREFIX must not be empty".to_owned(),
+            ));
+        }
+
         if let Some(init_node_url) = &self.tokenserver.init_node_url {
             let url = Url::parse(init_node_url).map_err(|e| {
                 ConfigError::Message(format!("Invalid SYNC_TOKENSERVER__INIT_NODE_URL: {e}"))
@@ -574,6 +581,46 @@ mod test {
                 let err = Settings::with_env_and_config_file(None)
                     .expect_err("off-load collections on a non-spanner backend should fail");
                 assert!(err.to_string().contains("Spanner backend"));
+            },
+        );
+    }
+
+    #[test]
+    fn test_empty_gcs_payload_prefix_fails() {
+        temp_env::with_vars(
+            [
+                (
+                    "SYNC_SYNCSTORAGE__DATABASE_URL",
+                    Some(TEST_SYNCSTORAGE_DATABASE_URL),
+                ),
+                ("SYNC_TOKENSERVER__DATABASE_URL", None),
+                ("SYNC_TOKENSERVER__ENABLED", None),
+                ("SYNC_SYNCSTORAGE__GCS_PAYLOAD_PREFIX", Some("")),
+            ],
+            || {
+                let err = Settings::with_env_and_config_file(None)
+                    .expect_err("an empty payload prefix should fail validation");
+                assert!(err.to_string().contains("GCS_PAYLOAD_PREFIX"));
+            },
+        );
+    }
+
+    #[test]
+    fn test_default_gcs_payload_prefix_validates() {
+        temp_env::with_vars(
+            [
+                (
+                    "SYNC_SYNCSTORAGE__DATABASE_URL",
+                    Some(TEST_SYNCSTORAGE_DATABASE_URL),
+                ),
+                ("SYNC_TOKENSERVER__DATABASE_URL", None),
+                ("SYNC_TOKENSERVER__ENABLED", None),
+                ("SYNC_SYNCSTORAGE__GCS_PAYLOAD_PREFIX", None),
+            ],
+            || {
+                let settings = Settings::with_env_and_config_file(None)
+                    .expect("the default payload prefix should validate");
+                assert!(!settings.syncstorage.gcs_payload_prefix.is_empty());
             },
         );
     }

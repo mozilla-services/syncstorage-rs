@@ -81,6 +81,9 @@ pub struct ServerState {
     /// Collections whose BSO payloads are off-loaded to GCS.
     pub gcs_payload_offload_collections: Arc<Vec<String>>,
 
+    /// Prefix for off-loaded GCS object names.
+    pub gcs_payload_prefix: Arc<String>,
+
     /// Shared GCS client built at startup. `None` when GCS off-load is disabled.
     pub gcs_client: Option<Storage>,
 
@@ -412,6 +415,7 @@ impl Server {
         let gcs_payload_bucket = settings.syncstorage.gcs_payload_bucket.clone();
         let gcs_payload_offload_collections =
             Arc::new(settings.syncstorage.gcs_payload_offload_collections.clone());
+        let gcs_payload_prefix = Arc::new(settings.syncstorage.gcs_payload_prefix.clone());
         let gcs_payload_max_concurrency = settings.syncstorage.gcs_payload_max_concurrency;
         let (gcs_client, gcs_control_client) = if gcs_payload_bucket.is_some() {
             let endpoint = settings.syncstorage.gcs_endpoint.as_deref();
@@ -474,6 +478,7 @@ impl Server {
                 glean_enabled,
                 gcs_payload_bucket: gcs_payload_bucket.clone(),
                 gcs_payload_offload_collections: Arc::clone(&gcs_payload_offload_collections),
+                gcs_payload_prefix: Arc::clone(&gcs_payload_prefix),
                 gcs_client: gcs_client.clone(),
                 gcs_control_client: gcs_control_client.clone(),
                 gcs_payload_max_concurrency,

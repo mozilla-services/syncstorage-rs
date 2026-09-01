@@ -80,6 +80,7 @@ pub fn make_state_with_limits(limits: Arc<ServerLimits>) -> ServerState {
         gcs_payload_bucket: None,
         gcs_payload_max_concurrency: syncstorage_settings.gcs_payload_max_concurrency,
         gcs_payload_offload_collections: Arc::new(Vec::new()),
+        gcs_payload_prefix: Arc::new(syncstorage_settings.gcs_payload_prefix.clone()),
     }
 }
 

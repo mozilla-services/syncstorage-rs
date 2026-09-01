@@ -137,6 +137,10 @@ pub struct Settings {
     /// off-load path for all collections.
     pub gcs_payload_offload_collections: Vec<String>,
 
+    /// Prefix off-loaded GCS object names, which are formatted as
+    /// `{gcs_payload_prefix}/{fxa_uid}/{uuid}`.
+    pub gcs_payload_prefix: String,
+
     /// Maximum number of GCS payload uploads/downloads to run concurrently
     /// within a single batch request.
     pub gcs_payload_max_concurrency: NonZeroUsize,
@@ -174,6 +178,7 @@ impl Default for Settings {
             lbheartbeat_ttl_jitter: 25,
             gcs_payload_bucket: None,
             gcs_payload_offload_collections: Vec::new(),
+            gcs_payload_prefix: "v1".to_owned(),
             gcs_payload_max_concurrency: DEFAULT_GCS_PAYLOAD_MAX_CONCURRENCY,
             gcs_endpoint: None,
         }
