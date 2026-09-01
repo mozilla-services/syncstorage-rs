@@ -14,9 +14,11 @@ slow-timeout = { period = "300s" }
 
 [profile.ci]
 fail-fast = false
-# The Spanner emulator intermittently fails a request for no good reason, which
-# has surfaced in both syncstorage-db and syncserver tests. Retried tests are
-# reported as flaky, not silently passed.
+
+# The Spanner emulator intermittently returns a spurious ABORTED, surfacing as
+# Conflict/503. Retried tests are reported as flaky, not silently passed.
+[[profile.ci.overrides]]
+filter = 'package(syncstorage-db)'
 retries = 2
 
 [profile.ci.junit]
