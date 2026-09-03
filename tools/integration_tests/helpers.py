@@ -61,6 +61,15 @@ def _make_fake_request(host_url):
     )
 
 
+def retry_post(app, *args, **kwargs):
+    """POST a raw body with retry on transient errors.
+
+    For posts that set an explicit Content-Type; retry_post_json covers
+    the JSON case.
+    """
+    return _retry_send(app.post, *args, **kwargs)
+
+
 def retry_post_json(app, *args, **kwargs):
     """POST JSON with retry on transient errors."""
     return _retry_send(app.post_json, *args, **kwargs)
