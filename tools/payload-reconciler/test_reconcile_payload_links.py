@@ -7,6 +7,7 @@ shapes the Dataflow filter passes through.
 
 import datetime
 import json
+import time
 from unittest.mock import MagicMock
 
 import pytest
@@ -319,3 +320,66 @@ def test_negative_age_is_skipped(statsd_timing: MagicMock) -> None:
     reconciler._record_finalize_age(future)
 
     statsd_timing.assert_not_called()
+
+
+def _pull_response(messages: list[bytes]) -> MagicMock:
+    """A pull() response carrying ``messages``, or an empty one."""
+    response = MagicMock()
+    response.received_messages = []
+    for i, body in enumerate(messages):
+        received = MagicMock()
+        received.message.data = body
+        received.message.message_id = f"m{i}"
+        received.ack_id = f"a{i}"
+        response.received_messages.append(received)
+    return response
+
+
+def test_drain_loop_reports_processed_count_on_idle(statsd_incr: MagicMock) -> None:
+    """A budgeted run exits on the first idle poll and reports what it did."""
+    sub_client = MagicMock()
+    sub_client.pull.side_effect = [
+        _pull_response([_msg([_mod(None, LINK_A)])]),
+        _pull_response([]),
+    ]
+
+    processed = reconciler._drain_loop(
+        sub_client, "sub/path", _gcs_mock(), BUCKET, deadline=time.monotonic() + 60
+    )
+
+    assert processed == 1
+    sub_client.acknowledge.assert_called_once()
+    statsd_incr.assert_any_call("finalizes")
+
+
+def test_drain_loop_counts_budget_exhaustion(statsd_incr: MagicMock) -> None:
+    """An already-elapsed deadline exits immediately and is counted as such."""
+    sub_client = MagicMock()
+
+    processed = reconciler._drain_loop(
+        sub_client, "sub/path", _gcs_mock(), BUCKET, deadline=time.monotonic() - 1
+    )
+
+    assert processed == 0
+    sub_client.pull.assert_not_called()
+    statsd_incr.assert_any_call("budget_exhausted")
+
+
+def test_drain_loop_handler_error_leaves_message_unacked(
+    statsd_incr: MagicMock,
+) -> None:
+    """A bad message is counted, not acked, and does not stop the drain."""
+    sub_client = MagicMock()
+    sub_client.pull.side_effect = [
+        _pull_response([b"not json"]),
+        _pull_response([]),
+    ]
+
+    processed = reconciler._drain_loop(
+        sub_client, "sub/path", _gcs_mock(), BUCKET, deadline=time.monotonic() + 60
+    )
+
+    # Counted as seen, but nothing was acked, so Pub/Sub redelivers it.
+    assert processed == 1
+    sub_client.acknowledge.assert_not_called()
+    statsd_incr.assert_any_call("errors", tags=["kind:handler"])

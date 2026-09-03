@@ -276,11 +276,42 @@ def drain(
             bucket,
         )
 
+    # Every other counter here is conditional on the event it names, so a run
+    # that finalizes nothing emits nothing at all. `runs` is the unconditional
+    # series that makes "quiet" distinguishable from "not running" on a
+    # dashboard.
+    metrics.incr("runs")
+    started = time.monotonic()
+
+    processed = 0
+    try:
+        processed = _drain_loop(sub_client, sub_path, gcs_client, bucket, deadline)
+    finally:
+        metrics.timing("drain_duration", (time.monotonic() - started) * 1000)
+        metrics.incr("messages_processed", value=processed)
+
+
+def _drain_loop(
+    sub_client: pubsub_v1.SubscriberClient,
+    sub_path: str,
+    gcs_client: storage.Client,
+    bucket: str,
+    deadline: float | None,
+) -> int:
+    """Pull-and-handle until the budget elapses or the queue idles.
+
+    Returns the number of messages processed. Per-message handler errors are
+    caught and counted inside the loop, so this only propagates a pull or
+    acknowledge failure, in which case the caller reports a count of zero.
+    """
     processed = 0
     while True:
         if deadline is not None and time.monotonic() >= deadline:
             log.info("budget exhausted after %d messages", processed)
-            return
+            # Distinct from an idle exit: a run that keeps ending this way is
+            # not keeping up with the queue.
+            metrics.incr("budget_exhausted")
+            return processed
 
         try:
             response = sub_client.pull(
@@ -297,7 +328,7 @@ def drain(
         if not response.received_messages:
             if deadline is not None:
                 log.info("queue idle after %d messages; exiting", processed)
-                return
+                return processed
             # Long-running: keep polling.
             continue
 
