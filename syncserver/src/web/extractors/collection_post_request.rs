@@ -117,7 +117,8 @@ mod tests {
     use serde_json::json;
 
     use crate::web::extractors::test_utils::{
-        USER_ID, extract_body_as_str, make_state, post_collection,
+        USER_ID, extract_body_as_str, limits_with_max_request_bytes, make_state,
+        make_state_with_limits, post_collection, post_collection_with_state,
     };
 
     #[actix_rt::test]
@@ -188,6 +189,20 @@ mod tests {
             .expect("Could not get batch3 in test_valid_collection_batch_post_request");
         assert!(batch3.id.is_some());
         assert!(batch3.commit);
+    }
+
+    #[actix_rt::test]
+    async fn test_collection_post_request_over_max_request_bytes() {
+        // The request carries no Content-Length, so the limit can only be
+        // caught while reading the body.
+        let bso_body = json!([{"id": "123", "payload": "x".repeat(1024)}]);
+        let state = make_state_with_limits(limits_with_max_request_bytes("tabs", 128));
+        let result = post_collection_with_state("", &bso_body, state).await;
+        let response: HttpResponse = result
+            .err()
+            .expect("Expected an error in test_collection_post_request_over_max_request_bytes")
+            .into();
+        assert_eq!(response.status(), 413);
     }
 
     #[actix_rt::test]
