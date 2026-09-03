@@ -192,6 +192,10 @@ impl Settings {
             self.limits.max_total_bytes =
                 min(self.limits.max_total_bytes, MAX_SPANNER_LOAD_SIZE as u32);
         }
+
+        // Object names are joined as `{prefix}/{fxa_uid}/{uuid}`, so a leading
+        // or trailing slash on the configured prefix yields an empty segment.
+        self.gcs_payload_prefix = self.gcs_payload_prefix.trim_matches('/').to_owned();
     }
 
     pub fn spanner_database_name(&self) -> Option<&str> {
