@@ -5,6 +5,7 @@ feed synthesized DataChangeRecord-shaped JSON bodies. Cases mirror the
 shapes the Dataflow filter passes through.
 """
 
+import datetime
 import json
 from unittest.mock import MagicMock
 
@@ -232,3 +233,89 @@ def test_multiple_mods_handled_independently(statsd_incr: MagicMock) -> None:
     )
     assert finalize_count == 2  # LINK_B from mod 1; LINK_A from mod 2
     assert delete_count == 2  # LINK_A from mod 1; LINK_B from mod 3
+
+
+@pytest.fixture
+def statsd_timing(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    timing = MagicMock()
+    monkeypatch.setattr(reconciler.metrics, "timing", timing)
+    return timing
+
+
+@pytest.mark.parametrize(
+    "raw,expected_iso",
+    [
+        # Spanner's own shape: nanosecond precision, truncated to micros.
+        ("2026-06-30T01:02:03.123456789Z", "2026-06-30T01:02:03.123456+00:00"),
+        ("2026-06-30T01:02:03Z", "2026-06-30T01:02:03+00:00"),
+        ("2026-06-30T01:02:03.500Z", "2026-06-30T01:02:03.500000+00:00"),
+    ],
+)
+def test_parse_commit_timestamp_shapes(raw: str, expected_iso: str) -> None:
+    parsed = reconciler.parse_commit_timestamp(raw)
+    assert parsed is not None
+    assert parsed.isoformat() == expected_iso
+
+
+@pytest.mark.parametrize("raw", [None, "", "not-a-timestamp"])
+def test_parse_commit_timestamp_bad_input_is_none(raw: str | None) -> None:
+    """A bad timestamp must never fail the message, only skip the metric."""
+    assert reconciler.parse_commit_timestamp(raw) is None
+
+
+def test_finalize_emits_age(statsd_timing: MagicMock) -> None:
+    gcs = _gcs_mock()
+
+    reconciler.handle_message_body(gcs, BUCKET, _msg([_mod(None, LINK_A)]))
+
+    statsd_timing.assert_called_once()
+    label, age_ms = statsd_timing.call_args.args
+    assert label == "finalize_age"
+    # _msg() commits in the past, so the lag is positive.
+    assert age_ms > 0
+
+
+def test_finalize_age_skipped_when_timestamp_unparseable(
+    statsd_timing: MagicMock, statsd_incr: MagicMock
+) -> None:
+    """The finalize still happens and is still counted; only the age is lost."""
+    gcs = _gcs_mock()
+    body = json.dumps(
+        {
+            "commitTimestamp": "garbage",
+            "modType": "UPDATE",
+            "tableName": "bsos",
+            "transactionTag": "",
+            "mods": [_mod(None, LINK_A)],
+        }
+    ).encode()
+
+    reconciler.handle_message_body(gcs, BUCKET, body)
+
+    gcs.bucket.return_value.blob.return_value.patch.assert_called_once()
+    statsd_incr.assert_any_call("finalizes")
+    statsd_timing.assert_not_called()
+
+
+def test_finalize_age_not_emitted_on_404(
+    statsd_timing: MagicMock, statsd_incr: MagicMock
+) -> None:
+    """A 404 finalize did not finalize anything, so it has no age."""
+    gcs = _gcs_mock()
+    gcs.bucket.return_value.blob.return_value.patch.side_effect = (
+        gax_exceptions.NotFound("gone")
+    )
+
+    reconciler.handle_message_body(gcs, BUCKET, _msg([_mod(None, LINK_A)]))
+
+    statsd_incr.assert_any_call("gcs_404", tags=["op:finalize"])
+    statsd_timing.assert_not_called()
+
+
+def test_negative_age_is_skipped(statsd_timing: MagicMock) -> None:
+    """Clock skew can put the commit in the future; that is not a real lag."""
+    future = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1)
+
+    reconciler._record_finalize_age(future)
+
+    statsd_timing.assert_not_called()

@@ -101,11 +101,64 @@ def get_env() -> tuple[str, str, str, int | None]:
     return project, subscription, bucket, budget
 
 
-def finalize_object(gcs_client: storage.Client, bucket: str, name: str) -> None:
+def parse_commit_timestamp(value: str | None) -> datetime.datetime | None:
+    """Parse a change record's ``commitTimestamp``.
+
+    Spanner emits nanosecond precision (``2026-06-30T00:00:00.000000000Z``),
+    which ``fromisoformat`` rejects, so the fraction is truncated to the
+    microseconds it accepts. Returns ``None`` for a missing or unparseable
+    value: the age metric is best effort and must never fail a message.
+    """
+    if not value:
+        return None
+    text = value.removesuffix("Z")
+    whole, sep, frac = text.partition(".")
+    if sep:
+        text = f"{whole}.{frac[:6]}"
+    try:
+        parsed = datetime.datetime.fromisoformat(text)
+    except ValueError:
+        log.debug("unparseable commitTimestamp: %r", value)
+        return None
+    # Spanner commit timestamps are UTC; the trailing Z is stripped above.
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+    return parsed
+
+
+def _record_finalize_age(commit_timestamp: datetime.datetime | None) -> None:
+    """Emit the Spanner-commit-to-finalize lag in milliseconds.
+
+    This is the window the object spends at ``committed=false``, reachable by
+    the lifecycle policy. The 30 day policy is sized against it, so it is
+    worth measuring rather than inferring from the cronjob cadence.
+    """
+    if commit_timestamp is None:
+        return
+    age_ms = (
+        datetime.datetime.now(datetime.timezone.utc) - commit_timestamp
+    ).total_seconds() * 1000
+    if age_ms < 0:
+        # Clock skew between Spanner and this pod. A negative lag is not
+        # meaningful and would drag the aggregate down.
+        log.debug("negative finalize age, skipping: %.0fms", age_ms)
+        return
+    metrics.timing("finalize_age", age_ms)
+
+
+def finalize_object(
+    gcs_client: storage.Client,
+    bucket: str,
+    name: str,
+    commit_timestamp: datetime.datetime | None = None,
+) -> None:
     """Patch metadata so the object is durable for the lifecycle GC.
 
     Sets ``committed=true`` and ``customTime=MAX_CUSTOM_TIME`` in one
     GCS round trip. 404 (object already deleted) is treated as success.
+
+    ``commit_timestamp``, when supplied, is the change record's commit time
+    and drives the ``finalize_age`` timing.
     """
     blob = gcs_client.bucket(bucket).blob(name)
     blob.metadata = {COMMITTED_METADATA_KEY: "true"}
@@ -113,6 +166,7 @@ def finalize_object(gcs_client: storage.Client, bucket: str, name: str) -> None:
     try:
         blob.patch()
         metrics.incr("finalizes")
+        _record_finalize_age(commit_timestamp)
     except gax_exceptions.NotFound:
         log.debug("finalize 404: gs://%s/%s", bucket, name)
         metrics.incr("gcs_404", tags=["op:finalize"])
@@ -148,6 +202,7 @@ def handle_message_body(
     record: dict[str, Any] = json.loads(body)
     table_name = record.get("tableName")
     transaction_tag = record.get("transactionTag")
+    commit_timestamp = parse_commit_timestamp(record.get("commitTimestamp"))
 
     ops_performed = 0
     for mod in record.get("mods", []):
@@ -159,7 +214,7 @@ def handle_message_body(
         if new_link:
             bucket, name = parse_gs_url(new_link)
             _require_bucket(bucket, expected_bucket)
-            finalize_object(gcs_client, bucket, name)
+            finalize_object(gcs_client, bucket, name, commit_timestamp)
             ops_performed += 1
 
         if old_link and old_link != new_link:
