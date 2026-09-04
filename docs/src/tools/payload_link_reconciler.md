@@ -144,8 +144,21 @@ gcloud dataflow flex-template build \
 - `spannerProjectId`, `spannerInstanceId`, `spannerDatabase` — the
   syncstorage Spanner database.
 - `spannerMetadataInstanceId`, `spannerMetadataDatabase` — where the
-  change-stream connector keeps its partition-state table. Recommend
-  a dedicated database in prod for isolation.
+  change-stream connector keeps its partition-state table. Dev uses a
+  dedicated database, `syncdb-pldf-meta-dev`, so the connector holds no
+  write access to the syncstorage database. Every environment should do
+  the same.
+- `spannerMetadataTableName=Metadata_payload_link` names the
+  partition-state table itself. Optional in the template, but pin it on
+  any streaming launch. Left unset, the connector generates a random
+  table name inside `expand()` and bakes it into the pipeline graph, so a
+  `--update` or a cancel-then-relaunch comes up against a fresh empty
+  table, reads from `Timestamp.now()`, and silently drops every record
+  committed between the two jobs. The name only has to be a legal Spanner
+  identifier and stable for the life of the environment; the connector
+  creates the table on first use.
+  See "Job update and restart continuity" in
+  `tools/payload-link-dataflow/README.md`.
 - `changeStreamName=payload_link_changes`.
 - `spannerDatabaseRole=payload_link_reader` — the fine-grained access
   role the job reads the stream through, created by the DDL in
@@ -155,12 +168,11 @@ gcloud dataflow flex-template build \
 
 **Service account requires:**
 
-- `roles/spanner.databaseUser` on the syncstorage database. This one
-  grant covers both reading the change stream and maintaining the
-  connector's partition metadata, and in dev the metadata table shares
-  `syncdb-dev`. Where the metadata database is separate, the grant is
-  needed on both. Note the IAM grant targets the `-904c` project, so it
-  is applied out of band; see
+- `roles/spanner.databaseUser` on the syncstorage database and on the
+  metadata database. The one role covers both reading the change stream
+  and maintaining the connector's partition metadata, but since the two
+  live in separate databases the grant is needed on each. Note the IAM
+  grant targets the `-904c` project, so it is applied out of band; see
   [GCP Infrastructure](payload-offload-infrastructure.md#out-of-band-steps).
 - Membership of the `payload_link_reader` database role, which is what
   actually narrows the job to the change stream. The IAM grant alone
@@ -362,10 +374,16 @@ real dev Spanner instance).
 
 ## Metrics
 
-The reconciler emits statsd counters under the `payload_reconciler`
-namespace. Everything the pipeline can tell you about itself is in this
-list, so it is worth knowing what each one looks like when things are
-working.
+Two processes report on this system, and they are instrumented to
+different depths. The reconciler covers the asynchronous arm end to end.
+The syncserver side has one counter, on the rollback cleanup, and
+nothing on upload or download.
+
+### Reconciler
+
+Statsd counters under the `payload_reconciler` namespace. Everything the
+asynchronous arm can tell you about itself is in this list, so it is
+worth knowing what each one looks like when things are working.
 
 | Metric | Meaning | Healthy shape |
 |---|---|---|
@@ -373,16 +391,46 @@ working.
 | `orphan_deletes` | Objects deleted because a row stopped pointing at them | Tracks overwrite and delete volume |
 | `gcs_404` `op:finalize` | Finalize target was gone | Low and flat |
 | `gcs_404` `op:delete` | Delete target was already gone | Low and flat, redeliveries are normal |
-| `batch_bsos_skips` | A `batch_bsos` removal was skipped | Non-zero and expected while the blanket skip is in place |
+| `batch_commit_skips` | A `batch_bsos` removal carrying the `batch_commit` transaction tag was kept rather than deleted | Tracks batch commit volume on offloaded collections |
 | `noop_skips` | A record arrived with nothing to do | Near zero; the Dataflow filter should have dropped it |
 | `errors` `kind:handler` | Handler raised, message left unacked | Zero |
+
+### Syncserver offload path
+
+One counter, `storage.gcs.payload.cleanup`, emitted from
+`syncserver/src/web/payload_offload.rs` when the best-effort delete runs
+after an offloading write's database transaction fails. It is the only
+instrumentation on the synchronous half.
+
+| Tag | Values | Meaning |
+|---|---|---|
+| `handler` | `put_bso`, `post_collection` | Which write handler issued the cleanup |
+| `result` | `success`, `failure` | Whether the object was deleted |
+| `reason` | `invalid_url`, `gcs_error` | Failure only. `invalid_url` means the `gs://` URL did not parse and no delete was attempted; `gcs_error` means GCS rejected it |
+
+The counter firing at all means writes are failing after their payload
+reached GCS, so read it against the write error rate rather than on its
+own. `result:failure` is the more interesting cut: those objects are now
+leaked until the 30 day lifecycle policy reaps them. A steady
+`reason:invalid_url` is a code bug rather than an operational problem,
+since the URL is one syncserver just generated.
+
+Note the gap: there are no counters or timers on the upload and download
+paths, so offload's contribution to request latency is not visible in
+metrics today.
 
 Worth alerting on:
 
 - Anything at all in `payload-link-changes-dlq`. A message only lands
   there after five failed deliveries, so it means a record cannot be
   handled and needs a human. Inspect it through
-  `payload-link-changes-dlq-sub`.
+  `payload-link-changes-dlq-sub`. Note the DLQ is terminal: its
+  subscription carries no dead-letter policy of its own, so a message
+  sits there until the 7 day retention drops it and no further queue
+  catches it. That is the same 7 days as the change stream retention,
+  so once a dead-lettered record ages out the underlying change is
+  unrecoverable from both. Seven days is a response deadline, not a
+  margin.
 - `errors` `kind:handler` sustained above zero.
 - `noop_skips` climbing, which means the Dataflow filter regressed and
   the pipeline is paying Pub/Sub for records it discards.
@@ -392,6 +440,8 @@ Worth alerting on:
   Pub/Sub metric rather than one of ours, and it is the most direct
   measure of finalize latency. It should sit in minutes. The 30 day
   lifecycle window is the deadline it must never approach.
+- `storage.gcs.payload.cleanup` with `result:failure`, which counts
+  objects that leaked because the compensating delete did not land.
 
 ---
 
@@ -404,6 +454,8 @@ Worth alerting on:
 | Sustained `payload_reconciler.gcs_404` with `op:delete` | Object was already deleted (redelivery or concurrent cleanup) | Acceptable; idempotent by design. |
 | Messages in `payload-link-changes-dlq` | Repeated handler exceptions on the same message after 5 retries (malformed JSON, cross-bucket link, GCS auth failure) | Inspect the DLQ payload; fix and re-publish or discard. The main subscription continues to drain. |
 | `payload_reconciler.errors` with `kind:handler` non-zero | Same as above before reaching DLQ. | Same. |
+| `storage.gcs.payload.cleanup` with `result:failure` | The compensating delete after a failed write transaction did not land | The object is stranded at `committed=false` and the 30 day lifecycle policy is the only thing left to reap it. Occasional failures are tolerable; sustained means the write path is failing and cleanup is failing with it. |
+| Finalize latency jumps after a Dataflow deploy, with a gap in `finalizes` | The job relaunched against a fresh partition-metadata table and resumed from `Timestamp.now()` | Records committed during the gap are lost for good; the change stream's 7 day retention only helps if you notice in time. Check that `spannerMetadataTableName` is pinned and unchanged. |
 
 A `payload_link` pointing at a bucket other than `GCS_PAYLOAD_BUCKET`
 raises `ValueError` and the message is left unacked — it retries up to
