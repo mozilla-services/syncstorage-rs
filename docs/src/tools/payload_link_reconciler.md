@@ -454,7 +454,7 @@ Worth alerting on:
 | Sustained `payload_reconciler.gcs_404` with `op:delete` | Object was already deleted (redelivery or concurrent cleanup) | Acceptable; idempotent by design. |
 | Messages in `payload-link-changes-dlq` | Repeated handler exceptions on the same message after 5 retries (malformed JSON, cross-bucket link, GCS auth failure) | Inspect the DLQ payload; fix and re-publish or discard. The main subscription continues to drain. |
 | `payload_reconciler.errors` with `kind:handler` non-zero | Same as above before reaching DLQ. | Same. |
-| `storage.gcs.payload.cleanup` with `result:failure` | The compensating delete after a failed write transaction did not land | The object is stranded at `committed=false` and the 30 day lifecycle policy is the only thing left to reap it. Tolerable in ones; sustained means the write path is failing and cleanup is failing with it. |
+| `storage.gcs.payload.cleanup` with `result:failure` | The compensating delete after a failed write transaction did not land | The object is stranded at `committed=false` and the 30 day lifecycle policy is the only thing left to reap it. Occasional failures are tolerable; sustained means the write path is failing and cleanup is failing with it. |
 | Finalize latency jumps after a Dataflow deploy, with a gap in `finalizes` | The job relaunched against a fresh partition-metadata table and resumed from `Timestamp.now()` | Records committed during the gap are lost for good; the change stream's 7 day retention only helps if you notice in time. Check that `spannerMetadataTableName` is pinned and unchanged. |
 
 A `payload_link` pointing at a bucket other than `GCS_PAYLOAD_BUCKET`
