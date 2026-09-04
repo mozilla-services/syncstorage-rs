@@ -24,8 +24,8 @@ use crate::{
     pool::{CollectionCache, Conn},
 };
 use support::{
-    ExecuteSqlRequestBuilder, IntoSpannerValue, StreamedResultSetAsync, as_type, null_value,
-    struct_type_field, validate_payload_exclusive,
+    ExecuteSqlRequestBuilder, IntoSpannerValue, PAYLOAD_BYTES, StreamedResultSetAsync, as_type,
+    null_value, struct_type_field, validate_payload_exclusive,
 };
 
 mod batch_impl;
@@ -319,13 +319,13 @@ impl SpannerDb {
                 "collection_id" => collection_id,
             };
             let mut result = self
-                .sql(
-                    "SELECT COALESCE(SUM(BYTE_LENGTH(payload)), 0), COUNT(*)
+                .sql(&format!(
+                    "SELECT COALESCE(SUM({PAYLOAD_BYTES}), 0), COUNT(*)
                        FROM bsos
                       WHERE fxa_uid = @fxa_uid
                         AND fxa_kid = @fxa_kid
-                        AND collection_id = @collection_id",
-                )
+                        AND collection_id = @collection_id"
+                ))
                 .await?
                 .params(q_params)
                 .param_types(q_types)

@@ -1439,6 +1439,9 @@ async fn post_bsos_offload_stores_payload_size() -> Result<(), DbError> {
     .await
 }
 
+/// A BSO offloaded before payload_size existed has no recorded size, so it
+/// contributes 0 to usage — the behavior every offloaded row had before the
+/// column landed.
 #[cfg(feature = "spanner")]
 #[tokio::test]
 async fn get_collection_usage_only_links() -> Result<(), DbError> {
@@ -1458,6 +1461,7 @@ async fn get_collection_usage_only_links() -> Result<(), DbError> {
     .await
 }
 
+/// As above, for whole-storage usage.
 #[cfg(feature = "spanner")]
 #[tokio::test]
 async fn get_storage_usage_only_links() -> Result<(), DbError> {
@@ -1471,6 +1475,88 @@ async fn get_storage_usage_only_links() -> Result<(), DbError> {
 
         let usage = db.get_storage_usage(hid(uid)).await?;
         assert_eq!(usage, 0);
+        Ok(())
+    })
+    .await
+}
+
+/// An offloaded payload's bytes live in GCS, but payload_size keeps them
+/// visible to every usage accounting: per collection, per user, and the
+/// user_collections totals that back get_quota_usage.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn usage_counts_offloaded_payload_size() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+
+        db.delete_storage(hid(uid)).await?;
+        let mut bso = pbso(uid, "test", "foo", None, None, Some(DEFAULT_BSO_TTL));
+        bso.payload_link = Some(GS_URL.to_owned());
+        bso.payload_size = Some(4096);
+        db.put_bso(bso).await?;
+
+        let expected = HashMap::from([("test".to_owned(), 4096)]);
+        assert_eq!(db.get_collection_usage(hid(uid)).await?, expected);
+        assert_eq!(db.get_storage_usage(hid(uid)).await?, 4096);
+
+        if Settings::test_settings().syncstorage.enable_quota {
+            let quota = db
+                .get_quota_usage(params::GetQuotaUsage {
+                    user_id: hid(uid),
+                    collection: "test".to_owned(),
+                })
+                .await?;
+            assert_eq!(quota.total_bytes, 4096);
+        }
+        Ok(())
+    })
+    .await
+}
+
+/// Inline and offloaded BSOs in the same collection sum together.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn usage_sums_inline_and_offloaded() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "test";
+
+        db.delete_storage(hid(uid)).await?;
+        db.put_bso(pbso(uid, coll, "inline", Some("12345"), None, None))
+            .await?;
+        let mut offloaded = pbso(uid, coll, "offloaded", None, None, Some(DEFAULT_BSO_TTL));
+        offloaded.payload_link = Some(GS_URL.to_owned());
+        offloaded.payload_size = Some(4096);
+        db.put_bso(offloaded).await?;
+
+        let expected = HashMap::from([(coll.to_owned(), 4096 + 5)]);
+        assert_eq!(db.get_collection_usage(hid(uid)).await?, expected);
+        assert_eq!(db.get_storage_usage(hid(uid)).await?, 4096 + 5);
+        Ok(())
+    })
+    .await
+}
+
+/// An inline overwrite of an offloaded BSO drops the offloaded size from usage
+/// along with payload_size itself.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn usage_drops_payload_size_on_inline_overwrite() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "test";
+        let bid = "foo";
+
+        db.delete_storage(hid(uid)).await?;
+        let mut offloaded = pbso(uid, coll, bid, None, None, Some(DEFAULT_BSO_TTL));
+        offloaded.payload_link = Some(GS_URL.to_owned());
+        offloaded.payload_size = Some(4096);
+        db.put_bso(offloaded).await?;
+        assert_eq!(db.get_storage_usage(hid(uid)).await?, 4096);
+
+        db.put_bso(pbso(uid, coll, bid, Some("12345"), None, None))
+            .await?;
+        assert_eq!(db.get_storage_usage(hid(uid)).await?, 5);
         Ok(())
     })
     .await

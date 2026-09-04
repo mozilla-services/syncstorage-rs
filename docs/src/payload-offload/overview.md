@@ -8,7 +8,8 @@ offload lifts that ceiling for chosen collections: syncserver writes the
 payload to a Google Cloud Storage object and stores only a `gs://` URL in the
 BSO's `payload_link` column, leaving `payload` NULL. The payload's byte length
 is recorded alongside the URL in `payload_size`, since the row itself no longer
-carries the bytes to measure.
+carries the bytes to measure. Usage and quota accounting reads that column, so
+an offloaded payload still counts against the user's quota.
 
 Offload is off by default, opt-in per collection, and supported on the Spanner
 backend only. Nothing changes for a collection that is not opted in.
@@ -254,3 +255,6 @@ This is a work in progress. As of this writing:
 - Only the dev environment is built out. Stage and prod need the same set of
   resources plus a dedicated Spanner metadata database.
 - Change stream storage cost in prod has not been measured.
+- BSOs offloaded before `payload_size` existed have no recorded size and count
+  as 0 bytes toward usage and quota until they are rewritten. There is no
+  backfill.

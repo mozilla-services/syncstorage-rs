@@ -160,13 +160,16 @@ async fn append_commit() -> Result<(), DbError> {
     .await
 }
 
+// payload_link/payload_size are Spanner-only columns, so the offload tests
+// below are gated to the spanner backend.
+#[cfg(feature = "spanner")]
+const GS_URL: &str = "gs://test-bucket/fxa/clients/b0/abcd";
+
 /// A staged offloaded BSO carries both payload_link and its payload_size
-/// through the commit into `bsos`. Spanner-only: they're Spanner-only columns.
+/// through the commit into `bsos`.
 #[cfg(feature = "spanner")]
 #[tokio::test]
 async fn append_commit_offloaded() -> Result<(), DbError> {
-    const GS_URL: &str = "gs://test-bucket/fxa/clients/b0/abcd";
-
     with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
         let uid = 1;
         let coll = "clients";
@@ -274,6 +277,67 @@ async fn quota_test_append_batch() -> Result<(), DbError> {
             .await?;
             let id2 = db.create_batch(cb(uid, coll, bsos2)).await?;
             let result = db.append_to_batch(ab(uid, coll, id2.clone(), bsos3)).await;
+            if settings.enforce_quota {
+                assert!(result.is_err())
+            } else {
+                assert!(result.is_ok())
+            }
+            Ok(())
+        },
+    )
+    .await
+}
+
+/// Offloaded BSOs count toward the batch quota check through payload_size, on
+/// all three of its inputs: the committed collection total, the rows already
+/// pending in `batch_bsos`, and the running total of the incoming request.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn quota_test_append_batch_offloaded() -> Result<(), DbError> {
+    let mut settings = Settings::test_settings().syncstorage;
+
+    if !settings.enable_quota {
+        debug!("[test] Skipping test");
+        return Ok(());
+    }
+
+    let limit = 300;
+    settings.limits.max_quota_limit = limit;
+
+    with_test_transaction(
+        settings.clone(),
+        async |db: &mut dyn Db<Error = DbError>| {
+            let uid = 1;
+            let coll = "clients";
+            // Each is a third of the quota, offloaded: no inline bytes at all,
+            // so every byte counted has to come from payload_size.
+            let offloaded = |id: &str| {
+                let mut bso = postbso(id, None, None, None);
+                bso.payload_link = Some(GS_URL.to_owned());
+                bso.payload_size = Some((limit / 3) as i64);
+                bso
+            };
+
+            let new_batch = db
+                .create_batch(cb(uid, coll, vec![offloaded("b0")]))
+                .await?;
+            let batch = db
+                .get_batch(gb(uid, coll, new_batch.id.clone()))
+                .await?
+                .unwrap();
+            db.commit_batch(params::CommitBatch {
+                user_id: hid(uid),
+                collection: coll.to_owned(),
+                batch,
+            })
+            .await?;
+
+            let id2 = db
+                .create_batch(cb(uid, coll, vec![offloaded("b1")]))
+                .await?;
+            let result = db
+                .append_to_batch(ab(uid, coll, id2.clone(), vec![offloaded("b2")]))
+                .await;
             if settings.enforce_quota {
                 assert!(result.is_err())
             } else {

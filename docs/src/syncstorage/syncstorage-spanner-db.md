@@ -88,7 +88,7 @@ These come from Spanner itself and bound what the server must respect:
 | `collection_id` | `INT64`        | Maps to a named collection. PK (part 3).                             |
 | `modified`      | `TIMESTAMP`    | Last modification time (server-assigned, updated on writes).         |
 | `count`         | `INT64`        | Count of BSOs in this collection (quota mode only).                  |
-| `total_bytes`   | `INT64`        | Total payload size of all BSOs (quota mode only).                    |
+| `total_bytes`   | `INT64`        | Total payload size of all BSOs (quota mode only). Counts an offloaded BSO by its recorded `payload_size`, so moving a payload to GCS does not move it out of the user's quota. |
 
 Enables `/info/collections`, `/info/collection_counts`, and `/info/collection_usage`.
 
@@ -103,7 +103,7 @@ Enables `/info/collections`, `/info/collection_counts`, and `/info/collection_us
 | `sortindex`     | `INT64`        | Indicates record importance for syncing (optional).                  |
 | `payload`       | `STRING(MAX)`  | Payload bytes (e.g. an encrypted JSON blob). Nullable: an offloaded BSO leaves this NULL and sets `payload_link` instead. |
 | `payload_link`  | `STRING(MAX)`  | `gs://` URL of the payload when it is stored in GCS rather than inline. NULL for an ordinary BSO. See [Payload Offload](../payload-offload/overview.md). |
-| `payload_size`  | `INT64`        | Byte length of the offloaded payload, recorded at upload time. Set only alongside `payload_link`; NULL for an inline payload, whose size is `BYTE_LENGTH(payload)`. |
+| `payload_size`  | `INT64`        | Byte length of the offloaded payload, recorded at upload time. Set only alongside `payload_link`; NULL for an inline payload, whose size is `BYTE_LENGTH(payload)`. Usage and quota accounting reads it as `COALESCE(BYTE_LENGTH(payload), payload_size, 0)`. |
 | `modified`      | `TIMESTAMP`    | Server-assigned modification timestamp.                              |
 | `expiry`        | `TIMESTAMP`    | Absolute expiration time. Spanner's row deletion policy prunes rows older than `expiry`. |
 

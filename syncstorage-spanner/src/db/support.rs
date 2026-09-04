@@ -107,6 +107,15 @@ impl SpannerArrayElementType for Vec<u32> {
     const ARRAY_ELEMENT_TYPE_CODE: TypeCode = TypeCode::INT64;
 }
 
+/// SQL expression for a BSO's payload byte length, for `bsos` and
+/// `batch_bsos` alike.
+///
+/// An inline payload measures its own column. An offloaded one leaves `payload`
+/// NULL (so `BYTE_LENGTH` yields NULL) and falls back to the `payload_size`
+/// recorded at upload time. A row offloaded before `payload_size` existed has
+/// neither and contributes 0, as it did before this column.
+pub const PAYLOAD_BYTES: &str = "COALESCE(BYTE_LENGTH(payload), payload_size, 0)";
+
 pub fn as_type(v: TypeCode) -> Type {
     let mut t = Type::new();
     t.set_code(v);

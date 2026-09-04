@@ -16,7 +16,8 @@ use crate::error::DbError;
 use super::{
     PRETOUCH_TS, SpannerDb,
     support::{
-        IntoSpannerValue, as_type, null_value, struct_type_field, validate_payload_exclusive,
+        IntoSpannerValue, PAYLOAD_BYTES, as_type, null_value, struct_type_field,
+        validate_payload_exclusive,
     },
 };
 use crate::DbResult;
@@ -254,8 +255,12 @@ pub async fn do_append(
     let mut incoming_ids: Vec<String> = Vec::with_capacity(bsos.len());
     for bso in bsos {
         validate_payload_exclusive(bso.payload.as_ref(), bso.payload_link.as_ref())?;
+        // An offloaded BSO's bytes live in GCS, but they still count against
+        // the user's quota: fall back to the size recorded at upload.
         if let Some(ref payload) = bso.payload {
             running_size += payload.len();
+        } else if let Some(payload_size) = bso.payload_size {
+            running_size += usize::try_from(payload_size).unwrap_or(0);
         }
         incoming_ids.push(bso.id.clone());
         let sortindex = bso
@@ -403,15 +408,15 @@ async fn pending_batch_size(
     sqlparam_types.insert("incoming_ids".to_owned(), incoming_ids.spanner_type());
     sqlparams.insert("incoming_ids".to_owned(), incoming_ids.into_spanner_value());
     let result = db
-        .sql(
-            "SELECT COALESCE(SUM(BYTE_LENGTH(payload)), 0)
+        .sql(&format!(
+            "SELECT COALESCE(SUM({PAYLOAD_BYTES}), 0)
                FROM batch_bsos
               WHERE fxa_uid = @fxa_uid
                 AND fxa_kid = @fxa_kid
                 AND collection_id = @collection_id
                 AND batch_id = @batch_id
-                AND batch_bso_id NOT IN UNNEST(@incoming_ids)",
-        )
+                AND batch_bso_id NOT IN UNNEST(@incoming_ids)"
+        ))
         .await?
         .params(sqlparams)
         .param_types(sqlparam_types)
