@@ -462,13 +462,17 @@ pub async fn post_collection(
         let collection = coll.collection.as_str();
         // fail-fast on first failure uploads; successful, orphaned uploads rely on GCS lifecyle
         // policy for clean-up.
-        let uploads: Vec<(usize, String)> = stream::iter(pending)
+        // The payload's byte length is recorded alongside its URL: once the
+        // payload lives in GCS the row's own payload column is NULL, so its
+        // size is only knowable here.
+        let uploads: Vec<(usize, (String, i64))> = stream::iter(pending)
             .map(|(i, bso_id, payload)| {
                 let client = client.clone();
+                let payload_size = payload.len() as i64;
                 async move {
                     upload_payload(&client, bucket, user_id, collection, &bso_id, payload)
                         .await
-                        .map(|url| (i, url))
+                        .map(|url| (i, (url, payload_size)))
                 }
             })
             .buffer_unordered(state.gcs_payload_max_concurrency.get())
@@ -477,10 +481,11 @@ pub async fn post_collection(
 
         // Track uploaded URLs so they can be cleaned up from GCS if the DB
         // transaction below fails.
-        offload_urls.extend(uploads.iter().map(|(_, url)| url.clone()));
+        offload_urls.extend(uploads.iter().map(|(_, (url, _))| url.clone()));
 
-        reattach_by_index(&mut coll.bsos.valid, uploads, |bso, url| {
-            bso.payload_link = Some(url)
+        reattach_by_index(&mut coll.bsos.valid, uploads, |bso, (url, payload_size)| {
+            bso.payload_link = Some(url);
+            bso.payload_size = Some(payload_size);
         });
     }
 
@@ -703,6 +708,7 @@ pub async fn post_collection_batch(
                         sortindex: batch_bso.sortindex,
                         payload: batch_bso.payload,
                         payload_link: batch_bso.payload_link,
+                        payload_size: batch_bso.payload_size,
                         ttl: batch_bso.ttl,
                     })
                     .collect(),
@@ -839,9 +845,13 @@ pub async fn put_bso(
     // but the GCS cleanup after it needs to emit metrics.
     let metrics = bso_req.metrics.clone();
     let mut payload_link = None;
+    let mut payload_size = None;
     if let Some(bucket) = offload_bucket(&state, &bso_req.collection)
         && let Some(payload) = bso_req.body.payload.take()
     {
+        // Recorded before the upload consumes the payload: the row's payload
+        // column is NULL once offloaded, so its size is only knowable here.
+        payload_size = Some(payload.len() as i64);
         let url = upload_payload(
             state.gcs_client()?,
             bucket,
@@ -866,6 +876,7 @@ pub async fn put_bso(
                     sortindex: bso_req.body.sortindex,
                     payload: bso_req.body.payload,
                     payload_link: payload_link.clone(),
+                    payload_size,
                     ttl: bso_req.body.ttl,
                 })
                 .await?;

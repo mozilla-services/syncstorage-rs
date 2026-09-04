@@ -19,6 +19,10 @@ pub struct BatchBsoBody {
     /// accepted from the client.
     #[serde(default, skip_deserializing)]
     pub payload_link: Option<String>,
+    /// Byte length of the offloaded payload, recorded alongside
+    /// [`Self::payload_link`]; never accepted from the client.
+    #[serde(default, skip_deserializing)]
+    pub payload_size: Option<i64>,
 }
 
 impl BatchBsoBody {
@@ -55,6 +59,7 @@ impl From<BatchBsoBody> for PostCollectionBso {
             sortindex: b.sortindex,
             payload: b.payload,
             payload_link: b.payload_link,
+            payload_size: b.payload_size,
             ttl: b.ttl,
         }
     }

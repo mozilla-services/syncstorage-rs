@@ -5,10 +5,11 @@
 -- NULL, and the COALESCE fallback applies.  payload is nullable and mutually
 -- exclusive with payload_link: whichever the batch row supplies is written and
 -- the other is set NULL; when neither is supplied the existing row's values are
--- preserved.
+-- preserved. payload_size follows payload_link: it holds the byte length of the
+-- offloaded payload and is NULL whenever the payload is inline.
 INSERT OR UPDATE INTO bsos
     (fxa_uid, fxa_kid, collection_id, bso_id, sortindex, payload, modified, expiry,
-     payload_link)
+     payload_link, payload_size)
 SELECT
     bb.fxa_uid,
     bb.fxa_kid,
@@ -31,11 +32,16 @@ SELECT
         WHEN bb.payload_link IS NOT NULL THEN bb.payload_link
         WHEN bb.payload IS NOT NULL THEN NULL
         ELSE existing.payload_link
+    END,
+    CASE
+        WHEN bb.payload_link IS NOT NULL THEN bb.payload_size
+        WHEN bb.payload IS NOT NULL THEN NULL
+        ELSE existing.payload_size
     END
   FROM batch_bsos AS bb
   LEFT JOIN (
       SELECT fxa_uid, fxa_kid, collection_id, bso_id,
-             sortindex, payload, expiry, payload_link
+             sortindex, payload, expiry, payload_link, payload_size
         FROM bsos
        WHERE fxa_uid = @fxa_uid
          AND fxa_kid = @fxa_kid

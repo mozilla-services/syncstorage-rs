@@ -88,7 +88,7 @@ These come from Spanner itself and bound what the server must respect:
 | `collection_id` | `INT64`        | Maps to a named collection. PK (part 3).                             |
 | `modified`      | `TIMESTAMP`    | Last modification time (server-assigned, updated on writes).         |
 | `count`         | `INT64`        | Count of BSOs in this collection (quota mode only).                  |
-| `total_bytes`   | `INT64`        | Total payload size of all BSOs (quota mode only).                    |
+| `total_bytes`   | `INT64`        | Total payload size of all BSOs (quota mode only). Counts an offloaded BSO by its recorded `payload_size`, so moving a payload to GCS does not move it out of the user's quota. |
 
 Enables `/info/collections`, `/info/collection_counts`, and `/info/collection_usage`.
 
@@ -103,6 +103,7 @@ Enables `/info/collections`, `/info/collection_counts`, and `/info/collection_us
 | `sortindex`     | `INT64`        | Indicates record importance for syncing (optional).                  |
 | `payload`       | `STRING(MAX)`  | Payload bytes (e.g. an encrypted JSON blob). Nullable: an offloaded BSO leaves this NULL and sets `payload_link` instead. |
 | `payload_link`  | `STRING(MAX)`  | `gs://` URL of the payload when it is stored in GCS rather than inline. NULL for an ordinary BSO. See [Payload Offload](../payload-offload/overview.md). |
+| `payload_size`  | `INT64`        | Byte length of the offloaded payload, recorded at upload time. Set only alongside `payload_link`; NULL for an inline payload, whose size is `BYTE_LENGTH(payload)`. Usage and quota accounting reads it as `COALESCE(BYTE_LENGTH(payload), payload_size, 0)`. |
 | `modified`      | `TIMESTAMP`    | Server-assigned modification timestamp.                              |
 | `expiry`        | `TIMESTAMP`    | Absolute expiration time. Spanner's row deletion policy prunes rows older than `expiry`. |
 
@@ -147,6 +148,7 @@ The 13 standard collections expected by clients have fixed reserved IDs (1–13)
 | `sortindex`     | `INT64`        | Optional; nullable since the upload may not set every field per item.  |
 | `payload`       | `STRING(MAX)`  | Optional; nullable for the same reason.                                |
 | `payload_link`  | `STRING(MAX)`  | `gs://` URL of a staged offloaded payload. Copied into the permanent `bsos` row at commit. See [Payload Offload](../payload-offload/overview.md). |
+| `payload_size`  | `INT64`        | Byte length of the staged offloaded payload. Travels with `payload_link` into the `bsos` row at commit. |
 | `ttl`           | `INT64`        | Time-to-live in seconds, optional.                                     |
 
 `INTERLEAVE IN PARENT batches ON DELETE CASCADE`. Note there is no `modified` column, the modification timestamp is assigned at commit time when rows are upserted into `bsos`.
@@ -201,10 +203,21 @@ With no secondary indexes on `bsos` (per [#2382](https://github.com/mozilla-serv
 | Component                                                       | Mutations |
 | --------------------------------------------------------------- | --------- |
 | 4 PK columns (`fxa_uid`, `fxa_kid`, `collection_id`, `bso_id`)  | 4         |
-| 4 non-PK columns (`sortindex`, `payload`, `modified`, `expiry`) | 4         |
-| **Total per BSO**                                               | **8**     |
+| 6 non-PK columns (`sortindex`, `payload`, `modified`, `expiry`, `payload_link`, `payload_size`) | 6 |
+| **Total per BSO**                                               | **10**    |
 
-For `N` BSOs in the batch: `8N` mutations.
+For `N` BSOs in the batch: `10N` mutations.
+
+> **The figures below still assume the pre-offload 8 mutations per BSO and are
+> stale.** `batch_commit_upsert.sql` gained `payload_link` with payload offload
+> ([#2407](https://github.com/mozilla-services/syncstorage-rs/pull/2407)) and
+> `payload_size` alongside it; both are written for every row in the batch,
+> whether or not the collection offloads. At 10 per BSO the ceiling is
+> `10N + 13 <= 80,000`, i.e. `N <= 7,998` — below the deployed
+> `max_total_records` of 9,984, which would consume 99,853 mutations at a full
+> batch. Recalculating the budget and the deployed value is tracked separately;
+> the totals, evolution, and justification sections below have not been
+> rewritten.
 
 #### Step 3 `delete_batch`
 

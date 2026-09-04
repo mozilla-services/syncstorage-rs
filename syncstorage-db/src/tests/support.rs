@@ -82,6 +82,7 @@ pub fn pbso(
         id: bid.to_owned(),
         payload: payload.map(|payload| payload.to_owned()),
         payload_link: None,
+        payload_size: None,
         sortindex,
         ttl,
     }
@@ -97,6 +98,7 @@ pub fn postbso(
         id: bid.to_owned(),
         payload: payload.map(str::to_owned),
         payload_link: None,
+        payload_size: None,
         sortindex,
         ttl,
     }

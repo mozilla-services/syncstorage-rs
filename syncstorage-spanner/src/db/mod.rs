@@ -24,8 +24,8 @@ use crate::{
     pool::{CollectionCache, Conn},
 };
 use support::{
-    ExecuteSqlRequestBuilder, IntoSpannerValue, StreamedResultSetAsync, as_type, null_value,
-    struct_type_field, validate_payload_exclusive,
+    ExecuteSqlRequestBuilder, IntoSpannerValue, PAYLOAD_BYTES, StreamedResultSetAsync, as_type,
+    null_value, struct_type_field, validate_payload_exclusive,
 };
 
 mod batch_impl;
@@ -319,13 +319,13 @@ impl SpannerDb {
                 "collection_id" => collection_id,
             };
             let mut result = self
-                .sql(
-                    "SELECT COALESCE(SUM(BYTE_LENGTH(payload)), 0), COUNT(*)
+                .sql(&format!(
+                    "SELECT COALESCE(SUM({PAYLOAD_BYTES}), 0), COUNT(*)
                        FROM bsos
                       WHERE fxa_uid = @fxa_uid
                         AND fxa_kid = @fxa_kid
-                        AND collection_id = @collection_id",
-                )
+                        AND collection_id = @collection_id"
+                ))
                 .await?
                 .params(q_params)
                 .param_types(q_types)
@@ -616,28 +616,41 @@ impl SpannerDb {
         // payload and payload_link are mutually exclusive: an inline write sets
         // payload and clears the link, an offload write sets the link and
         // clears payload, and a metadata-only update preserves whichever the
-        // existing row holds.
-        let (payload_expr, payload_link_expr) = match (bso.payload, bso.payload_link) {
-            (Some(payload), _) => {
-                sqlparam_types.insert("payload".to_owned(), payload.spanner_type());
-                sqlparams.insert("payload".to_owned(), payload.into_spanner_value());
-                ("@payload", "NULL")
-            }
-            (None, Some(payload_link)) => {
-                sqlparam_types.insert("payload_link".to_owned(), payload_link.spanner_type());
-                sqlparams.insert("payload_link".to_owned(), payload_link.into_spanner_value());
-                ("NULL", "@payload_link")
-            }
-            // Metadata-only write: preserve the existing row. An offloaded row
-            // keeps its NULL payload; an inline row keeps its payload; a fresh
-            // insert (no existing row) defaults to an empty inline payload so
-            // the row still satisfies the exactly-one invariant.
-            (None, None) => (
-                "CASE WHEN existing.payload_link IS NOT NULL THEN NULL \
+        // existing row holds. payload_size travels with payload_link: it's the
+        // byte length of the offloaded payload, and NULL whenever the payload
+        // is inline (where BYTE_LENGTH(payload) gives the same answer).
+        let (payload_expr, payload_link_expr, payload_size_expr) =
+            match (bso.payload, bso.payload_link) {
+                (Some(payload), _) => {
+                    sqlparam_types.insert("payload".to_owned(), payload.spanner_type());
+                    sqlparams.insert("payload".to_owned(), payload.into_spanner_value());
+                    ("@payload", "NULL", "NULL")
+                }
+                (None, Some(payload_link)) => {
+                    sqlparam_types.insert("payload_link".to_owned(), payload_link.spanner_type());
+                    sqlparams.insert("payload_link".to_owned(), payload_link.into_spanner_value());
+                    let payload_size_expr = if let Some(payload_size) = bso.payload_size {
+                        sqlparam_types
+                            .insert("payload_size".to_owned(), payload_size.spanner_type());
+                        sqlparams
+                            .insert("payload_size".to_owned(), payload_size.into_spanner_value());
+                        "@payload_size"
+                    } else {
+                        "NULL"
+                    };
+                    ("NULL", "@payload_link", payload_size_expr)
+                }
+                // Metadata-only write: preserve the existing row. An offloaded
+                // row keeps its NULL payload; an inline row keeps its payload;
+                // a fresh insert (no existing row) defaults to an empty inline
+                // payload so the row still satisfies the exactly-one invariant.
+                (None, None) => (
+                    "CASE WHEN existing.payload_link IS NOT NULL THEN NULL \
                       ELSE COALESCE(existing.payload, '') END",
-                "existing.payload_link",
-            ),
-        };
+                    "existing.payload_link",
+                    "existing.payload_size",
+                ),
+            };
 
         let expiry_expr = if let Some(ttl) = bso.ttl {
             let expiry = timestamp.as_i64() + (i64::from(ttl) * 1000);
@@ -661,16 +674,18 @@ impl SpannerDb {
 
         let sql = format!(
             "INSERT OR UPDATE INTO bsos
-                 (fxa_uid, fxa_kid, collection_id, bso_id, modified, payload, expiry, payload_link{sortindex_col})
+                 (fxa_uid, fxa_kid, collection_id, bso_id, modified, payload, expiry, payload_link,
+                  payload_size{sortindex_col})
              SELECT
                  @fxa_uid, @fxa_kid, @collection_id, @bso_id,
                  {modified_expr},
                  {payload_expr},
                  {expiry_expr},
-                 {payload_link_expr}{sortindex_expr}
+                 {payload_link_expr},
+                 {payload_size_expr}{sortindex_expr}
                FROM UNNEST([1]) --  provides a row source for the LEFT JOIN
           LEFT JOIN (
-                 SELECT modified, payload, expiry, sortindex, payload_link
+                 SELECT modified, payload, expiry, sortindex, payload_link, payload_size
                    FROM bsos
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
@@ -720,6 +735,10 @@ impl SpannerDb {
                 .payload_link
                 .map(IntoSpannerValue::into_spanner_value)
                 .unwrap_or_else(null_value);
+            let payload_size = bso
+                .payload_size
+                .map(IntoSpannerValue::into_spanner_value)
+                .unwrap_or_else(null_value);
 
             let mut row = ListValue::new();
             row.set_values(
@@ -729,6 +748,7 @@ impl SpannerDb {
                     payload,
                     ttl,
                     payload_link,
+                    payload_size,
                 ]
                 .into(),
             );
@@ -743,6 +763,7 @@ impl SpannerDb {
             ("payload", TypeCode::STRING),
             ("ttl", TypeCode::INT64),
             ("payload_link", TypeCode::STRING),
+            ("payload_size", TypeCode::INT64),
         ]
         .into_iter()
         .map(|(name, field_type)| struct_type_field(name, field_type))
@@ -776,7 +797,7 @@ impl SpannerDb {
         self.sql(
             "INSERT OR UPDATE INTO bsos
                  (fxa_uid, fxa_kid, collection_id, bso_id,
-                  sortindex, payload, modified, expiry, payload_link)
+                  sortindex, payload, modified, expiry, payload_link, payload_size)
              SELECT
                  @fxa_uid,
                  @fxa_kid,
@@ -803,6 +824,11 @@ impl SpannerDb {
                      WHEN incoming.payload_link IS NOT NULL THEN incoming.payload_link
                      WHEN incoming.payload IS NOT NULL THEN NULL
                      ELSE existing.payload_link
+                 END,
+                 CASE
+                     WHEN incoming.payload_link IS NOT NULL THEN incoming.payload_size
+                     WHEN incoming.payload IS NOT NULL THEN NULL
+                     ELSE existing.payload_size
                  END
                FROM UNNEST(@bsos) AS incoming
                LEFT JOIN bsos AS existing

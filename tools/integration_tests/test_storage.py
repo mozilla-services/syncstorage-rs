@@ -71,14 +71,6 @@ def json_loads(value):
 _PLD = "*" * 500
 _ASCII = string.ascii_letters + string.digits
 
-# Collection deliberately kept OUT of GCS_PAYLOAD_OFFLOAD_COLLECTIONS in the
-# offload e2e stack. Byte-size accounting (/info/quota, /info/collection_usage)
-# sums the inline Spanner payload, which is NULL for offloaded BSOs, so those
-# endpoints only make sense against a non-offloaded collection. Metering of
-# offloaded/GCS data is tracked separately (STOR-372). Do not add this name to
-# the offload list in docker/docker-compose.e2e.reconciliation.yaml.
-_NON_OFFLOAD_COL = "xxx_usage"
-
 
 def randtext(size=10):
     """Return a random ASCII string of the given size."""
@@ -629,11 +621,7 @@ def test_app_newlines_when_payloads_contain_newlines(st_ctx):
 
 
 def test_collection_usage(st_ctx):
-    """Test collection usage.
-
-    Uses a non-offloaded collection: collection_usage sums the inline Spanner
-    payload, which is not populated for offloaded BSOs.
-    """
+    """Test collection usage."""
     app = st_ctx["app"]
     root = st_ctx["root"]
     retry_delete(app, root + "/storage")
@@ -641,13 +629,13 @@ def test_collection_usage(st_ctx):
     bso1 = {"id": "13", "payload": "XyX"}
     bso2 = {"id": "14", "payload": _PLD}
     bsos = [bso1, bso2]
-    retry_post_json(app, root + "/storage/" + _NON_OFFLOAD_COL, bsos)
+    retry_post_json(app, root + "/storage/xxx_col2", bsos)
 
     res = app.get(root + "/info/collection_usage")
     usage = res.json
-    col_size = usage[_NON_OFFLOAD_COL]
+    xxx_col2_size = usage["xxx_col2"]
     wanted = (len(bso1["payload"]) + len(bso2["payload"])) / 1024.0
-    assert round(col_size, 2) == round(wanted, 2)
+    assert round(xxx_col2_size, 2) == round(wanted, 2)
 
 
 def test_delete_collection_items(st_ctx):
@@ -870,17 +858,13 @@ def test_ifunmodifiedsince(st_ctx):
 
 
 def test_quota(st_ctx):
-    """Test quota.
-
-    Uses a non-offloaded collection so the written payload is stored inline and
-    counted by /info/quota; offloaded BSOs leave the Spanner payload NULL.
-    """
+    """Test quota."""
     app = st_ctx["app"]
     root = st_ctx["root"]
     res = app.get(root + "/info/quota")
     old_used = res.json[0]
     bso = {"payload": _PLD}
-    retry_put_json(app, root + "/storage/" + _NON_OFFLOAD_COL + "/12345", bso)
+    retry_put_json(app, root + "/storage/xxx_col2/12345", bso)
     res = app.get(root + "/info/quota")
     used = res.json[0]
     assert used - old_used == len(_PLD) / 1024.0

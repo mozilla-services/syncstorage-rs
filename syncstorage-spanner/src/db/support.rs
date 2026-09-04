@@ -44,6 +44,14 @@ impl IntoSpannerValue for i32 {
     }
 }
 
+impl IntoSpannerValue for i64 {
+    const TYPE_CODE: TypeCode = TypeCode::INT64;
+
+    fn into_spanner_value(self) -> Value {
+        self.to_string().into_spanner_value()
+    }
+}
+
 impl IntoSpannerValue for u32 {
     const TYPE_CODE: TypeCode = TypeCode::INT64;
 
@@ -98,6 +106,15 @@ impl SpannerArrayElementType for Vec<i32> {
 impl SpannerArrayElementType for Vec<u32> {
     const ARRAY_ELEMENT_TYPE_CODE: TypeCode = TypeCode::INT64;
 }
+
+/// SQL expression for a BSO's payload byte length, for `bsos` and
+/// `batch_bsos` alike.
+///
+/// An inline payload measures its own column. An offloaded one leaves `payload`
+/// NULL (so `BYTE_LENGTH` yields NULL) and falls back to the `payload_size`
+/// recorded at upload time. A row offloaded before `payload_size` existed has
+/// neither and contributes 0, as it did before this column.
+pub const PAYLOAD_BYTES: &str = "COALESCE(BYTE_LENGTH(payload), payload_size, 0)";
 
 pub fn as_type(v: TypeCode) -> Type {
     let mut t = Type::new();
@@ -232,6 +249,16 @@ pub fn bso_from_row(mut row: Vec<Value>) -> DbResult<results::GetBso> {
             None
         } else {
             Some(row[5].take_string_value())
+        },
+        payload_size: if row[6].has_null_value() {
+            None
+        } else {
+            Some(
+                row[6]
+                    .get_string_value()
+                    .parse::<i64>()
+                    .map_err(|e| DbError::integrity(e.to_string()))?,
+            )
         },
     })
 }
