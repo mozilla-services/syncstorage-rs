@@ -450,23 +450,23 @@ pub async fn post_collection(
         let client = state.gcs_client()?;
         // Take the payloads for concurrent uploads, with index to bind the payload url back to
         // the bso
-        let pending: Vec<(usize, String, String)> = coll
+        let pending: Vec<(usize, String)> = coll
             .bsos
             .valid
             .iter_mut()
             .enumerate()
-            .filter_map(|(i, bso)| bso.payload.take().map(|p| (i, bso.id.clone(), p)))
+            .filter_map(|(i, bso)| bso.payload.take().map(|p| (i, p)))
             .collect();
 
         let user_id = &coll.user_id;
-        let collection = coll.collection.as_str();
+        let prefix = state.gcs_payload_prefix.as_str();
         // fail-fast on first failure uploads; successful, orphaned uploads rely on GCS lifecyle
         // policy for clean-up.
         let uploads: Vec<(usize, String)> = stream::iter(pending)
-            .map(|(i, bso_id, payload)| {
+            .map(|(i, payload)| {
                 let client = client.clone();
                 async move {
-                    upload_payload(&client, bucket, user_id, collection, &bso_id, payload)
+                    upload_payload(&client, bucket, prefix, user_id, payload)
                         .await
                         .map(|url| (i, url))
                 }
@@ -845,9 +845,8 @@ pub async fn put_bso(
         let url = upload_payload(
             state.gcs_client()?,
             bucket,
+            &state.gcs_payload_prefix,
             &bso_req.user_id,
-            &bso_req.collection,
-            &bso_req.bso,
             payload,
         )
         .await?;
