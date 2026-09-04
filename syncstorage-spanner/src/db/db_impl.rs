@@ -654,7 +654,8 @@ impl Db for SpannerDb {
 
     async fn get_bsos(&mut self, params: params::GetBsos) -> DbResult<results::GetBsos> {
         let query = "\
-            SELECT bso_id, sortindex, payload, modified, expiry, payload_link
+            SELECT bso_id, sortindex, payload, modified, expiry, payload_link,
+                   payload_size
               FROM bsos
              WHERE fxa_uid = @fxa_uid
                AND fxa_kid = @fxa_kid
@@ -741,7 +742,8 @@ impl Db for SpannerDb {
             "bso_id" => params.id,
         };
         self.sql(
-            "SELECT bso_id, sortindex, payload, modified, expiry, payload_link
+            "SELECT bso_id, sortindex, payload, modified, expiry, payload_link,
+                   payload_size
                FROM bsos
               WHERE fxa_uid = @fxa_uid
                 AND fxa_kid = @fxa_kid
@@ -815,6 +817,7 @@ impl Db for SpannerDb {
                 sortindex: params.sortindex,
                 payload: params.payload,
                 payload_link: params.payload_link,
+                payload_size: params.payload_size,
                 ttl: params.ttl,
             },
             timestamp,

@@ -1324,6 +1324,121 @@ async fn post_bsos_rejects_both_payload_and_payload_link() -> Result<(), DbError
     .await
 }
 
+/// payload_size records the byte length of an offloaded payload, which is
+/// otherwise unrecoverable from the row (payload is NULL).
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn put_bso_offload_stores_payload_size() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+        let bid = "b0";
+
+        let mut bso = pbso(uid, coll, bid, None, None, Some(DEFAULT_BSO_TTL));
+        bso.payload_link = Some(GS_URL.to_owned());
+        bso.payload_size = Some(4096);
+        db.put_bso(bso).await?;
+
+        let got = db.get_bso(gbso(uid, coll, bid)).await?.unwrap();
+        assert_eq!(got.payload_link.as_deref(), Some(GS_URL));
+        assert_eq!(got.payload_size, Some(4096));
+        Ok(())
+    })
+    .await
+}
+
+/// payload_size travels with payload_link: writing an inline payload over an
+/// offloaded BSO clears both.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn put_bso_inline_write_clears_payload_size() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+        let bid = "b0";
+
+        let mut offloaded = pbso(uid, coll, bid, None, None, Some(DEFAULT_BSO_TTL));
+        offloaded.payload_link = Some(GS_URL.to_owned());
+        offloaded.payload_size = Some(4096);
+        db.put_bso(offloaded).await?;
+
+        db.put_bso(pbso(uid, coll, bid, Some("inline now"), None, None))
+            .await?;
+
+        let got = db.get_bso(gbso(uid, coll, bid)).await?.unwrap();
+        assert_eq!(got.payload_link, None);
+        assert_eq!(got.payload_size, None);
+        Ok(())
+    })
+    .await
+}
+
+/// A metadata-only update preserves the offloaded row's payload_size alongside
+/// its payload_link.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn put_bso_sortindex_only_preserves_payload_size() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+        let bid = "b0";
+
+        let mut offloaded = pbso(uid, coll, bid, None, None, Some(DEFAULT_BSO_TTL));
+        offloaded.payload_link = Some(GS_URL.to_owned());
+        offloaded.payload_size = Some(4096);
+        db.put_bso(offloaded).await?;
+
+        db.put_bso(pbso(uid, coll, bid, None, Some(9), None))
+            .await?;
+
+        let got = db.get_bso(gbso(uid, coll, bid)).await?.unwrap();
+        assert_eq!(got.payload_link.as_deref(), Some(GS_URL));
+        assert_eq!(got.payload_size, Some(4096));
+        Ok(())
+    })
+    .await
+}
+
+/// The batched `post_bsos` write path records payload_size too, and clears it
+/// when a later inline write replaces the offloaded payload.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn post_bsos_offload_stores_payload_size() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+
+        let mut bso = postbso("b0", None, None, Some(DEFAULT_BSO_TTL));
+        bso.payload_link = Some(GS_URL.to_owned());
+        bso.payload_size = Some(4096);
+        db.post_bsos(params::PostBsos {
+            user_id: hid(uid),
+            collection: coll.to_owned(),
+            bsos: vec![bso],
+            for_batch: false,
+        })
+        .await?;
+
+        let got = db.get_bso(gbso(uid, coll, "b0")).await?.unwrap();
+        assert_eq!(got.payload_link.as_deref(), Some(GS_URL));
+        assert_eq!(got.payload_size, Some(4096));
+
+        db.post_bsos(params::PostBsos {
+            user_id: hid(uid),
+            collection: coll.to_owned(),
+            bsos: vec![postbso("b0", Some("inline now"), None, None)],
+            for_batch: false,
+        })
+        .await?;
+
+        let got = db.get_bso(gbso(uid, coll, "b0")).await?.unwrap();
+        assert_eq!(got.payload_link, None);
+        assert_eq!(got.payload_size, None);
+        Ok(())
+    })
+    .await
+}
+
 #[cfg(feature = "spanner")]
 #[tokio::test]
 async fn get_collection_usage_only_links() -> Result<(), DbError> {

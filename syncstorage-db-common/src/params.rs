@@ -228,6 +228,8 @@ pub struct PutBso {
     pub payload: Option<String>,
     // URI of an externally-stored payload (currently Spanner + GCS only)
     pub payload_link: Option<String>,
+    // Byte length of the externally-stored payload, set alongside payload_link
+    pub payload_size: Option<i64>,
     // ttl in seconds
     pub ttl: Option<u32>,
 }
@@ -239,6 +241,8 @@ pub struct PostCollectionBso {
     pub payload: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub payload_link: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload_size: Option<i64>,
     // ttl in seconds
     pub ttl: Option<u32>,
 }

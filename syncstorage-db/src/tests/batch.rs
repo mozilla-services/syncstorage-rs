@@ -160,6 +160,38 @@ async fn append_commit() -> Result<(), DbError> {
     .await
 }
 
+/// A staged offloaded BSO carries both payload_link and its payload_size
+/// through the commit into `bsos`. Spanner-only: they're Spanner-only columns.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn append_commit_offloaded() -> Result<(), DbError> {
+    const GS_URL: &str = "gs://test-bucket/fxa/clients/b0/abcd";
+
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = 1;
+        let coll = "clients";
+        let mut bso = postbso("b0", None, None, None);
+        bso.payload_link = Some(GS_URL.to_owned());
+        bso.payload_size = Some(4096);
+        let new_batch = db.create_batch(cb(uid, coll, vec![bso])).await?;
+
+        let batch = db.get_batch(gb(uid, coll, new_batch.id)).await?.unwrap();
+        db.commit_batch(params::CommitBatch {
+            user_id: hid(uid),
+            collection: coll.to_owned(),
+            batch,
+        })
+        .await?;
+
+        let got = db.get_bso(gbso(uid, coll, "b0")).await?.unwrap();
+        assert_eq!(got.payload_link.as_deref(), Some(GS_URL));
+        assert_eq!(got.payload_size, Some(4096));
+        assert_eq!(got.payload, "");
+        Ok(())
+    })
+    .await
+}
+
 #[tokio::test]
 async fn quota_test_create_batch() -> Result<(), DbError> {
     let mut settings = Settings::test_settings().syncstorage;

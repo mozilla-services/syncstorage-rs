@@ -472,6 +472,7 @@ async fn post_collection() {
         sortindex: Some(0),
         payload: Some("bar".to_string()),
         payload_link: None,
+        payload_size: None,
         ttl: Some(31_536_000),
     }]);
     let bytes =

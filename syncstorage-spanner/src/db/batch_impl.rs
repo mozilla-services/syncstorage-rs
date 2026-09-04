@@ -274,6 +274,10 @@ pub async fn do_append(
             .payload_link
             .map(IntoSpannerValue::into_spanner_value)
             .unwrap_or_else(null_value);
+        let payload_size = bso
+            .payload_size
+            .map(IntoSpannerValue::into_spanner_value)
+            .unwrap_or_else(null_value);
 
         let mut row = ListValue::new();
         row.set_values(RepeatedField::from_vec(vec![
@@ -286,6 +290,7 @@ pub async fn do_append(
             payload,
             ttl,
             payload_link,
+            payload_size,
         ]));
         let mut value = Value::new();
         value.set_list_value(row);
@@ -321,6 +326,7 @@ pub async fn do_append(
         ("payload", TypeCode::STRING),
         ("ttl", TypeCode::INT64),
         ("payload_link", TypeCode::STRING),
+        ("payload_size", TypeCode::INT64),
     ]
     .into_iter()
     .map(|(name, field_type)| struct_type_field(name, field_type))
@@ -348,7 +354,7 @@ pub async fn do_append(
     db.sql(
         "INSERT OR UPDATE INTO batch_bsos
              (fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id,
-              sortindex, payload, ttl, payload_link)
+              sortindex, payload, ttl, payload_link, payload_size)
          SELECT
              incoming.fxa_uid,
              incoming.fxa_kid,
@@ -358,7 +364,8 @@ pub async fn do_append(
              COALESCE(incoming.sortindex, existing.sortindex),
              COALESCE(incoming.payload, existing.payload),
              COALESCE(incoming.ttl, existing.ttl),
-             COALESCE(incoming.payload_link, existing.payload_link)
+             COALESCE(incoming.payload_link, existing.payload_link),
+             COALESCE(incoming.payload_size, existing.payload_size)
            FROM UNNEST(@values) AS incoming
            LEFT JOIN batch_bsos AS existing
              ON existing.fxa_uid = incoming.fxa_uid

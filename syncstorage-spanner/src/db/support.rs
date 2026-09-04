@@ -44,6 +44,14 @@ impl IntoSpannerValue for i32 {
     }
 }
 
+impl IntoSpannerValue for i64 {
+    const TYPE_CODE: TypeCode = TypeCode::INT64;
+
+    fn into_spanner_value(self) -> Value {
+        self.to_string().into_spanner_value()
+    }
+}
+
 impl IntoSpannerValue for u32 {
     const TYPE_CODE: TypeCode = TypeCode::INT64;
 
@@ -232,6 +240,16 @@ pub fn bso_from_row(mut row: Vec<Value>) -> DbResult<results::GetBso> {
             None
         } else {
             Some(row[5].take_string_value())
+        },
+        payload_size: if row[6].has_null_value() {
+            None
+        } else {
+            Some(
+                row[6]
+                    .get_string_value()
+                    .parse::<i64>()
+                    .map_err(|e| DbError::integrity(e.to_string()))?,
+            )
         },
     })
 }

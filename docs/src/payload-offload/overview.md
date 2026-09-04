@@ -6,7 +6,9 @@ A Sync BSO payload normally lives inline in a Spanner column, and a payload
 larger than the per-record limit (2.5 MB by default) is rejected. Payload
 offload lifts that ceiling for chosen collections: syncserver writes the
 payload to a Google Cloud Storage object and stores only a `gs://` URL in the
-BSO's `payload_link` column, leaving `payload` NULL.
+BSO's `payload_link` column, leaving `payload` NULL. The payload's byte length
+is recorded alongside the URL in `payload_size`, since the row itself no longer
+carries the bytes to measure.
 
 Offload is off by default, opt-in per collection, and supported on the Spanner
 backend only. Nothing changes for a collection that is not opted in.
@@ -230,7 +232,7 @@ is in preserving one of them.
 | Upload, download, delete, URL parsing | `syncserver/src/web/payload_offload.rs` |
 | Which collections offload, request wiring | `syncserver/src/web/handlers.rs` |
 | Settings and startup validation | `syncstorage-settings/src/lib.rs` |
-| `payload_link` column, change stream, access role | `syncstorage-spanner/src/schema.ddl` |
+| `payload_link`/`payload_size` columns, change stream, access role | `syncstorage-spanner/src/schema.ddl` |
 | Dataflow pipeline (prod publisher, Java) | `tools/payload-link-dataflow/` |
 | Dev publisher (Python, emulator only) | `tools/payload-link-dataflow/payload-link-publisher-py/` |
 | Reconciler | `tools/payload-reconciler/` |
