@@ -29,6 +29,7 @@ import tokenlib
 
 from tools.integration_tests.helpers import (
     switch_user,
+    retry_post,
     retry_post_json,
     retry_put_json,
     retry_delete,
@@ -537,7 +538,8 @@ def test_set_collection_input_formats(st_ctx):
     bso2 = {"id": "13", "payload": _PLD}
     bsos = [bso1, bso2]
     body = "\n".join(json_dumps(bso) for bso in bsos)
-    app.post(
+    retry_post(
+        app,
         root + "/storage/xxx_col2",
         body,
         headers={"Content-Type": "application/newlines"},
@@ -547,7 +549,8 @@ def test_set_collection_input_formats(st_ctx):
     # If we send an unknown content type, we get an error.
     retry_delete(app, root + "/storage/xxx_col2")
     body = json_dumps(bsos)
-    app.post(
+    retry_post(
+        app,
         root + "/storage/xxx_col2",
         body,
         headers={"Content-Type": "application/octet-stream"},
@@ -2276,7 +2279,8 @@ def test_batch_empty_commit(st_ctx):
         assert len(res.json["success"]) == 5
         assert len(res.json["failed"]) == 0
         batch = res.json["batch"]
-        app.post(
+        retry_post(
+            app,
             root + "/storage/xxx_col?commit=true&batch=" + batch,
             body,
             headers={"Content-Type": contentType},

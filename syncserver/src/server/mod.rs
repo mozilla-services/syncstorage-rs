@@ -169,7 +169,7 @@ pub struct Server;
 
 #[macro_export]
 macro_rules! build_app {
-    ($syncstorage_state: expr, $tokenserver_state: expr, $secrets: expr, $limits: expr, $cors: expr, $metrics: expr) => {
+    ($syncstorage_state: expr, $tokenserver_state: expr, $secrets: expr, $cors: expr, $metrics: expr) => {
         App::new()
             .configure(|cfg| {
                 cfg.app_data(Data::new($syncstorage_state));
@@ -213,35 +213,18 @@ macro_rules! build_app {
                 web::resource(&cfg_path("/storage")).route(web::delete().to(handlers::delete_all)),
             )
             .service(
+                // No `PayloadConfig`/`JsonConfig` here: the body extractors
+                // read the payload themselves and hold it to the collection's
+                // own `max_request_bytes`. Anything added later that reads the
+                // body via `String`/`Bytes`/`Json` would fall back to actix's
+                // 256kB default, so give it a limit of its own.
                 web::resource(&cfg_path("/storage/{collection}"))
-                    .app_data(
-                        // The resource-level payload limit is the ceiling
-                        // across the default and any per-collection overrides;
-                        // extractors enforce the actual per-collection
-                        // `max_request_bytes` once the collection is known.
-                        web::PayloadConfig::new($limits.effective_max_request_bytes() as usize),
-                    )
-                    .app_data(
-                        // Declare the payload limits for "JSON" payloads
-                        // (Specify "text/plain" for legacy client reasons)
-                        web::JsonConfig::default()
-                            .limit($limits.effective_max_request_bytes() as usize)
-                            .content_type(|ct| ct == mime::TEXT_PLAIN),
-                    )
                     .route(web::delete().to(handlers::delete_collection))
                     .route(web::get().to(handlers::get_collection))
                     .route(web::post().to(handlers::post_collection)),
             )
             .service(
                 web::resource(&cfg_path("/storage/{collection}/{bso}"))
-                    .app_data(web::PayloadConfig::new(
-                        $limits.effective_max_request_bytes() as usize,
-                    ))
-                    .app_data(
-                        web::JsonConfig::default()
-                            .limit($limits.effective_max_request_bytes() as usize)
-                            .content_type(|ct| ct == mime::TEXT_PLAIN),
-                    )
                     .route(web::delete().to(handlers::delete_bso))
                     .route(web::get().to(handlers::get_bso))
                     .route(web::put().to(handlers::put_bso)),
@@ -500,7 +483,6 @@ impl Server {
                 syncstorage_state,
                 tokenserver_state.clone(),
                 Arc::clone(&secrets),
-                limits,
                 build_cors(&settings_copy),
                 metrics.clone()
             )

@@ -87,15 +87,20 @@ pub fn check_content_length(
         .and_then(|v| v.parse::<usize>().ok())
         && len > max_request_bytes
     {
-        return Err(ValidationErrorKind::FromDetails(
-            "size-limit-exceeded".to_owned(),
-            RequestErrorLocation::Header,
-            Some("Content-Length".to_owned()),
-            Some("request.validate.request_bytes_exceeded"),
-        )
-        .into());
+        return Err(size_limit_exceeded());
     }
     Ok(())
+}
+
+/// The 413 for a request larger than its collection's `max_request_bytes`.
+pub fn size_limit_exceeded() -> ValidationError {
+    ValidationErrorKind::FromDetails(
+        "size-limit-exceeded".to_owned(),
+        RequestErrorLocation::Header,
+        Some("Content-Length".to_owned()),
+        Some("request.validate.request_bytes_exceeded"),
+    )
+    .into()
 }
 
 #[cfg(test)]

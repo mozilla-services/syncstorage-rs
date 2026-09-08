@@ -144,6 +144,8 @@ Names are derived from `${application}-${realm}-${environment}` in
 | Tenant project | `moz-fx-sync-nonprod`, number `960020799362` |
 | Spanner project | `moz-fx-sync-nonprod-904c` |
 | Spanner instance and database | `sync` / `syncdb-dev` |
+| Dataflow metadata database | `sync` / `syncdb-pldf-meta-dev` |
+| Dataflow metadata table | `Metadata_payload_link`, pinned via `spannerMetadataTableName` |
 | Change stream | `payload_link_changes` |
 | Spanner database role | `payload_link_reader` |
 | Payload bucket | `sync-nonprod-dev-syncstorage-payloads`, us-west1 |
@@ -178,6 +180,13 @@ editing them.
    `syncdb-pldf-meta-stage`, so the connector holds no write access
    to the syncstorage database. This is a cloudops-infra change.
 
+   Pin the table inside it as well, with
+   `spannerMetadataTableName = "Metadata_payload_link"` on the job.
+   Dev uses that name; reusing it per environment is fine, since the
+   databases are already separate. The parameter is optional and the
+   consequence of skipping it is silent, so it is easy to miss: see
+   step 6.
+
 3. **DDL.** Apply the change stream and the `payload_link_reader` role to
    the target database. See [Out-of-band steps](#out-of-band-steps).
 
@@ -190,13 +199,22 @@ editing them.
    environment's `-tmpl-pub` service account exists first. The spec has
    to be in the bucket before the Terraform job resource is applied.
 
-6. **Job deletion behaviour.** Keep `on_delete = "cancel"`. This is not a
+6. **Job lifecycle.** Keep `on_delete = "cancel"`. This is not a
    dev-only shortcut: the SpannerIO change stream connector does not
    support draining at all, so `"drain"` is never the right setting for
    this pipeline. See
    [Draining a change streams pipeline](https://docs.cloud.google.com/spanner/docs/change-streams/use-dataflow#draining).
    The change stream's 7 day retention is what covers the gap while a
    replacement job comes up.
+
+   Cancel is only safe to rely on because the metadata table name is
+   pinned. The connector generates that name from a random UUID at
+   graph-construction time, so an unpinned job that is cancelled and
+   relaunched, or updated in place, comes up against an empty table and
+   resumes from `Timestamp.now()` instead of the previous watermarks.
+   Nothing errors; the records committed in between are simply never
+   published, and the reconciler never learns those objects need
+   finalizing or deleting. Set the name once and do not change it.
 
 7. **Reconciler cronjob.** Enable `payloadReconciler` in the
    environment's values file in `sync/k8s/sync/`. The chart requires

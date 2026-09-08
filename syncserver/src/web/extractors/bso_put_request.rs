@@ -89,7 +89,8 @@ mod tests {
         auth::HawkPayload,
         extractors::test_utils::{
             SECRETS, TEST_HOST, TEST_PORT, USER_ID, USER_ID_STR, create_valid_hawk_header,
-            extract_body_as_str, make_db, make_state,
+            extract_body_as_str, limits_with_max_request_bytes, make_db, make_state,
+            make_state_with_limits,
         },
     };
 
@@ -126,6 +127,40 @@ mod tests {
         assert_eq!(&result.collection, "tabs");
         assert_eq!(&result.bso, "asdf");
         assert_eq!(result.body.payload, Some("x".to_string()));
+    }
+
+    #[test]
+    fn test_bso_put_body_over_max_request_bytes() {
+        let payload = HawkPayload::test_default(*USER_ID);
+        let state = make_state_with_limits(limits_with_max_request_bytes("tabs", 128));
+        let secrets = Arc::clone(&SECRETS);
+        let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
+        let header =
+            create_valid_hawk_header(&payload, &secrets, "PUT", &uri, TEST_HOST, TEST_PORT);
+        let bso_body = json!({
+            "id": "128", "payload": "x".repeat(1024)
+        });
+        // No Content-Length is set, so the limit can only be caught while
+        // reading the body.
+        let req = TestRequest::with_uri(&uri)
+            .data(state)
+            .data(secrets)
+            .insert_header(("authorization", header))
+            .insert_header(("content-type", "application/json"))
+            .method(Method::PUT)
+            .param("uid", USER_ID_STR.as_str())
+            .param("collection", "tabs")
+            .param("bso", "asdf")
+            .to_http_request();
+        req.extensions_mut().insert(make_db());
+        let (_sender, mut payload) = h1::Payload::create(true);
+        payload.unread_data(Bytes::from(bso_body.to_string()));
+        let result = block_on(BsoPutRequest::from_request(&req, &mut payload.into()));
+        let response: HttpResponse = result
+            .err()
+            .expect("Expected an error in test_bso_put_body_over_max_request_bytes")
+            .into();
+        assert_eq!(response.status(), 413);
     }
 
     #[test]

@@ -258,17 +258,6 @@ impl ServerLimits {
             .map(|override_| PerCollectionLimits::from(override_, self))
             .unwrap_or_else(|| PerCollectionLimits::from(&Default::default(), self))
     }
-
-    /// The maximum `max_request_bytes` across the default and any
-    /// per-collection overrides. Used to size actix's `PayloadConfig` /
-    /// `JsonConfig` so overridden collections aren't rejected at the
-    /// resource level before per-collection enforcement runs.
-    pub fn effective_max_request_bytes(&self) -> u32 {
-        self.collections
-            .values()
-            .filter_map(|o| o.max_request_bytes)
-            .fold(self.max_request_bytes, u32::max)
-    }
 }
 
 impl Default for ServerLimits {
@@ -396,38 +385,5 @@ mod tests {
         let tabs_limits = limits.limits_for(Some("tabs"));
         assert_eq!(tabs_limits.max_post_bytes, DEFAULT_MAX_POST_BYTES);
         assert_eq!(tabs_limits.max_request_bytes, DEFAULT_MAX_REQUEST_BYTES);
-    }
-
-    #[test]
-    fn effective_max_request_bytes_picks_the_ceiling() {
-        let mut limits = ServerLimits::default();
-        // No overrides: the effective ceiling equals the default.
-        assert_eq!(
-            limits.effective_max_request_bytes(),
-            DEFAULT_MAX_REQUEST_BYTES
-        );
-
-        // An override *below* the default doesn't lower the ceiling.
-        limits.collections.insert(
-            "small".to_owned(),
-            CollectionLimitOverride {
-                max_request_bytes: Some(1024),
-                ..Default::default()
-            },
-        );
-        assert_eq!(
-            limits.effective_max_request_bytes(),
-            DEFAULT_MAX_REQUEST_BYTES
-        );
-
-        // An override *above* the default raises the ceiling to match.
-        limits.collections.insert(
-            "newtab-images".to_owned(),
-            CollectionLimitOverride {
-                max_request_bytes: Some(26_218_496),
-                ..Default::default()
-            },
-        );
-        assert_eq!(limits.effective_max_request_bytes(), 26_218_496);
     }
 }
