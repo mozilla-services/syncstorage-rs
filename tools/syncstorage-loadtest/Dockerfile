@@ -23,8 +23,11 @@ RUN \
     apt-get clean -y
 
 # app install
+# No --no-dev: it was removed in Poetry 2.x. The dev tools live in
+# [project.optional-dependencies], which Poetry treats as extras and so
+# leaves out unless asked for -- a plain install is already runtime-only.
 RUN poetry config virtualenvs.create false && \
-    poetry install --no-dev --no-interaction --no-ansi
+    poetry install --no-interaction --no-ansi --no-root
 
 # Using:
 # Start an interactive terminal using

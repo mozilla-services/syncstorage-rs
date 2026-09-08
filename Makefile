@@ -384,10 +384,97 @@ loadtest-jwt: syncstorage-loadtest  ##  Run load tests with self-signed JWT mode
 	OAUTH_PRIVATE_KEY_FILE=$(OAUTH_PRIVATE_KEY_FILE) \
 	$(POETRY) run molotov $(or $(MOLOTOV_ARGS),--workers 100 --duration 300 -v) loadtest.py
 
-.PHONY: loadtest-docker
-loadtest-docker:  ##  Run load tests in Docker container.
-	@echo "Running syncstorage load tests in Docker..."
-	docker run -e TEST_REPO=https://github.com/mozilla-services/syncstorage-loadtest -e TEST_NAME=test tarekziade/molotov:latest
+## Offloaded Payload Load Tests
+#
+# Molotov against the full offload + change-stream pipeline on emulators.
+# No GCP project, no credentials. Documented in
+# docs/src/tools/load-testing.md. Covers STOR-628 and STOR-629.
+
+# The reconciliation stack reads the server image from SYNCSTORAGE_RS_IMAGE
+# while its setup/mock-fxa containers hardcode app:build, so both names have to
+# point at the same locally built spanner image. Set inline rather than
+# exported, so the existing docker_run_*_e2e_tests targets keep their own
+# defaults.
+LOADTEST_COMPOSE := SYNCSTORAGE_RS_IMAGE=$(or $(SYNCSTORAGE_RS_IMAGE),app:build) \
+	docker compose \
+	-f docker/docker-compose.spanner.yaml \
+	-f docker/docker-compose.e2e.spanner.yaml \
+	-f docker/docker-compose.e2e.reconciliation.yaml \
+	-f docker/docker-compose.e2e.jwk-cache.yaml \
+	-f docker/docker-compose.loadtest.yaml
+
+.PHONY: loadtest-offload-image
+loadtest-offload-image:  ##  Build the spanner server image the load-test rig needs.
+	docker build . --tag app:build --build-arg SYNCSTORAGE_DATABASE_BACKEND=spanner
+
+# Services the rig needs running before molotov starts. mock-fxa-server is not
+# a syncserver dependency in compose, but tokenserver is enabled in this stack,
+# so start it rather than leave a dangling FXA_OAUTH_SERVER_URL. The load test
+# itself uses direct-access mode and never calls tokenserver.
+LOADTEST_SERVICES := sync-db-setup syncserver mock-fxa-server \
+	payload-link-publisher payload-reconciler statsd
+
+# Per-collection raised limits. Only ever applied to offloaded collections:
+# Spanner caps a single STRING(MAX) value at 2.5 MiB, so an inline collection
+# above that fails in the database. See docker-compose.loadtest.yaml.
+LOADTEST_BIG := {"max_record_payload_bytes":10485760,"max_post_bytes":20971520,"max_request_bytes":22020096}
+LOADTEST_ALL_COLLS := bookmarks,forms,passwords,history,prefs
+
+# STOR-629: every batch write offloaded and expanded.
+LOADTEST_ENV_HANDLER := \
+	LOADTEST_OFFLOAD_COLLECTIONS=$(LOADTEST_ALL_COLLS) \
+	LOADTEST_COLLECTION_LIMITS='{"bookmarks":$(LOADTEST_BIG),"forms":$(LOADTEST_BIG),"passwords":$(LOADTEST_BIG),"history":$(LOADTEST_BIG),"prefs":$(LOADTEST_BIG)}' \
+	OFFLOAD_COLLECTIONS=$(LOADTEST_ALL_COLLS) \
+	LARGE_PAYLOAD_PROB=1.0
+
+# STOR-628: bookmarks+history offloaded and expanded; forms/passwords/prefs
+# inline, capped at the 2.5 MiB Spanner limit. OFFLOAD_COLLECTIONS is
+# deliberately left unset so writes spread across all five.
+LOADTEST_ENV_CHANGESTREAM := \
+	LOADTEST_OFFLOAD_COLLECTIONS=bookmarks,history \
+	LOADTEST_COLLECTION_LIMITS='{"bookmarks":$(LOADTEST_BIG),"history":$(LOADTEST_BIG)}' \
+	LARGE_PAYLOAD_PROB=0.5
+
+# LOADTEST_OFFLOAD_COLLECTIONS and LOADTEST_COLLECTION_LIMITS configure
+# *syncserver*, so they have to be in the environment when its container is
+# created, not just when molotov runs. `compose run` will not recreate an
+# already-running container whose env has since changed, so each scenario does
+# its own `up --wait` with its own env first -- compose then recreates
+# syncserver because its config hash moved. Do not factor this back into a
+# shared prerequisite target: that reintroduces a silent bug where the scenario
+# runs against the previous scenario's server config.
+.PHONY: loadtest-offload-up
+loadtest-offload-up:  ##  Start the load-test rig with the default (STOR-628) server config.
+	$(LOADTEST_ENV_CHANGESTREAM) $(LOADTEST_COMPOSE) up -d --wait --build $(LOADTEST_SERVICES)
+
+.PHONY: loadtest-offload-handler
+loadtest-offload-handler:  ##  STOR-629: 100% offloaded payloads, handler GCS read/write path.
+	@echo "STOR-629: every batch write offloaded and expanded."
+	$(LOADTEST_ENV_HANDLER) $(LOADTEST_COMPOSE) up -d --wait --build $(LOADTEST_SERVICES)
+	$(LOADTEST_ENV_HANDLER) \
+	MOLOTOV_ARGS="$(or $(MOLOTOV_ARGS),--processes 1 --workers 5 --duration 60 -v)" \
+	$(LOADTEST_COMPOSE) run --rm loadtest
+
+.PHONY: loadtest-offload-changestream
+loadtest-offload-changestream:  ##  STOR-628: mixed offloaded/inline payloads, change stream to reconciler.
+	@echo "STOR-628: bookmarks+history offloaded and expanded;"
+	@echo "          forms/passwords/prefs inline, capped at the 2.5 MiB Spanner limit."
+	$(LOADTEST_ENV_CHANGESTREAM) $(LOADTEST_COMPOSE) up -d --wait --build $(LOADTEST_SERVICES)
+	$(LOADTEST_ENV_CHANGESTREAM) \
+	MOLOTOV_ARGS="$(or $(MOLOTOV_ARGS),--processes 1 --workers 5 --duration 120 -v)" \
+	$(LOADTEST_COMPOSE) run --rm loadtest
+
+.PHONY: loadtest-offload-report
+loadtest-offload-report:  ##  Wait for the pipeline to drain, then report reconciler + GCS state.
+	docker/loadtest-report.sh
+
+.PHONY: loadtest-offload-logs
+loadtest-offload-logs:  ##  Tail the pipeline containers.
+	$(LOADTEST_COMPOSE) logs -f syncserver payload-link-publisher payload-reconciler
+
+.PHONY: loadtest-offload-down
+loadtest-offload-down:  ##  Tear the load-test rig down, including the fake-gcs volume.
+	$(LOADTEST_COMPOSE) down -v --remove-orphans
 
 ## Python Utilities
 .PHONY: ruff-lint

@@ -1,0 +1,178 @@
+# docker-compose overlay: molotov load tests against the offload +
+# change-stream pipeline.
+#
+# Layers on top of:
+#   docker-compose.spanner.yaml
+#   docker-compose.e2e.spanner.yaml
+#   docker-compose.e2e.reconciliation.yaml
+#   docker-compose.e2e.jwk-cache.yaml
+#
+# It turns the reconciliation e2e stack into a load-test rig by adding four
+# things that stack deliberately does not need for pytest:
+#
+#   1. A molotov container (`loadtest`) driving syncserver in direct-access
+#      mode, so no tokenserver rows, FxA accounts or JWKs are involved.
+#   2. Raised syncstorage limits, so payloads can actually exceed the 2.5 MiB
+#      default and reach the offload path at size.
+#   3. fake-gcs on its filesystem backend. The default in-memory backend is
+#      fine for a handful of pytest objects and will exhaust the container's
+#      memory once a load test starts writing multi-MiB payloads in bulk.
+#   4. A statsd sink, so the reconciler counters that prove the pipeline
+#      drained are readable instead of being fired into a closed UDP port.
+#
+# Invocation lives in the Makefile (`loadtest-offload-*`) and is documented in
+# docs/src/tools/load-testing.md. Covers STOR-628 and STOR-629.
+
+services:
+  # Collects dogstatsd from syncserver and the reconciler and re-exposes it as
+  # Prometheus text on :9102. Nothing scrapes it -- docker/loadtest-report.sh
+  # curls it directly, which keeps the rig to one extra container instead of a
+  # Prometheus + Grafana pair.
+  statsd:
+    image: prom/statsd-exporter:v0.28.0
+    command:
+      - --statsd.listen-udp=:8125
+      - --web.listen-address=:9102
+    ports:
+      - "9102:9102"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9102/metrics"]
+      interval: 2s
+      retries: 15
+      start_period: 3s
+      timeout: 3s
+
+  # Replaces the in-memory backend with a disk-backed one. `command` is a list,
+  # so this overrides the base definition outright rather than appending.
+  fake-gcs:
+    command:
+      - -scheme=http
+      - -host=0.0.0.0
+      - -port=4443
+      - -public-host=fake-gcs:4443
+      - -backend=filesystem
+      - -filesystem-root=/data
+      - -log-level=${FAKE_GCS_LOG_LEVEL:-warn}
+    volumes:
+      - fake_gcs_data:/data
+
+  payload-reconciler:
+    environment:
+      SYNC_STATSD_HOST: statsd
+      SYNC_STATSD_PORT: "8125"
+
+  # The publisher uses pystatsd via `statsd.defaults.env`, which reads the
+  # bare STATSD_HOST/STATSD_PORT rather than the SYNC_-prefixed pair the
+  # reconciler and syncserver use. Its payload_link_publisher.filtered counter
+  # is the direct evidence that inert records (payload_link NULL on both
+  # sides) are being dropped before Pub/Sub, which is the STOR-628 claim.
+  payload-link-publisher:
+    environment:
+      STATSD_HOST: statsd
+      STATSD_PORT: "8125"
+
+  syncserver:
+    depends_on:
+      sync-db-setup:
+        condition: service_started
+      tokenserver-db:
+        condition: service_healthy
+      reconciliation-setup:
+        condition: service_healthy
+      statsd:
+        condition: service_healthy
+    environment:
+      SYNC_STATSD_HOST: statsd
+      SYNC_STATSD_PORT: "8125"
+
+      # Which collections syncserver offloads. This is the setting that
+      # decides mixed vs fully-offloaded traffic, and it is deliberately
+      # separate from the load test's own OFFLOAD_COLLECTIONS (which only
+      # decides which collections get *written to*).
+      #
+      # Default is the molotov batch-write set minus forms/passwords/prefs, so
+      # a default run produces both offloaded and inline writes -- the STOR-628
+      # shape. The Makefile's handler target overrides it with all five.
+      SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS: ${LOADTEST_OFFLOAD_COLLECTIONS:-bookmarks,history}
+
+      # Raised limits, PER COLLECTION, and only for collections that are in
+      # the offload list above.
+      #
+      # Do not raise the global max_record_payload_bytes instead. Spanner's
+      # STRING(MAX) columns cap a single value at 2621440 bytes (2.5 MiB) --
+      # that hard cap is the reason this whole offload project exists. An
+      # inline write above it fails in the database, not at the API:
+      #
+      #   FAILED_PRECONDITION New value exceeds the maximum size limit for
+      #   this column: bsos.payload, size: 10485760, limit: 2621440
+      #
+      # An offloaded collection is exempt because its payload goes to GCS and
+      # the row stores only a gs:// URL in payload_link, leaving payload NULL.
+      # So a limit above 2.5 MiB is only ever correct for a collection that is
+      # offloaded, which is exactly what the per-collection override is for
+      # and how production raises it. Keys here must be a subset of
+      # LOADTEST_OFFLOAD_COLLECTIONS.
+      #
+      # Globals are deliberately left at their defaults, so any collection not
+      # listed here keeps stock 2.5 MiB behaviour and writes inline safely.
+      # actix's payload config is sized from the max max_request_bytes across
+      # these overrides (ServerLimits::effective_max_request_bytes), so large
+      # bodies are not rejected before per-collection enforcement runs.
+      SYNC_SYNCSTORAGE__LIMITS__COLLECTIONS: ${LOADTEST_COLLECTION_LIMITS:-{"bookmarks":{"max_record_payload_bytes":10485760,"max_post_bytes":20971520,"max_request_bytes":22020096},"history":{"max_record_payload_bytes":10485760,"max_post_bytes":20971520,"max_request_bytes":22020096}}}
+
+      # Concurrent GCS uploads/downloads within a single batch request. Worth
+      # sweeping: it is the main server-side knob on offload throughput.
+      SYNC_SYNCSTORAGE__GCS_PAYLOAD_MAX_CONCURRENCY: ${LOADTEST_GCS_MAX_CONCURRENCY:-4}
+
+      # The default pool of 10 is the first thing to saturate once molotov
+      # runs more than a handful of workers.
+      SYNC_SYNCSTORAGE__DATABASE_POOL_MAX_SIZE: ${LOADTEST_DB_POOL_MAX_SIZE:-40}
+
+  loadtest:
+    build:
+      context: ../tools/syncstorage-loadtest
+    # No container_name: this service is driven with `docker compose run`,
+    # which generates its own container name.
+    depends_on:
+      syncserver:
+        condition: service_healthy
+      payload-link-publisher:
+        condition: service_started
+      payload-reconciler:
+        condition: service_started
+      statsd:
+        condition: service_healthy
+    environment:
+      # Direct-access mode: the fragment is the master secret, so the client
+      # mints its own Hawk token and talks straight to syncstorage. Skips
+      # tokenserver, FxA and JWK setup entirely. Matches SYNC_MASTER_SECRET
+      # in docker-compose.spanner.yaml.
+      SERVER_URL: http://syncserver:8000#secret0
+
+      # Fraction of BSOs given an expanded payload.
+      LARGE_PAYLOAD_PROB: ${LARGE_PAYLOAD_PROB:-0.5}
+      # Target size for those payloads. Unset means "use the server's
+      # max_record_payload_bytes".
+      LARGE_PAYLOAD_SIZE: ${LARGE_PAYLOAD_SIZE:-}
+      # Restricts batch writes to these collections. Leave unset for mixed
+      # runs so writes spread across the default five and the ones missing
+      # from the server's offload list stay inline.
+      OFFLOAD_COLLECTIONS: ${OFFLOAD_COLLECTIONS:-}
+      # Deletes drive the reconciler's orphan_deletes branch, so they are on
+      # by default here.
+      DISABLE_DELETES: ${DISABLE_DELETES:-false}
+
+      MOLOTOV_ARGS: ${MOLOTOV_ARGS:---processes 1 --workers 5 --duration 60 -v}
+    # $$ escapes to a literal $, so MOLOTOV_ARGS is word-split by the
+    # container's shell rather than by compose.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "loadtest: SERVER_URL=$${SERVER_URL%%#*}#<redacted>"
+        echo "loadtest: LARGE_PAYLOAD_PROB=$$LARGE_PAYLOAD_PROB LARGE_PAYLOAD_SIZE=$${LARGE_PAYLOAD_SIZE:-<server max>}"
+        echo "loadtest: OFFLOAD_COLLECTIONS=$${OFFLOAD_COLLECTIONS:-<default five>} DISABLE_DELETES=$$DISABLE_DELETES"
+        echo "loadtest: molotov $$MOLOTOV_ARGS loadtest.py"
+        exec molotov $$MOLOTOV_ARGS loadtest.py
+
+volumes:
+  fake_gcs_data:
