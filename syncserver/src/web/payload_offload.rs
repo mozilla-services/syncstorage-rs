@@ -14,7 +14,8 @@
 //!
 //! Objects are written with the custom metadata `committed=false` and a
 //! `customTime` set to upload time; a later step flips `committed` to `true`
-//! once the database row is durably visible.
+//! once the database row is durably visible. The objects also carry
+//! `bso_id`, `fxa_kid`, `original_size`, and `format_version`.
 
 use std::{collections::HashMap, time::SystemTime};
 
@@ -30,6 +31,14 @@ use crate::{
 };
 
 const COMMITTED_METADATA_KEY: &str = "committed";
+
+/// Custom metadata keys
+const BSO_ID_METADATA_KEY: &str = "bso_id";
+const FXA_KID_METADATA_KEY: &str = "fxa_kid";
+/// Byte length of the payload as received
+const ORIGINAL_SIZE_METADATA_KEY: &str = "original_size";
+const FORMAT_VERSION_METADATA_KEY: &str = "format_version";
+const FORMAT_VERSION: &str = "1";
 
 /// Counter for the best-effort GCS cleanup that runs when the database
 /// transaction of an offloading write fails. Tagged with the `handler` that
@@ -70,13 +79,14 @@ pub async fn build_client(endpoint: Option<&str>) -> Result<Storage, ApiError> {
 /// Upload `payload` to `bucket` under the key `{prefix}/{fxa_uid}/{uuid}` and
 /// return the resulting `gs://` URL.
 ///
-/// The object is written with custom metadata `committed=false` and a
-/// `customTime` of the upload moment.
+/// The object is written with a `customTime` of the upload moment and custom metadata:
+/// `committed=false`, plus the fields `bso_id`, `fxa_kid`, `original_size`, and `format_version`.
 pub async fn upload_payload(
     client: &Storage,
     bucket: &str,
     prefix: &str,
     user_id: &UserIdentifier,
+    bso_id: &str,
     payload: String,
 ) -> Result<String, ApiError> {
     let object_name = format!(
@@ -86,13 +96,28 @@ pub async fn upload_payload(
         Uuid::new_v4().hyphenated()
     );
 
+    // Capture the length here. The `payload` value moves into the upload call below.
+    let original_size = payload.len();
+
     let custom_time: wkt::Timestamp = SystemTime::now()
         .try_into()
         .map_err(|e| ApiErrorKind::Internal(format!("custom_time: {e}")))?;
 
     client
         .write_object(bucket_path(bucket), object_name.clone(), payload)
-        .set_metadata([(COMMITTED_METADATA_KEY.to_string(), "false".to_string())])
+        .set_metadata([
+            (COMMITTED_METADATA_KEY.to_string(), "false".to_string()),
+            (BSO_ID_METADATA_KEY.to_string(), bso_id.to_owned()),
+            (FXA_KID_METADATA_KEY.to_string(), user_id.fxa_kid.clone()),
+            (
+                ORIGINAL_SIZE_METADATA_KEY.to_string(),
+                original_size.to_string(),
+            ),
+            (
+                FORMAT_VERSION_METADATA_KEY.to_string(),
+                FORMAT_VERSION.to_owned(),
+            ),
+        ])
         .set_custom_time(custom_time)
         .send_buffered()
         .await?;

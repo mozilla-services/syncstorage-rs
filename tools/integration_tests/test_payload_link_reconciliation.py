@@ -100,6 +100,28 @@ def test_upload_finalizes_object(st_ctx: dict[str, Any], gcs: storage.Client) ->
     assert blob.custom_time.year == 2200
 
 
+def test_upload_writes_metadata(st_ctx: dict[str, Any], gcs: storage.Client) -> None:
+    """An offloaded object records which BSO it came from."""
+    bso_id = "reconcile-metadata"
+    payload = LARGE_PAYLOAD
+    _put_bso(st_ctx, bso_id, payload=payload)
+
+    def blob_for_bso() -> storage.Blob | None:
+        for blob in _list_blobs(gcs, _prefix_for(st_ctx)):
+            blob.reload()
+            if (blob.metadata or {}).get("bso_id") == bso_id:
+                return blob
+        return None
+
+    blob = _wait_for(blob_for_bso, f"object with bso_id={bso_id}")
+    assert blob is not None
+    metadata = blob.metadata or {}
+    assert metadata["bso_id"] == bso_id
+    assert metadata["fxa_kid"] == st_ctx["fxa_kid"]
+    assert metadata["original_size"] == str(len(payload))
+    assert metadata["format_version"] == "1"
+
+
 def test_update_deletes_old_object(st_ctx: dict[str, Any], gcs: storage.Client) -> None:
     """Replacing payload_link deletes the prior object."""
     bso_id = "reconcile-update"
