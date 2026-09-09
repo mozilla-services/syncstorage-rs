@@ -89,12 +89,7 @@ pub async fn upload_payload(
     bso_id: &str,
     payload: String,
 ) -> Result<String, ApiError> {
-    let object_name = format!(
-        "{}/{}/{}",
-        prefix,
-        user_id.fxa_uid,
-        Uuid::new_v4().hyphenated()
-    );
+    let object_name = format!("{}/{}/{}", prefix, user_id.fxa_uid, Uuid::new_v4().simple());
 
     // Capture the length here. The `payload` value moves into the upload call below.
     let original_size = payload.len();
