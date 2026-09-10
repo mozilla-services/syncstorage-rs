@@ -4,7 +4,8 @@
 //! `gcs_payload_offload_collections` (both in syncstorage settings), the BSO
 //! write handlers upload the incoming payload to GCS prior to opening the
 //! database transaction. The returned object URL is written to the BSO
-//! `payload_link` column and the inline `payload` field is cleared.
+//! `payload_link` column, the payload's byte length to `payload_size`, and the
+//! inline `payload` field is cleared.
 //!
 //! On the read path, BSOs with a `payload_link` set have their payload
 //! resolved by downloading from GCS after the database transaction commits,

@@ -14,7 +14,7 @@ use syncstorage_db_common::{Db, error::DbErrorIntrospect, params, results, util:
 
 use super::{
     CollectionLock, SpannerDb, TOMBSTONE,
-    support::{IntoSpannerValue, as_type, bso_from_row},
+    support::{IntoSpannerValue, PAYLOAD_BYTES, as_type, bso_from_row},
 };
 use crate::{DbResult, error::DbError};
 
@@ -329,14 +329,14 @@ impl Db for SpannerDb {
             "fxa_kid" => user_id.fxa_kid
         };
         let mut streaming = self
-            .sql(
-                "SELECT collection_id, COALESCE(SUM(BYTE_LENGTH(payload)), 0)
+            .sql(&format!(
+                "SELECT collection_id, COALESCE(SUM({PAYLOAD_BYTES}), 0)
                    FROM bsos
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
                     AND expiry > CURRENT_TIMESTAMP()
-                  GROUP BY collection_id",
-            )
+                  GROUP BY collection_id"
+            ))
             .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
@@ -396,14 +396,14 @@ impl Db for SpannerDb {
             "fxa_kid" => user_id.fxa_kid
         };
         let result = self
-            .sql(
-                "SELECT COALESCE(SUM(BYTE_LENGTH(payload)), 0)
+            .sql(&format!(
+                "SELECT COALESCE(SUM({PAYLOAD_BYTES}), 0)
                    FROM bsos
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
                     AND expiry > CURRENT_TIMESTAMP()
-                  GROUP BY fxa_uid",
-            )
+                  GROUP BY fxa_uid"
+            ))
             .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
@@ -654,7 +654,8 @@ impl Db for SpannerDb {
 
     async fn get_bsos(&mut self, params: params::GetBsos) -> DbResult<results::GetBsos> {
         let query = "\
-            SELECT bso_id, sortindex, payload, modified, expiry, payload_link
+            SELECT bso_id, sortindex, payload, modified, expiry, payload_link,
+                   payload_size
               FROM bsos
              WHERE fxa_uid = @fxa_uid
                AND fxa_kid = @fxa_kid
@@ -741,7 +742,8 @@ impl Db for SpannerDb {
             "bso_id" => params.id,
         };
         self.sql(
-            "SELECT bso_id, sortindex, payload, modified, expiry, payload_link
+            "SELECT bso_id, sortindex, payload, modified, expiry, payload_link,
+                   payload_size
                FROM bsos
               WHERE fxa_uid = @fxa_uid
                 AND fxa_kid = @fxa_kid
@@ -815,6 +817,7 @@ impl Db for SpannerDb {
                 sortindex: params.sortindex,
                 payload: params.payload,
                 payload_link: params.payload_link,
+                payload_size: params.payload_size,
                 ttl: params.ttl,
             },
             timestamp,
