@@ -448,18 +448,21 @@ pub async fn post_collection(
     let mut offload_urls: Vec<String> = Vec::new();
     if let Some(bucket) = offload_bucket(&state, &coll.collection) {
         let client = state.gcs_client()?;
-        // Take the payloads for concurrent uploads, with index to bind the payload url back to
-        // the bso
+        // Take the payloads for concurrent uploads, with index to bind the payload url back to the
+        // bso. The upload step needs the bso id so it can write it to the gcs object metadata.
         let pending: Vec<(usize, String, String)> = coll
             .bsos
             .valid
             .iter_mut()
             .enumerate()
-            .filter_map(|(i, bso)| bso.payload.take().map(|p| (i, bso.id.clone(), p)))
+            .filter_map(|(i, bso)| {
+                let id = bso.id.clone();
+                bso.payload.take().map(|p| (i, id, p))
+            })
             .collect();
 
         let user_id = &coll.user_id;
-        let collection = coll.collection.as_str();
+        let prefix = state.gcs_payload_prefix.as_str();
         // fail-fast on first failure uploads; successful, orphaned uploads rely on GCS lifecyle
         // policy for clean-up.
         // The payload's byte length is recorded alongside its URL: once the
@@ -470,7 +473,7 @@ pub async fn post_collection(
                 let client = client.clone();
                 let payload_size = payload.len() as i64;
                 async move {
-                    upload_payload(&client, bucket, user_id, collection, &bso_id, payload)
+                    upload_payload(&client, bucket, prefix, user_id, &bso_id, payload)
                         .await
                         .map(|url| (i, (url, payload_size)))
                 }
@@ -855,8 +858,8 @@ pub async fn put_bso(
         let url = upload_payload(
             state.gcs_client()?,
             bucket,
+            &state.gcs_payload_prefix,
             &bso_req.user_id,
-            &bso_req.collection,
             &bso_req.bso,
             payload,
         )

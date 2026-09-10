@@ -127,6 +127,7 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         gcs_payload_offload_collections: Arc::new(
             settings.syncstorage.gcs_payload_offload_collections.clone(),
         ),
+        gcs_payload_prefix: Arc::new(settings.syncstorage.gcs_payload_prefix.clone()),
         gcs_client: match settings.syncstorage.gcs_payload_bucket {
             Some(_) => Some(
                 build_client(settings.syncstorage.gcs_endpoint.as_deref())

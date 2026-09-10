@@ -91,14 +91,19 @@ The following configuration options are available.
 
 Off-loads large BSO payloads to a Google Cloud Storage bucket, storing the
 object URL in the `payload_link` column instead of the inline `payload`
-column. Supported on the Spanner backend only: setting either variable on a
-mysql or postgres backend fails startup, since those backends have no
-`payload_link` column and would silently drop the payload.
+column. Supported on the Spanner backend only: setting
+`SYNC_SYNCSTORAGE__GCS_PAYLOAD_BUCKET` or
+`SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS` on a mysql or postgres
+backend fails startup, since those backends have no `payload_link` column and
+would silently drop the payload.
 
 | Env Var | Default Value | Description |
 | --- | --- | --- |
 | <span id="SYNC_SYNCSTORAGE__GCS_PAYLOAD_BUCKET"></span>SYNC_SYNCSTORAGE__GCS_PAYLOAD_BUCKET | unset | GCS bucket for off-loaded payloads. Unset disables off-load. |
 | <span id="SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS"></span>SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS | unset | Comma-separated collection names whose payloads are off-loaded. Empty disables off-load for all collections. |
+| <span id="SYNC_SYNCSTORAGE__GCS_PAYLOAD_PREFIX"></span>SYNC_SYNCSTORAGE__GCS_PAYLOAD_PREFIX | v1 | The prefix for off-loaded GCS object names. The server formats each object name as `{prefix}/{fxa_uid}/{uuid}`. |
+| <span id="SYNC_SYNCSTORAGE__GCS_PAYLOAD_MAX_CONCURRENCY"></span>SYNC_SYNCSTORAGE__GCS_PAYLOAD_MAX_CONCURRENCY | 4 | The maximum number of concurrent GCS payload uploads and downloads within one batch request. This value must be greater than zero. |
+| <span id="SYNC_SYNCSTORAGE__GCS_ENDPOINT"></span>SYNC_SYNCSTORAGE__GCS_ENDPOINT | unset | A test-only override for the GCS endpoint URL, for example a mock server or a fake-gcs-server instance. If set, the server uses anonymous credentials. Do not set this variable in production. |
 
 ### Tokenserver Database
 
