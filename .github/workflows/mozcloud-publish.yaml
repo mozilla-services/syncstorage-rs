@@ -273,8 +273,9 @@ jobs:
   # (STOR-648). Writing it does NOT relaunch a running job; it takes effect
   # the next time the job is (re)started.
   #
-  # dev only for now. stage/prod buckets will be added later (likely a
-  # matrix / GitHub environments), hence the parameterised vars below.
+  # One job per environment, since each writes to its own bucket as its own
+  # deploy SA. prod is not wired up yet. Consolidating these into a matrix
+  # would be reasonable once prod lands.
   #
   # Prerequisites (infra, out of this repo):
   #   * the deploy SA has roles/storage.objectAdmin on the bucket (the
@@ -310,6 +311,52 @@ jobs:
       - name: Write dev flex-template spec
         env:
           BUCKET: ${{ vars.PAYLOAD_LINK_DATAFLOW_DEV_BUCKET || 'sync-nonprod-dev-payload-link-dataflow' }}
+          TAG: ${{ needs.build-and-push-syncserver-payload-link-dataflow.outputs.image_tag }}
+        run: |
+          IMAGE="us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-payload-link-dataflow:${TAG}"
+          # Stable spec consumed by the webservices-infra Dataflow job, plus a
+          # tag-versioned copy for reproducible rollback.
+          for SPEC in \
+            "gs://${BUCKET}/templates/syncserver-payload-link-dataflow.json" \
+            "gs://${BUCKET}/templates/syncserver-payload-link-dataflow-${TAG}.json"; do
+            gcloud dataflow flex-template build "${SPEC}" \
+              --image "${IMAGE}" \
+              --sdk-language JAVA \
+              --metadata-file tools/payload-link-dataflow/metadata.json
+          done
+
+  # Same as the dev job above, for the stage bucket and stage deploy SA
+  # (STOR-710). dev and stage share the moz-fx-sync-nonprod project, so the
+  # bucket and SA names carry the environment.
+  write-payload-link-dataflow-spec-stage:
+    needs: build-and-push-syncserver-payload-link-dataflow
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'push' &&
+        (github.ref_name == 'master' || startsWith(github.ref, 'refs/tags/'))
+      )
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
+
+      - id: gcp-auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ vars.GCPV2_GITHUB_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.PAYLOAD_LINK_DATAFLOW_STAGE_DEPLOY_SA || 'sync-nonprod-stage-tmpl-pub@moz-fx-sync-nonprod.iam.gserviceaccount.com' }}
+
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Write stage flex-template spec
+        env:
+          BUCKET: ${{ vars.PAYLOAD_LINK_DATAFLOW_STAGE_BUCKET || 'sync-nonprod-stage-payload-link-dataflow' }}
           TAG: ${{ needs.build-and-push-syncserver-payload-link-dataflow.outputs.image_tag }}
         run: |
           IMAGE="us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/syncserver-payload-link-dataflow:${TAG}"
