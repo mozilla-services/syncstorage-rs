@@ -66,6 +66,12 @@ pub struct GetBso {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[diesel(sql_type = Nullable<Text>)]
     pub payload_link: Option<String>,
+    // NOTE: like expiry, payload_size is never rendered to clients: it's the
+    // byte length of the offloaded payload, loaded only for tests.
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    #[diesel(sql_type = Nullable<BigInt>)]
+    pub payload_size: Option<i64>,
 }
 
 #[derive(Debug, Default)]

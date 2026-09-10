@@ -94,6 +94,19 @@ ALTER TABLE batch_bsos
 ALTER TABLE bsos
     ALTER COLUMN payload STRING(MAX);
 
+-- Byte length of an offloaded payload, recorded at upload time. Set only
+-- alongside payload_link (the payload column is NULL then, so its size is
+-- otherwise unrecoverable without fetching the object); NULL for an inline
+-- payload, whose size is BYTE_LENGTH(payload).
+--
+-- Rollback:
+--   ALTER TABLE bsos DROP COLUMN payload_size;
+--   ALTER TABLE batch_bsos DROP COLUMN payload_size;
+ALTER TABLE bsos
+    ADD COLUMN payload_size INT64;
+ALTER TABLE batch_bsos
+    ADD COLUMN payload_size INT64;
+
 -- Change stream that captures every write to payload_link on bsos and
 -- batch_bsos. A downstream reconciler (custom Dataflow flex template ->
 -- Pub/Sub -> Python cronjob) reads this stream to finalize newly
