@@ -109,6 +109,34 @@ impl Metrics {
         self.count_with_tags(label, count, HashMap::default())
     }
 
+    /// Send a timing in milliseconds immediately, with `tags` merged over
+    /// `self.tags`.
+    ///
+    /// [`start_timer`](Self::start_timer) holds a single [`MetricTimer`] that
+    /// fires when the `Metrics` is dropped, which cannot express several
+    /// operations timed concurrently within one request. This emits one
+    /// directly instead.
+    pub fn timing_with_tags(&self, label: &str, duration_ms: u64, tags: HashMap<String, String>) {
+        if let Some(client) = self.client.as_ref() {
+            let mut tagged = client.time_with_tags(label, duration_ms);
+            let mut mtags = self.tags.clone();
+            mtags.extend(tags);
+
+            for key in mtags.keys().clone() {
+                if let Some(val) = mtags.get(key) {
+                    tagged = tagged.with_tag(key, val.as_ref());
+                }
+            }
+            match tagged.try_send() {
+                Err(e) => {
+                    // eat the metric, but log the error
+                    warn!("⚠️ Metric {} error: {:?} ", label, e; MetricTags(mtags));
+                }
+                Ok(v) => trace!("☑️ {:?}", v.as_metric_str()),
+            }
+        }
+    }
+
     pub fn count_with_tags(&self, label: &str, count: i64, tags: HashMap<String, String>) {
         if let Some(client) = self.client.as_ref() {
             let mut tagged = client.count_with_tags(label, count);
