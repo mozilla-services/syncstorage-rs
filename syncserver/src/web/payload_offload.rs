@@ -65,6 +65,15 @@ const DOWNLOAD_METRIC: &str = "storage.gcs.payload.download";
 /// Payload bytes read back from GCS. See [`UPLOAD_BYTES_METRIC`].
 const DOWNLOAD_BYTES_METRIC: &str = "storage.gcs.payload.download.bytes";
 
+/// Wall clock a request spent on its whole concurrent batch of GCS work,
+/// tagged with `op` (`upload` or `download`) and the `handler` that ran it.
+///
+/// Distinct from the per-object timings, and not derivable from them: uploads
+/// and downloads run concurrently up to `gcs_payload_max_concurrency`, so the
+/// latency a request actually pays is neither the sum nor the max of its
+/// parts. This is the number that shows up in request latency.
+const BATCH_METRIC: &str = "storage.gcs.payload.batch";
+
 /// Return the GCS bucket name if `collection` is opted into payload off-load
 /// and a bucket is configured. `None` disables off-load for this request.
 pub fn offload_bucket<'a>(state: &'a ServerState, collection: &str) -> Option<&'a str> {
@@ -155,6 +164,21 @@ fn record_op(metrics: &Metrics, label: &str, elapsed: Duration, ok: bool) {
         label,
         elapsed.as_millis() as u64,
         HashMap::from([("result".to_owned(), result.to_owned())]),
+    );
+}
+
+/// Emit [`BATCH_METRIC`] for the concurrent GCS batch a request just finished.
+///
+/// `op` is `upload` or `download`; `handler` names the request handler, using
+/// the same labels as its `request.*` API metric.
+pub fn record_batch(metrics: &Metrics, op: &str, handler: &str, elapsed: Duration) {
+    metrics.timing_with_tags(
+        BATCH_METRIC,
+        elapsed.as_millis() as u64,
+        HashMap::from([
+            ("op".to_owned(), op.to_owned()),
+            ("handler".to_owned(), handler.to_owned()),
+        ]),
     );
 }
 

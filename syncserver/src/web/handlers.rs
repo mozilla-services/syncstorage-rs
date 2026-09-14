@@ -30,7 +30,7 @@ use crate::{
         },
         payload_offload::{
             CleanupHandler, delete_payload, download_payload, offload_bucket, reattach_by_index,
-            upload_payload,
+            record_batch, upload_payload,
         },
         transaction::{BATCH_COMMIT_TRANSACTION_TAG, DbTransactionPool},
     },
@@ -351,6 +351,7 @@ pub async fn get_collection(
                 if !links.is_empty() {
                     let client = state.gcs_client()?;
                     let metrics = coll.metrics.clone();
+                    let started = Instant::now();
                     let payloads: Vec<(usize, String)> = stream::iter(links)
                         .map(|(i, link)| {
                             let client = client.clone();
@@ -364,6 +365,7 @@ pub async fn get_collection(
                         .buffer_unordered(state.gcs_payload_max_concurrency.get())
                         .try_collect()
                         .await?;
+                    record_batch(&metrics, "download", "get_collection", started.elapsed());
 
                     reattach_by_index(&mut bsos.items, payloads, |bso, payload| {
                         bso.payload = payload
@@ -474,6 +476,7 @@ pub async fn post_collection(
         // The payload's byte length is recorded alongside its URL: once the
         // payload lives in GCS the row's own payload column is NULL, so its
         // size is only knowable here.
+        let started = Instant::now();
         let uploads: Vec<(usize, (String, i64))> = stream::iter(pending)
             .map(|(i, bso_id, payload)| {
                 let client = client.clone();
@@ -488,6 +491,7 @@ pub async fn post_collection(
             .buffer_unordered(state.gcs_payload_max_concurrency.get())
             .try_collect()
             .await?;
+        record_batch(&metrics, "upload", "post_collection", started.elapsed());
 
         // Track uploaded URLs so they can be cleaned up from GCS if the DB
         // transaction below fails.
