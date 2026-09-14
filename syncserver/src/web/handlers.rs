@@ -471,9 +471,10 @@ pub async fn post_collection(
         let uploads: Vec<(usize, (String, i64))> = stream::iter(pending)
             .map(|(i, bso_id, payload)| {
                 let client = client.clone();
+                let metrics = metrics.clone();
                 let payload_size = payload.len() as i64;
                 async move {
-                    upload_payload(&client, bucket, prefix, user_id, &bso_id, payload)
+                    upload_payload(&client, bucket, prefix, user_id, &bso_id, payload, &metrics)
                         .await
                         .map(|url| (i, (url, payload_size)))
                 }
@@ -862,6 +863,7 @@ pub async fn put_bso(
             &bso_req.user_id,
             &bso_req.bso,
             payload,
+            &metrics,
         )
         .await?;
         // payload was taken above; leave it None so only payload_link is set.

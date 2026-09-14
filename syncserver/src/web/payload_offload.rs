@@ -18,7 +18,10 @@
 //! once the database row is durably visible. The objects also carry
 //! `bso_id`, `fxa_kid`, `original_size`, and `format_version`.
 
-use std::{collections::HashMap, time::SystemTime};
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant, SystemTime},
+};
 
 use google_cloud_auth::credentials::anonymous;
 use google_cloud_storage::client::{Storage, StorageControl};
@@ -45,6 +48,16 @@ const FORMAT_VERSION: &str = "1";
 /// transaction of an offloading write fails. Tagged with the `handler` that
 /// issued it, a `result` of `success` or `failure`, and on failure a `reason`.
 const CLEANUP_METRIC: &str = "storage.gcs.payload.cleanup";
+
+/// Timing for a single payload upload, tagged with a `result` of `success` or
+/// `error`. Statsd timers carry their own count, so there is no separate
+/// counter for the number of uploads.
+const UPLOAD_METRIC: &str = "storage.gcs.payload.upload";
+
+/// Payload bytes written to GCS. A counter rather than a tag, because tagging
+/// by size would be unbounded cardinality, and the point of the offload work
+/// is large payloads: latency is only interpretable against it.
+const UPLOAD_BYTES_METRIC: &str = "storage.gcs.payload.upload.bytes";
 
 /// Return the GCS bucket name if `collection` is opted into payload off-load
 /// and a bucket is configured. `None` disables off-load for this request.
@@ -89,6 +102,7 @@ pub async fn upload_payload(
     user_id: &UserIdentifier,
     bso_id: &str,
     payload: String,
+    metrics: &Metrics,
 ) -> Result<String, ApiError> {
     let object_name = format!("{}/{}/{}", prefix, user_id.fxa_uid, Uuid::new_v4().simple());
 
@@ -99,7 +113,8 @@ pub async fn upload_payload(
         .try_into()
         .map_err(|e| ApiErrorKind::Internal(format!("custom_time: {e}")))?;
 
-    client
+    let started = Instant::now();
+    let result = client
         .write_object(bucket_path(bucket), object_name.clone(), payload)
         .set_metadata([
             (COMMITTED_METADATA_KEY.to_string(), "false".to_string()),
@@ -116,9 +131,25 @@ pub async fn upload_payload(
         ])
         .set_custom_time(custom_time)
         .send_buffered()
-        .await?;
+        .await;
+
+    record_op(metrics, UPLOAD_METRIC, started.elapsed(), result.is_ok());
+    result?;
+    // Only count bytes that actually landed, so the counter stays a measure of
+    // what GCS holds rather than what we attempted.
+    metrics.count(UPLOAD_BYTES_METRIC, original_size as i64);
 
     Ok(format!("gs://{bucket}/{object_name}"))
+}
+
+/// Emit a per-object timing for `label`, tagged with the operation's outcome.
+fn record_op(metrics: &Metrics, label: &str, elapsed: Duration, ok: bool) {
+    let result = if ok { "success" } else { "error" };
+    metrics.timing_with_tags(
+        label,
+        elapsed.as_millis() as u64,
+        HashMap::from([("result".to_owned(), result.to_owned())]),
+    );
 }
 
 /// Download payload bytes from a `gs://{bucket}/{object}` URL produced by
