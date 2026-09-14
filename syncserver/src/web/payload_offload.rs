@@ -59,6 +59,12 @@ const UPLOAD_METRIC: &str = "storage.gcs.payload.upload";
 /// is large payloads: latency is only interpretable against it.
 const UPLOAD_BYTES_METRIC: &str = "storage.gcs.payload.upload.bytes";
 
+/// Timing for a single payload download. Tagged as [`UPLOAD_METRIC`].
+const DOWNLOAD_METRIC: &str = "storage.gcs.payload.download";
+
+/// Payload bytes read back from GCS. See [`UPLOAD_BYTES_METRIC`].
+const DOWNLOAD_BYTES_METRIC: &str = "storage.gcs.payload.download.bytes";
+
 /// Return the GCS bucket name if `collection` is opted into payload off-load
 /// and a bucket is configured. `None` disables off-load for this request.
 pub fn offload_bucket<'a>(state: &'a ServerState, collection: &str) -> Option<&'a str> {
@@ -154,9 +160,29 @@ fn record_op(metrics: &Metrics, label: &str, elapsed: Duration, ok: bool) {
 
 /// Download payload bytes from a `gs://{bucket}/{object}` URL produced by
 /// [`upload_payload`] and return them as a UTF-8 string.
-pub async fn download_payload(client: &Storage, gs_url: &str) -> Result<String, ApiError> {
+pub async fn download_payload(
+    client: &Storage,
+    gs_url: &str,
+    metrics: &Metrics,
+) -> Result<String, ApiError> {
     let (bucket, object) = parse_gs_url(gs_url)?;
 
+    // Times the whole read, streaming included: the chunk loop in
+    // `read_object` is where a large payload actually spends its time, so
+    // stopping at `send()` would measure almost nothing.
+    let started = Instant::now();
+    let bytes = read_object(client, bucket, object).await;
+    record_op(metrics, DOWNLOAD_METRIC, started.elapsed(), bytes.is_ok());
+
+    let bytes = bytes?;
+    metrics.count(DOWNLOAD_BYTES_METRIC, bytes.len() as i64);
+
+    String::from_utf8(bytes)
+        .map_err(|e| ApiErrorKind::Internal(format!("invalid utf-8 in GCS payload: {e}")).into())
+}
+
+/// Read an object's bytes, draining the response stream.
+async fn read_object(client: &Storage, bucket: &str, object: &str) -> Result<Vec<u8>, ApiError> {
     let mut response = client
         .read_object(bucket_path(bucket), object.to_string())
         .send()
@@ -166,9 +192,7 @@ pub async fn download_payload(client: &Storage, gs_url: &str) -> Result<String, 
     while let Some(chunk) = response.next().await.transpose()? {
         bytes.extend_from_slice(&chunk);
     }
-
-    String::from_utf8(bytes)
-        .map_err(|e| ApiErrorKind::Internal(format!("invalid utf-8 in GCS payload: {e}")).into())
+    Ok(bytes)
 }
 
 pub async fn build_control_client(endpoint: Option<&str>) -> Result<StorageControl, ApiError> {

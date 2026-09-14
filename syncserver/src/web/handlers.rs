@@ -350,10 +350,16 @@ pub async fn get_collection(
 
                 if !links.is_empty() {
                     let client = state.gcs_client()?;
+                    let metrics = coll.metrics.clone();
                     let payloads: Vec<(usize, String)> = stream::iter(links)
                         .map(|(i, link)| {
                             let client = client.clone();
-                            async move { download_payload(&client, &link).await.map(|p| (i, p)) }
+                            let metrics = metrics.clone();
+                            async move {
+                                download_payload(&client, &link, &metrics)
+                                    .await
+                                    .map(|p| (i, p))
+                            }
                         })
                         .buffer_unordered(state.gcs_payload_max_concurrency.get())
                         .try_collect()
@@ -794,6 +800,9 @@ pub async fn get_bso(
     state: Data<ServerState>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
+    // Cloned up front: `bso_req` is moved into the transaction closure below,
+    // but the GCS download after it needs to emit metrics.
+    let metrics = bso_req.metrics.clone();
     db_pool
         .transaction_http_then(
             &request,
@@ -811,7 +820,7 @@ pub async fn get_bso(
                 if let Some(ref mut bso) = maybe_bso
                     && let Some(link) = bso.payload_link.take()
                 {
-                    bso.payload = download_payload(state.gcs_client()?, &link).await?;
+                    bso.payload = download_payload(state.gcs_client()?, &link, &metrics).await?;
                 }
                 Ok(maybe_bso.map_or_else(
                     || HttpResponse::NotFound().finish(),
