@@ -584,4 +584,78 @@ mod tests {
         reattach_by_index(&mut items, Vec::<(usize, i32)>::new(), |slot, v| *slot = v);
         assert_eq!(items, vec![1, 2, 3]);
     }
+
+    #[test]
+    fn record_op_tags_success() {
+        let (metrics, recorded) = recording_metrics();
+
+        record_op(&metrics, UPLOAD_METRIC, Duration::from_millis(42), true);
+
+        let emitted = emitted(&recorded);
+        assert!(
+            emitted.contains("storage.gcs.payload.upload:42|ms"),
+            "expected a 42ms upload timing, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("result:success"),
+            "expected result:success, got: {emitted}"
+        );
+    }
+
+    #[test]
+    fn record_op_tags_error() {
+        let (metrics, recorded) = recording_metrics();
+
+        record_op(&metrics, DOWNLOAD_METRIC, Duration::from_millis(7), false);
+
+        let emitted = emitted(&recorded);
+        assert!(
+            emitted.contains("storage.gcs.payload.download:7|ms"),
+            "expected a 7ms download timing, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("result:error"),
+            "expected result:error, got: {emitted}"
+        );
+    }
+
+    #[test]
+    fn record_batch_carries_op_and_handler() {
+        let (metrics, recorded) = recording_metrics();
+
+        record_batch(
+            &metrics,
+            "download",
+            "get_collection",
+            Duration::from_millis(115),
+        );
+
+        let emitted = emitted(&recorded);
+        assert!(
+            emitted.contains("storage.gcs.payload.batch:115|ms"),
+            "expected a 115ms batch timing, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("op:download"),
+            "expected op:download, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("handler:get_collection"),
+            "expected handler:get_collection, got: {emitted}"
+        );
+    }
+
+    #[test]
+    fn sub_millisecond_op_records_zero_not_nothing() {
+        // A fast local/emulator round trip truncates to 0ms. The line must
+        // still be sent, so the timer's count stays an accurate op count.
+        let (metrics, recorded) = recording_metrics();
+
+        record_op(&metrics, UPLOAD_METRIC, Duration::from_micros(400), true);
+
+        assert!(
+            emitted(&recorded).contains("storage.gcs.payload.upload:0|ms"),
+            "a sub-millisecond op must still emit a timing"
+        );
+    }
 }
