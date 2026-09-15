@@ -6,9 +6,9 @@ on ghcr.io. This guide provides a simple `docker compose` setup that can act as
 a starting point to self-host Sync.
 
 Images are available for both
-[MySQL](https://github.com/mozilla-services/syncstorage-rs/pkgs/container/syncstorage-rs%2Fsyncstorage-rs-mysql)
+[MySQL](https://github.com/mozilla-services/syncstorage-rs/pkgs/container/syncstorage-rs%2Fsyncserver-mysql)
 and
-[PostgreSQL](https://github.com/mozilla-services/syncstorage-rs/pkgs/container/syncstorage-rs%2Fsyncstorage-rs-postgres)
+[PostgreSQL](https://github.com/mozilla-services/syncstorage-rs/pkgs/container/syncstorage-rs%2Fsyncserver-postgres)
 as the database.  Differences in configuration or deployment steps will be
 noted.
 
@@ -33,7 +33,7 @@ using the correct MySQL or PostgreSQL build for the database.
 ```yaml
 services:
   syncserver:
-    image: ghcr.io/mozilla-services/syncstorage-rs/syncstorage-rs-mysql:${SYNCSERVER_VERSION:-latest}
+    image: ghcr.io/mozilla-services/syncstorage-rs/syncserver-mysql:${SYNCSERVER_VERSION:-latest}
     platform: linux/amd64
     container_name: syncserver
     ports:
@@ -130,17 +130,17 @@ node records — so the stack is ready to serve immediately.
 
 ### Using a published image instead of building
 
-Mozilla also publishes prebuilt images on ghcr.io. The MySQL images are
-currently tagged by commit SHA — there is **no `latest` or semver tag** — so you
-must pin `SYNCSERVER_VERSION` to a tag listed on the
-[`syncstorage-rs-mysql` packages page](https://github.com/mozilla-services/syncstorage-rs/pkgs/container/syncstorage-rs%2Fsyncstorage-rs-mysql).
+Mozilla also publishes prebuilt images on ghcr.io. Release builds are tagged
+with the release version and `latest`; builds from `master` are tagged with the
+short commit SHA only. Pin `SYNCSERVER_VERSION` to a tag listed on the
+[`syncserver-mysql` packages page](https://github.com/mozilla-services/syncstorage-rs/pkgs/container/syncstorage-rs%2Fsyncserver-mysql).
 To use one, replace the `syncserver` service's `build:` block in the compose
 file with an `image:` reference (published images are `linux/amd64`):
 
 ```yaml
 services:
   syncserver:
-    image: ghcr.io/mozilla-services/syncstorage-rs/syncstorage-rs-mysql:${SYNCSERVER_VERSION:?set SYNCSERVER_VERSION to a published tag}
+    image: ghcr.io/mozilla-services/syncstorage-rs/syncserver-mysql:${SYNCSERVER_VERSION:?set SYNCSERVER_VERSION to a published tag}
     platform: linux/amd64
     # ...the remaining syncserver settings are unchanged
 ```

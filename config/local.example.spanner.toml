@@ -3,7 +3,7 @@
 # =============================================================================
 #
 # This is a ready-to-edit template for running syncstorage-rs against the
-# standard Spanner build (`make run_spanner`, the `syncstorage-rs-spanner`
+# standard Spanner build (`make run_spanner`, the `syncstorage-rs`
 # Docker image). This mirrors the production topology: Syncstorage runs against
 # Google Cloud Spanner, while Tokenserver runs against MySQL.
 #
