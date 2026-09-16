@@ -176,15 +176,14 @@ def finalize_object(
     started = time.monotonic()
     try:
         blob.patch()
-        _record_gcs_op(started, "finalize")
         metrics.incr("finalizes")
         _record_finalize_age(commit_timestamp)
     except gax_exceptions.NotFound:
-        # Still timed: a 404 is a completed round trip, and excluding it would
-        # bias the latency toward whichever outcome is slower.
-        _record_gcs_op(started, "finalize")
         log.debug("finalize 404: gs://%s/%s", bucket, name)
         metrics.incr("gcs_404", tags=["op:finalize"])
+    finally:
+        # Every outcome is a completed round trip, so time them all.
+        _record_gcs_op(started, "finalize")
 
 
 def delete_object(gcs_client: storage.Client, bucket: str, name: str) -> None:
@@ -193,12 +192,12 @@ def delete_object(gcs_client: storage.Client, bucket: str, name: str) -> None:
     started = time.monotonic()
     try:
         blob.delete()
-        _record_gcs_op(started, "delete")
         metrics.incr("orphan_deletes")
     except gax_exceptions.NotFound:
-        _record_gcs_op(started, "delete")
         log.debug("delete 404: gs://%s/%s", bucket, name)
         metrics.incr("gcs_404", tags=["op:delete"])
+    finally:
+        _record_gcs_op(started, "delete")
 
 
 def _require_bucket(seen: str, expected: str) -> None:
