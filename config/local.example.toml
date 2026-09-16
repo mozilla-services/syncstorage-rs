@@ -4,7 +4,7 @@
 #
 # This is a ready-to-edit template for running syncstorage-rs against the
 # standard MySQL build (the default `cargo build` / `make run_mysql` target,
-# and the `syncstorage-rs-mysql` Docker image). It runs both Syncstorage and
+# and the `syncserver-mysql` Docker image). It runs both Syncstorage and
 # Tokenserver against MySQL.
 #
 # Copy it to `config/local.toml` and edit the values marked REQUIRED:

@@ -21,11 +21,12 @@
 # repo root), so it does not depend on any published image. To use a published
 # image instead, replace the syncserver `build:` block with:
 #
-#   image: ghcr.io/mozilla-services/syncstorage-rs/syncstorage-rs-mysql:${SYNCSERVER_VERSION:?set SYNCSERVER_VERSION to a published tag}
+#   image: ghcr.io/mozilla-services/syncstorage-rs/syncserver-mysql:${SYNCSERVER_VERSION:?set SYNCSERVER_VERSION to a published tag}
 #   platform: linux/amd64
 #
-# Published images are tagged by commit SHA (no `latest`/semver), so
-# SYNCSERVER_VERSION must be a tag from the syncstorage-rs-mysql packages page.
+# Release builds are tagged with the release version and `latest`; builds from
+# master are tagged with the short commit SHA only. SYNCSERVER_VERSION must be a
+# tag from the syncserver-mysql packages page.
 #
 # Set SYNC_MASTER_SECRET to your own value for anything beyond local
 # experimentation; the default below is a placeholder.

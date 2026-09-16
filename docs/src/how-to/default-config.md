@@ -4,10 +4,10 @@ This page describes the out-of-the-box configuration needed to run the two
 standard `syncstorage-rs` builds:
 
 - **MySQL build** — the default `cargo build` / `make run_mysql` target and the
-  `syncstorage-rs-mysql` Docker image. Both Syncstorage and Tokenserver run
+  `syncserver-mysql` Docker image. Both Syncstorage and Tokenserver run
   against MySQL.
-- **Spanner build** — `make run_spanner` and the `syncstorage-rs-spanner`
-  Docker image. This mirrors production: Syncstorage runs against Google Cloud
+- **Spanner build** — `make run_spanner` and the `syncstorage-rs` Docker image
+  (the Spanner image keeps the unsuffixed name). This mirrors production: Syncstorage runs against Google Cloud
   Spanner while Tokenserver runs against MySQL.
 
 Annotated, copy-paste-ready templates live in the repo:
