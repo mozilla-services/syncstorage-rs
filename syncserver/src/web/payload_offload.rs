@@ -73,6 +73,12 @@ const DOWNLOAD_METRIC: &str = "storage.gcs.payload.download";
 /// Payload bytes read back from GCS. See [`UPLOAD_BYTES_METRIC`].
 const DOWNLOAD_BYTES_METRIC: &str = "storage.gcs.payload.download.bytes";
 
+/// Timing for the compensating delete, so all three GCS operations report
+/// latency rather than just upload and download. [`CLEANUP_METRIC`] already
+/// counts the outcomes; this says how long they took. It runs while a write
+/// is already failing, so a slow delete there adds to an error response.
+const CLEANUP_TIMING_METRIC: &str = "storage.gcs.payload.cleanup.duration";
+
 /// Tag values for [`SIZE_METRIC`] and [`BATCH_METRIC`]'s `op`.
 pub const OP_UPLOAD: &str = "upload";
 pub const OP_DOWNLOAD: &str = "download";
@@ -326,12 +332,23 @@ pub async fn delete_payload(
         )
     })?;
 
-    client
+    // Started after the URL parses: an unparseable URL issues no GCS call.
+    let started = Instant::now();
+    let result = client
         .delete_object()
         .set_bucket(bucket_path(bucket))
         .set_object(object)
         .send()
-        .await
+        .await;
+
+    record_op(
+        metrics,
+        CLEANUP_TIMING_METRIC,
+        started.elapsed(),
+        result.is_ok(),
+    );
+
+    result
         .inspect(|_| {
             metrics.incr_with_tags(
                 CLEANUP_METRIC,
@@ -714,6 +731,76 @@ mod tests {
         assert!(
             emitted(&recorded).contains("storage.gcs.payload.size:0|h"),
             "a zero-byte payload must still be recorded"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn delete_payload_times_a_success() {
+        let client = StorageControl::from_stub(RecordingStub::default());
+
+        let (metrics, recorded) = recording_metrics();
+
+        delete_payload(
+            &client,
+            "gs://bucket/u/c/b/uuid",
+            &metrics,
+            CleanupHandler::PutBso,
+        )
+        .await
+        .expect("delete should succeed");
+
+        let emitted = emitted(&recorded);
+        assert!(
+            emitted.contains("storage.gcs.payload.cleanup.duration:"),
+            "expected a cleanup timing, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("result:success"),
+            "expected result:success, got: {emitted}"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn delete_payload_times_a_gcs_failure() {
+        let client = StorageControl::from_stub(FailingStub);
+        let (metrics, recorded) = recording_metrics();
+
+        let _ = delete_payload(
+            &client,
+            "gs://bucket/u/c/b/uuid",
+            &metrics,
+            CleanupHandler::PutBso,
+        )
+        .await;
+
+        let emitted = emitted(&recorded);
+        assert!(
+            emitted.contains("storage.gcs.payload.cleanup.duration:"),
+            "a failed delete is still a round trip and must be timed: {emitted}"
+        );
+        assert!(
+            emitted.contains("result:error"),
+            "expected result:error, got: {emitted}"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn delete_payload_does_not_time_an_unparseable_url() {
+        // No GCS call is issued, so there is no round trip to report. Timing it
+        // would drag the latency toward zero with work that never happened.
+        let client = StorageControl::from_stub(RecordingStub::default());
+        let (metrics, recorded) = recording_metrics();
+
+        let _ = delete_payload(&client, "not-a-gs-url", &metrics, CleanupHandler::PutBso).await;
+
+        let emitted = emitted(&recorded);
+        assert!(
+            !emitted.contains("storage.gcs.payload.cleanup.duration"),
+            "an unparseable URL must not emit a timing: {emitted}"
+        );
+        assert!(
+            emitted.contains("reason:invalid_url"),
+            "the counter should still record the reason: {emitted}"
         );
     }
 }
