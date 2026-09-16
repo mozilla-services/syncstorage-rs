@@ -54,16 +54,28 @@ const CLEANUP_METRIC: &str = "storage.gcs.payload.cleanup";
 /// counter for the number of uploads.
 const UPLOAD_METRIC: &str = "storage.gcs.payload.upload";
 
-/// Payload bytes written to GCS. A counter rather than a tag, because tagging
-/// by size would be unbounded cardinality, and the point of the offload work
-/// is large payloads: latency is only interpretable against it.
+/// Payload bytes written to GCS, as a monotonic counter. Answers throughput:
+/// how many bytes per second are moving, which a histogram cannot give.
 const UPLOAD_BYTES_METRIC: &str = "storage.gcs.payload.upload.bytes";
+
+/// Distribution of individual payload sizes in bytes, tagged with `op`
+/// (`upload` or `download`).
+///
+/// A histogram rather than a tag on the timings, which would be unbounded
+/// cardinality, and rather than only the byte counters above, which give a
+/// total and therefore a mean but no percentiles. This project exists to raise
+/// a size ceiling, so the tail is the part worth seeing.
+const SIZE_METRIC: &str = "storage.gcs.payload.size";
 
 /// Timing for a single payload download. Tagged as [`UPLOAD_METRIC`].
 const DOWNLOAD_METRIC: &str = "storage.gcs.payload.download";
 
 /// Payload bytes read back from GCS. See [`UPLOAD_BYTES_METRIC`].
 const DOWNLOAD_BYTES_METRIC: &str = "storage.gcs.payload.download.bytes";
+
+/// Tag values for [`SIZE_METRIC`] and [`BATCH_METRIC`]'s `op`.
+pub const OP_UPLOAD: &str = "upload";
+pub const OP_DOWNLOAD: &str = "download";
 
 /// Wall clock a request spent on its whole concurrent batch of GCS work,
 /// tagged with `op` (`upload` or `download`) and the `handler` that ran it.
@@ -150,11 +162,21 @@ pub async fn upload_payload(
 
     record_op(metrics, UPLOAD_METRIC, started.elapsed(), result.is_ok());
     result?;
-    // Only count bytes that actually landed, so the counter stays a measure of
-    // what GCS holds rather than what we attempted.
+    // Only record bytes that actually landed, so these stay a measure of what
+    // GCS holds rather than what we attempted.
     metrics.count(UPLOAD_BYTES_METRIC, original_size as i64);
+    record_size(metrics, OP_UPLOAD, original_size);
 
     Ok(format!("gs://{bucket}/{object_name}"))
+}
+
+/// Record one payload's size against [`SIZE_METRIC`].
+fn record_size(metrics: &Metrics, op: &str, bytes: usize) {
+    metrics.histogram_with_tags(
+        SIZE_METRIC,
+        bytes as u64,
+        HashMap::from([("op".to_owned(), op.to_owned())]),
+    );
 }
 
 /// Emit a per-object timing for `label`, tagged with the operation's outcome.
@@ -200,6 +222,7 @@ pub async fn download_payload(
 
     let bytes = bytes?;
     metrics.count(DOWNLOAD_BYTES_METRIC, bytes.len() as i64);
+    record_size(metrics, OP_DOWNLOAD, bytes.len());
 
     String::from_utf8(bytes)
         .map_err(|e| ApiErrorKind::Internal(format!("invalid utf-8 in GCS payload: {e}")).into())
@@ -656,6 +679,39 @@ mod tests {
         assert!(
             emitted(&recorded).contains("storage.gcs.payload.upload:0|ms"),
             "a sub-millisecond op must still emit a timing"
+        );
+    }
+
+    #[test]
+    fn record_size_is_a_histogram_tagged_by_op() {
+        let (metrics, recorded) = recording_metrics();
+
+        record_size(&metrics, OP_UPLOAD, 10_485_760);
+
+        let emitted = emitted(&recorded);
+        // `|h`, not `|ms` or `|c`: the aggregator derives percentiles from a
+        // histogram, which is the point of tracking size distribution.
+        assert!(
+            emitted.contains("storage.gcs.payload.size:10485760|h"),
+            "expected a size histogram in bytes, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("op:upload"),
+            "expected op:upload, got: {emitted}"
+        );
+    }
+
+    #[test]
+    fn record_size_accepts_an_empty_payload() {
+        // A zero-length payload is legal and must not be dropped from the
+        // distribution, or the low end of the histogram lies.
+        let (metrics, recorded) = recording_metrics();
+
+        record_size(&metrics, OP_DOWNLOAD, 0);
+
+        assert!(
+            emitted(&recorded).contains("storage.gcs.payload.size:0|h"),
+            "a zero-byte payload must still be recorded"
         );
     }
 }

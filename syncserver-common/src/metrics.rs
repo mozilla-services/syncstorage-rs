@@ -4,7 +4,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use cadence::{
-    BufferedUdpMetricSink, Counted, Metric, NopMetricSink, QueuingMetricSink, StatsdClient, Timed,
+    BufferedUdpMetricSink, Counted, Histogrammed, Metric, NopMetricSink, QueuingMetricSink,
+    StatsdClient, Timed,
 };
 use slog::{KV, Key, Record};
 
@@ -107,6 +108,32 @@ impl Metrics {
 
     pub fn count(&self, label: &str, count: i64) {
         self.count_with_tags(label, count, HashMap::default())
+    }
+
+    /// Record a value in a histogram, with `tags` merged over `self.tags`.
+    ///
+    /// Unlike [`count_with_tags`](Self::count_with_tags), the aggregator
+    /// derives percentiles from this, so it answers what the distribution and
+    /// its tail look like rather than just a running total.
+    pub fn histogram_with_tags(&self, label: &str, value: u64, tags: HashMap<String, String>) {
+        if let Some(client) = self.client.as_ref() {
+            let mut tagged = client.histogram_with_tags(label, value);
+            let mut mtags = self.tags.clone();
+            mtags.extend(tags);
+
+            for key in mtags.keys().clone() {
+                if let Some(val) = mtags.get(key) {
+                    tagged = tagged.with_tag(key, val.as_ref());
+                }
+            }
+            match tagged.try_send() {
+                Err(e) => {
+                    // eat the metric, but log the error
+                    warn!("⚠️ Metric {} error: {:?} ", label, e; MetricTags(mtags));
+                }
+                Ok(v) => trace!("☑️ {:?}", v.as_metric_str()),
+            }
+        }
     }
 
     /// Send a timing in milliseconds immediately, with `tags` merged over

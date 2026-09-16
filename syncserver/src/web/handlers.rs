@@ -29,8 +29,8 @@ use crate::{
             HeartbeatRequest, MetaRequest, ReplyFormat, TestErrorRequest,
         },
         payload_offload::{
-            CleanupHandler, delete_payload, download_payload, offload_bucket, reattach_by_index,
-            record_batch, upload_payload,
+            CleanupHandler, OP_DOWNLOAD, OP_UPLOAD, delete_payload, download_payload,
+            offload_bucket, reattach_by_index, record_batch, upload_payload,
         },
         transaction::{BATCH_COMMIT_TRANSACTION_TAG, DbTransactionPool},
     },
@@ -365,7 +365,7 @@ pub async fn get_collection(
                         .buffer_unordered(state.gcs_payload_max_concurrency.get())
                         .try_collect()
                         .await?;
-                    record_batch(&metrics, "download", "get_collection", started.elapsed());
+                    record_batch(&metrics, OP_DOWNLOAD, "get_collection", started.elapsed());
 
                     reattach_by_index(&mut bsos.items, payloads, |bso, payload| {
                         bso.payload = payload
@@ -491,7 +491,7 @@ pub async fn post_collection(
             .buffer_unordered(state.gcs_payload_max_concurrency.get())
             .try_collect()
             .await?;
-        record_batch(&metrics, "upload", "post_collection", started.elapsed());
+        record_batch(&metrics, OP_UPLOAD, "post_collection", started.elapsed());
 
         // Track uploaded URLs so they can be cleaned up from GCS if the DB
         // transaction below fails.
