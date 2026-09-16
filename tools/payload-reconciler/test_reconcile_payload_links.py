@@ -395,7 +395,7 @@ def test_finalize_times_the_gcs_call(statsd_timing: MagicMock) -> None:
 
     calls = _timing_calls(statsd_timing, "gcs_op")
     assert len(calls) == 1
-    assert calls[0].kwargs["tags"] == ["op:finalize"]
+    assert calls[0].kwargs["tags"] == ["op:finalize", "result:success"]
     assert calls[0].args[1] >= 0
 
 
@@ -406,7 +406,7 @@ def test_delete_times_the_gcs_call(statsd_timing: MagicMock) -> None:
 
     calls = _timing_calls(statsd_timing, "gcs_op")
     assert len(calls) == 1
-    assert calls[0].kwargs["tags"] == ["op:delete"]
+    assert calls[0].kwargs["tags"] == ["op:delete", "result:success"]
 
 
 def test_gcs_op_timed_even_on_404(statsd_timing: MagicMock) -> None:
@@ -420,7 +420,7 @@ def test_gcs_op_timed_even_on_404(statsd_timing: MagicMock) -> None:
 
     calls = _timing_calls(statsd_timing, "gcs_op")
     assert len(calls) == 1
-    assert calls[0].kwargs["tags"] == ["op:finalize"]
+    assert calls[0].kwargs["tags"] == ["op:finalize", "result:not_found"]
     # The age is not recorded, since nothing was finalized.
     assert _timing_calls(statsd_timing, "finalize_age") == []
 
@@ -440,3 +440,22 @@ def test_batch_commit_skip_times_nothing(statsd_timing: MagicMock) -> None:
     )
 
     assert _timing_calls(statsd_timing, "gcs_op") == []
+
+
+def test_gcs_op_timed_and_tagged_on_hard_failure(statsd_timing: MagicMock) -> None:
+    """A non-404 failure still completed a round trip, so it is timed too.
+
+    This is what the `finally` buys: before it, a hard failure emitted no
+    latency at all and the metric only described the happy path.
+    """
+    gcs = _gcs_mock()
+    gcs.bucket.return_value.blob.return_value.patch.side_effect = (
+        gax_exceptions.ServiceUnavailable("gcs is down")
+    )
+
+    with pytest.raises(gax_exceptions.ServiceUnavailable):
+        reconciler.handle_message_body(gcs, BUCKET, _msg([_mod(None, LINK_A)]))
+
+    calls = _timing_calls(statsd_timing, "gcs_op")
+    assert len(calls) == 1
+    assert calls[0].kwargs["tags"] == ["op:finalize", "result:error"]

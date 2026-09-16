@@ -126,14 +126,22 @@ def parse_commit_timestamp(value: str | None) -> datetime.datetime | None:
     return parsed
 
 
-def _record_gcs_op(started: float, op: str) -> None:
-    """Emit the round-trip time of one GCS call, tagged with ``op``.
+def _record_gcs_op(started: float, op: str, result: str) -> None:
+    """Emit the round-trip time of one GCS call, tagged with ``op``/``result``.
 
     Separates our own GCS latency from the end-to-end ``finalize_age``, which
     also carries Dataflow and Pub/Sub delay. When the lag climbs, this says
     whether GCS is the reason.
+
+    ``result`` is ``success``, ``not_found``, or ``error``. A 404 is its own
+    value rather than folded into success, because it is a different round
+    trip: the object was already gone, so there was nothing to write.
     """
-    metrics.timing("gcs_op", (time.monotonic() - started) * 1000, tags=[f"op:{op}"])
+    metrics.timing(
+        "gcs_op",
+        (time.monotonic() - started) * 1000,
+        tags=[f"op:{op}", f"result:{result}"],
+    )
 
 
 def _record_finalize_age(commit_timestamp: datetime.datetime | None) -> None:
@@ -174,30 +182,36 @@ def finalize_object(
     blob.metadata = {COMMITTED_METADATA_KEY: "true"}
     blob.custom_time = MAX_CUSTOM_TIME
     started = time.monotonic()
+    outcome = "error"
     try:
         blob.patch()
+        outcome = "success"
         metrics.incr("finalizes")
         _record_finalize_age(commit_timestamp)
     except gax_exceptions.NotFound:
+        outcome = "not_found"
         log.debug("finalize 404: gs://%s/%s", bucket, name)
         metrics.incr("gcs_404", tags=["op:finalize"])
     finally:
         # Every outcome is a completed round trip, so time them all.
-        _record_gcs_op(started, "finalize")
+        _record_gcs_op(started, "finalize", outcome)
 
 
 def delete_object(gcs_client: storage.Client, bucket: str, name: str) -> None:
     """Delete a GCS object. 404 is treated as success."""
     blob = gcs_client.bucket(bucket).blob(name)
     started = time.monotonic()
+    outcome = "error"
     try:
         blob.delete()
+        outcome = "success"
         metrics.incr("orphan_deletes")
     except gax_exceptions.NotFound:
+        outcome = "not_found"
         log.debug("delete 404: gs://%s/%s", bucket, name)
         metrics.incr("gcs_404", tags=["op:delete"])
     finally:
-        _record_gcs_op(started, "delete")
+        _record_gcs_op(started, "delete", outcome)
 
 
 def _require_bucket(seen: str, expected: str) -> None:
