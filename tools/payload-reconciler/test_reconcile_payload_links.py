@@ -269,11 +269,10 @@ def test_finalize_emits_age(statsd_timing: MagicMock) -> None:
 
     reconciler.handle_message_body(gcs, BUCKET, _msg([_mod(None, LINK_A)]))
 
-    statsd_timing.assert_called_once()
-    label, age_ms = statsd_timing.call_args.args
-    assert label == "finalize_age"
+    calls = _timing_calls(statsd_timing, "finalize_age")
+    assert len(calls) == 1
     # _msg() commits in the past, so the lag is positive.
-    assert age_ms > 0
+    assert calls[0].args[1] > 0
 
 
 def test_finalize_age_skipped_when_timestamp_unparseable(
@@ -295,7 +294,7 @@ def test_finalize_age_skipped_when_timestamp_unparseable(
 
     gcs.bucket.return_value.blob.return_value.patch.assert_called_once()
     statsd_incr.assert_any_call("finalizes")
-    statsd_timing.assert_not_called()
+    assert _timing_calls(statsd_timing, "finalize_age") == []
 
 
 def test_finalize_age_not_emitted_on_404(
@@ -310,7 +309,7 @@ def test_finalize_age_not_emitted_on_404(
     reconciler.handle_message_body(gcs, BUCKET, _msg([_mod(None, LINK_A)]))
 
     statsd_incr.assert_any_call("gcs_404", tags=["op:finalize"])
-    statsd_timing.assert_not_called()
+    assert _timing_calls(statsd_timing, "finalize_age") == []
 
 
 def test_negative_age_is_skipped(statsd_timing: MagicMock) -> None:
@@ -383,3 +382,61 @@ def test_drain_loop_handler_error_leaves_message_unacked(
     assert processed == 1
     sub_client.acknowledge.assert_not_called()
     statsd_incr.assert_any_call("errors", tags=["kind:handler"])
+
+
+def _timing_calls(mock: MagicMock, label: str) -> list:
+    return [c for c in mock.call_args_list if c.args and c.args[0] == label]
+
+
+def test_finalize_times_the_gcs_call(statsd_timing: MagicMock) -> None:
+    gcs = _gcs_mock()
+
+    reconciler.handle_message_body(gcs, BUCKET, _msg([_mod(None, LINK_A)]))
+
+    calls = _timing_calls(statsd_timing, "gcs_op")
+    assert len(calls) == 1
+    assert calls[0].kwargs["tags"] == ["op:finalize"]
+    assert calls[0].args[1] >= 0
+
+
+def test_delete_times_the_gcs_call(statsd_timing: MagicMock) -> None:
+    gcs = _gcs_mock()
+
+    reconciler.handle_message_body(gcs, BUCKET, _msg([_mod(LINK_A, None)]))
+
+    calls = _timing_calls(statsd_timing, "gcs_op")
+    assert len(calls) == 1
+    assert calls[0].kwargs["tags"] == ["op:delete"]
+
+
+def test_gcs_op_timed_even_on_404(statsd_timing: MagicMock) -> None:
+    """A 404 is a completed round trip, so excluding it would bias latency."""
+    gcs = _gcs_mock()
+    gcs.bucket.return_value.blob.return_value.patch.side_effect = (
+        gax_exceptions.NotFound("gone")
+    )
+
+    reconciler.handle_message_body(gcs, BUCKET, _msg([_mod(None, LINK_A)]))
+
+    calls = _timing_calls(statsd_timing, "gcs_op")
+    assert len(calls) == 1
+    assert calls[0].kwargs["tags"] == ["op:finalize"]
+    # The age is not recorded, since nothing was finalized.
+    assert _timing_calls(statsd_timing, "finalize_age") == []
+
+
+def test_batch_commit_skip_times_nothing(statsd_timing: MagicMock) -> None:
+    """The skip makes no GCS call, so it must not land in the op latency."""
+    gcs = _gcs_mock()
+
+    reconciler.handle_message_body(
+        gcs,
+        BUCKET,
+        _msg(
+            [_mod(LINK_A, None)],
+            table="batch_bsos",
+            transaction_tag=reconciler.BATCH_COMMIT_TRANSACTION_TAG,
+        ),
+    )
+
+    assert _timing_calls(statsd_timing, "gcs_op") == []

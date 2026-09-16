@@ -126,6 +126,16 @@ def parse_commit_timestamp(value: str | None) -> datetime.datetime | None:
     return parsed
 
 
+def _record_gcs_op(started: float, op: str) -> None:
+    """Emit the round-trip time of one GCS call, tagged with ``op``.
+
+    Separates our own GCS latency from the end-to-end ``finalize_age``, which
+    also carries Dataflow and Pub/Sub delay. When the lag climbs, this says
+    whether GCS is the reason.
+    """
+    metrics.timing("gcs_op", (time.monotonic() - started) * 1000, tags=[f"op:{op}"])
+
+
 def _record_finalize_age(commit_timestamp: datetime.datetime | None) -> None:
     """Emit the Spanner-commit-to-finalize lag in milliseconds.
 
@@ -163,11 +173,16 @@ def finalize_object(
     blob = gcs_client.bucket(bucket).blob(name)
     blob.metadata = {COMMITTED_METADATA_KEY: "true"}
     blob.custom_time = MAX_CUSTOM_TIME
+    started = time.monotonic()
     try:
         blob.patch()
+        _record_gcs_op(started, "finalize")
         metrics.incr("finalizes")
         _record_finalize_age(commit_timestamp)
     except gax_exceptions.NotFound:
+        # Still timed: a 404 is a completed round trip, and excluding it would
+        # bias the latency toward whichever outcome is slower.
+        _record_gcs_op(started, "finalize")
         log.debug("finalize 404: gs://%s/%s", bucket, name)
         metrics.incr("gcs_404", tags=["op:finalize"])
 
@@ -175,10 +190,13 @@ def finalize_object(
 def delete_object(gcs_client: storage.Client, bucket: str, name: str) -> None:
     """Delete a GCS object. 404 is treated as success."""
     blob = gcs_client.bucket(bucket).blob(name)
+    started = time.monotonic()
     try:
         blob.delete()
+        _record_gcs_op(started, "delete")
         metrics.incr("orphan_deletes")
     except gax_exceptions.NotFound:
+        _record_gcs_op(started, "delete")
         log.debug("delete 404: gs://%s/%s", bucket, name)
         metrics.incr("gcs_404", tags=["op:delete"])
 
