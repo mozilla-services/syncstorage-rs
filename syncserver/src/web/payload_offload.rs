@@ -648,7 +648,7 @@ mod tests {
 
         record_batch(
             &metrics,
-            "download",
+            OP_DOWNLOAD,
             "get_collection",
             Duration::from_millis(115),
         );
