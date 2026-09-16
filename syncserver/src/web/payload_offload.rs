@@ -77,13 +77,15 @@ const DOWNLOAD_BYTES_METRIC: &str = "storage.gcs.payload.download.bytes";
 pub const OP_UPLOAD: &str = "upload";
 pub const OP_DOWNLOAD: &str = "download";
 
-/// Wall clock a request spent on its whole concurrent batch of GCS work,
-/// tagged with `op` (`upload` or `download`) and the `handler` that ran it.
+/// How long one request spent on GCS in total, covering all of its BSOs.
+/// Tagged with `op` (`upload` or `download`) and the `handler` that ran it.
 ///
-/// Distinct from the per-object timings, and not derivable from them: uploads
-/// and downloads run concurrently up to `gcs_payload_max_concurrency`, so the
-/// latency a request actually pays is neither the sum nor the max of its
-/// parts. This is the number that shows up in request latency.
+/// This is the delay the client waits through, and the per-object timings
+/// cannot be added up to get it. A request works on up to
+/// `gcs_payload_max_concurrency` objects at once, so its total lands
+/// somewhere between the slowest single object and the sum of all of them,
+/// depending on how the objects pack into batches. Only the caller, which
+/// spans the whole set, can measure it.
 const BATCH_METRIC: &str = "storage.gcs.payload.batch";
 
 /// Return the GCS bucket name if `collection` is opted into payload off-load
