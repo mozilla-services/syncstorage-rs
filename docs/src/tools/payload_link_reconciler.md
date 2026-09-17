@@ -374,16 +374,14 @@ real dev Spanner instance).
 
 ## Metrics
 
-Two processes report on this system, and they are instrumented to
-different depths. The reconciler covers the asynchronous arm end to end.
-The syncserver side has one counter, on the rollback cleanup, and
-nothing on upload or download.
+Both halves report. The reconciler emits under the
+`payload_reconciler` statsd namespace, syncserver under
+`storage.gcs.payload`. Between them every GCS operation reports both a
+count and a latency.
 
 ### Reconciler
 
-Statsd counters under the `payload_reconciler` namespace. Everything the
-asynchronous arm can tell you about itself is in this list, so it is
-worth knowing what each one looks like when things are working.
+Counters:
 
 | Metric | Meaning | Healthy shape |
 |---|---|---|
@@ -394,13 +392,54 @@ worth knowing what each one looks like when things are working.
 | `batch_commit_skips` | A `batch_bsos` removal carrying the `batch_commit` transaction tag was kept rather than deleted | Tracks batch commit volume on offloaded collections |
 | `noop_skips` | A record arrived with nothing to do | Near zero; the Dataflow filter should have dropped it |
 | `errors` `kind:handler` | Handler raised, message left unacked | Zero |
+| `runs` | One per drain, emitted unconditionally | Tracks the cronjob cadence |
+| `messages_processed` | Change records pulled and handled, counted per batch | Tracks pipeline volume |
+| `budget_exhausted` | A run hit `RUN_BUDGET_SECONDS` before the queue idled | Zero |
+
+Timings:
+
+| Metric | Meaning | Healthy shape |
+|---|---|---|
+| `finalize_age` | Spanner commit to finalize, in ms | Seconds to minutes. This is the window the 30 day lifecycle policy is sized against |
+| `gcs_op` | One GCS round trip. Tagged `op` (`finalize` or `delete`) and `result` (`success`, `not_found`, `error`) | Low. Separates our own GCS latency from Dataflow and Pub/Sub delay |
+| `drain_duration` | How long one run took | Comfortably under `RUN_BUDGET_SECONDS` |
+
+`runs` is the only unconditional series. Every other metric here fires
+only on the event it names, so a quiet pipeline emits almost nothing and
+"idle" would otherwise be indistinguishable from "not running".
 
 ### Syncserver offload path
 
-One counter, `storage.gcs.payload.cleanup`, emitted from
-`syncserver/src/web/payload_offload.rs` when the best-effort delete runs
-after an offloading write's database transaction fails. It is the only
-instrumentation on the synchronous half.
+Emitted from `syncserver/src/web/payload_offload.rs`. All three GCS
+operations report latency, each tagged with a `result`.
+
+| Metric | Type | Tags | Meaning |
+|---|---|---|---|
+| `storage.gcs.payload.upload` | timing | `result` | One object uploaded |
+| `storage.gcs.payload.download` | timing | `result` | One object read back, streaming included |
+| `storage.gcs.payload.cleanup.duration` | timing | `result` | The compensating delete after a failed write transaction |
+| `storage.gcs.payload.batch` | timing | `op`, `handler`, `result` | Total GCS time for one request, across all of its BSOs |
+| `storage.gcs.payload.size` | histogram | `op` | Distribution of individual payload sizes, in bytes |
+| `storage.gcs.payload.upload.bytes` | counter | none | Bytes written, for throughput |
+| `storage.gcs.payload.download.bytes` | counter | none | Bytes read back |
+| `storage.gcs.payload.cleanup` | counter | `handler`, `result`, `reason` | Outcome of the compensating delete |
+
+Statsd timers carry their own count, so there is no separate counter for
+the number of uploads or downloads.
+
+`storage.gcs.payload.batch` is not the sum of the per-object timings. A
+request works on up to `gcs_payload_max_concurrency` objects at once, so
+its total lands somewhere between the slowest single object and the sum
+of all of them. It is the delay the client waits through, and it is
+recorded even when the batch fails part way, hence the `result` tag: an
+abandoned batch stopped early and is not comparable to a complete one.
+
+`storage.gcs.payload.size` is a histogram rather than a tag on the
+timings, so the aggregator derives percentiles from it. The byte
+counters give a total and therefore a mean; the tail is the part that
+matters on a project about raising a size ceiling.
+
+Tags on `storage.gcs.payload.cleanup`:
 
 | Tag | Values | Meaning |
 |---|---|---|
@@ -408,16 +447,13 @@ instrumentation on the synchronous half.
 | `result` | `success`, `failure` | Whether the object was deleted |
 | `reason` | `invalid_url`, `gcs_error` | Failure only. `invalid_url` means the `gs://` URL did not parse and no delete was attempted; `gcs_error` means GCS rejected it |
 
-The counter firing at all means writes are failing after their payload
-reached GCS, so read it against the write error rate rather than on its
-own. `result:failure` is the more interesting cut: those objects are now
-leaked until the 30 day lifecycle policy reaps them. A steady
+The cleanup counter firing at all means writes are failing after their
+payload reached GCS, so read it against the write error rate rather than
+on its own. `result:failure` is the more interesting cut: those objects
+are now leaked until the 30 day lifecycle policy reaps them. A steady
 `reason:invalid_url` is a code bug rather than an operational problem,
-since the URL is one syncserver just generated.
-
-Note the gap: there are no counters or timers on the upload and download
-paths, so offload's contribution to request latency is not visible in
-metrics today.
+since the URL is one syncserver just generated. Note that an unparseable
+URL issues no GCS call and so has no `cleanup.duration` alongside it.
 
 Worth alerting on:
 
@@ -442,6 +478,13 @@ Worth alerting on:
   lifecycle window is the deadline it must never approach.
 - `storage.gcs.payload.cleanup` with `result:failure`, which counts
   objects that leaked because the compensating delete did not land.
+- `finalize_age` climbing. It is the direct measure of how long objects
+  sit unprotected, and unlike the Pub/Sub metric above it covers the
+  whole path including the GCS patch.
+- `budget_exhausted` sustained above zero, meaning runs keep ending on
+  the clock rather than on an idle queue, so the drain is not keeping up.
+- `runs` going flat. Every other reconciler metric is conditional, so
+  this is the one that separates a quiet pipeline from a stopped one.
 
 ---
 
