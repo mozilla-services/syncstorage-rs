@@ -773,14 +773,6 @@ async fn overquota() {
     // WeaveError::OverQuota
     assert_eq!(body, "14");
 
-    // TODO? Support and test the X-Weave-Quota-Remaining header?
-    // match quota_header {
-    //     None => {
-    //         dbg!(response);
-    //     }
-    //     Some(x) => assert_eq!(x, "299"),
-    // };
-
     // Delete any persisted data
 
     // XXX: this should run as cleanup regardless of test failure but it's

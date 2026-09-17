@@ -457,10 +457,6 @@ Value can be passed back as `offset` to retrieve additional records.
 
 Always a string from the urlsafe-base64 alphabet; clients must treat it as opaque.
 
-### `X-Weave-Quota-Remaining`
-
-May be returned in response to write requests indicating remaining storage space (KB). Not returned if quotas are disabled.
-
 ### `X-Weave-Alert`
 
 May be returned in response to any request and contains warning/informational alerts.
