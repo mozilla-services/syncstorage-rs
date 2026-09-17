@@ -352,7 +352,7 @@ pub async fn get_collection(
                     let client = state.gcs_client()?;
                     let metrics = coll.metrics.clone();
                     let started = Instant::now();
-                    let payloads: Vec<(usize, String)> = stream::iter(links)
+                    let downloaded = stream::iter(links)
                         .map(|(i, link)| {
                             let client = client.clone();
                             let metrics = metrics.clone();
@@ -363,9 +363,18 @@ pub async fn get_collection(
                             }
                         })
                         .buffer_unordered(state.gcs_payload_max_concurrency.get())
-                        .try_collect()
-                        .await?;
-                    record_batch(&metrics, OP_DOWNLOAD, "get_collection", started.elapsed());
+                        .try_collect::<Vec<_>>()
+                        .await;
+                    // Recorded before the `?`, so an abandoned batch still
+                    // reports the time it spent.
+                    record_batch(
+                        &metrics,
+                        OP_DOWNLOAD,
+                        "get_collection",
+                        started.elapsed(),
+                        downloaded.is_ok(),
+                    );
+                    let payloads = downloaded?;
 
                     reattach_by_index(&mut bsos.items, payloads, |bso, payload| {
                         bso.payload = payload
@@ -477,7 +486,7 @@ pub async fn post_collection(
         // payload lives in GCS the row's own payload column is NULL, so its
         // size is only knowable here.
         let started = Instant::now();
-        let uploads: Vec<(usize, (String, i64))> = stream::iter(pending)
+        let uploaded = stream::iter(pending)
             .map(|(i, bso_id, payload)| {
                 let client = client.clone();
                 let metrics = metrics.clone();
@@ -489,9 +498,18 @@ pub async fn post_collection(
                 }
             })
             .buffer_unordered(state.gcs_payload_max_concurrency.get())
-            .try_collect()
-            .await?;
-        record_batch(&metrics, OP_UPLOAD, "post_collection", started.elapsed());
+            .try_collect::<Vec<_>>()
+            .await;
+        // Recorded before the `?`, so a fail-fast batch still reports the time
+        // it spent before giving up.
+        record_batch(
+            &metrics,
+            OP_UPLOAD,
+            "post_collection",
+            started.elapsed(),
+            uploaded.is_ok(),
+        );
+        let uploads = uploaded?;
 
         // Track uploaded URLs so they can be cleaned up from GCS if the DB
         // transaction below fails.

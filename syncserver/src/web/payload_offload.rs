@@ -201,13 +201,21 @@ fn record_op(metrics: &Metrics, label: &str, elapsed: Duration, ok: bool) {
 ///
 /// `op` is `upload` or `download`; `handler` names the request handler, using
 /// the same labels as its `request.*` API metric.
-pub fn record_batch(metrics: &Metrics, op: &str, handler: &str, elapsed: Duration) {
+///
+/// `ok` becomes a `result` tag. A batch that fails stops early, so its time
+/// is not comparable to one that ran to completion and the two have to be
+/// separable.
+pub fn record_batch(metrics: &Metrics, op: &str, handler: &str, elapsed: Duration, ok: bool) {
     metrics.timing_with_tags(
         BATCH_METRIC,
         elapsed.as_millis() as u64,
         HashMap::from([
             ("op".to_owned(), op.to_owned()),
             ("handler".to_owned(), handler.to_owned()),
+            (
+                "result".to_owned(),
+                if ok { "success" } else { "error" }.to_owned(),
+            ),
         ]),
     );
 }
@@ -670,6 +678,7 @@ mod tests {
             OP_DOWNLOAD,
             "get_collection",
             Duration::from_millis(115),
+            true,
         );
 
         let emitted = emitted(&recorded);
@@ -684,6 +693,35 @@ mod tests {
         assert!(
             emitted.contains("handler:get_collection"),
             "expected handler:get_collection, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("result:success"),
+            "expected result:success, got: {emitted}"
+        );
+    }
+
+    #[test]
+    fn record_batch_marks_an_abandoned_batch() {
+        // A failed batch stops early, so its time is not comparable to a
+        // completed one and must be separable from it.
+        let (metrics, recorded) = recording_metrics();
+
+        record_batch(
+            &metrics,
+            OP_UPLOAD,
+            "post_collection",
+            Duration::from_millis(9),
+            false,
+        );
+
+        let emitted = emitted(&recorded);
+        assert!(
+            emitted.contains("storage.gcs.payload.batch:9|ms"),
+            "expected a 9ms batch timing, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("result:error"),
+            "expected result:error, got: {emitted}"
         );
     }
 
