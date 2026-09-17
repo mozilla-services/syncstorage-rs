@@ -314,12 +314,10 @@ def drain(
     metrics.incr("runs")
     started = time.monotonic()
 
-    processed = 0
     try:
-        processed = _drain_loop(sub_client, sub_path, gcs_client, bucket, deadline)
+        _drain_loop(sub_client, sub_path, gcs_client, bucket, deadline)
     finally:
         metrics.timing("drain_duration", (time.monotonic() - started) * 1000)
-        metrics.incr("messages_processed", value=processed)
 
 
 def _drain_loop(
@@ -333,7 +331,7 @@ def _drain_loop(
 
     Returns the number of messages processed. Per-message handler errors are
     caught and counted inside the loop, so this only propagates a pull or
-    acknowledge failure, in which case the caller reports a count of zero.
+    acknowledge failure.
     """
     processed = 0
     while True:
@@ -379,6 +377,7 @@ def _drain_loop(
             sub_client.acknowledge(
                 request={"subscription": sub_path, "ack_ids": ack_ids}
             )
+        metrics.incr("messages_processed", value=len(response.received_messages))
         processed += len(response.received_messages)
 
 

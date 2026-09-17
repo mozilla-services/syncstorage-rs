@@ -459,3 +459,31 @@ def test_gcs_op_timed_and_tagged_on_hard_failure(statsd_timing: MagicMock) -> No
     calls = _timing_calls(statsd_timing, "gcs_op")
     assert len(calls) == 1
     assert calls[0].kwargs["tags"] == ["op:finalize", "result:error"]
+
+
+def test_messages_processed_survives_a_mid_drain_failure(
+    statsd_incr: MagicMock,
+) -> None:
+    """Messages handled before a pull failure must still be counted.
+
+    `messages_processed` is cumulative, so summing at the end and emitting once
+    dropped the whole run's count when the loop raised.
+    """
+    sub_client = MagicMock()
+    sub_client.pull.side_effect = [
+        _pull_response([_msg([_mod(None, LINK_A)]), _msg([_mod(LINK_B, None)])]),
+        gax_exceptions.ServiceUnavailable("pubsub is down"),
+    ]
+
+    with pytest.raises(gax_exceptions.ServiceUnavailable):
+        reconciler._drain_loop(
+            sub_client, "sub/path", _gcs_mock(), BUCKET, deadline=time.monotonic() + 60
+        )
+
+    counted = [
+        c
+        for c in statsd_incr.call_args_list
+        if c.args and c.args[0] == "messages_processed"
+    ]
+    assert counted, "the first batch must be counted despite the later failure"
+    assert sum(c.kwargs["value"] for c in counted) == 2
