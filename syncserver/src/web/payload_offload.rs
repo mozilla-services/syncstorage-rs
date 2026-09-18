@@ -18,7 +18,10 @@
 //! once the database row is durably visible. The objects also carry
 //! `bso_id`, `fxa_kid`, `original_size`, and `format_version`.
 
-use std::{collections::HashMap, time::SystemTime};
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant, SystemTime},
+};
 
 use google_cloud_auth::credentials::anonymous;
 use google_cloud_storage::client::{Storage, StorageControl};
@@ -45,6 +48,51 @@ const FORMAT_VERSION: &str = "1";
 /// transaction of an offloading write fails. Tagged with the `handler` that
 /// issued it, a `result` of `success` or `failure`, and on failure a `reason`.
 const CLEANUP_METRIC: &str = "storage.gcs.payload.cleanup";
+
+/// Timing for a single payload upload, tagged with a `result` of `success` or
+/// `error`. Statsd timers carry their own count, so there is no separate
+/// counter for the number of uploads.
+const UPLOAD_METRIC: &str = "storage.gcs.payload.upload";
+
+/// Payload bytes written to GCS, as a monotonic counter. Answers throughput:
+/// how many bytes per second are moving, which a histogram cannot give.
+const UPLOAD_BYTES_METRIC: &str = "storage.gcs.payload.upload.bytes";
+
+/// Distribution of individual payload sizes in bytes, tagged with `op`
+/// (`upload` or `download`).
+///
+/// A histogram rather than a tag on the timings, which would be unbounded
+/// cardinality, and rather than only the byte counters above, which give a
+/// total and therefore a mean but no percentiles. This project exists to raise
+/// a size ceiling, so the tail is the part worth seeing.
+const SIZE_METRIC: &str = "storage.gcs.payload.size";
+
+/// Timing for a single payload download. Tagged as [`UPLOAD_METRIC`].
+const DOWNLOAD_METRIC: &str = "storage.gcs.payload.download";
+
+/// Payload bytes read back from GCS. See [`UPLOAD_BYTES_METRIC`].
+const DOWNLOAD_BYTES_METRIC: &str = "storage.gcs.payload.download.bytes";
+
+/// Timing for the compensating delete, so all three GCS operations report
+/// latency rather than just upload and download. [`CLEANUP_METRIC`] already
+/// counts the outcomes; this says how long they took. It runs while a write
+/// is already failing, so a slow delete there adds to an error response.
+const CLEANUP_TIMING_METRIC: &str = "storage.gcs.payload.cleanup.duration";
+
+/// Tag values for [`SIZE_METRIC`] and [`BATCH_METRIC`]'s `op`.
+pub const OP_UPLOAD: &str = "upload";
+pub const OP_DOWNLOAD: &str = "download";
+
+/// How long one request spent on GCS in total, covering all of its BSOs.
+/// Tagged with `op` (`upload` or `download`) and the `handler` that ran it.
+///
+/// This is the delay the client waits through, and the per-object timings
+/// cannot be added up to get it. A request works on up to
+/// `gcs_payload_max_concurrency` objects at once, so its total lands
+/// somewhere between the slowest single object and the sum of all of them,
+/// depending on how the objects pack into batches. Only the caller, which
+/// spans the whole set, can measure it.
+const BATCH_METRIC: &str = "storage.gcs.payload.batch";
 
 /// Return the GCS bucket name if `collection` is opted into payload off-load
 /// and a bucket is configured. `None` disables off-load for this request.
@@ -89,6 +137,7 @@ pub async fn upload_payload(
     user_id: &UserIdentifier,
     bso_id: &str,
     payload: String,
+    metrics: &Metrics,
 ) -> Result<String, ApiError> {
     let object_name = format!("{}/{}/{}", prefix, user_id.fxa_uid, Uuid::new_v4().simple());
 
@@ -99,7 +148,8 @@ pub async fn upload_payload(
         .try_into()
         .map_err(|e| ApiErrorKind::Internal(format!("custom_time: {e}")))?;
 
-    client
+    let started = Instant::now();
+    let result = client
         .write_object(bucket_path(bucket), object_name.clone(), payload)
         .set_metadata([
             (COMMITTED_METADATA_KEY.to_string(), "false".to_string()),
@@ -116,16 +166,86 @@ pub async fn upload_payload(
         ])
         .set_custom_time(custom_time)
         .send_buffered()
-        .await?;
+        .await;
+
+    record_op(metrics, UPLOAD_METRIC, started.elapsed(), result.is_ok());
+    result?;
+    // Only record bytes that actually landed, so these stay a measure of what
+    // GCS holds rather than what we attempted.
+    metrics.count(UPLOAD_BYTES_METRIC, original_size as i64);
+    record_size(metrics, OP_UPLOAD, original_size);
 
     Ok(format!("gs://{bucket}/{object_name}"))
 }
 
+/// Record one payload's size against [`SIZE_METRIC`].
+fn record_size(metrics: &Metrics, op: &str, bytes: usize) {
+    metrics.histogram_with_tags(
+        SIZE_METRIC,
+        bytes as u64,
+        HashMap::from([("op".to_owned(), op.to_owned())]),
+    );
+}
+
+/// Emit a per-object timing for `label`, tagged with the operation's outcome.
+fn record_op(metrics: &Metrics, label: &str, elapsed: Duration, ok: bool) {
+    let result = if ok { "success" } else { "error" };
+    metrics.timing_with_tags(
+        label,
+        elapsed.as_millis() as u64,
+        HashMap::from([("result".to_owned(), result.to_owned())]),
+    );
+}
+
+/// Emit [`BATCH_METRIC`] for the concurrent GCS batch a request just finished.
+///
+/// `op` is `upload` or `download`; `handler` names the request handler, using
+/// the same labels as its `request.*` API metric.
+///
+/// `ok` becomes a `result` tag. A batch that fails stops early, so its time
+/// is not comparable to one that ran to completion and the two have to be
+/// separable.
+pub fn record_batch(metrics: &Metrics, op: &str, handler: &str, elapsed: Duration, ok: bool) {
+    metrics.timing_with_tags(
+        BATCH_METRIC,
+        elapsed.as_millis() as u64,
+        HashMap::from([
+            ("op".to_owned(), op.to_owned()),
+            ("handler".to_owned(), handler.to_owned()),
+            (
+                "result".to_owned(),
+                if ok { "success" } else { "error" }.to_owned(),
+            ),
+        ]),
+    );
+}
+
 /// Download payload bytes from a `gs://{bucket}/{object}` URL produced by
 /// [`upload_payload`] and return them as a UTF-8 string.
-pub async fn download_payload(client: &Storage, gs_url: &str) -> Result<String, ApiError> {
+pub async fn download_payload(
+    client: &Storage,
+    gs_url: &str,
+    metrics: &Metrics,
+) -> Result<String, ApiError> {
     let (bucket, object) = parse_gs_url(gs_url)?;
 
+    // Times the whole read, streaming included: the chunk loop in
+    // `read_object` is where a large payload actually spends its time, so
+    // stopping at `send()` would measure almost nothing.
+    let started = Instant::now();
+    let bytes = read_object(client, bucket, object).await;
+    record_op(metrics, DOWNLOAD_METRIC, started.elapsed(), bytes.is_ok());
+
+    let bytes = bytes?;
+    metrics.count(DOWNLOAD_BYTES_METRIC, bytes.len() as i64);
+    record_size(metrics, OP_DOWNLOAD, bytes.len());
+
+    String::from_utf8(bytes)
+        .map_err(|e| ApiErrorKind::Internal(format!("invalid utf-8 in GCS payload: {e}")).into())
+}
+
+/// Read an object's bytes, draining the response stream.
+async fn read_object(client: &Storage, bucket: &str, object: &str) -> Result<Vec<u8>, ApiError> {
     let mut response = client
         .read_object(bucket_path(bucket), object.to_string())
         .send()
@@ -135,9 +255,7 @@ pub async fn download_payload(client: &Storage, gs_url: &str) -> Result<String, 
     while let Some(chunk) = response.next().await.transpose()? {
         bytes.extend_from_slice(&chunk);
     }
-
-    String::from_utf8(bytes)
-        .map_err(|e| ApiErrorKind::Internal(format!("invalid utf-8 in GCS payload: {e}")).into())
+    Ok(bytes)
 }
 
 pub async fn build_control_client(endpoint: Option<&str>) -> Result<StorageControl, ApiError> {
@@ -222,12 +340,23 @@ pub async fn delete_payload(
         )
     })?;
 
-    client
+    // Started after the URL parses: an unparseable URL issues no GCS call.
+    let started = Instant::now();
+    let result = client
         .delete_object()
         .set_bucket(bucket_path(bucket))
         .set_object(object)
         .send()
-        .await
+        .await;
+
+    record_op(
+        metrics,
+        CLEANUP_TIMING_METRIC,
+        started.elapsed(),
+        result.is_ok(),
+    );
+
+    result
         .inspect(|_| {
             metrics.incr_with_tags(
                 CLEANUP_METRIC,
@@ -504,5 +633,212 @@ mod tests {
         let mut items = vec![1, 2, 3];
         reattach_by_index(&mut items, Vec::<(usize, i32)>::new(), |slot, v| *slot = v);
         assert_eq!(items, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn record_op_tags_success() {
+        let (metrics, recorded) = recording_metrics();
+
+        record_op(&metrics, UPLOAD_METRIC, Duration::from_millis(42), true);
+
+        let emitted = emitted(&recorded);
+        assert!(
+            emitted.contains("storage.gcs.payload.upload:42|ms"),
+            "expected a 42ms upload timing, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("result:success"),
+            "expected result:success, got: {emitted}"
+        );
+    }
+
+    #[test]
+    fn record_op_tags_error() {
+        let (metrics, recorded) = recording_metrics();
+
+        record_op(&metrics, DOWNLOAD_METRIC, Duration::from_millis(7), false);
+
+        let emitted = emitted(&recorded);
+        assert!(
+            emitted.contains("storage.gcs.payload.download:7|ms"),
+            "expected a 7ms download timing, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("result:error"),
+            "expected result:error, got: {emitted}"
+        );
+    }
+
+    #[test]
+    fn record_batch_carries_op_and_handler() {
+        let (metrics, recorded) = recording_metrics();
+
+        record_batch(
+            &metrics,
+            OP_DOWNLOAD,
+            "get_collection",
+            Duration::from_millis(115),
+            true,
+        );
+
+        let emitted = emitted(&recorded);
+        assert!(
+            emitted.contains("storage.gcs.payload.batch:115|ms"),
+            "expected a 115ms batch timing, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("op:download"),
+            "expected op:download, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("handler:get_collection"),
+            "expected handler:get_collection, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("result:success"),
+            "expected result:success, got: {emitted}"
+        );
+    }
+
+    #[test]
+    fn record_batch_marks_an_abandoned_batch() {
+        // A failed batch stops early, so its time is not comparable to a
+        // completed one and must be separable from it.
+        let (metrics, recorded) = recording_metrics();
+
+        record_batch(
+            &metrics,
+            OP_UPLOAD,
+            "post_collection",
+            Duration::from_millis(9),
+            false,
+        );
+
+        let emitted = emitted(&recorded);
+        assert!(
+            emitted.contains("storage.gcs.payload.batch:9|ms"),
+            "expected a 9ms batch timing, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("result:error"),
+            "expected result:error, got: {emitted}"
+        );
+    }
+
+    #[test]
+    fn sub_millisecond_op_records_zero_not_nothing() {
+        // A fast local/emulator round trip truncates to 0ms. The line must
+        // still be sent, so the timer's count stays an accurate op count.
+        let (metrics, recorded) = recording_metrics();
+
+        record_op(&metrics, UPLOAD_METRIC, Duration::from_micros(400), true);
+
+        assert!(
+            emitted(&recorded).contains("storage.gcs.payload.upload:0|ms"),
+            "a sub-millisecond op must still emit a timing"
+        );
+    }
+
+    #[test]
+    fn record_size_is_a_histogram_tagged_by_op() {
+        let (metrics, recorded) = recording_metrics();
+
+        record_size(&metrics, OP_UPLOAD, 10_485_760);
+
+        let emitted = emitted(&recorded);
+        // `|h`, not `|ms` or `|c`: the aggregator derives percentiles from a
+        // histogram, which is the point of tracking size distribution.
+        assert!(
+            emitted.contains("storage.gcs.payload.size:10485760|h"),
+            "expected a size histogram in bytes, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("op:upload"),
+            "expected op:upload, got: {emitted}"
+        );
+    }
+
+    #[test]
+    fn record_size_accepts_an_empty_payload() {
+        // A zero-length payload is legal and must not be dropped from the
+        // distribution, or the low end of the histogram lies.
+        let (metrics, recorded) = recording_metrics();
+
+        record_size(&metrics, OP_DOWNLOAD, 0);
+
+        assert!(
+            emitted(&recorded).contains("storage.gcs.payload.size:0|h"),
+            "a zero-byte payload must still be recorded"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn delete_payload_times_a_success() {
+        let client = StorageControl::from_stub(RecordingStub::default());
+
+        let (metrics, recorded) = recording_metrics();
+
+        delete_payload(
+            &client,
+            "gs://bucket/u/c/b/uuid",
+            &metrics,
+            CleanupHandler::PutBso,
+        )
+        .await
+        .expect("delete should succeed");
+
+        let emitted = emitted(&recorded);
+        assert!(
+            emitted.contains("storage.gcs.payload.cleanup.duration:"),
+            "expected a cleanup timing, got: {emitted}"
+        );
+        assert!(
+            emitted.contains("result:success"),
+            "expected result:success, got: {emitted}"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn delete_payload_times_a_gcs_failure() {
+        let client = StorageControl::from_stub(FailingStub);
+        let (metrics, recorded) = recording_metrics();
+
+        let _ = delete_payload(
+            &client,
+            "gs://bucket/u/c/b/uuid",
+            &metrics,
+            CleanupHandler::PutBso,
+        )
+        .await;
+
+        let emitted = emitted(&recorded);
+        assert!(
+            emitted.contains("storage.gcs.payload.cleanup.duration:"),
+            "a failed delete is still a round trip and must be timed: {emitted}"
+        );
+        assert!(
+            emitted.contains("result:error"),
+            "expected result:error, got: {emitted}"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn delete_payload_does_not_time_an_unparseable_url() {
+        // No GCS call is issued, so there is no round trip to report. Timing it
+        // would drag the latency toward zero with work that never happened.
+        let client = StorageControl::from_stub(RecordingStub::default());
+        let (metrics, recorded) = recording_metrics();
+
+        let _ = delete_payload(&client, "not-a-gs-url", &metrics, CleanupHandler::PutBso).await;
+
+        let emitted = emitted(&recorded);
+        assert!(
+            !emitted.contains("storage.gcs.payload.cleanup.duration"),
+            "an unparseable URL must not emit a timing: {emitted}"
+        );
+        assert!(
+            emitted.contains("reason:invalid_url"),
+            "the counter should still record the reason: {emitted}"
+        );
     }
 }

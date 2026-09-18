@@ -29,8 +29,8 @@ use crate::{
             HeartbeatRequest, MetaRequest, ReplyFormat, TestErrorRequest,
         },
         payload_offload::{
-            CleanupHandler, delete_payload, download_payload, offload_bucket, reattach_by_index,
-            upload_payload,
+            CleanupHandler, OP_DOWNLOAD, OP_UPLOAD, delete_payload, download_payload,
+            offload_bucket, reattach_by_index, record_batch, upload_payload,
         },
         transaction::{BATCH_COMMIT_TRANSACTION_TAG, DbTransactionPool},
     },
@@ -350,14 +350,31 @@ pub async fn get_collection(
 
                 if !links.is_empty() {
                     let client = state.gcs_client()?;
-                    let payloads: Vec<(usize, String)> = stream::iter(links)
+                    let metrics = coll.metrics.clone();
+                    let started = Instant::now();
+                    let downloaded = stream::iter(links)
                         .map(|(i, link)| {
                             let client = client.clone();
-                            async move { download_payload(&client, &link).await.map(|p| (i, p)) }
+                            let metrics = metrics.clone();
+                            async move {
+                                download_payload(&client, &link, &metrics)
+                                    .await
+                                    .map(|p| (i, p))
+                            }
                         })
                         .buffer_unordered(state.gcs_payload_max_concurrency.get())
-                        .try_collect()
-                        .await?;
+                        .try_collect::<Vec<_>>()
+                        .await;
+                    // Recorded before the `?`, so an abandoned batch still
+                    // reports the time it spent.
+                    record_batch(
+                        &metrics,
+                        OP_DOWNLOAD,
+                        "get_collection",
+                        started.elapsed(),
+                        downloaded.is_ok(),
+                    );
+                    let payloads = downloaded?;
 
                     reattach_by_index(&mut bsos.items, payloads, |bso, payload| {
                         bso.payload = payload
@@ -468,19 +485,31 @@ pub async fn post_collection(
         // The payload's byte length is recorded alongside its URL: once the
         // payload lives in GCS the row's own payload column is NULL, so its
         // size is only knowable here.
-        let uploads: Vec<(usize, (String, i64))> = stream::iter(pending)
+        let started = Instant::now();
+        let uploaded = stream::iter(pending)
             .map(|(i, bso_id, payload)| {
                 let client = client.clone();
+                let metrics = metrics.clone();
                 let payload_size = payload.len() as i64;
                 async move {
-                    upload_payload(&client, bucket, prefix, user_id, &bso_id, payload)
+                    upload_payload(&client, bucket, prefix, user_id, &bso_id, payload, &metrics)
                         .await
                         .map(|url| (i, (url, payload_size)))
                 }
             })
             .buffer_unordered(state.gcs_payload_max_concurrency.get())
-            .try_collect()
-            .await?;
+            .try_collect::<Vec<_>>()
+            .await;
+        // Recorded before the `?`, so a fail-fast batch still reports the time
+        // it spent before giving up.
+        record_batch(
+            &metrics,
+            OP_UPLOAD,
+            "post_collection",
+            started.elapsed(),
+            uploaded.is_ok(),
+        );
+        let uploads = uploaded?;
 
         // Track uploaded URLs so they can be cleaned up from GCS if the DB
         // transaction below fails.
@@ -793,6 +822,9 @@ pub async fn get_bso(
     state: Data<ServerState>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
+    // Cloned up front: `bso_req` is moved into the transaction closure below,
+    // but the GCS download after it needs to emit metrics.
+    let metrics = bso_req.metrics.clone();
     db_pool
         .transaction_http_then(
             &request,
@@ -810,7 +842,7 @@ pub async fn get_bso(
                 if let Some(ref mut bso) = maybe_bso
                     && let Some(link) = bso.payload_link.take()
                 {
-                    bso.payload = download_payload(state.gcs_client()?, &link).await?;
+                    bso.payload = download_payload(state.gcs_client()?, &link, &metrics).await?;
                 }
                 Ok(maybe_bso.map_or_else(
                     || HttpResponse::NotFound().finish(),
@@ -862,6 +894,7 @@ pub async fn put_bso(
             &bso_req.user_id,
             &bso_req.bso,
             payload,
+            &metrics,
         )
         .await?;
         // payload was taken above; leave it None so only payload_link is set.

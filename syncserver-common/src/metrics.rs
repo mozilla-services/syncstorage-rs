@@ -4,7 +4,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use cadence::{
-    BufferedUdpMetricSink, Counted, Metric, NopMetricSink, QueuingMetricSink, StatsdClient, Timed,
+    BufferedUdpMetricSink, Counted, Histogrammed, Metric, MetricBuilder, NopMetricSink,
+    QueuingMetricSink, StatsdClient, Timed,
 };
 use slog::{KV, Key, Record};
 
@@ -109,26 +110,68 @@ impl Metrics {
         self.count_with_tags(label, count, HashMap::default())
     }
 
+    /// `tags` layered over this `Metrics`' own tags.
+    fn merged_tags(&self, tags: HashMap<String, String>) -> HashMap<String, String> {
+        let mut merged = self.tags.clone();
+        merged.extend(tags);
+        merged
+    }
+
+    /// Apply `tags` to `builder` and send it, logging either outcome.
+    ///
+    /// `tags` is borrowed for as long as the builder, because cadence's
+    /// `with_tag` holds the tag strings rather than copying them. Callers keep
+    /// the map alive by building it before the builder.
+    fn send_tagged<'a, T>(
+        &self,
+        mut builder: MetricBuilder<'a, '_, T>,
+        label: &str,
+        tags: &'a HashMap<String, String>,
+    ) where
+        T: Metric + From<String>,
+    {
+        for (key, val) in tags {
+            builder = builder.with_tag(key, val);
+        }
+        match builder.try_send() {
+            Err(e) => {
+                // eat the metric, but log the error
+                warn!("⚠️ Metric {} error: {:?} ", label, e; MetricTags(tags.clone()));
+            }
+            Ok(v) => trace!("☑️ {:?}", v.as_metric_str()),
+        }
+    }
+
+    /// Record a value in a histogram, with `tags` merged over `self.tags`.
+    ///
+    /// Unlike [`count_with_tags`](Self::count_with_tags), the aggregator
+    /// derives percentiles from this, so it answers what the distribution and
+    /// its tail look like rather than just a running total.
+    pub fn histogram_with_tags(&self, label: &str, value: u64, tags: HashMap<String, String>) {
+        if let Some(client) = self.client.as_ref() {
+            let tags = self.merged_tags(tags);
+            self.send_tagged(client.histogram_with_tags(label, value), label, &tags);
+        }
+    }
+
+    /// Send a timing in milliseconds immediately, with `tags` merged over
+    /// `self.tags`.
+    ///
+    /// [`start_timer`](Self::start_timer) holds a single [`MetricTimer`] that
+    /// fires when the `Metrics` is dropped, which cannot express several
+    /// operations timed concurrently within one request. This emits one
+    /// directly instead.
+    pub fn timing_with_tags(&self, label: &str, duration_ms: u64, tags: HashMap<String, String>) {
+        if let Some(client) = self.client.as_ref() {
+            let tags = self.merged_tags(tags);
+            self.send_tagged(client.time_with_tags(label, duration_ms), label, &tags);
+        }
+    }
+
     pub fn count_with_tags(&self, label: &str, count: i64, tags: HashMap<String, String>) {
         if let Some(client) = self.client.as_ref() {
-            let mut tagged = client.count_with_tags(label, count);
-            let mut mtags = self.tags.clone();
-            mtags.extend(tags);
-
-            for key in mtags.keys().clone() {
-                if let Some(val) = mtags.get(key) {
-                    tagged = tagged.with_tag(key, val.as_ref());
-                }
-            }
-            // Include any "hard coded" tags.
-            // incr = incr.with_tag("version", env!("CARGO_PKG_VERSION"));
-            match tagged.try_send() {
-                Err(e) => {
-                    // eat the metric, but log the error
-                    warn!("⚠️ Metric {} error: {:?} ", label, e; MetricTags(mtags));
-                }
-                Ok(v) => trace!("☑️ {:?}", v.as_metric_str()),
-            }
+            let tags = self.merged_tags(tags);
+            self.send_tagged(client.count_with_tags(label, count), label, &tags);
         }
     }
 }
