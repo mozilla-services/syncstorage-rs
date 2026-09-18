@@ -101,32 +101,117 @@ def get_env() -> tuple[str, str, str, int | None]:
     return project, subscription, bucket, budget
 
 
-def finalize_object(gcs_client: storage.Client, bucket: str, name: str) -> None:
+def parse_commit_timestamp(value: str | None) -> datetime.datetime | None:
+    """Parse a change record's ``commitTimestamp``.
+
+    Spanner emits nanosecond precision (``2026-06-30T00:00:00.000000000Z``),
+    which ``fromisoformat`` rejects, so the fraction is truncated to the
+    microseconds it accepts. Returns ``None`` for a missing or unparseable
+    value: the age metric is best effort and must never fail a message.
+    """
+    if not value:
+        return None
+    text = value.removesuffix("Z")
+    whole, sep, frac = text.partition(".")
+    if sep:
+        text = f"{whole}.{frac[:6]}"
+    try:
+        parsed = datetime.datetime.fromisoformat(text)
+    except ValueError:
+        log.debug("unparseable commitTimestamp: %r", value)
+        return None
+    # Spanner commit timestamps are UTC; the trailing Z is stripped above.
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+    return parsed
+
+
+def _record_gcs_op(started: float, op: str, result: str) -> None:
+    """Emit the round-trip time of one GCS call, tagged with ``op``/``result``.
+
+    Separates our own GCS latency from the end-to-end ``finalize_age``, which
+    also carries Dataflow and Pub/Sub delay. When the lag climbs, this says
+    whether GCS is the reason.
+
+    ``result`` is ``success``, ``not_found``, or ``error``. A 404 is its own
+    value rather than folded into success, because it is a different round
+    trip: the object was already gone, so there was nothing to write.
+    """
+    metrics.timing(
+        "gcs_op",
+        (time.monotonic() - started) * 1000,
+        tags=[f"op:{op}", f"result:{result}"],
+    )
+
+
+def _record_finalize_age(commit_timestamp: datetime.datetime | None) -> None:
+    """Emit the Spanner-commit-to-finalize lag in milliseconds.
+
+    This is the window the object spends at ``committed=false``, reachable by
+    the lifecycle policy. The 30 day policy is sized against it, so it is
+    worth measuring rather than inferring from the cronjob cadence.
+    """
+    if commit_timestamp is None:
+        return
+    age_ms = (
+        datetime.datetime.now(datetime.timezone.utc) - commit_timestamp
+    ).total_seconds() * 1000
+    if age_ms < 0:
+        # Clock skew between Spanner and this pod. A negative lag is not
+        # meaningful and would drag the aggregate down.
+        log.debug("negative finalize age, skipping: %.0fms", age_ms)
+        return
+    metrics.timing("finalize_age", age_ms)
+
+
+def finalize_object(
+    gcs_client: storage.Client,
+    bucket: str,
+    name: str,
+    commit_timestamp: datetime.datetime | None = None,
+) -> None:
     """Patch metadata so the object is durable for the lifecycle GC.
 
     Sets ``committed=true`` and ``customTime=MAX_CUSTOM_TIME`` in one
     GCS round trip. 404 (object already deleted) is treated as success.
+
+    ``commit_timestamp``, when supplied, is the change record's commit time
+    and drives the ``finalize_age`` timing.
     """
     blob = gcs_client.bucket(bucket).blob(name)
     blob.metadata = {COMMITTED_METADATA_KEY: "true"}
     blob.custom_time = MAX_CUSTOM_TIME
+    started = time.monotonic()
+    outcome = "error"
     try:
         blob.patch()
+        outcome = "success"
         metrics.incr("finalizes")
+        _record_finalize_age(commit_timestamp)
     except gax_exceptions.NotFound:
+        outcome = "not_found"
         log.debug("finalize 404: gs://%s/%s", bucket, name)
         metrics.incr("gcs_404", tags=["op:finalize"])
+    finally:
+        # Every outcome is a completed round trip, so time them all.
+        _record_gcs_op(started, "finalize", outcome)
 
 
 def delete_object(gcs_client: storage.Client, bucket: str, name: str) -> None:
     """Delete a GCS object. 404 is treated as success."""
     blob = gcs_client.bucket(bucket).blob(name)
+    started = time.monotonic()
+    outcome = "error"
     try:
         blob.delete()
+        outcome = "success"
         metrics.incr("orphan_deletes")
     except gax_exceptions.NotFound:
+        outcome = "not_found"
         log.debug("delete 404: gs://%s/%s", bucket, name)
         metrics.incr("gcs_404", tags=["op:delete"])
+    finally:
+        _record_gcs_op(started, "delete", outcome)
 
 
 def _require_bucket(seen: str, expected: str) -> None:
@@ -148,6 +233,7 @@ def handle_message_body(
     record: dict[str, Any] = json.loads(body)
     table_name = record.get("tableName")
     transaction_tag = record.get("transactionTag")
+    commit_timestamp = parse_commit_timestamp(record.get("commitTimestamp"))
 
     ops_performed = 0
     for mod in record.get("mods", []):
@@ -159,7 +245,7 @@ def handle_message_body(
         if new_link:
             bucket, name = parse_gs_url(new_link)
             _require_bucket(bucket, expected_bucket)
-            finalize_object(gcs_client, bucket, name)
+            finalize_object(gcs_client, bucket, name, commit_timestamp)
             ops_performed += 1
 
         if old_link and old_link != new_link:
@@ -221,11 +307,40 @@ def drain(
             bucket,
         )
 
+    # Every other counter here is conditional on the event it names, so a run
+    # that finalizes nothing emits nothing at all. `runs` is the unconditional
+    # series that makes "quiet" distinguishable from "not running" on a
+    # dashboard.
+    metrics.incr("runs")
+    started = time.monotonic()
+
+    try:
+        _drain_loop(sub_client, sub_path, gcs_client, bucket, deadline)
+    finally:
+        metrics.timing("drain_duration", (time.monotonic() - started) * 1000)
+
+
+def _drain_loop(
+    sub_client: pubsub_v1.SubscriberClient,
+    sub_path: str,
+    gcs_client: storage.Client,
+    bucket: str,
+    deadline: float | None,
+) -> int:
+    """Pull-and-handle until the budget elapses or the queue idles.
+
+    Returns the number of messages processed. Per-message handler errors are
+    caught and counted inside the loop, so this only propagates a pull or
+    acknowledge failure.
+    """
     processed = 0
     while True:
         if deadline is not None and time.monotonic() >= deadline:
             log.info("budget exhausted after %d messages", processed)
-            return
+            # Distinct from an idle exit: a run that keeps ending this way is
+            # not keeping up with the queue.
+            metrics.incr("budget_exhausted")
+            return processed
 
         try:
             response = sub_client.pull(
@@ -242,7 +357,7 @@ def drain(
         if not response.received_messages:
             if deadline is not None:
                 log.info("queue idle after %d messages; exiting", processed)
-                return
+                return processed
             # Long-running: keep polling.
             continue
 
@@ -262,6 +377,7 @@ def drain(
             sub_client.acknowledge(
                 request={"subscription": sub_path, "ack_ids": ack_ids}
             )
+        metrics.incr("messages_processed", value=len(response.received_messages))
         processed += len(response.received_messages)
 
 

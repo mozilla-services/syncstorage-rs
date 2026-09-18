@@ -5,7 +5,9 @@ feed synthesized DataChangeRecord-shaped JSON bodies. Cases mirror the
 shapes the Dataflow filter passes through.
 """
 
+import datetime
 import json
+import time
 from unittest.mock import MagicMock
 
 import pytest
@@ -232,3 +234,256 @@ def test_multiple_mods_handled_independently(statsd_incr: MagicMock) -> None:
     )
     assert finalize_count == 2  # LINK_B from mod 1; LINK_A from mod 2
     assert delete_count == 2  # LINK_A from mod 1; LINK_B from mod 3
+
+
+@pytest.fixture
+def statsd_timing(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    timing = MagicMock()
+    monkeypatch.setattr(reconciler.metrics, "timing", timing)
+    return timing
+
+
+@pytest.mark.parametrize(
+    "raw,expected_iso",
+    [
+        # Spanner's own shape: nanosecond precision, truncated to micros.
+        ("2026-06-30T01:02:03.123456789Z", "2026-06-30T01:02:03.123456+00:00"),
+        ("2026-06-30T01:02:03Z", "2026-06-30T01:02:03+00:00"),
+        ("2026-06-30T01:02:03.500Z", "2026-06-30T01:02:03.500000+00:00"),
+    ],
+)
+def test_parse_commit_timestamp_shapes(raw: str, expected_iso: str) -> None:
+    parsed = reconciler.parse_commit_timestamp(raw)
+    assert parsed is not None
+    assert parsed.isoformat() == expected_iso
+
+
+@pytest.mark.parametrize("raw", [None, "", "not-a-timestamp"])
+def test_parse_commit_timestamp_bad_input_is_none(raw: str | None) -> None:
+    """A bad timestamp must never fail the message, only skip the metric."""
+    assert reconciler.parse_commit_timestamp(raw) is None
+
+
+def test_finalize_emits_age(statsd_timing: MagicMock) -> None:
+    gcs = _gcs_mock()
+
+    reconciler.handle_message_body(gcs, BUCKET, _msg([_mod(None, LINK_A)]))
+
+    calls = _timing_calls(statsd_timing, "finalize_age")
+    assert len(calls) == 1
+    # _msg() commits in the past, so the lag is positive.
+    assert calls[0].args[1] > 0
+
+
+def test_finalize_age_skipped_when_timestamp_unparseable(
+    statsd_timing: MagicMock, statsd_incr: MagicMock
+) -> None:
+    """The finalize still happens and is still counted; only the age is lost."""
+    gcs = _gcs_mock()
+    body = json.dumps(
+        {
+            "commitTimestamp": "garbage",
+            "modType": "UPDATE",
+            "tableName": "bsos",
+            "transactionTag": "",
+            "mods": [_mod(None, LINK_A)],
+        }
+    ).encode()
+
+    reconciler.handle_message_body(gcs, BUCKET, body)
+
+    gcs.bucket.return_value.blob.return_value.patch.assert_called_once()
+    statsd_incr.assert_any_call("finalizes")
+    assert _timing_calls(statsd_timing, "finalize_age") == []
+
+
+def test_finalize_age_not_emitted_on_404(
+    statsd_timing: MagicMock, statsd_incr: MagicMock
+) -> None:
+    """A 404 finalize did not finalize anything, so it has no age."""
+    gcs = _gcs_mock()
+    gcs.bucket.return_value.blob.return_value.patch.side_effect = (
+        gax_exceptions.NotFound("gone")
+    )
+
+    reconciler.handle_message_body(gcs, BUCKET, _msg([_mod(None, LINK_A)]))
+
+    statsd_incr.assert_any_call("gcs_404", tags=["op:finalize"])
+    assert _timing_calls(statsd_timing, "finalize_age") == []
+
+
+def test_negative_age_is_skipped(statsd_timing: MagicMock) -> None:
+    """Clock skew can put the commit in the future; that is not a real lag."""
+    future = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1)
+
+    reconciler._record_finalize_age(future)
+
+    statsd_timing.assert_not_called()
+
+
+def _pull_response(messages: list[bytes]) -> MagicMock:
+    """A pull() response carrying ``messages``, or an empty one."""
+    response = MagicMock()
+    response.received_messages = []
+    for i, body in enumerate(messages):
+        received = MagicMock()
+        received.message.data = body
+        received.message.message_id = f"m{i}"
+        received.ack_id = f"a{i}"
+        response.received_messages.append(received)
+    return response
+
+
+def test_drain_loop_reports_processed_count_on_idle(statsd_incr: MagicMock) -> None:
+    """A budgeted run exits on the first idle poll and reports what it did."""
+    sub_client = MagicMock()
+    sub_client.pull.side_effect = [
+        _pull_response([_msg([_mod(None, LINK_A)])]),
+        _pull_response([]),
+    ]
+
+    processed = reconciler._drain_loop(
+        sub_client, "sub/path", _gcs_mock(), BUCKET, deadline=time.monotonic() + 60
+    )
+
+    assert processed == 1
+    sub_client.acknowledge.assert_called_once()
+    statsd_incr.assert_any_call("finalizes")
+
+
+def test_drain_loop_counts_budget_exhaustion(statsd_incr: MagicMock) -> None:
+    """An already-elapsed deadline exits immediately and is counted as such."""
+    sub_client = MagicMock()
+
+    processed = reconciler._drain_loop(
+        sub_client, "sub/path", _gcs_mock(), BUCKET, deadline=time.monotonic() - 1
+    )
+
+    assert processed == 0
+    sub_client.pull.assert_not_called()
+    statsd_incr.assert_any_call("budget_exhausted")
+
+
+def test_drain_loop_handler_error_leaves_message_unacked(
+    statsd_incr: MagicMock,
+) -> None:
+    """A bad message is counted, not acked, and does not stop the drain."""
+    sub_client = MagicMock()
+    sub_client.pull.side_effect = [
+        _pull_response([b"not json"]),
+        _pull_response([]),
+    ]
+
+    processed = reconciler._drain_loop(
+        sub_client, "sub/path", _gcs_mock(), BUCKET, deadline=time.monotonic() + 60
+    )
+
+    # Counted as seen, but nothing was acked, so Pub/Sub redelivers it.
+    assert processed == 1
+    sub_client.acknowledge.assert_not_called()
+    statsd_incr.assert_any_call("errors", tags=["kind:handler"])
+
+
+def _timing_calls(mock: MagicMock, label: str) -> list:
+    return [c for c in mock.call_args_list if c.args and c.args[0] == label]
+
+
+def test_finalize_times_the_gcs_call(statsd_timing: MagicMock) -> None:
+    gcs = _gcs_mock()
+
+    reconciler.handle_message_body(gcs, BUCKET, _msg([_mod(None, LINK_A)]))
+
+    calls = _timing_calls(statsd_timing, "gcs_op")
+    assert len(calls) == 1
+    assert calls[0].kwargs["tags"] == ["op:finalize", "result:success"]
+    assert calls[0].args[1] >= 0
+
+
+def test_delete_times_the_gcs_call(statsd_timing: MagicMock) -> None:
+    gcs = _gcs_mock()
+
+    reconciler.handle_message_body(gcs, BUCKET, _msg([_mod(LINK_A, None)]))
+
+    calls = _timing_calls(statsd_timing, "gcs_op")
+    assert len(calls) == 1
+    assert calls[0].kwargs["tags"] == ["op:delete", "result:success"]
+
+
+def test_gcs_op_timed_even_on_404(statsd_timing: MagicMock) -> None:
+    """A 404 is a completed round trip, so excluding it would bias latency."""
+    gcs = _gcs_mock()
+    gcs.bucket.return_value.blob.return_value.patch.side_effect = (
+        gax_exceptions.NotFound("gone")
+    )
+
+    reconciler.handle_message_body(gcs, BUCKET, _msg([_mod(None, LINK_A)]))
+
+    calls = _timing_calls(statsd_timing, "gcs_op")
+    assert len(calls) == 1
+    assert calls[0].kwargs["tags"] == ["op:finalize", "result:not_found"]
+    # The age is not recorded, since nothing was finalized.
+    assert _timing_calls(statsd_timing, "finalize_age") == []
+
+
+def test_batch_commit_skip_times_nothing(statsd_timing: MagicMock) -> None:
+    """The skip makes no GCS call, so it must not land in the op latency."""
+    gcs = _gcs_mock()
+
+    reconciler.handle_message_body(
+        gcs,
+        BUCKET,
+        _msg(
+            [_mod(LINK_A, None)],
+            table="batch_bsos",
+            transaction_tag=reconciler.BATCH_COMMIT_TRANSACTION_TAG,
+        ),
+    )
+
+    assert _timing_calls(statsd_timing, "gcs_op") == []
+
+
+def test_gcs_op_timed_and_tagged_on_hard_failure(statsd_timing: MagicMock) -> None:
+    """A non-404 failure still completed a round trip, so it is timed too.
+
+    This is what the `finally` buys: before it, a hard failure emitted no
+    latency at all and the metric only described the happy path.
+    """
+    gcs = _gcs_mock()
+    gcs.bucket.return_value.blob.return_value.patch.side_effect = (
+        gax_exceptions.ServiceUnavailable("gcs is down")
+    )
+
+    with pytest.raises(gax_exceptions.ServiceUnavailable):
+        reconciler.handle_message_body(gcs, BUCKET, _msg([_mod(None, LINK_A)]))
+
+    calls = _timing_calls(statsd_timing, "gcs_op")
+    assert len(calls) == 1
+    assert calls[0].kwargs["tags"] == ["op:finalize", "result:error"]
+
+
+def test_messages_processed_survives_a_mid_drain_failure(
+    statsd_incr: MagicMock,
+) -> None:
+    """Messages handled before a pull failure must still be counted.
+
+    `messages_processed` is cumulative, so summing at the end and emitting once
+    dropped the whole run's count when the loop raised.
+    """
+    sub_client = MagicMock()
+    sub_client.pull.side_effect = [
+        _pull_response([_msg([_mod(None, LINK_A)]), _msg([_mod(LINK_B, None)])]),
+        gax_exceptions.ServiceUnavailable("pubsub is down"),
+    ]
+
+    with pytest.raises(gax_exceptions.ServiceUnavailable):
+        reconciler._drain_loop(
+            sub_client, "sub/path", _gcs_mock(), BUCKET, deadline=time.monotonic() + 60
+        )
+
+    counted = [
+        c
+        for c in statsd_incr.call_args_list
+        if c.args and c.args[0] == "messages_processed"
+    ]
+    assert counted, "the first batch must be counted despite the later failure"
+    assert sum(c.kwargs["value"] for c in counted) == 2
