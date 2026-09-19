@@ -194,6 +194,8 @@ impl BatchDb for SqliteDb {
             .bind::<BigInt, _>(&timestamp.as_i64())
             .bind::<BigInt, _>(&timestamp.as_i64())
             .bind::<BigInt, _>((MAX_TTL as i64) * 1000) // XXX:
+            .bind::<BigInt, _>(user_id)
+            .bind::<Integer, _>(&collection_id)
             .bind::<BigInt, _>(&batch_id)
             .bind::<BigInt, _>(user_id)
             .execute(&mut self.conn)
