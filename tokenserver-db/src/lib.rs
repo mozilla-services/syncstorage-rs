@@ -45,4 +45,6 @@ pub fn pool_from_settings(
 }
 
 #[cfg(not(any(feature = "mysql", feature = "postgres", feature = "sqlite")))]
-compile_error!("at least one of the \"mysql\", \"postgres\" or \"sqlite\" features must be enabled");
+compile_error!(
+    "at least one of the \"mysql\", \"postgres\" or \"sqlite\" features must be enabled"
+);
