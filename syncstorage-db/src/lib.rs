@@ -29,6 +29,13 @@ pub use syncstorage_spanner::DbError;
 #[cfg(feature = "spanner")]
 pub type DbImpl = syncstorage_spanner::SpannerDb;
 
+#[cfg(feature = "sqlite")]
+pub type DbPoolImpl = syncstorage_sqlite::SqliteDbPool;
+#[cfg(feature = "sqlite")]
+pub use syncstorage_sqlite::DbError;
+#[cfg(feature = "sqlite")]
+pub type DbImpl = syncstorage_sqlite::SqliteDb;
+
 pub use syncserver_db_common::GetPoolStatus;
 pub use syncstorage_db_common::error::DbErrorIntrospect;
 
@@ -46,7 +53,16 @@ compile_error!("only one of the \"mysql\" and \"postgres\" features can be enabl
 #[cfg(all(feature = "postgres", feature = "spanner"))]
 compile_error!("only one of the \"postgres\" and \"spanner\" features can be enabled at a time");
 
-#[cfg(not(any(feature = "mysql", feature = "postgres", feature = "spanner")))]
+#[cfg(all(feature = "mysql", feature = "sqlite"))]
+compile_error!("only one of the \"mysql\" and \"sqlite\" features can be enabled at a time");
+
+#[cfg(all(feature = "postgres", feature = "sqlite"))]
+compile_error!("only one of the \"postgres\" and \"sqlite\" features can be enabled at a time");
+
+#[cfg(all(feature = "spanner", feature = "sqlite"))]
+compile_error!("only one of the \"spanner\" and \"sqlite\" features can be enabled at a time");
+
+#[cfg(not(any(feature = "mysql", feature = "postgres", feature = "spanner", feature = "sqlite")))]
 compile_error!(
-    "exactly one of the \"mysql\", \"postgres\" and \"spanner\" features must be enabled"
+    "exactly one of the \"mysql\", \"postgres\", \"spanner\" and \"sqlite\" features must be enabled"
 );

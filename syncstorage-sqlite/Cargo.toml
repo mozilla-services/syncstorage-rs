@@ -1,0 +1,26 @@
+[package]
+name = "syncstorage-sqlite"
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+base64.workspace = true
+deadpool.workspace = true
+diesel = { workspace = true, features = ["sqlite"] }
+diesel-async = { workspace = true, features = ["sync-connection-wrapper"] }
+diesel_migrations = { workspace = true, features = ["sqlite"] }
+slog-scope.workspace = true
+
+tokio = { workspace = true, features = ["macros", "sync"] }
+url = "2.5"
+syncserver-common = { path = "../syncserver-common" }
+syncserver-db-common = { path = "../syncserver-db-common" }
+syncstorage-db-common = { path = "../syncstorage-db-common" }
+syncstorage-settings = { path = "../syncstorage-settings" }
+
+[dev-dependencies]
+env_logger.workspace = true
+syncserver-settings = { path = "../syncserver-settings" }
