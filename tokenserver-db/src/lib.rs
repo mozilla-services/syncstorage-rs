@@ -30,6 +30,12 @@ pub fn pool_from_settings(
             metrics,
             use_test_transactions,
         )?),
+        #[cfg(feature = "sqlite")]
+        "sqlite" => Box::new(tokenserver_sqlite::TokenserverSqlitePool::new(
+            settings,
+            metrics,
+            use_test_transactions,
+        )?),
         invalid_scheme => {
             return Err(DbError::internal(format!(
                 "Invalid SYNC_TOKENSERVER__DATABASE_URL scheme: {invalid_scheme}://"
@@ -38,5 +44,5 @@ pub fn pool_from_settings(
     })
 }
 
-#[cfg(not(any(feature = "mysql", feature = "postgres")))]
-compile_error!("at least one of the \"mysql\" or \"postgres\" features must be enabled");
+#[cfg(not(any(feature = "mysql", feature = "postgres", feature = "sqlite")))]
+compile_error!("at least one of the \"mysql\", \"postgres\" or \"sqlite\" features must be enabled");
