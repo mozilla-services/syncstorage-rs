@@ -22,7 +22,8 @@
 # `GOOGLE_APPLICATION_CREDENTIALS` env var at a service-account key for real
 # Spanner only.
 #
-# For the all-MySQL build, see `config/local.example.toml`.
+# For the all-MySQL build, see `config/local.example.toml`. For the SQLite
+# build (no database server required), see `config/local.example.sqlite.toml`.
 # =============================================================================
 
 # REQUIRED. Secret used to derive the Hawk signing/token secrets. Use a long,
