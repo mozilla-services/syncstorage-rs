@@ -62,7 +62,12 @@ compile_error!("only one of the \"postgres\" and \"sqlite\" features can be enab
 #[cfg(all(feature = "spanner", feature = "sqlite"))]
 compile_error!("only one of the \"spanner\" and \"sqlite\" features can be enabled at a time");
 
-#[cfg(not(any(feature = "mysql", feature = "postgres", feature = "spanner", feature = "sqlite")))]
+#[cfg(not(any(
+    feature = "mysql",
+    feature = "postgres",
+    feature = "spanner",
+    feature = "sqlite"
+)))]
 compile_error!(
     "exactly one of the \"mysql\", \"postgres\", \"spanner\" and \"sqlite\" features must be enabled"
 );
