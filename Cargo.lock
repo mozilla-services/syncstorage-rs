@@ -5344,6 +5344,7 @@ dependencies = [
  "diesel",
  "diesel-async",
  "diesel_migrations",
+ "env_logger 0.11.11",
  "http 1.5.0",
  "slog-scope",
  "syncserver-common",

@@ -39,6 +39,10 @@ INSERT INTO collections (id, name) VALUES
     (11, 'addons'),
     (12, 'addresses'),
     (13, 'creditcards');
+-- Reserve space for additions to the standard collections, so that
+-- custom collections created via AUTOINCREMENT start at 101 (see
+-- FIRST_CUSTOM_COLLECTION_ID).
+INSERT INTO collections (id, name) VALUES (100, '');
 
 CREATE TABLE IF NOT EXISTS user_collections
 (
