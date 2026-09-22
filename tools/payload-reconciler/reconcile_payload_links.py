@@ -373,12 +373,13 @@ def _drain_loop(
                 )
                 metrics.incr("errors", tags=["kind:handler"])
 
+        metrics.incr("messages_processed", value=len(response.received_messages))
+        processed += len(response.received_messages)
+
         if ack_ids:
             sub_client.acknowledge(
                 request={"subscription": sub_path, "ack_ids": ack_ids}
             )
-        metrics.incr("messages_processed", value=len(response.received_messages))
-        processed += len(response.received_messages)
 
 
 if __name__ == "__main__":

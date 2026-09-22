@@ -487,3 +487,24 @@ def test_messages_processed_survives_a_mid_drain_failure(
     ]
     assert counted, "the first batch must be counted despite the later failure"
     assert sum(c.kwargs["value"] for c in counted) == 2
+
+
+def test_messages_processed_survives_a_failed_ack(statsd_incr: MagicMock) -> None:
+    """A failed ack must not lose the count of messages already handled."""
+    sub_client = MagicMock()
+    sub_client.pull.side_effect = [_pull_response([_msg([_mod(None, LINK_A)])])]
+    sub_client.acknowledge.side_effect = gax_exceptions.ServiceUnavailable(
+        "pubsub is down"
+    )
+
+    with pytest.raises(gax_exceptions.ServiceUnavailable):
+        reconciler._drain_loop(
+            sub_client, "sub/path", _gcs_mock(), BUCKET, deadline=time.monotonic() + 60
+        )
+
+    counted = [
+        c
+        for c in statsd_incr.call_args_list
+        if c.args and c.args[0] == "messages_processed"
+    ]
+    assert sum(c.kwargs["value"] for c in counted) == 1
