@@ -1089,7 +1089,10 @@ dependencies = [
  "diesel_derives",
  "downcast-rs",
  "itoa",
+ "libsqlite3-sys",
  "pq-sys",
+ "sqlite-wasm-rs",
+ "time",
  "uuid 1.26.0",
 ]
 
@@ -2597,6 +2600,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "libsqlite3-sys"
+version = "0.38.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1d20bef17f513b9b3004532233187769cd072d790971f4e4da0e346eb6401e8"
+dependencies = [
+ "pkg-config",
+ "vcpkg",
+]
+
+[[package]]
 name = "libsystemd"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3924,6 +3937,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "rsqlite-vfs"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c51c9ae4df8a7fba42103df5c621fa3c37eccf3a3c650879e90fc48b11cc192c"
+dependencies = [
+ "hashbrown 0.16.1",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "rust-embed"
 version = "8.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4661,6 +4684,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "sqlite-wasm-rs"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc3efc0da82635d7e1ced0053bbbfa8c7ab9645d0bf36ceb4f7127bb85315d75"
+dependencies = [
+ "cc",
+ "js-sys",
+ "rsqlite-vfs",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4866,6 +4901,7 @@ dependencies = [
  "syncstorage-postgres",
  "syncstorage-settings",
  "syncstorage-spanner",
+ "syncstorage-sqlite",
  "tokio",
 ]
 
@@ -4961,6 +4997,27 @@ dependencies = [
  "thiserror 2.0.20",
  "tokio",
  "uuid 1.26.0",
+]
+
+[[package]]
+name = "syncstorage-sqlite"
+version = "0.23.3"
+dependencies = [
+ "async-trait",
+ "base64 0.23.1",
+ "deadpool",
+ "diesel",
+ "diesel-async",
+ "diesel_migrations",
+ "env_logger 0.11.11",
+ "slog-scope",
+ "syncserver-common",
+ "syncserver-db-common",
+ "syncserver-settings",
+ "syncstorage-db-common",
+ "syncstorage-settings",
+ "tokio",
+ "url",
 ]
 
 [[package]]
@@ -5205,6 +5262,7 @@ dependencies = [
  "tokenserver-mysql",
  "tokenserver-postgres",
  "tokenserver-settings",
+ "tokenserver-sqlite",
  "tokio",
  "url",
 ]
@@ -5274,6 +5332,27 @@ dependencies = [
  "jsonwebtoken 11.0.0",
  "serde",
  "tokenserver-common",
+]
+
+[[package]]
+name = "tokenserver-sqlite"
+version = "0.23.3"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "deadpool",
+ "diesel",
+ "diesel-async",
+ "diesel_migrations",
+ "env_logger 0.11.11",
+ "http 1.5.0",
+ "slog-scope",
+ "syncserver-common",
+ "syncserver-db-common",
+ "tokenserver-common",
+ "tokenserver-db-common",
+ "tokenserver-settings",
+ "tokio",
 ]
 
 [[package]]

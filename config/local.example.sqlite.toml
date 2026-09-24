@@ -1,15 +1,17 @@
 # =============================================================================
-# Default out-of-the-box configuration: MySQL build
+# Default out-of-the-box configuration: SQLite build
 # =============================================================================
 #
 # This is a ready-to-edit template for running syncstorage-rs against the
-# standard MySQL build (the default `cargo build` / `make run_mysql` target,
-# and the `syncserver-mysql` Docker image). It runs both Syncstorage and
-# Tokenserver against MySQL.
+# SQLite build (`cargo build --no-default-features --features=syncstorage-db/sqlite
+# --features=tokenserver-db/sqlite --features=py_verifier`, or the
+# `docker/docker-compose.one-shot.sqlite.yaml` Docker image). It runs both
+# Syncstorage and Tokenserver against SQLite; there is no separate database
+# server to run, so this is the simplest way to get a working server locally.
 #
 # Copy it to `config/local.toml` and edit the values marked REQUIRED:
 #
-#     cp config/local.example.toml config/local.toml
+#     cp config/local.example.sqlite.toml config/local.toml
 #
 # Every setting can also be supplied as an environment variable prefixed with
 # `SYNC_` (nested keys use `__`), e.g. `syncstorage.database_url` becomes
@@ -17,9 +19,8 @@
 # the config file. See the full reference at docs/src/config.md, and the
 # annotated `Settings` structs in `*-settings/src/lib.rs`.
 #
+# For the MySQL build (the default `cargo build`), see `config/local.example.toml`.
 # For the Spanner build, see `config/local.example.spanner.toml`.
-# For the SQLite build (no database server required), see
-# `config/local.example.sqlite.toml`.
 # =============================================================================
 
 # REQUIRED. Secret used to derive the Hawk signing/token secrets. Use a long,
@@ -33,7 +34,6 @@ host = "127.0.0.1"
 port = 8000
 
 # Emit human-readable logs instead of mozlog JSON. Default: false (0).
-# Leave JSON logging on for production; it is the format our tooling expects.
 human_logs = 1
 
 # -----------------------------------------------------------------------------
@@ -43,21 +43,22 @@ human_logs = 1
 # Enable the Syncstorage service. Default: true.
 syncstorage.enabled = true
 
-# REQUIRED when syncstorage is enabled. MySQL DSN for the syncstorage database.
-# There is no usable default: the server fails fast at startup if it is unset,
-# rather than silently connecting to a default host.
-syncstorage.database_url = "mysql://sample_user:sample_password@localhost/syncstorage_rs"
+# REQUIRED when syncstorage is enabled. A SQLite DSN of the form
+# "sqlite:///absolute/path/to/file.db" (three slashes: the "sqlite://" scheme
+# separator, then an absolute path), a bare relative path, or "sqlite://:memory:"
+# for a throwaway in-memory database. There is no usable default: the server
+# fails fast at startup if it is unset.
+syncstorage.database_url = "sqlite:///tmp/syncstorage_rs.db"
 
 # Max size of the syncstorage DB connection pool. Default: 10.
 # syncstorage.database_pool_max_size = 10
 
 # Quota tracking/enforcement are Spanner-only features and are force-disabled
-# for non-Spanner backends, so they have no effect on the MySQL build.
+# for non-Spanner backends, so they have no effect on the SQLite build.
 syncstorage.enable_quota = 0
 
 # Request/batch limits. Defaults shown in docs/src/config.md (Syncstorage
-# Limits). `max_total_records` is also used to cap MySQL `get_bsos` result
-# sizes; see issues #298/#333.
+# Limits).
 syncstorage.limits.max_total_records = 9984
 
 # -----------------------------------------------------------------------------
@@ -68,12 +69,17 @@ syncstorage.limits.max_total_records = 9984
 # that both assigns nodes and stores data.
 tokenserver.enabled = true
 
-# REQUIRED when tokenserver is enabled. MySQL DSN for the tokenserver database.
-# No usable default; the server fails fast at startup if it is unset.
-tokenserver.database_url = "mysql://sample_user:sample_password@localhost/tokenserver_rs"
+# REQUIRED when tokenserver is enabled. A SQLite DSN for the tokenserver
+# database, same format as syncstorage.database_url above. This may point at
+# the same file as syncstorage.database_url (the two schemas use disjoint
+# table names) or a separate file. No usable default; the server fails fast
+# at startup if it is unset.
+tokenserver.database_url = "sqlite:///tmp/syncstorage_rs.db"
 
-# Backend type reported in the token response (telemetry only). For the MySQL
-# build set this to "mysql". Default: "spanner". Valid: "mysql"/"postgres"/"spanner".
+# Backend type reported in the token response (telemetry only). NodeType has
+# no dedicated "sqlite" variant since it behaves like the MySQL/Postgres
+# backends (no Spanner-specific node bookkeeping); "mysql" is the closest
+# match. Default: "spanner". Valid: "mysql"/"postgres"/"spanner".
 tokenserver.node_type = "mysql"
 
 # Run the tokenserver DB migrations on startup. Default: false.

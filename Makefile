@@ -121,6 +121,12 @@ docker_oneshot_spanner:  ##  Build & run a stand-alone Spanner-emulator Syncserv
 docker_oneshot_spanner_stop:  ##  Stop the stand-alone Spanner-emulator Syncserver.
 	docker compose -f docker/docker-compose.one-shot.spanner.yaml down
 
+docker_oneshot_sqlite:  ##  Build & run a stand-alone SQLite Syncserver (curl localhost:8000/__heartbeat__).
+	docker compose -f docker/docker-compose.one-shot.sqlite.yaml up -d --build
+
+docker_oneshot_sqlite_stop:  ##  Stop the stand-alone SQLite Syncserver.
+	docker compose -f docker/docker-compose.one-shot.sqlite.yaml down
+
 .ONESHELL:
 docker_run_mysql_e2e_tests:
 	exit_code=0
