@@ -89,8 +89,8 @@ slog-term = "2.9"
 temp-env = { version = "0.3", features = ["async_closure"] }
 tokio = "1"
 thiserror = "2.0.18"
-utoipa = "5.5.0"
-utoipa-swagger-ui = { version = "9", features = ["actix-web"] }
+utoipa = "6.0.0"
+utoipa-swagger-ui = { version = "10", features = ["actix-web"] }
 uuid = { version = "1.23", features = ["serde", "v4"] }
 
 [profile.release]

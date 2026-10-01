@@ -72,7 +72,7 @@ temp-env.workspace = true
 tokenserver-auth = { path = "../tokenserver-auth", features = ["test-support"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-slog-journald = "2.2.0"
+slog-journald = "3.0.0"
 
 [features]
 default = ["mysql", "py_verifier"]
