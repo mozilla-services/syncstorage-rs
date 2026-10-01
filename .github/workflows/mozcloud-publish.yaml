@@ -72,7 +72,7 @@ jobs:
           IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
-      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           push: true
@@ -121,7 +121,7 @@ jobs:
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - name: Build and push to prod GAR and ghcr
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           push: true
@@ -162,7 +162,7 @@ jobs:
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
       - name: Build and push to enterprise GAR
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           push: true
@@ -209,7 +209,7 @@ jobs:
           IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
-      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           push: true
@@ -257,7 +257,7 @@ jobs:
           IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
           PUSH_LATEST: ${{ steps.setup.outputs.push_latest }}
 
-      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: tools/payload-link-dataflow
           file: tools/payload-link-dataflow/Dockerfile
