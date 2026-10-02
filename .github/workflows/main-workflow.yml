@@ -399,7 +399,7 @@ jobs:
           SYNC_SYNCSTORAGE__DATABASE_URL: postgresql://test:test@127.0.0.1/syncstorage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@a53e41438c2381e621dc719a47a57180e30c7075
+        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
         if: always()
         with:
           name: Postgres Unit Tests
@@ -474,11 +474,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.cache-postgres-image.outputs.cache-hit != 'true'
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Build Postgres Docker image
         if: steps.cache-postgres-image.outputs.cache-hit != 'true'
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           push: false
@@ -528,7 +528,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@a53e41438c2381e621dc719a47a57180e30c7075
+        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
         if: always()
         with:
           name: Postgres E2E Tests
@@ -682,7 +682,7 @@ jobs:
           SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@a53e41438c2381e621dc719a47a57180e30c7075
+        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
         if: always()
         with:
           name: MySQL Unit Tests
@@ -758,11 +758,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.cache-mysql-image.outputs.cache-hit != 'true'
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Build MySQL Docker image
         if: steps.cache-mysql-image.outputs.cache-hit != 'true'
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           push: false
@@ -812,7 +812,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@a53e41438c2381e621dc719a47a57180e30c7075
+        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
         if: always()
         with:
           name: MySQL E2E Tests
@@ -1001,7 +1001,7 @@ jobs:
         run: make spanner_test_with_coverage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@a53e41438c2381e621dc719a47a57180e30c7075
+        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
         if: always()
         with:
           name: Spanner Unit Tests
@@ -1077,11 +1077,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.cache-spanner-image.outputs.cache-hit != 'true'
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Build Spanner Docker image (local artifact)
         if: steps.cache-spanner-image.outputs.cache-hit != 'true'
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           push: false
@@ -1131,7 +1131,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@a53e41438c2381e621dc719a47a57180e30c7075
+        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
         if: always()
         with:
           name: Spanner E2E Tests
@@ -1200,7 +1200,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@a53e41438c2381e621dc719a47a57180e30c7075
+        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
         if: always()
         with:
           name: Reconciliation E2E Tests
