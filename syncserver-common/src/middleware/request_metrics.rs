@@ -24,18 +24,17 @@
 //! Install it outermost in the middleware chain so the timing covers every
 //! other middleware as well as the handler.
 
-use std::{collections::HashMap, rc::Rc, sync::Arc, time::Instant};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use actix_web::{
     Error,
-    dev::{Service, ServiceRequest, ServiceResponse, Transform, forward_ready},
+    body::MessageBody,
+    dev::{ServiceRequest, ServiceResponse},
     http::Method,
+    middleware::Next,
 };
 use cadence::StatsdClient;
-use futures::{
-    FutureExt,
-    future::{LocalBoxFuture, Ready, ok},
-};
+use futures::{FutureExt, future::LocalBoxFuture};
 
 use crate::Metrics;
 
@@ -48,86 +47,53 @@ pub const UNMATCHED_ROUTE: &str = "unmatched";
 /// `method` tag value for anything other than a standard HTTP method.
 pub const OTHER_METHOD: &str = "OTHER";
 
-/// Middleware factory. Wrap the `App` with it, outermost.
-#[derive(Clone)]
-pub struct RequestMetrics {
+/// Build the middleware function. Pass it to
+/// [`from_fn`](actix_web::middleware::from_fn) and wrap the `App` with it,
+/// outermost.
+pub fn request_metrics<B>(
     metrics: Arc<StatsdClient>,
-}
-
-impl RequestMetrics {
-    pub fn new(metrics: Arc<StatsdClient>) -> Self {
-        Self { metrics }
-    }
-}
-
-impl<S, B> Transform<S, ServiceRequest> for RequestMetrics
+) -> impl Fn(ServiceRequest, Next<B>) -> LocalBoxFuture<'static, Result<ServiceResponse<B>, Error>> + Clone
 where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
+    B: MessageBody + 'static,
 {
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type Transform = RequestMetricsMiddleware<S>;
-    type InitError = ();
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        ok(RequestMetricsMiddleware {
-            service: Rc::new(service),
-            metrics: self.metrics.clone(),
-        })
-    }
+    move |req, next| time_request(req, next, metrics.clone()).boxed_local()
 }
 
-pub struct RequestMetricsMiddleware<S> {
-    service: Rc<S>,
+/// Time one request and emit [`REQUEST_DURATION_METRIC`].
+async fn time_request<B>(
+    req: ServiceRequest,
+    next: Next<B>,
     metrics: Arc<StatsdClient>,
-}
-
-impl<S, B> Service<ServiceRequest> for RequestMetricsMiddleware<S>
+) -> Result<ServiceResponse<B>, Error>
 where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
+    B: MessageBody + 'static,
 {
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+    let start = Instant::now();
+    let method = method_tag(req.method());
+    let route = req
+        .match_pattern()
+        .map(|pattern| route_tag(&pattern))
+        .unwrap_or_else(|| UNMATCHED_ROUTE.to_owned());
 
-    forward_ready!(service);
+    let result = next.call(req).await;
+    // An `Err` here is still a response to the client once the outer layers
+    // render it, so time it under the status it will get.
+    let status = match &result {
+        Ok(resp) => resp.status(),
+        Err(err) => err.as_response_error().status_code(),
+    };
 
-    fn call(&self, req: ServiceRequest) -> Self::Future {
-        let start = Instant::now();
-        let method = method_tag(req.method()).to_owned();
-        let route = req
-            .match_pattern()
-            .map(|pattern| route_tag(&pattern))
-            .unwrap_or_else(|| UNMATCHED_ROUTE.to_owned());
-        let metrics = self.metrics.clone();
-        let fut = self.service.call(req);
+    let mut tags = HashMap::with_capacity(3);
+    tags.insert("route".to_owned(), route);
+    tags.insert("method".to_owned(), method.to_owned());
+    tags.insert("status".to_owned(), status.as_u16().to_string());
+    Metrics::from(&metrics).timing_with_tags(
+        REQUEST_DURATION_METRIC,
+        start.elapsed().as_millis() as u64,
+        tags,
+    );
 
-        async move {
-            let result = fut.await;
-            // An `Err` here is still a response to the client once the outer
-            // layers render it, so time it under the status it will get.
-            let status = match &result {
-                Ok(resp) => resp.status(),
-                Err(err) => err.as_response_error().status_code(),
-            };
-
-            let mut tags = HashMap::with_capacity(3);
-            tags.insert("route".to_owned(), route);
-            tags.insert("method".to_owned(), method);
-            tags.insert("status".to_owned(), status.as_u16().to_string());
-            Metrics::from(&metrics).timing_with_tags(
-                REQUEST_DURATION_METRIC,
-                start.elapsed().as_millis() as u64,
-                tags,
-            );
-
-            result
-        }
-        .boxed_local()
-    }
+    result
 }
 
 /// The method as a bounded tag value.
@@ -187,7 +153,7 @@ fn route_tag(pattern: &str) -> String {
 #[cfg(test)]
 mod tests {
     use actix_web::test::{TestRequest, call_service, init_service};
-    use actix_web::{App, HttpResponse, http::StatusCode, web};
+    use actix_web::{App, HttpResponse, http::StatusCode, middleware::from_fn, web};
     use cadence::SpyMetricSink;
 
     use super::*;
@@ -264,7 +230,7 @@ mod tests {
             .route(web::get().to(ok))
             .route(web::delete().to(not_modified));
         let app = App::new()
-            .wrap(RequestMetrics::new(client))
+            .wrap(from_fn(request_metrics(client)))
             .service(resource);
         let app = init_service(app).await;
 
@@ -302,7 +268,7 @@ mod tests {
         let (client, drain) = recording_client();
         let resource = web::resource("/__heartbeat__").route(web::get().to(ok));
         let app = App::new()
-            .wrap(RequestMetrics::new(client))
+            .wrap(from_fn(request_metrics(client)))
             .service(resource);
         let app = init_service(app).await;
 
@@ -320,7 +286,7 @@ mod tests {
         let (client, drain) = recording_client();
         let resource = web::resource("/__heartbeat__").route(web::get().to(ok));
         let app = App::new()
-            .wrap(RequestMetrics::new(client))
+            .wrap(from_fn(request_metrics(client)))
             .service(resource);
         let app = init_service(app).await;
 
@@ -342,7 +308,7 @@ mod tests {
         let (client, drain) = recording_client();
         let resource = web::resource("/__error__").route(web::get().to(bad_gateway));
         let app = App::new()
-            .wrap(RequestMetrics::new(client))
+            .wrap(from_fn(request_metrics(client)))
             .service(resource);
         let app = init_service(app).await;
 
