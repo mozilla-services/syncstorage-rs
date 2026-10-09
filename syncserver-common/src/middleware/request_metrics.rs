@@ -13,7 +13,9 @@
 //! `route` is the matched resource pattern with the parameter regexes
 //! stripped, so it is low-cardinality and never contains a uid, collection
 //! or BSO id. Requests that match no resource (404s) are tagged
-//! [`UNMATCHED_ROUTE`]. Telegraf surfaces the timing as
+//! [`UNMATCHED_ROUTE`]. `method` is one of the standard HTTP methods or
+//! [`OTHER_METHOD`]: the method token is client-controlled, so it is never
+//! emitted verbatim. Telegraf surfaces the timing as
 //! `syncstorage_request_duration_{count,sum,mean,…}` (or under the
 //! `syncstorage_tokenserver_` prefix for a tokenserver-only deployment), where
 //! `rate(_sum) / rate(_count)` by `route` is an exact windowed mean per route
@@ -27,6 +29,7 @@ use std::{collections::HashMap, rc::Rc, sync::Arc, time::Instant};
 use actix_web::{
     Error,
     dev::{Service, ServiceRequest, ServiceResponse, Transform, forward_ready},
+    http::Method,
 };
 use cadence::StatsdClient;
 use futures::{
@@ -41,6 +44,9 @@ pub const REQUEST_DURATION_METRIC: &str = "request.duration";
 
 /// `route` tag value for requests that matched no resource.
 pub const UNMATCHED_ROUTE: &str = "unmatched";
+
+/// `method` tag value for anything other than a standard HTTP method.
+pub const OTHER_METHOD: &str = "OTHER";
 
 /// Middleware factory. Wrap the `App` with it, outermost.
 #[derive(Clone)]
@@ -91,7 +97,7 @@ where
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let start = Instant::now();
-        let method = req.method().to_string();
+        let method = method_tag(req.method()).to_owned();
         let route = req
             .match_pattern()
             .map(|pattern| route_tag(&pattern))
@@ -121,6 +127,24 @@ where
             result
         }
         .boxed_local()
+    }
+}
+
+/// The method as a bounded tag value.
+///
+/// `http::Method` accepts any extension token, so a client could mint a new
+/// time series per made-up method. Only the standard methods pass through;
+/// everything else collapses to [`OTHER_METHOD`].
+fn method_tag(method: &Method) -> &'static str {
+    match method.as_str() {
+        "GET" => "GET",
+        "HEAD" => "HEAD",
+        "POST" => "POST",
+        "PUT" => "PUT",
+        "DELETE" => "DELETE",
+        "PATCH" => "PATCH",
+        "OPTIONS" => "OPTIONS",
+        _ => OTHER_METHOD,
     }
 }
 
@@ -167,6 +191,14 @@ mod tests {
     use cadence::SpyMetricSink;
 
     use super::*;
+
+    #[test]
+    fn method_tag_bounds_the_label() {
+        assert_eq!(method_tag(&Method::GET), "GET");
+        assert_eq!(method_tag(&Method::DELETE), "DELETE");
+        let brew = Method::from_bytes(b"BREW").unwrap();
+        assert_eq!(method_tag(&brew), OTHER_METHOD);
+    }
 
     #[test]
     fn route_tag_strips_parameter_regexes() {
@@ -280,6 +312,28 @@ mod tests {
         assert_tags(
             &one_line(drain()),
             &["route:unmatched", "method:GET", "status:404"],
+        );
+    }
+
+    #[actix_web::test]
+    async fn non_standard_methods_collapse_to_other() {
+        let (client, drain) = recording_client();
+        let resource = web::resource("/__heartbeat__").route(web::get().to(ok));
+        let app = App::new()
+            .wrap(RequestMetrics::new(client))
+            .service(resource);
+        let app = init_service(app).await;
+
+        let brew = Method::from_bytes(b"BREW").unwrap();
+        let req = TestRequest::default()
+            .method(brew)
+            .uri("/__heartbeat__")
+            .to_request();
+        let resp = call_service(&app, req).await;
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+        assert_tags(
+            &one_line(drain()),
+            &["route:/__heartbeat__", "method:OTHER", "status:405"],
         );
     }
 

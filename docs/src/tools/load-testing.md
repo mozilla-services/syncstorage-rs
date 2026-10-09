@@ -723,15 +723,14 @@ the rest.
 
 ## Gaps worth knowing about
 
-- **The offload read/write path is not timed.** `payload_offload.rs` emits
-  `storage.gcs.payload.cleanup`, tagged by handler and result, but that covers
-  only the cleanup/delete path. `upload_payload` and `download_payload` emit
-  nothing, so GCS transfer cost is folded into the enclosing
-  `request.duration` timing for `/1.5/{uid}/storage/{collection}` and cannot be
-  separated from Spanner time. A STOR-629 run can say "the handler got
-  slower", but not "GCS accounted for N ms of it". If attributing that split
-  matters for a capacity decision, the upload and download paths need timers
-  before the run, not after.
+- **GCS time can now be separated from request time.** `payload_offload.rs`
+  emits `storage.gcs.payload.upload`, `.download` and `.batch` timings (plus
+  byte-size histograms) for the offload path, and the request middleware emits
+  `request.duration` tagged by route. Dividing the GCS timing's `rate(_sum)` by
+  the `request.duration` `rate(_count)` for `/1.5/{uid}/storage/{collection}`
+  gives the GCS share of an average collection request directly, so a STOR-629
+  run can say "GCS accounted for N ms of it" rather than only "the handler got
+  slower".
 - **No per-collection metric dimension**, so a mixed run cannot separate
   offloaded from inline request latency from the server side either. Working
   around it means either running the two shapes separately and comparing, or
