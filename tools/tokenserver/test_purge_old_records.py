@@ -13,6 +13,7 @@ from wsgiref.simple_server import make_server
 
 from database import Database
 from purge_old_records import purge_old_records
+from util import get_timestamp
 
 
 class _RecordingMetrics:
@@ -391,11 +392,19 @@ def test_failed_service_delete_does_not_abort_batch(purge_db, mock_service_serve
     # Two old user records share one batch. Assertions below are independent
     # of processing order — the failing row must be bumped and the healthy
     # row purged regardless of which is seen first.
+    # Backdate created_at: update_user only marks rows with
+    # created_at < now as replaced, so allocating and updating in the
+    # same millisecond would leave the old row unreplaced.
+    created_at = get_timestamp() - 1000
     healthy_email = "healthy@mozilla.com"
-    healthy = database.allocate_user(healthy_email, client_state="aa", generation=1)
+    healthy = database.allocate_user(
+        healthy_email, client_state="aa", generation=1, timestamp=created_at
+    )
     database.update_user(healthy, client_state="bb", generation=2)
     broken_email = "broken@mozilla.com"
-    broken = database.allocate_user(broken_email, client_state="aa", generation=1)
+    broken = database.allocate_user(
+        broken_email, client_state="aa", generation=1, timestamp=created_at
+    )
     database.update_user(broken, client_state="bb", generation=2)
 
     broken_old = next(
