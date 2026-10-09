@@ -8,7 +8,7 @@ use actix_web::{
     dev::{self, Payload},
     http::StatusCode,
     http::{Method, header::LOCATION},
-    middleware::ErrorHandlers,
+    middleware::{ErrorHandlers, from_fn},
     web::{self, Data},
 };
 use cadence::{Gauged, StatsdClient};
@@ -21,7 +21,7 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use syncserver_common::{
     BlockingThreadpool, BlockingThreadpoolMetrics, Metrics, Taggable,
-    middleware::sentry::SentryWrapper,
+    middleware::{request_metrics::request_metrics, sentry::SentryWrapper},
 };
 use syncserver_db_common::GetPoolStatus;
 use syncserver_settings::Settings;
@@ -192,6 +192,10 @@ macro_rules! build_app {
             .wrap_fn(tokenserver::logging::handle_request_log_line)
             .wrap_fn(middleware::rejectua::reject_user_agent)
             .wrap($cors)
+            // Outermost, so every request is timed end to end regardless of
+            // which middleware or handler answers it. Tagged with the matched
+            // route pattern, method and status.
+            .wrap(from_fn(request_metrics($metrics.clone())))
             .service(
                 web::resource(&cfg_path("/info/collections"))
                     .route(web::get().to(handlers::get_collections)),
@@ -316,6 +320,10 @@ macro_rules! build_app_without_syncstorage {
             // For now, let's be permissive and use NGINX (the wrapping server)
             // for finer grained specification.
             .wrap($cors)
+            // Outermost, so every request is timed end to end regardless of
+            // which middleware or handler answers it. Tagged with the matched
+            // route pattern, method and status.
+            .wrap(from_fn(request_metrics($metrics.clone())))
             .service(
                 web::resource("/1.0/{application}/{version}")
                     .route(web::get().to(tokenserver::handlers::get_tokenserver_result)),
