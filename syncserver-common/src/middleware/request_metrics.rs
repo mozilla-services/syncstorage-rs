@@ -128,29 +128,50 @@ fn method_tag(method: &Method) -> &'static str {
 /// regexes contain their own braces, so this walks the string tracking brace
 /// depth and drops everything from a top-level `:` to the matching `}`,
 /// yielding `/1.5/{uid}/storage/{collection}`.
+///
+/// Inside a regex, a brace only counts when it is regex syntax: braces
+/// inside a `[...]` character class and braces escaped with `\` are ignored,
+/// so `{id:[^}]+}` and `{id:a\}b}` both reduce to `{id}`. Beyond that it
+/// assumes the regex is well formed, i.e. its unescaped braces outside a
+/// class are balanced quantifiers.
 fn route_tag(pattern: &str) -> String {
     let mut out = String::with_capacity(pattern.len());
     let mut depth = 0usize;
     let mut skipping = false;
+    let mut in_class = false;
+    let mut escaped = false;
     for c in pattern.chars() {
+        if skipping {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            match c {
+                '\\' => escaped = true,
+                '[' => in_class = true,
+                ']' => in_class = false,
+                '{' if !in_class => depth += 1,
+                '}' if !in_class => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        skipping = false;
+                        out.push('}');
+                    }
+                }
+                _ => {}
+            }
+            continue;
+        }
         match c {
             '{' => {
                 depth += 1;
-                if !skipping {
-                    out.push(c);
-                }
+                out.push(c);
             }
             '}' => {
                 depth = depth.saturating_sub(1);
-                if depth == 0 {
-                    skipping = false;
-                    out.push(c);
-                } else if !skipping {
-                    out.push(c);
-                }
+                out.push(c);
             }
-            ':' if depth == 1 && !skipping => skipping = true,
-            _ if skipping => {}
+            ':' if depth == 1 => skipping = true,
             _ => out.push(c),
         }
     }
@@ -183,6 +204,9 @@ mod tests {
             "/1.0/{application}/{version}"
         );
         assert_eq!(route_tag("/swagger-ui/{_:.*}"), "/swagger-ui/{_}");
+        assert_eq!(route_tag("/x/{id:[^}]+}/y"), "/x/{id}/y");
+        assert_eq!(route_tag(r"/x/{id:a\}b}/y"), "/x/{id}/y");
+        assert_eq!(route_tag(r"/x/{id:[\]}]+}"), "/x/{id}");
         assert_eq!(route_tag("/__heartbeat__"), "/__heartbeat__");
         assert_eq!(route_tag("/"), "/");
     }
