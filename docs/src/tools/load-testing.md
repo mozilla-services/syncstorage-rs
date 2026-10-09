@@ -727,7 +727,7 @@ the rest.
   `storage.gcs.payload.cleanup`, tagged by handler and result, but that covers
   only the cleanup/delete path. `upload_payload` and `download_payload` emit
   nothing, so GCS transfer cost is folded into the enclosing
-  `request.post_collection` / `request.get_collection` timings and cannot be
+  `request.duration` timing for `/1.5/{uid}/storage/{collection}` and cannot be
   separated from Spanner time. A STOR-629 run can say "the handler got
   slower", but not "GCS accounted for N ms of it". If attributing that split
   matters for a capacity decision, the upload and download paths need timers

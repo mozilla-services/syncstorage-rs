@@ -409,7 +409,7 @@ mod tests {
     use utoipa::OpenApi;
     use utoipa_swagger_ui::SwaggerUi;
 
-    use syncserver_common::middleware::sentry::SentryWrapper;
+    use syncserver_common::middleware::{request_metrics::RequestMetrics, sentry::SentryWrapper};
     use syncserver_settings::Settings;
     use tokenserver_auth::test_utils::{
         OTHER_PRIVATE_KEY_PEM, TEST_PRIVATE_KEY_PEM, make_set, test_jwk,
