@@ -109,17 +109,16 @@ where
 /// time series per made-up method. Only the standard methods pass through;
 /// everything else collapses to [`OTHER_METHOD`].
 fn method_tag(method: &Method) -> &'static str {
-    match method.as_str() {
-        "GET" => "GET",
-        "HEAD" => "HEAD",
-        "POST" => "POST",
-        "PUT" => "PUT",
-        "DELETE" => "DELETE",
-        "PATCH" => "PATCH",
-        "OPTIONS" => "OPTIONS",
-        _ => OTHER_METHOD,
-    }
+    let as_str = method.as_str();
+    STD_METHODS
+        .iter()
+        .find(|&&m| m == as_str)
+        .copied()
+        .unwrap_or(OTHER_METHOD)
 }
+
+/// The methods that pass through [`method_tag`] unchanged.
+const STD_METHODS: &[&str] = &["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"];
 
 /// Reduce a matched resource pattern to its parameter names.
 ///

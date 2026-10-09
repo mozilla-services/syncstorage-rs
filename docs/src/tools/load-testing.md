@@ -723,17 +723,20 @@ the rest.
 
 ## Gaps worth knowing about
 
-- **GCS time can be separated from request time, roughly.** `payload_offload.rs`
-  emits `storage.gcs.payload.upload`, `.download` and `.batch` timings (plus
-  byte-size histograms), and the request middleware emits `request.duration`
-  tagged by route and method. Dividing a GCS timing's `rate(_sum)` by the
-  `request.duration` `rate(_count)` summed over
-  `/1.5/{uid}/storage/{collection}` and `/1.5/{uid}/storage/{collection}/{bso}`
-  with `method=~"GET|POST|PUT"` gives the GCS share of an average read or write
-  request. It is only rough: that denominator still counts requests whose
-  payloads stayed inline, under the offload threshold. It is enough for a
-  STOR-629 run to say "GCS accounted for about N ms of it" rather than only
-  "the handler got slower".
+- **GCS time can be separated from request time for the collection routes.**
+  `storage.gcs.payload.batch` is the wall time one `get_collection` or
+  `post_collection` request spent on GCS across all of its objects, tagged with
+  `handler`, and the request middleware emits `request.duration` tagged by
+  route and method. Dividing `rate(storage.gcs.payload.batch_sum{handler="post_collection"})`
+  by the `request.duration` `rate(_count)` for `/1.5/{uid}/storage/{collection}`
+  with `method="POST"` (and `get_collection` against `GET` likewise) gives the
+  GCS share of an average collection write or read. It is still rough, because
+  the denominator counts requests whose payloads stayed inline, under the
+  offload threshold. The single-BSO routes (`/{bso}` GET and PUT) emit only
+  the per-object `.upload` / `.download` timings, which carry no route tag, so
+  they cannot be attributed the same way; measure those with a separate load
+  shape. Either way a STOR-629 run can say "GCS accounted for about N ms of a
+  collection request" rather than only "the handler got slower".
 - **No per-collection metric dimension**, so a mixed run cannot separate
   offloaded from inline request latency from the server side either. Working
   around it means either running the two shapes separately and comparing, or
