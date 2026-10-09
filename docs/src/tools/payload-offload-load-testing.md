@@ -47,12 +47,13 @@ you return to local emulator work.
 
 | For | You need |
 | --- | --- |
-| Creating the VM | Compute admin on some project. `sync/developers` has **no** compute roles on the sync tenant projects, so use your own project under the developers folder. |
+| Creating the VM | `roles/compute.instanceAdmin.v1` on `moz-fx-sync-nonprod`, which `sync/developers` holds. There is no equivalent grant on prod. |
 | Method A | `roles/secretmanager.secretAccessor` on the tenant project, to read the master secret. |
 | Method B | Write access to a GCS bucket you control. |
 
-Sync's tenant is not onboarded to PAM, so there is no just-in-time elevation
-available. `gcloud pam entitlements search` returns nothing.
+Sync is onboarded to PAM, so anything beyond the standing grants above can be
+requested just-in-time. List what is available with `gcloud pam entitlements
+search`.
 
 ---
 
@@ -100,8 +101,9 @@ gcloud compute instances create sync-loadtest \
 ```
 
 > **Note on Machine family.** New projects get zero quota for newer families, so C4D
-> fails with `Quota 'CPUS_PER_VM_FAMILY' exceeded. Limit: 0.0`. N2 and E2 draw
-> from the general `CPUS` pool, which does have a default allocation. Check with
+> fails with `Quota 'CPUS_PER_VM_FAMILY' exceeded. Limit: 0.0`. Most families have
+> their own regional quota (`N2_CPUS`, `E2_CPUS`, `C2_CPUS`); only N1 draws on the
+> general `CPUS` pool. Check whichever matches the family you pick, with
 > `gcloud compute regions describe us-west1 --project=$PROJ --flatten="quotas[]"
 > --format="table(quotas.metric,quotas.limit,quotas.usage)"`.
 
@@ -117,7 +119,7 @@ Install sync & load tests on the VM:
 ```console
 sudo apt update && sudo apt install -y git python3 python3-venv
 mkdir -p ~/src && cd ~/src
-git clone https://github.com/mozilla-services/syncstorage-rs.git
+git clone --depth=1 https://github.com/mozilla-services/syncstorage-rs.git
 cd syncstorage-rs/tools/syncstorage-loadtest
 python3 -m venv venv && source venv/bin/activate
 pip install poetry && poetry install
@@ -255,11 +257,17 @@ gcloud compute instances set-service-account sync-loadtest \
 gcloud compute instances start sync-loadtest --project=$PROJ --zone=us-west1-b
 ```
 
-Disk contents survive the stop. Verify:
+Disk contents survive the stop.
+
+Confirm the new scope took effect by writing **from the VM**. Run locally this
+would use your own credentials and prove nothing about the instance service
+account, and `$PROJ` is a local shell variable that does not exist on the VM:
 
 ```console
-echo hello | gcloud storage cp - gs://<your-bucket>/write-check.txt --project=$PROJ
-gcloud storage rm gs://<your-bucket>/write-check.txt --project=$PROJ
+gcloud compute ssh sync-loadtest --project=$PROJ --zone=us-west1-b \
+  --tunnel-through-iap --command \
+  'echo hello | gcloud storage cp - gs://<your-bucket>/write-check.txt && \
+   gcloud storage rm gs://<your-bucket>/write-check.txt'
 ```
 
 Using the instance service account this way means no expiring credentials and
@@ -381,10 +389,11 @@ results in both compete for the same CPU and memory. Use low concurrency, or alt
 **The emulator is not Spanner.** Method B's write throughput and latency numbers
 aren't super helpful and indicative of live spanner performance.
 
-**Cloud Armor Adaptive Protection is armed on nonprod.** The policy has an
-`evaluateAdaptiveProtectionAutoDeploy()` rule that denies with 403.
-403s partway through a sustained run against a deployed environment
-is likely not the load tester.
+**Fastly NGWAF is the edge, in blocking mode.** Dev sets
+`ngwaf_agent_level = "block"`, so sustained 403s partway through a run against a
+deployed environment are worth checking there before blaming the load tester.
+The `sync-policy` Cloud Armor resource still exists, but neither backend config
+attaches it, so it is not the cause.
 
 **Check where the Spanner metrics live.** Spanner for the sync tenant is in a
 separate GCPv1 project, and `sync/developers` has no access to it at all, so the
