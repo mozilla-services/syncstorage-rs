@@ -10,6 +10,7 @@ use actix_web::{
     web::Bytes,
 };
 use base64::{Engine, engine};
+use cadence::SpyMetricSink;
 use chrono::offset::Utc;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hmac::{Hmac, KeyInit, Mac};
@@ -1092,4 +1093,56 @@ fn limits_json_omits_collections_when_none_overridden() {
     let json: Value = serde_json::from_str(&build_limits_json(&ServerLimits::default())).unwrap();
     assert!(json.get("collections").is_none());
     assert!(json.get("max_record_payload_bytes").is_some());
+}
+
+#[actix_rt::test]
+async fn request_duration_is_emitted_for_requests_rejected_before_routing() {
+    crate::logging::init_logging(false).unwrap();
+    let settings = get_test_settings();
+    let mut state = get_test_state(&settings).await;
+    let (recorded, sink) = SpyMetricSink::new();
+    state.metrics = Arc::new(StatsdClient::builder("syncstorage", sink).build());
+    let metrics = state.metrics.clone();
+    let app = test::init_service(build_app!(
+        state,
+        None::<tokenserver::ServerState>,
+        Arc::clone(&SECRETS),
+        build_cors(&settings),
+        metrics
+    ))
+    .await;
+
+    // The reject-UA middleware answers this before any handler runs. A timing
+    // is still emitted, which is only true if `request_metrics` wraps the
+    // whole chain in `build_app!` rather than just the handlers.
+    let mut headers = HashMap::new();
+    headers.insert(
+        "User-Agent",
+        "Firefox-iOS-Sync/18.0b1 (iPhone; iPhone OS 13.2.2) (Fennec (synctesting))".to_owned(),
+    );
+    let req = create_request(
+        http::Method::GET,
+        "/1.5/42/info/collections",
+        Some(headers),
+        None,
+    )
+    .to_request();
+    let response = app.call(req).await.unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+    let lines: Vec<String> = recorded
+        .try_iter()
+        .map(|line| String::from_utf8(line).expect("statsd line was not utf-8"))
+        .collect();
+    let timing = lines
+        .iter()
+        .find(|line| line.starts_with("syncstorage.request.duration:"))
+        .unwrap_or_else(|| panic!("no request.duration emitted; got {lines:?}"));
+    for tag in [
+        "route:/1.5/{uid}/info/collections",
+        "method:GET",
+        "status:503",
+    ] {
+        assert!(timing.contains(tag), "missing tag {tag}: {timing}");
+    }
 }

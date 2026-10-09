@@ -21,6 +21,10 @@
 //! `rate(_sum) / rate(_count)` by `route` is an exact windowed mean per route
 //! and `_count` by `route, status` is a per-route status breakdown.
 //!
+//! Durations are whole milliseconds, truncated, the same as the `Metrics`
+//! drop timer. Sub-millisecond requests such as health checks and 304s record
+//! as `0`, so a 0 ms mean on `/__heartbeat__` is expected, not a bug.
+//!
 //! Install it outermost in the middleware chain so the timing covers every
 //! other middleware as well as the handler.
 
@@ -77,10 +81,13 @@ where
 
     let result = next.call(req).await;
     // An `Err` here is still a response to the client once the outer layers
-    // render it, so time it under the status it will get.
+    // render it, so time it under the status it will get. actix renders it
+    // with `error_response()`, and not every error type overrides
+    // `status_code()` to match (`ApiError` does not, so it would report 500
+    // for everything), so read the status off the rendered response.
     let status = match &result {
         Ok(resp) => resp.status(),
-        Err(err) => err.as_response_error().status_code(),
+        Err(err) => err.as_response_error().error_response().status(),
     };
 
     let mut tags = HashMap::with_capacity(3);

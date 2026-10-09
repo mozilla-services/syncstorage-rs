@@ -723,14 +723,17 @@ the rest.
 
 ## Gaps worth knowing about
 
-- **GCS time can now be separated from request time.** `payload_offload.rs`
+- **GCS time can be separated from request time, roughly.** `payload_offload.rs`
   emits `storage.gcs.payload.upload`, `.download` and `.batch` timings (plus
-  byte-size histograms) for the offload path, and the request middleware emits
-  `request.duration` tagged by route. Dividing the GCS timing's `rate(_sum)` by
-  the `request.duration` `rate(_count)` for `/1.5/{uid}/storage/{collection}`
-  gives the GCS share of an average collection request directly, so a STOR-629
-  run can say "GCS accounted for N ms of it" rather than only "the handler got
-  slower".
+  byte-size histograms), and the request middleware emits `request.duration`
+  tagged by route and method. Dividing a GCS timing's `rate(_sum)` by the
+  `request.duration` `rate(_count)` summed over
+  `/1.5/{uid}/storage/{collection}` and `/1.5/{uid}/storage/{collection}/{bso}`
+  with `method=~"GET|POST|PUT"` gives the GCS share of an average read or write
+  request. It is only rough: that denominator still counts requests whose
+  payloads stayed inline, under the offload threshold. It is enough for a
+  STOR-629 run to say "GCS accounted for about N ms of it" rather than only
+  "the handler got slower".
 - **No per-collection metric dimension**, so a mixed run cannot separate
   offloaded from inline request latency from the server side either. Working
   around it means either running the two shapes separately and comparing, or
