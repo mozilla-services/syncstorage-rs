@@ -14,6 +14,7 @@ syncserver-db-common = { path = "../syncserver-db-common" }
 tokenserver-db-common = { path = "../tokenserver-db-common" }
 tokenserver-mysql = { path = "../tokenserver-mysql", optional = true }
 tokenserver-postgres = { path = "../tokenserver-postgres", optional = true }
+tokenserver-sqlite = { path = "../tokenserver-sqlite", optional = true }
 tokenserver-settings = { path = "../tokenserver-settings" }
 tokio = { workspace = true, features = ["macros", "sync"] }
 url = "2.5"
@@ -28,3 +29,4 @@ syncserver-settings = { path = "../syncserver-settings" }
 default = ["mysql"]
 mysql = ['tokenserver-mysql']
 postgres = ['tokenserver-postgres']
+sqlite = ['tokenserver-sqlite']

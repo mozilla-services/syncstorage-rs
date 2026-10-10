@@ -1,0 +1,65 @@
+# One-shot, stand-alone SQLite-backed Syncserver.
+#
+# Unlike the MySQL/Postgres one-shot compose files, SQLite needs no separate
+# database service or container: the "database" is just a file on a named
+# volume. This brings up a working server in a single command with no manual
+# database setup:
+#
+#   make docker_oneshot_sqlite
+#   # or:
+#   docker compose -f docker/docker-compose.one-shot.sqlite.yaml up -d --build
+#
+# Then confirm it is serving:
+#
+#   curl http://localhost:8000/__heartbeat__
+#
+# Syncstorage and Tokenserver share a single SQLite file here for simplicity
+# (their table names don't collide); SYNC_TOKENSERVER__RUN_MIGRATIONS applies
+# the Tokenserver schema and SYNC_TOKENSERVER__INIT_NODE_URL bootstraps the
+# `sync-1.5` service and storage node records.
+#
+# This builds the SQLite server from the local checkout (build context is the
+# repo root), so it does not depend on any published image.
+#
+# Set SYNC_MASTER_SECRET to your own value for anything beyond local
+# experimentation; the default below is a placeholder.
+
+services:
+  syncserver:
+    build:
+      context: ..
+      args:
+        SYNCSTORAGE_DATABASE_BACKEND: sqlite
+        TOKENSERVER_DATABASE_BACKEND: sqlite
+    container_name: syncserver
+    ports:
+      - "${SYNC_PORT:-8000}:${SYNC_PORT:-8000}"
+    environment:
+      SYNC_HOST: "0.0.0.0"
+      SYNC_PORT: "${SYNC_PORT:-8000}"
+      SYNC_MASTER_SECRET: "${SYNC_MASTER_SECRET:-changeme_secret_key}"
+      SYNC_SYNCSTORAGE__DATABASE_URL: "sqlite:///data/syncserver.db"
+      SYNC_TOKENSERVER__DATABASE_URL: "sqlite:///data/syncserver.db"
+      SYNC_TOKENSERVER__ENABLED: "true"
+      # NodeType has no dedicated "sqlite" variant (see
+      # config/local.example.sqlite.toml); "mysql" is the closest match.
+      SYNC_TOKENSERVER__NODE_TYPE: "mysql"
+      SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
+      SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: "api.accounts.firefox.com"
+      SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: "https://oauth.accounts.firefox.com"
+      SYNC_HUMAN_LOGS: "${SYNC_HUMAN_LOGS:-false}"
+      RUST_LOG: "${RUST_LOG:-info}"
+      SYNC_TOKENSERVER__INIT_NODE_URL: "${SYNC_TOKENSERVER__INIT_NODE_URL:-http://localhost:${SYNC_PORT:-8000}}"
+    volumes:
+      - sqlite_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${SYNC_PORT:-8000}/__heartbeat__"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  sqlite_data:
+    driver: local
