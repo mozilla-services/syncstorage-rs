@@ -403,13 +403,14 @@ mod tests {
     use actix_web::middleware::ErrorHandlers;
     use actix_web::test::{self, TestRequest};
     use actix_web::{
-        App, HttpRequest, HttpResponse, http::StatusCode, http::header::LOCATION, web, web::Data,
+        App, HttpRequest, HttpResponse, http::StatusCode, http::header::LOCATION,
+        middleware::from_fn, web, web::Data,
     };
     use serde_json::json;
     use utoipa::OpenApi;
     use utoipa_swagger_ui::SwaggerUi;
 
-    use syncserver_common::middleware::sentry::SentryWrapper;
+    use syncserver_common::middleware::{request_metrics::request_metrics, sentry::SentryWrapper};
     use syncserver_settings::Settings;
     use tokenserver_auth::test_utils::{
         OTHER_PRIVATE_KEY_PEM, TEST_PRIVATE_KEY_PEM, make_set, test_jwk,
