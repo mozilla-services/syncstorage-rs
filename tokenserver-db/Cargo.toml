@@ -25,6 +25,5 @@ temp-env.workspace = true
 syncserver-settings = { path = "../syncserver-settings" }
 
 [features]
-default = ["mysql"]
 mysql = ['tokenserver-mysql']
 postgres = ['tokenserver-postgres']
