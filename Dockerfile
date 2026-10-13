@@ -5,7 +5,7 @@ ARG MYSQLCLIENT_PKG=libmariadb-dev-compat
 
 # NOTE: Ensure builder's Rust version matches CI's in .github/workflows/main-workflow.yml
 # RUST_VER
-FROM docker.io/lukemathwalker/cargo-chef:0.1.73-rust-1.91.1-trixie AS chef
+FROM docker.io/lukemathwalker/cargo-chef:0.1.78-rust-1.98.1-trixie AS chef
 WORKDIR /app
 
 FROM chef AS planner
