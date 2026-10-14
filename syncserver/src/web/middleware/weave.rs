@@ -57,7 +57,7 @@ fn insert_weave_timestamp_into_headers(headers: &mut HeaderMap, ts: f64) -> Resu
     };
     headers.insert(
         header::HeaderName::from_static(X_WEAVE_TIMESTAMP),
-        header::HeaderValue::from_str(&format!("{:.2}", &weave_ts)).map_err(invalid_xlm)?,
+        header::HeaderValue::from_str(&format!("{weave_ts:.2}")).map_err(invalid_xlm)?,
     );
     Ok(())
 }
