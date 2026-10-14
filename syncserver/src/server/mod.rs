@@ -68,6 +68,8 @@ pub struct ServerState {
 
     pub quota_enabled: bool,
 
+    pub require_collection_delete_confirmation: bool,
+
     pub deadman: Arc<RwLock<Deadman>>,
 
     /// Glean metrics logger.
@@ -409,6 +411,8 @@ impl Server {
                 .database_pool_sweeper_task_interval
                 .into(),
         ));
+        let require_collection_delete_confirmation =
+            settings.syncstorage.require_collection_delete_confirmation;
         let glean_logger = Arc::new(GleanEventsLogger {
             // app_id corresponds to probe-scraper entry.
             // https://github.com/mozilla/probe-scraper/blob/main/repositories.yaml
@@ -481,6 +485,7 @@ impl Server {
                 metrics: metrics.clone(),
                 port,
                 quota_enabled,
+                require_collection_delete_confirmation,
                 deadman: Arc::clone(&deadman),
                 glean_logger: Arc::clone(&glean_logger),
                 glean_enabled,
