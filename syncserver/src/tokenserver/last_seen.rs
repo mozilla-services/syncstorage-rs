@@ -22,7 +22,7 @@ use serde_json::json;
 use tokio::{
     sync::{Notify, OwnedSemaphorePermit, Semaphore, mpsc, oneshot, watch},
     task::JoinSet,
-    time::{Instant, sleep, sleep_until, timeout_at},
+    time::{Instant, sleep_until, timeout_at},
 };
 
 use syncserver_common::Metrics;
@@ -43,8 +43,6 @@ const RETRY_DELAY: Duration = Duration::from_secs(1);
 pub const FLUSH_INTERVAL: Duration = Duration::from_secs(60);
 /// Actix's 30-second request drain plus one 10-second upload attempt.
 pub const SHUTDOWN_BUDGET: Duration = Duration::from_secs(40);
-/// How often the coordinator checks for rows recorded after a shutdown signal.
-const SHUTDOWN_POLL: Duration = Duration::from_millis(100);
 /// Additional time after the shutdown deadline to finish writing row logs. The combined
 /// 50-second budget fits within the pods' 60-second termination grace period.
 pub const ROW_LOG_BUDGET: Duration = Duration::from_secs(10);
@@ -69,6 +67,8 @@ struct LastSeenBuffer {
     /// Limits Sentry reports to one per period at capacity; cleared when a flush empties the
     /// buffer.
     saturated: bool,
+    /// Set by `begin_draining` once shutdown starts; every later record wakes the coordinator.
+    draining: bool,
     /// Set by `close` at the end of shutdown; later records are logged and counted as dropped.
     closed: bool,
     /// Set by the first record after `close`, so only one Sentry event is sent.
@@ -99,7 +99,7 @@ impl Collector {
         let key = (fxa_uid.to_owned(), client_id.to_owned());
         let metrics = Metrics::from(&self.metrics);
 
-        let (len, newly_saturated) = {
+        let (len, newly_saturated, draining) = {
             let mut buffer = self.buffer();
 
             if buffer.closed {
@@ -125,26 +125,29 @@ impl Collector {
                 return;
             }
 
+            let draining = buffer.draining;
             let len = buffer.map.len();
             match buffer.map.entry(key) {
                 Entry::Occupied(mut entry) => {
                     if seen > *entry.get() {
                         entry.insert(seen);
                     }
-                    (Some(len), false)
+                    (Some(len), false, draining)
                 }
                 Entry::Vacant(entry) if len < BUFFER_CAPACITY => {
                     entry.insert(seen);
-                    (Some(len + 1), false)
+                    (Some(len + 1), false, draining)
                 }
-                Entry::Vacant(_) => (None, !mem::replace(&mut buffer.saturated, true)),
+                Entry::Vacant(_) => (None, !mem::replace(&mut buffer.saturated, true), draining),
             }
         };
 
         match len {
             Some(len) => {
                 metrics.incr(METRIC_RECORDED);
-                if len >= FLUSH_THRESHOLD {
+                // While draining, every row is due for flushing and the coordinator has no
+                // other signal that one arrived.
+                if len >= FLUSH_THRESHOLD || draining {
                     self.wake.notify_one();
                 }
             }
@@ -169,6 +172,12 @@ impl Collector {
                 }
             }
         }
+    }
+
+    /// Makes every later record wake the coordinator, which is otherwise only woken by a full
+    /// buffer or the flush timer.
+    pub fn begin_draining(&self) {
+        self.buffer().draining = true;
     }
 
     pub fn take_all(&self) -> HashMap<Key, DateTime<Utc>> {
@@ -811,6 +820,7 @@ impl<U: Upload> Coordinator<U> {
     pub async fn run(mut self) -> usize {
         let mut last_flush = Instant::now();
         let mut shutdown = self.shutdown.subscribe();
+        let mut draining = false;
 
         loop {
             let shutdown_state = *shutdown.borrow_and_update();
@@ -827,6 +837,13 @@ impl<U: Upload> Coordinator<U> {
             }
 
             let shutting_down = shutdown_state.deadline.is_some();
+            if shutting_down && !draining {
+                // Rows recorded by requests still finishing are due immediately. Switched on
+                // before `buffered` is read below, so a concurrent record either lands in this
+                // pass's buffer or wakes the next one.
+                self.collector.begin_draining();
+                draining = true;
+            }
             let buffered = self.collector.len();
             self.report_gauges(buffered);
             let mut waiting_for_slot = false;
@@ -854,7 +871,6 @@ impl<U: Upload> Coordinator<U> {
                 _ = shutdown.changed() => {}
                 Some(_) = self.uploads.join_next(), if !self.uploads.is_empty() => {}
                 _ = sleep_until(deadline), if shutting_down => {}
-                _ = sleep(SHUTDOWN_POLL), if shutting_down && !waiting_for_slot => {}
             }
         }
     }
@@ -918,6 +934,7 @@ impl<U: Upload> Coordinator<U> {
 mod tests {
     use super::*;
     use chrono::TimeDelta;
+    use tokio::time::{sleep, timeout};
 
     fn collector() -> Collector {
         Collector::new(Arc::new(
@@ -984,6 +1001,26 @@ mod tests {
         tokio::time::timeout(std::time::Duration::from_secs(1), collector.wake.notified())
             .await
             .expect("reaching FLUSH_THRESHOLD should wake the coordinator");
+    }
+
+    #[tokio::test]
+    async fn test_record_wakes_every_time_while_draining() {
+        let collector = collector();
+        collector.record("early", "client", Utc::now());
+        assert!(
+            timeout(Duration::from_millis(50), collector.wake.notified())
+                .await
+                .is_err(),
+            "a single row below the threshold must not wake the coordinator"
+        );
+
+        collector.begin_draining();
+        for uid in ["late", "later"] {
+            collector.record(uid, "client", Utc::now());
+            timeout(Duration::from_secs(1), collector.wake.notified())
+                .await
+                .expect("each row recorded while draining wakes the coordinator");
+        }
     }
 
     #[test]
@@ -1717,11 +1754,10 @@ mod tests {
         h.shutdown.begin();
         settle().await;
         record_n(&h.collector, "late", 1);
-        tokio::time::advance(Duration::from_secs(1)).await;
         let (batch, done) = h
             .next_upload()
             .await
-            .expect("a finishing exchange's row is flushed");
+            .expect("a finishing exchange's row is flushed without waiting for the timer");
         assert_eq!(batch.len(), 1);
         done.send(()).unwrap();
 
