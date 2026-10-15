@@ -21,9 +21,11 @@ syncstorage-mysql = { path = "../syncstorage-mysql", optional = true }
 syncstorage-postgres = { path = "../syncstorage-postgres", optional = true }
 syncstorage-settings = { path = "../syncstorage-settings" }
 syncstorage-spanner = { path = "../syncstorage-spanner", optional = true }
+syncstorage-sqlite = { path = "../syncstorage-sqlite", optional = true }
 tokio = { workspace = true, features = ["macros", "sync"] }
 
 [features]
 mysql = ['syncstorage-mysql']
 postgres = ['syncstorage-postgres']
 spanner = ['syncstorage-spanner']
+sqlite = ['syncstorage-sqlite']
