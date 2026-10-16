@@ -16,7 +16,7 @@ use crate::error::ApiResult;
 use slog::{self, Drain};
 use slog_mozlog_json::MozLogJson;
 
-/// Writes last-seen upload failures and shutdown drops synchronously to the log output.
+/// Writes last-seen upload failures and shutdown drops synchronously (avoiding slog_async's buffering to a bounded queue that drops on overflow) to the log output
 /// Set by `init_logging` and used only by the dedicated row-log thread because writes may block.
 static ROW_LOGGER: Mutex<Option<slog::Logger>> = Mutex::new(None);
 
