@@ -11,13 +11,14 @@ use std::{
 #[cfg(target_os = "linux")]
 use std::os::linux::fs::MetadataExt;
 
-use crate::error::ApiResult;
+use crate::error::{ApiError, ApiResult};
 
 use slog::{self, Drain};
 use slog_mozlog_json::MozLogJson;
 
-/// Writes last-seen upload failures and shutdown drops synchronously (avoiding slog_async's buffering to a bounded queue that drops on overflow) to the log output
-/// Set by `init_logging` and used only by the dedicated row-log thread because writes may block.
+/// Writes last-seen upload failures and shutdown drops synchronously (avoiding slog_async's
+/// buffering to a bounded queue that drops on overflow) to the log output Set by `init_logging`
+/// and used only by the dedicated row-log thread because writes may block.
 static ROW_LOGGER: Mutex<Option<slog::Logger>> = Mutex::new(None);
 
 type OutputDrain = Box<dyn Drain<Ok = (), Err = slog::Never> + Send>;
@@ -82,14 +83,13 @@ pub fn init_logging(json: bool) -> ApiResult<()> {
     Ok(())
 }
 
-/// Returns the per-row logger, falling back to the current scoped or global logger before
-/// `init_logging`.
-pub fn row_logger() -> slog::Logger {
+/// Returns the per-row logger, or an error if `init_logging` has not been called.
+pub fn row_logger() -> ApiResult<slog::Logger> {
     ROW_LOGGER
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .clone()
-        .unwrap_or_else(slog_scope::logger)
+        .ok_or_else(|| ApiError::internal("Row logger requires init_logging"))
 }
 
 /// Replaces the global logger with one that discards records. Dropping the old logger flushes

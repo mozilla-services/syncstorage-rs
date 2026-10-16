@@ -599,7 +599,7 @@ fn start_last_seen(
         .unwrap_or_default();
     let metrics = Arc::clone(&state.metrics);
     let collector = Arc::new(Collector::new(Arc::clone(&metrics)));
-    let row_log = RowLog::spawn(row_logger())?;
+    let row_log = RowLog::spawn(row_logger()?)?;
     let uploader = Arc::new(Uploader::new(
         staging_table,
         row_log.clone(),
