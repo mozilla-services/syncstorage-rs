@@ -73,13 +73,13 @@ fn get_test_settings() -> Settings {
     if cfg!(feature = "mysql") && settings.syncstorage.uses_spanner() {
         panic!(
             "Spanner database_url specified for MySQL feature, please correct.\n\t{}",
-            &settings.syncstorage.database_url
+            settings.syncstorage.database_url
         )
     }
     if cfg!(feature = "spanner") && !&settings.syncstorage.uses_spanner() {
         panic!(
             "MySQL database_url specified for Spanner feature, please correct.\n\t{}",
-            &settings.syncstorage.database_url
+            settings.syncstorage.database_url
         )
     }
     settings.port = port;

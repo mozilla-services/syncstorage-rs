@@ -17,11 +17,11 @@ on:
       rust-version:
         description: "Rust version to use"
         required: false
-        default: "1.91" # RUST_VER
+        default: "1.98.1" # RUST_VER
 
 env:
   PYTHON_VERSION: ${{ inputs.python-version || '3.13' }} # PY_VER
-  RUST_VERSION: ${{ inputs.rust-version || '1.91' }} # RUST_VER
+  RUST_VERSION: ${{ inputs.rust-version || '1.98.1' }} # RUST_VER
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}

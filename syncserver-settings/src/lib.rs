@@ -94,17 +94,17 @@ impl Settings {
 
         let mut s: Settings = settings.try_deserialize::<Self>().map_err(|e| match e {
             ConfigError::Message(v) => {
-                println!("Bad configuration: {:?}", &v);
+                println!("Bad configuration: {v:?}");
                 println!("Please set in config file or use environment variable.");
                 println!(
                     "For example to set `database_url` use env var `{}_DATABASE_URL`\n",
                     PREFIX.to_uppercase()
                 );
-                error!("Configuration error: Value undefined {:?}", &v);
+                error!("Configuration error: Value undefined {v:?}");
                 ConfigError::NotFound(v)
             }
             e => {
-                error!("Configuration error: Other: {:?}", &e);
+                error!("Configuration error: Other: {e:?}");
                 e
             }
         })?;
