@@ -246,7 +246,7 @@ pub async fn delete_collection(
         .get("x-confirm-delete")
         .is_some_and(|value| value.as_bytes() == b"1");
     let ignore_delete =
-        state.require_collection_delete_confirmation && coll.query.ids.is_empty() && !confirmed;
+        state.require_collection_delete_confirmation && coll.query.ids.is_none() && !confirmed;
     let db_pool = if ignore_delete {
         db_pool.with_read_only_transaction()
     } else {
@@ -261,13 +261,13 @@ pub async fn delete_collection(
                 return Ok(HttpResponse::Ok().json(db.get_storage_timestamp(coll.user_id).await?));
             }
 
-            let delete_bsos = !coll.query.ids.is_empty();
-            let timestamp = if delete_bsos {
+            let delete_bsos = coll.query.ids.is_some();
+            let timestamp = if let Some(ids) = &coll.query.ids {
                 coll.emit_api_metric("request.delete_bsos");
                 db.delete_bsos(params::DeleteBsos {
                     user_id: coll.user_id.clone(),
                     collection: coll.collection.clone(),
-                    ids: coll.query.ids.clone(),
+                    ids: ids.clone(),
                 })
                 .await
             } else {
@@ -335,7 +335,7 @@ pub async fn get_collection(
         sort: coll.query.sort,
         limit: coll.query.limit,
         offset: coll.query.offset,
-        ids: coll.query.ids.clone(),
+        ids: coll.query.ids.clone().unwrap_or_default(),
         full: coll.query.full,
         collection: coll.collection.clone(),
     };

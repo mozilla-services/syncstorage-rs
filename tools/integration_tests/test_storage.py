@@ -1286,6 +1286,20 @@ def test_that_batch_deletes_are_limited_to_max_number_of_ids(st_ctx):
     retry_delete(app, root + "/storage/xxx_col2?ids=" + ids, status=400)
 
 
+def test_that_delete_with_empty_ids_rejected(st_ctx):
+    """Test that an empty "ids" value is a 400."""
+    app = st_ctx["app"]
+    root = st_ctx["root"]
+    bso = {"id": "01", "payload": "testing"}
+    retry_put_json(app, root + "/storage/xxx_col2/01", bso)
+
+    for query in ("ids=", "ids=%20", "ids=,"):
+        retry_delete(app, root + "/storage/xxx_col2?" + query, status=400)
+
+    res = app.get(root + "/storage/xxx_col2")
+    assert len(res.json) == 1
+
+
 def test_that_expired_items_can_be_overwritten_via_PUT(st_ctx):
     """Test that expired items can be overwritten via PUT."""
     app = st_ctx["app"]
