@@ -229,6 +229,27 @@ impl Settings {
             ));
         }
 
+        if self.tokenserver.enabled && self.tokenserver.last_seen_enabled {
+            let staging_table = self
+                .tokenserver
+                .last_seen_staging_table
+                .as_deref()
+                .unwrap_or_default();
+            if tokenserver_settings::parse_bigquery_table_id(staging_table).is_none() {
+                return Err(ConfigError::Message(
+                    "SYNC_TOKENSERVER__LAST_SEEN_STAGING_TABLE must be set as \
+                     PROJECT_ID.DATASET_ID.TABLE_ID when last-seen is enabled"
+                        .to_owned(),
+                ));
+            }
+            if self.tokenserver.last_seen_max_concurrent_flushes == 0 {
+                return Err(ConfigError::Message(
+                    "SYNC_TOKENSERVER__LAST_SEEN_MAX_CONCURRENT_FLUSHES must be greater than 0"
+                        .to_owned(),
+                ));
+            }
+        }
+
         if let Some(init_node_url) = &self.tokenserver.init_node_url {
             let url = Url::parse(init_node_url).map_err(|e| {
                 ConfigError::Message(format!("Invalid SYNC_TOKENSERVER__INIT_NODE_URL: {e}"))
@@ -679,5 +700,61 @@ mod test {
                 assert!(settings.tokenserver.database_url.is_empty());
             },
         );
+    }
+
+    fn with_last_seen_vars(
+        staging_table: Option<&str>,
+        max_concurrent_flushes: Option<&str>,
+        f: impl FnOnce(),
+    ) {
+        temp_env::with_vars(
+            [
+                (
+                    "SYNC_SYNCSTORAGE__DATABASE_URL",
+                    Some(TEST_SYNCSTORAGE_DATABASE_URL),
+                ),
+                (
+                    "SYNC_TOKENSERVER__DATABASE_URL",
+                    Some(TEST_TOKENSERVER_DATABASE_URL),
+                ),
+                ("SYNC_TOKENSERVER__ENABLED", Some("true")),
+                ("SYNC_TOKENSERVER__LAST_SEEN_ENABLED", Some("true")),
+                ("SYNC_TOKENSERVER__LAST_SEEN_STAGING_TABLE", staging_table),
+                (
+                    "SYNC_TOKENSERVER__LAST_SEEN_MAX_CONCURRENT_FLUSHES",
+                    max_concurrent_flushes,
+                ),
+            ],
+            f,
+        );
+    }
+
+    #[test]
+    fn test_last_seen_settings_validate() {
+        with_last_seen_vars(Some("project.dataset.table"), None, || {
+            let settings = Settings::with_env_and_config_file(None)
+                .expect("a qualified staging table should validate");
+            assert_eq!(
+                settings.tokenserver.last_seen_staging_table.as_deref(),
+                Some("project.dataset.table")
+            );
+            assert_eq!(settings.tokenserver.last_seen_max_concurrent_flushes, 4);
+        });
+    }
+
+    #[test]
+    fn test_last_seen_invalid_settings_fail() {
+        for staging_table in [None, Some("dataset.table")] {
+            with_last_seen_vars(staging_table, None, || {
+                let err = Settings::with_env_and_config_file(None)
+                    .expect_err("a missing or unqualified staging table should fail");
+                assert!(err.to_string().contains("LAST_SEEN_STAGING_TABLE"));
+            });
+        }
+        with_last_seen_vars(Some("project.dataset.table"), Some("0"), || {
+            let err = Settings::with_env_and_config_file(None)
+                .expect_err("zero concurrent flushes should fail");
+            assert!(err.to_string().contains("LAST_SEEN_MAX_CONCURRENT_FLUSHES"));
+        });
     }
 }

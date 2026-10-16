@@ -957,8 +957,8 @@ jobs:
 
       - name: Build workspace (spanner feature)
         run: |
-          # Build with the spanner feature so any compile-time issues surface early
-          cargo build --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier
+          # Build with Spanner and Last Seen so any compile-time issues surface early
+          cargo build --workspace --no-default-features --features=syncserver/spanner --features=syncserver/last_seen --features=py_verifier
 
       - name: Wait for Spanner Emulator to be ready
         run: |
@@ -990,6 +990,13 @@ jobs:
         run: |
           mysql -u root -ppassword -h 127.0.0.1 -e 'CREATE DATABASE tokenserver;'
           mysql -u root -ppassword -h 127.0.0.1 -e "GRANT ALL ON tokenserver.* to 'test'@'%';"
+
+      - name: Install Python tokenlib
+        # The last_seen handler test needs py_verifier to work
+        run: |
+          pip3 install poetry
+          poetry install --only main --no-interaction --no-ansi
+          echo "PYTHONPATH=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" >> "$GITHUB_ENV"
 
       - name: Run Spanner unit tests with coverage
         env:

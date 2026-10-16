@@ -1,6 +1,12 @@
 use jsonwebtoken::jwk::Jwk;
+use regex::Regex;
 use serde::Deserialize;
+
 use tokenserver_common::NodeType;
+
+const PROJECT_ID_REGEX: &str = r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$";
+const DATASET_ID_REGEX: &str = r"^[A-Za-z0-9_]{1,1024}$";
+const TABLE_ID_REGEX: &str = r"^[A-Za-z0-9_-]{1,1024}$";
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default)]
@@ -80,6 +86,29 @@ pub struct Settings {
     /// Whether new users may register to the Tokenserver.
     /// Defaults to true.
     pub allow_new_users: bool,
+    /// Whether to record account last-seen times in BigQuery. Requires syncserver's `last_seen`
+    /// feature.
+    /// Defaults to false.
+    pub last_seen_enabled: bool,
+    /// The fully qualified BigQuery staging table for last-seen rows, as
+    /// `PROJECT_ID.DATASET_ID.TABLE_ID`. Required when `last_seen_enabled` is true.
+    pub last_seen_staging_table: Option<String>,
+    /// The maximum number of concurrent last-seen uploads.
+    /// Defaults to 4.
+    pub last_seen_max_concurrent_flushes: usize,
+}
+
+/// Splits a fully qualified BigQuery table ID into `(project, dataset, table)`.
+pub fn parse_bigquery_table_id(table_id: &str) -> Option<(&str, &str, &str)> {
+    let parts: Vec<&str> = table_id.split('.').collect();
+    let [project, dataset, table] = parts[..] else {
+        return None;
+    };
+    let matches = |regex: &str, id: &str| Regex::new(regex).unwrap().is_match(id);
+    let valid = matches(PROJECT_ID_REGEX, project)
+        && matches(DATASET_ID_REGEX, dataset)
+        && matches(TABLE_ID_REGEX, table);
+    valid.then_some((project, dataset, table))
 }
 
 impl Default for Settings {
@@ -112,6 +141,48 @@ impl Default for Settings {
             fxa_webhook_set_client_id: None,
             fxa_webhook_set_issuer: None,
             allow_new_users: true,
+            last_seen_enabled: false,
+            last_seen_staging_table: None,
+            last_seen_max_concurrent_flushes: 4,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_bigquery_table_id;
+
+    #[test]
+    fn test_parse_bigquery_table_id() {
+        assert_eq!(
+            parse_bigquery_table_id("moz-fx-sync-prod.account_last_seen.last_seen_staging"),
+            Some(("moz-fx-sync-prod", "account_last_seen", "last_seen_staging"))
+        );
+        assert_eq!(
+            parse_bigquery_table_id("my-project.Data_1.last-seen_staging"),
+            Some(("my-project", "Data_1", "last-seen_staging"))
+        );
+        let long_table = format!("project.dataset.{}", "x".repeat(1025));
+        for invalid in [
+            "",
+            "table",
+            "dataset.table",
+            ".dataset.table",
+            "project..table",
+            "project.dataset.",
+            "project.dataset.table.columnmaybe",
+            "project:dataset.table",
+            "My-project.dataset.table",
+            "proj.dataset.table",
+            "a-project-id-that-is-over-thirty.dataset.table",
+            "1project.dataset.table",
+            "project-.dataset.table",
+            "project.data-set.table",
+            "project.dataset.ta/ble",
+            "project.dataset.last seen",
+            &long_table,
+        ] {
+            assert_eq!(parse_bigquery_table_id(invalid), None, "{invalid:?}");
         }
     }
 }

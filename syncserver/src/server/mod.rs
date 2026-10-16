@@ -1,6 +1,8 @@
 //! Main application server
 
-use std::{convert::Infallible, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{
+    convert::Infallible, future::Future, num::NonZeroUsize, pin::Pin, sync::Arc, time::Duration,
+};
 
 use actix_cors::Cors;
 use actix_web::{
@@ -383,7 +385,9 @@ macro_rules! build_app_without_syncstorage {
 }
 
 impl Server {
-    pub async fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
+    pub async fn with_settings(
+        settings: Settings,
+    ) -> Result<(dev::Server, Option<LastSeenDrain>), ApiError> {
         let settings_copy = settings.clone();
         let metrics = syncserver_common::metrics_from_opts(
             &settings.syncstorage.statsd_label,
@@ -445,7 +449,7 @@ impl Server {
         let secrets = Arc::new(settings.master_secret);
         let quota_enabled = settings.syncstorage.enable_quota;
         let actix_keep_alive = settings.actix_keep_alive;
-        let tokenserver_state = if settings.tokenserver.enabled {
+        let (tokenserver_state, last_seen_drain) = if settings.tokenserver.enabled {
             let mut state = tokenserver::ServerState::from_settings(
                 &settings.tokenserver,
                 syncserver_common::metrics_from_opts(
@@ -456,8 +460,9 @@ impl Server {
                 blocking_threadpool,
             )?;
             state.init().await;
+            let last_seen_drain = start_last_seen(&settings.tokenserver, &mut state)?;
 
-            Some(state)
+            (Some(state), last_seen_drain)
         } else {
             // Only spawn a metric-reporting task if tokenserver is not running; if tokenserver is
             // running, we are running syncstorange and tokenserver as a single service, which
@@ -470,7 +475,7 @@ impl Server {
                 settings.include_hostname_tag,
             )?;
 
-            None
+            (None, None)
         };
 
         let mut server = HttpServer::new(move || {
@@ -510,12 +515,12 @@ impl Server {
             .bind(format!("{}:{}", host, port))
             .expect("Could not get Server in Server::with_settings")
             .run();
-        Ok(server)
+        Ok((server, last_seen_drain))
     }
 
     pub async fn tokenserver_only_with_settings(
         settings: Settings,
-    ) -> Result<dev::Server, ApiError> {
+    ) -> Result<(dev::Server, Option<LastSeenDrain>), ApiError> {
         let settings_copy = settings.clone();
 
         let host = settings.host.clone();
@@ -539,6 +544,7 @@ impl Server {
             blocking_threadpool.clone(),
         )?;
         tokenserver_state.init().await;
+        let last_seen_drain = start_last_seen(&settings.tokenserver, &mut tokenserver_state)?;
 
         spawn_metric_periodic_reporter(
             Duration::from_secs(10),
@@ -562,8 +568,82 @@ impl Server {
             .bind(format!("{}:{}", host, port))
             .expect("Could not get Server in Server::with_settings")
             .run();
-        Ok(server)
+        Ok((server, last_seen_drain))
     }
+}
+
+/// Drains last-seen uploads and logs after the server stops. Returns the deadline for
+/// final logger cleanup in `main`.
+pub type LastSeenDrain = Pin<Box<dyn Future<Output = std::time::Instant> + Send>>;
+
+/// Starts last-seen collection and the upload coordinator when enabled. A SIGTERM/SIGINT
+/// listener starts the shutdown budget, which includes actix's 30-second request drain.
+#[cfg(feature = "last_seen")]
+fn start_last_seen(
+    settings: &tokenserver_settings::Settings,
+    state: &mut tokenserver::ServerState,
+) -> Result<Option<LastSeenDrain>, ApiError> {
+    use crate::logging::row_logger;
+    use tokenserver::last_seen::{
+        Collector, Coordinator, RowLog, Shutdown, Uploader, finish_shutdown,
+    };
+    use tokio::signal::unix::{SignalKind, signal};
+
+    if !settings.last_seen_enabled {
+        return Ok(None);
+    }
+    // Validated at startup by `syncserver_settings::Settings::validate`.
+    let staging_table = settings
+        .last_seen_staging_table
+        .as_deref()
+        .unwrap_or_default();
+    let metrics = Arc::clone(&state.metrics);
+    let collector = Arc::new(Collector::new(Arc::clone(&metrics)));
+    let row_log = RowLog::spawn(row_logger()?)?;
+    let uploader = Arc::new(Uploader::new(
+        staging_table,
+        row_log.clone(),
+        Arc::clone(&metrics),
+    )?);
+    let shutdown = Arc::new(Shutdown::default());
+    let coordinator = Coordinator::new(
+        Arc::clone(&collector),
+        uploader,
+        row_log.clone(),
+        settings.last_seen_max_concurrent_flushes,
+        Arc::clone(&shutdown),
+        metrics,
+    );
+
+    // Created here so that a failure stops startup instead of disabling shutdown handling.
+    let signal_error = |e: std::io::Error| {
+        crate::error::ApiErrorKind::Internal(format!("Last-seen signal handler: {e}"))
+    };
+    let mut terminate = signal(SignalKind::terminate()).map_err(signal_error)?;
+    let mut interrupt = signal(SignalKind::interrupt()).map_err(signal_error)?;
+    let signaled = Arc::clone(&shutdown);
+    tokio::spawn(async move {
+        tokio::select! {
+            _ = terminate.recv() => {}
+            _ = interrupt.recv() => {}
+        }
+        signaled.begin();
+    });
+    let coordinator = tokio::spawn(coordinator.run());
+
+    state.last_seen = Some(collector);
+    Ok(Some(Box::pin(async move {
+        finish_shutdown(&shutdown, coordinator, &row_log).await
+    })))
+}
+
+/// Builds without the `last_seen` Cargo feature do not start collection.
+#[cfg(not(feature = "last_seen"))]
+fn start_last_seen(
+    _settings: &tokenserver_settings::Settings,
+    _state: &mut tokenserver::ServerState,
+) -> Result<Option<LastSeenDrain>, ApiError> {
+    Ok(None)
 }
 
 fn calculate_worker_max_blocking_threads(count: usize) -> usize {
