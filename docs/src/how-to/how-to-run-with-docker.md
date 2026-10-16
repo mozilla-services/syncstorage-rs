@@ -62,7 +62,7 @@ Note that multiple values will be read from the environment:
 - [`SYNC_MASTER_SECRET`](../config.md#SYNC_MASTER_SECRET): a secret used in cryptographic operations, a passphrase or random character string, e.g. `use_your_own_secret_4d3d3d3d`
 - [`SYNC_SYNCSTORAGE__DATABASE_URL`](../config.md#SYNC_SYNCSTORAGE__DATABASE_URL): database URL for syncstorage, e.g. `mysql://sync:test@example.io/syncstorage` or `postgres://testo:@localhost/syncdb`
 - [`SYNC_TOKENSERVER__DATABASE_URL`](../config.md#SYNC_TOKENSERVER__DATABASE_URL): database URL for tokenserver, e.g. `mysql://sync:test@example.io/tokenserver` or `postgres://testo:@localhost/syncdb`
-- [`SYNC_TOKENSERVER__INIT_NODE_URL`](../config.md#SYNC_TOKENSERVER__INIT_NODE_URL): the storage node URL (defaults to `http://localhost:8000`).  Replace with the actual URL where clients will access the sync server. syncserver initializes the tokenserver `nodes` table by inserting this URL on startup (if it doesn't already exist).
+- [`SYNC_TOKENSERVER__INIT_NODE_URL`](../config.md#SYNC_TOKENSERVER__INIT_NODE_URL): the storage node URL (defaults to `http://localhost:8000`).  Replace with the actual URL where clients will access the sync server. Syncserver initializes the Tokenserver `nodes` table by inserting this URL on startup (if it doesn't already exist).
 
 The values can be directly written into the yaml as well.
 
