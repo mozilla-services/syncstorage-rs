@@ -67,7 +67,7 @@ python purge_old_records.py [options] secret
 | Option                  | Description                                                                                     | Default      |
 |-------------------------|-------------------------------------------------------------------------------------------------|--------------|
 | `--purge-interval`      | Interval in seconds to sleep between purging runs.                                             | `3600`       |
-| `--grace-period`        | Grace period in seconds before deleting records.                                               | `86400`      |
+| `--grace-period`        | Grace period in seconds before deleting records.                                               | `86700` (24h5m) |
 | `--max-per-loop`        | Maximum number of items to process in each batch.                                              | `10`         |
 | `--max-offset`          | Random offset to select records for purging, reducing collisions in concurrent tasks.           | `0`          |
 | `--max-records`         | Maximum number of records to purge before exiting.                                             | `0` (no limit) |
@@ -79,6 +79,8 @@ python purge_old_records.py [options] secret
 | `--range_start`         | Start of UID range to process.                                                                 | None         |
 | `--range_end`           | End of UID range to process.                                                                   | None         |
 | `--human_logs`          | Enable human-readable logs.                                                                    | Disabled     |
+| `--last-seen-staging-table` | BigQuery last-seen staging table (`PROJECT.DATASET.TABLE`). Requires `--last-seen-table`.   | None         |
+| `--last-seen-table`     | BigQuery last-seen final table (`PROJECT.DATASET.TABLE`). Requires `--last-seen-staging-table`. | None         |
 
 ### Examples
 
@@ -129,6 +131,11 @@ python purge_old_records.py --force secret_key
 
 6. **Dry Run Mode**:
    - Simulates deletions without modifying the database or storage nodes, useful for testing.
+
+7. **Account Last-Seen Deletion**:
+   - With both `--last-seen-*` options, each record retired by an FxA account deletion first has its account's rows deleted from the BigQuery last-seen tables, just before the record itself.
+   - If that job fails or times out, the retired record stays, `replaced_at` is bumped, and it is retried after another grace period. Other records continue normally.
+   - The default grace period (24 hours 5 minutes) outlasts the one-day OAuth token lifetime plus the upload delay, so an account's last activity normally reaches BigQuery before purge deletes it.
 
 ---
 

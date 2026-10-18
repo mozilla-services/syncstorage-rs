@@ -12,7 +12,7 @@ import tokenlib
 from wsgiref.simple_server import make_server
 
 from database import Database
-from purge_old_records import purge_old_records
+from purge_old_records import LastSeen, purge_old_records
 from util import get_timestamp
 
 
@@ -522,3 +522,170 @@ def test_purging_override_null_keys_changed_at(
     assert len(user_records) == 1
     assert user_records[0].node == spanner_node
     assert len(service_requests) == 0
+
+
+class _FakeLastSeen:
+    def __init__(self, fail=False):
+        self.calls = []
+        self.fail = fail
+
+    def delete(self, fxa_uids):
+        self.calls.append(fxa_uids)
+        if self.fail:
+            raise RuntimeError("simulated BigQuery failure")
+
+
+def _retired_user(database, email, node=None):
+    user = database.allocate_user(email, client_state="aa", node=node)
+    database.retire_user(email)
+    database.replace_user_record(user["uid"], timestamp=get_timestamp() - 1000)
+    return user
+
+
+def _replaced_user(database, email):
+    user = database.allocate_user(
+        email, client_state="aa", generation=1, timestamp=get_timestamp() - 1000
+    )
+    database.update_user(user, client_state="bb", generation=2)
+    return user
+
+
+def test_last_seen_deleted_for_retired_users_only(purge_db, mock_service_server):
+    database = purge_db
+    _retired_user(database, "deleted@mozilla.com")
+    _replaced_user(database, "live@mozilla.com")
+    last_seen = _FakeLastSeen()
+    metrics = _RecordingMetrics()
+
+    assert purge_old_records(
+        "SECRET", grace_period=0, last_seen=last_seen, metrics=metrics
+    )
+
+    assert last_seen.calls == [["deleted"]]
+    assert list(database.get_user_records("deleted@mozilla.com")) == []
+    assert len(list(database.get_user_records("live@mozilla.com"))) == 1
+    deleted = [i for i in metrics.incrs if i[0] == "purge.last_seen.deleted"]
+    assert deleted == [("purge.last_seen.deleted", 1, None)]
+
+
+def test_last_seen_respects_max_records(purge_db, mock_service_server):
+    database = purge_db
+    for email in ("one@mozilla.com", "two@mozilla.com"):
+        _retired_user(database, email)
+    last_seen = _FakeLastSeen()
+
+    assert purge_old_records(
+        "SECRET", grace_period=0, max_records=1, last_seen=last_seen
+    )
+
+    [[purged]] = last_seen.calls
+    kept = ({"one", "two"} - {purged}).pop()
+    assert list(database.get_user_records(f"{purged}@mozilla.com")) == []
+    assert len(list(database.get_user_records(f"{kept}@mozilla.com"))) == 1
+
+
+def test_last_seen_failure_keeps_retired_record(purge_db, mock_service_server):
+    database = purge_db
+    retired = _retired_user(database, "deleted@mozilla.com")
+    _replaced_user(database, "live@mozilla.com")
+    original = next(iter(database.get_user_records("deleted@mozilla.com")))
+    metrics = _RecordingMetrics()
+
+    assert purge_old_records(
+        "SECRET",
+        grace_period=0,
+        last_seen=_FakeLastSeen(fail=True),
+        metrics=metrics,
+    )
+
+    # Retain the retired record and its storage data, and advance replaced_at
+    # to defer the retry.
+    records = list(database.get_user_records("deleted@mozilla.com"))
+    assert [r.uid for r in records] == [retired["uid"]]
+    assert records[0].replaced_at > original.replaced_at
+    paths = [e["PATH_INFO"] for e in mock_service_server["requests"]]
+    assert f"/1.5/{retired['uid']}" not in paths
+    assert len(list(database.get_user_records("live@mozilla.com"))) == 1
+    failures = [c for c in metrics.incrs if c[0] == "row_failure"]
+    assert failures == [("row_failure", 1, {"reason": "bigquery_delete"})]
+
+
+def test_last_seen_follows_record_deletion(purge_db, mock_service_server):
+    database = purge_db
+    service_node = mock_service_server["node"]
+    _retired_user(database, "deleted@mozilla.com")
+    last_seen = _FakeLastSeen()
+
+    # Dry run without --force delete nothing
+    assert purge_old_records("SECRET", grace_period=0, dryrun=True, last_seen=last_seen)
+    database.update_node(service_node, downed=1)
+    assert purge_old_records("SECRET", grace_period=0, last_seen=last_seen)
+    assert last_seen.calls == []
+    assert len(list(database.get_user_records("deleted@mozilla.com"))) == 1
+
+    # --force BigQuery cleanup and record deletion
+    assert purge_old_records("SECRET", grace_period=0, force=True, last_seen=last_seen)
+    assert last_seen.calls == [["deleted"]]
+    assert list(database.get_user_records("deleted@mozilla.com")) == []
+
+
+def test_last_seen_nodeless_retired_record(purge_db, mock_service_server):
+    database = purge_db
+    _retired_user(database, "deleted@mozilla.com")
+    database.remove_node(mock_service_server["node"], timestamp=get_timestamp() - 1000)
+    last_seen = _FakeLastSeen()
+
+    assert purge_old_records("SECRET", grace_period=0, last_seen=last_seen)
+
+    assert last_seen.calls == [["deleted"]]
+    assert list(database.get_user_records("deleted@mozilla.com")) == []
+    assert mock_service_server["requests"] == []
+
+
+class _FakeJob:
+    def __init__(self, error):
+        self.error = error
+        self.timeout = None
+
+    def result(self, timeout=None):
+        self.timeout = timeout
+        if self.error:
+            raise self.error
+
+
+class _FakeBigQueryClient:
+    def __init__(self, error=None):
+        self.error = error
+        self.queries = []
+
+    def query(self, sql, job_config=None):
+        job = _FakeJob(self.error)
+        self.queries.append((sql, job_config, job))
+        return job
+
+
+def test_last_seen_runs_one_parameterized_transaction():
+    client = _FakeBigQueryClient()
+    last_seen = LastSeen("proj.ds.staging", "proj.ds.final", client=client, timeout=7)
+
+    last_seen.delete(["a", "b"])
+
+    [(sql, job_config, job)] = client.queries
+    assert sql.startswith("BEGIN TRANSACTION;")
+    assert "DELETE FROM `proj.ds.staging` WHERE uid IN UNNEST(@uids);" in sql
+    assert "DELETE FROM `proj.ds.final` WHERE uid IN UNNEST(@uids);" in sql
+    assert sql.endswith("COMMIT TRANSACTION;")
+    [param] = job_config.query_parameters
+    assert (param.name, param.array_type, param.values) == (
+        "uids",
+        "STRING",
+        ["a", "b"],
+    )
+    assert job.timeout == 7
+
+
+def test_last_seen_job_error_raises():
+    client = _FakeBigQueryClient(error=TimeoutError("job still running"))
+    last_seen = LastSeen("proj.ds.staging", "proj.ds.final", client=client)
+    with pytest.raises(TimeoutError):
+        last_seen.delete(["a"])
