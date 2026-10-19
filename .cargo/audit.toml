@@ -2,4 +2,10 @@
 ignore = [
        "RUSTSEC-2024-0437", # Bound by grpcio 0.13,
        "RUSTSEC-2026-0258", # Bound by actix-web, actix-http
+       # zip <9 via utoipa-swagger-ui build-dep (latest 10.0.1 pins zip 8.6).
+       # Its build.rs does not call ZipArchive::extract and writes no
+       # symlinks; it only unpacks the pinned swagger-ui archive at build time.
+       "RUSTSEC-2026-0367",
+       "RUSTSEC-2026-0368",
+       "RUSTSEC-2026-0369",
 ]
