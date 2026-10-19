@@ -14,7 +14,7 @@ use super::{BATCH_MAX_IDS, RequestErrorLocation, VALID_ID_REGEX, request_error};
 use crate::web::error::ValidationErrorKind;
 
 /// Verifies that the list of ids is non-empty, not too long and that the ids are valid
-pub fn validate_qs_ids(ids: &[String]) -> Result<(), ValidationError> {
+fn validate_qs_ids(ids: &[String]) -> Result<(), ValidationError> {
     if ids.is_empty() {
         return Err(request_error(
             "No ids provided",
@@ -39,42 +39,34 @@ pub fn validate_qs_ids(ids: &[String]) -> Result<(), ValidationError> {
 }
 
 /// Deserialize a header string value (epoch seconds with 2 decimal places) as SyncTimestamp
-pub fn deserialize_sync_timestamp<'de, D>(
-    deserializer: D,
-) -> Result<Option<SyncTimestamp>, D::Error>
+fn deserialize_sync_timestamp<'de, D>(deserializer: D) -> Result<Option<SyncTimestamp>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let maybe_str: Option<String> = Deserialize::deserialize(deserializer)?;
-    if let Some(val) = maybe_str {
-        let result = SyncTimestamp::from_header(&val).map_err(SerdeError::custom);
-        Ok(Some(result?))
-    } else {
-        Ok(None)
-    }
+    let val = String::deserialize(deserializer)?;
+    Ok(Some(
+        SyncTimestamp::from_header(&val).map_err(SerdeError::custom)?,
+    ))
 }
 
-pub fn deserialize_offset<'de, D>(deserializer: D) -> Result<Option<params::Offset>, D::Error>
+fn deserialize_offset<'de, D>(deserializer: D) -> Result<Option<params::Offset>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let maybe_str: Option<String> = Deserialize::deserialize(deserializer)?;
-    if let Some(val) = maybe_str {
-        return Ok(Some(
-            params::Offset::from_str(&val).map_err(SerdeError::custom)?,
-        ));
-    }
-    Ok(None)
+    let val = String::deserialize(deserializer)?;
+    Ok(Some(
+        params::Offset::from_str(&val).map_err(SerdeError::custom)?,
+    ))
 }
 
 /// Deserialize a comma separated string
-pub fn deserialize_comma_sep_string<'de, D, E>(deserializer: D) -> Result<Option<Vec<E>>, D::Error>
+fn deserialize_comma_sep_string<'de, D, E>(deserializer: D) -> Result<Option<Vec<E>>, D::Error>
 where
     D: Deserializer<'de>,
     E: FromStr,
 {
-    let str: String = Deserialize::deserialize(deserializer)?;
-    let lst: Vec<String> = str
+    let val = String::deserialize(deserializer)?;
+    let lst: Vec<String> = val
         .split(',')
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
@@ -90,13 +82,12 @@ where
 }
 
 /// Deserialize a value as True if it exists, False otherwise
-#[allow(clippy::unnecessary_wraps)] // serde::Deserialize requires Result<bool>
-pub fn deserialize_present_value<'de, D>(deserializer: D) -> Result<bool, D::Error>
+fn deserialize_present_value<'de, D>(deserializer: D) -> Result<bool, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let maybe_str: Option<String> = Option::deserialize(deserializer).unwrap_or(None);
-    Ok(maybe_str.is_some())
+    let _ = String::deserialize(deserializer)?;
+    Ok(true)
 }
 
 /// Validator to extract BSO search parameters from the query string.
@@ -115,7 +106,6 @@ pub struct BsoQueryParams {
     pub older: Option<SyncTimestamp>,
 
     /// order in which to return results (string)
-    #[serde(default)]
     pub sort: Sorting,
 
     /// maximum number of items to return (integer)
@@ -130,7 +120,7 @@ pub struct BsoQueryParams {
     #[validate(custom(function = "validate_qs_ids"))]
     pub ids: Option<Vec<String>>,
 
-    // flag, whether to include full bodies (bool)
+    /// flag of whether to include full bodies (bool)
     #[serde(deserialize_with = "deserialize_present_value")]
     pub full: bool,
 }
