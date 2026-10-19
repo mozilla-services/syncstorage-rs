@@ -82,6 +82,7 @@ The following configuration options are available.
 | <span id="SYNC_SYNCSTORAGE__ENABLED"></span>SYNC_SYNCSTORAGE__ENABLED | true | Enable syncstorage service |
 | <span id="SYNC_SYNCSTORAGE__ENABLE_QUOTA"></span>SYNC_SYNCSTORAGE__ENABLE_QUOTA | false | Enable quota tracking (Spanner only) |
 | <span id="SYNC_SYNCSTORAGE__ENFORCE_QUOTA"></span>SYNC_SYNCSTORAGE__ENFORCE_QUOTA | false | Enforce quota limits (Spanner only) |
+| <span id="SYNC_SYNCSTORAGE__REQUIRE_COLLECTION_DELETE_CONFIRMATION"></span>SYNC_SYNCSTORAGE__REQUIRE_COLLECTION_DELETE_CONFIRMATION | false | Require `X-Confirm-Delete: 1` header for collection deletion. Without the header, an HTTP 200 is returned without deletion. |
 | <span id="SYNC_SYNCSTORAGE__GLEAN_ENABLED"></span>SYNC_SYNCSTORAGE__GLEAN_ENABLED | true | Enable Glean telemetry |
 | <span id="SYNC_SYNCSTORAGE__LBHEARTBEAT_TTL"></span>SYNC_SYNCSTORAGE__LBHEARTBEAT_TTL | None | Load balancer heartbeat period in seconds |
 | <span id="SYNC_SYNCSTORAGE__LBHEARTBEAT_TTL_JITTER"></span>SYNC_SYNCSTORAGE__LBHEARTBEAT_TTL_JITTER | 25 | Jitter percentage for the load balancer heartbeat period |
