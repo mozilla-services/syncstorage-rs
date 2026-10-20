@@ -21,6 +21,7 @@ http.workspace = true
 lazy_static.workspace = true
 rand.workspace = true
 regex.workspace = true
+reqwest.workspace = true
 sentry.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -55,7 +56,7 @@ tokenserver-auth = { path = "../tokenserver-auth" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db = { path = "../tokenserver-db" }
 tokenserver-settings = { path = "../tokenserver-settings" }
-tokio = { workspace = true, features = ["macros", "sync"] }
+tokio = { workspace = true, features = ["macros", "rt", "signal", "sync", "time"] }
 urlencoding = "2.1"
 utoipa.workspace = true
 utoipa-swagger-ui.workspace = true
@@ -68,6 +69,8 @@ woothee = "0.13"
 crossbeam-channel = "0.5"
 google-cloud-gax = "1.11"
 httptest = "0.16"
+sentry = { workspace = true, features = ["test"] }
+tokio = { workspace = true, features = ["test-util"] }
 temp-env.workspace = true
 tokenserver-auth = { path = "../tokenserver-auth", features = ["test-support"] }
 
@@ -77,6 +80,7 @@ slog-journald = "2.2.0"
 [features]
 default = ["mysql", "py_verifier"]
 no_auth = []
+last_seen = []
 py_verifier = ["tokenserver-auth/py", "tokenserver-common/py"]
 mysql = ["syncstorage-db/mysql"]
 postgres = ["syncstorage-db/postgres"]

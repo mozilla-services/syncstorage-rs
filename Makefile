@@ -61,7 +61,7 @@ clippy_postgres:
 
 clippy_spanner:
 	# Matches what's run in circleci
-	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- -D clippy::dbg_macro -D warnings
+	cargo clippy --workspace --all-targets --no-default-features --features=syncserver/spanner --features=py_verifier --features=syncserver/last_seen -- -D clippy::dbg_macro -D warnings
 
 clippy_release_mysql:
 	# Release mode clippy — catches dead code and issues only visible with optimizations
@@ -73,7 +73,7 @@ clippy_release_postgres:
 
 clippy_release_spanner:
 	# Release mode clippy — catches dead code and issues only visible with optimizations
-	cargo clippy --release --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- -D warnings
+	cargo clippy --release --workspace --no-default-features --features=syncserver/spanner --features=py_verifier --features=syncserver/last_seen -- -D warnings
 
 .PHONY: clippy-all
 clippy-all: clippy_mysql clippy_postgres clippy_spanner  ##  Run clippy for all backends (mysql, postgres, spanner).
@@ -255,7 +255,7 @@ run_spanner: $(INSTALL_STAMP)
 		PYTHONPATH=$(PYTHON_SITE_PACKAGES) \
 		RUST_LOG=$(RUST_LOG) \
 		RUST_BACKTRACE=full \
-		cargo run --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- --config config/local.toml
+		cargo run --no-default-features --features=syncserver/spanner --features=py_verifier --features=syncserver/last_seen -- --config config/local.toml
 
 .ONESHELL:
 test:
@@ -277,7 +277,7 @@ test_with_coverage:
 .ONESHELL:
 spanner_test_with_coverage:
 	cargo llvm-cov --summary-only --json --output-path ${UNIT_COVERAGE_SPANNER_JSON} \
-		nextest --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier --profile ${TEST_PROFILE}; exit_code=$$?
+		nextest --workspace --no-default-features --features=syncserver/spanner --features=py_verifier --features=syncserver/last_seen --profile ${TEST_PROFILE}; exit_code=$$?
 	mv target/nextest/${TEST_PROFILE}/junit.xml ${UNIT_SPANNER_JUNIT_XML}
 	exit $$exit_code
 
