@@ -72,6 +72,8 @@ pub fn make_state_with_limits(limits: Arc<ServerLimits>) -> ServerState {
         )
         .unwrap(),
         quota_enabled: syncstorage_settings.enable_quota,
+        require_collection_delete_confirmation: syncstorage_settings
+            .require_collection_delete_confirmation,
         deadman: Arc::new(RwLock::new(Deadman::default())),
         glean_logger,
         glean_enabled: syncstorage_settings.glean_enabled,
