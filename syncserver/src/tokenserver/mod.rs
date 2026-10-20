@@ -2,6 +2,8 @@
 pub mod extractors;
 #[allow(clippy::result_large_err)]
 pub mod handlers;
+#[cfg(any(feature = "last_seen", test))]
+pub mod last_seen;
 pub mod logging;
 
 use actix_web::{HttpMessage, HttpRequest, dev::RequestHead, http::header::USER_AGENT};
@@ -36,6 +38,9 @@ pub struct ServerState {
     pub fxa_webhook_enabled: bool,
     pub fxa_webhook_metrics_only: bool,
     pub allow_new_users: bool,
+    /// Records account last-seen when enabled.
+    #[cfg(feature = "last_seen")]
+    pub last_seen: Option<Arc<last_seen::Collector>>,
 }
 
 impl ServerState {
@@ -114,6 +119,8 @@ impl ServerState {
             fxa_webhook_enabled: settings.fxa_webhook_enabled,
             fxa_webhook_metrics_only: settings.fxa_webhook_metrics_only,
             allow_new_users: settings.allow_new_users,
+            #[cfg(feature = "last_seen")]
+            last_seen: None,
         })
     }
 

@@ -116,6 +116,11 @@ would silently drop the payload.
 
 ### Tokenserver Features
 
+Last-seen reporting requires the `last_seen` Cargo feature, independently of the
+storage backend. Build it with `cargo build -p syncserver --features last_seen`.
+Docker images include this feature only when built with
+`SYNCSTORAGE_DATABASE_BACKEND=spanner`. Reporting still defaults to off at runtime.
+
 | Env Var | Default Value | Description |
 | --- | --- | --- |
 | <span id="SYNC_TOKENSERVER__INIT_NODE_URL"></span>SYNC_TOKENSERVER__INIT_NODE_URL | None | The storage node URL, protocol + host, to insert into the `nodes` table on startup. This is the origin where the service is hosted, e.g. "http://localhost:8000". |
@@ -130,6 +135,9 @@ would silently drop the payload.
 | <span id="SYNC_TOKENSERVER__FXA_WEBHOOK_SET_CLIENT_ID"></span>SYNC_TOKENSERVER__FXA_WEBHOOK_SET_CLIENT_ID | None | Expected `aud` of FxA Security Event Tokens. Required for account event webhooks. |
 | <span id="SYNC_TOKENSERVER__FXA_WEBHOOK_SET_ISSUER"></span>SYNC_TOKENSERVER__FXA_WEBHOOK_SET_ISSUER | None | Expected `iss` of FxA Security Event Tokens. Required for account event webhooks. |
 | <span id="SYNC_TOKENSERVER__ALLOW_NEW_USERS"></span>SYNC_TOKENSERVER__ALLOW_NEW_USERS | true | Whether new users may be created. When disabled, only previously registered users can use the tokenserver service. |
+| <span id="SYNC_TOKENSERVER__LAST_SEEN_ENABLED"></span>SYNC_TOKENSERVER__LAST_SEEN_ENABLED | false | Record the FxA UID, OAuth client ID, and timestamp of successful token exchanges, and upload them to a BigQuery staging table. Collection stays disabled in builds without the `last_seen` Cargo feature. Token responses do not wait for uploads. Rows that cannot be uploaded are logged and dropped. |
+| <span id="SYNC_TOKENSERVER__LAST_SEEN_STAGING_TABLE"></span>SYNC_TOKENSERVER__LAST_SEEN_STAGING_TABLE | None | BigQuery staging table name in `PROJECT_ID.DATASET_ID.TABLE_ID` format, for example `my-project.account_last_seen.last_seen_staging`. Required when last-seen reporting is enabled. |
+| <span id="SYNC_TOKENSERVER__LAST_SEEN_MAX_CONCURRENT_FLUSHES"></span>SYNC_TOKENSERVER__LAST_SEEN_MAX_CONCURRENT_FLUSHES | 4 | Maximum number of concurrent last-seen uploads per server instance. Must be at least 1. |
 
 ### Tokenserver+FxA Integration
 

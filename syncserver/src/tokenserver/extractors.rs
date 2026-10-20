@@ -409,6 +409,7 @@ impl FromRequest for Token {
 /// The data extracted from the authentication token.
 #[derive(Debug, Default, Eq, PartialEq)]
 pub struct AuthData {
+    pub client_id: String,
     pub client_state: String,
     pub email: String,
     pub fxa_uid: String,
@@ -458,6 +459,7 @@ impl FromRequest for AuthData {
                     let email = format!("{}@{}", fxa_uid, state.fxa_email_domain);
 
                     Ok(AuthData {
+                        client_id: verify_output.client_id,
                         client_state: key_id.client_state,
                         email,
                         fxa_uid,
@@ -730,6 +732,7 @@ mod tests {
         let oauth_verifier = {
             let verify_output = oauth::VerifyOutput {
                 fxa_uid: fxa_uid.to_owned(),
+                client_id: "client123".to_owned(),
                 generation: Some(1234),
             };
             let valid = true;
@@ -760,6 +763,7 @@ mod tests {
         let expected_tokenserver_request = TokenserverRequest {
             user: results::GetOrCreateUser::default(),
             auth_data: AuthData {
+                client_id: "client123".to_owned(),
                 fxa_uid: fxa_uid.to_owned(),
                 email: "test123@test.com".to_owned(),
                 generation: Some(1234),
@@ -783,6 +787,7 @@ mod tests {
         let oauth_verifier = {
             let verify_output = oauth::VerifyOutput {
                 fxa_uid: fxa_uid.to_owned(),
+                client_id: "client123".to_owned(),
                 generation: Some(1234),
             };
             let valid = false;
@@ -824,6 +829,7 @@ mod tests {
             let oauth_verifier = {
                 let verify_output = oauth::VerifyOutput {
                     fxa_uid: fxa_uid.to_owned(),
+                    client_id: "client123".to_owned(),
                     generation: Some(1234),
                 };
                 let valid = true;
@@ -928,6 +934,7 @@ mod tests {
                 let current_time = Utc::now().timestamp();
                 let verify_output = oauth::VerifyOutput {
                     fxa_uid: fxa_uid.to_owned(),
+                    client_id: "client123".to_owned(),
                     generation: Some(current_time),
                 };
                 let valid = true;
@@ -1092,6 +1099,7 @@ mod tests {
                 old_client_states: vec![],
             },
             auth_data: AuthData {
+                client_id: "client123".to_owned(),
                 fxa_uid: "test".to_owned(),
                 email: "test@test.com".to_owned(),
                 generation: Some(1233),
@@ -1134,6 +1142,7 @@ mod tests {
                 old_client_states: vec![],
             },
             auth_data: AuthData {
+                client_id: "client123".to_owned(),
                 fxa_uid: "test".to_owned(),
                 email: "test@test.com".to_owned(),
                 generation: Some(1234),
@@ -1175,6 +1184,7 @@ mod tests {
                 old_client_states: vec![],
             },
             auth_data: AuthData {
+                client_id: "client123".to_owned(),
                 fxa_uid: "test".to_owned(),
                 email: "test@test.com".to_owned(),
                 generation: Some(1234),
@@ -1217,6 +1227,7 @@ mod tests {
                 old_client_states: vec!["bbbb".to_owned()],
             },
             auth_data: AuthData {
+                client_id: "client123".to_owned(),
                 fxa_uid: "test".to_owned(),
                 email: "test@test.com".to_owned(),
                 generation: Some(1234),
@@ -1259,6 +1270,7 @@ mod tests {
                 old_client_states: vec![],
             },
             auth_data: AuthData {
+                client_id: "client123".to_owned(),
                 fxa_uid: "test".to_owned(),
                 email: "test@test.com".to_owned(),
                 generation: Some(1234),
@@ -1299,6 +1311,7 @@ mod tests {
                 old_client_states: vec![],
             },
             auth_data: AuthData {
+                client_id: "client123".to_owned(),
                 fxa_uid: "test".to_owned(),
                 email: "test@test.com".to_owned(),
                 generation: Some(1235),
@@ -1348,6 +1361,8 @@ mod tests {
             fxa_webhook_enabled: false,
             fxa_webhook_metrics_only: false,
             allow_new_users: true,
+            #[cfg(feature = "last_seen")]
+            last_seen: None,
         }
     }
 
@@ -1372,6 +1387,8 @@ mod tests {
             fxa_webhook_enabled: true,
             fxa_webhook_metrics_only: false,
             allow_new_users: true,
+            #[cfg(feature = "last_seen")]
+            last_seen: None,
         }
     }
 

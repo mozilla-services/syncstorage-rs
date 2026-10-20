@@ -57,6 +57,7 @@ pub async fn get_tokenserver_result(
     req: TokenserverRequest,
     DbWrapper(db): DbWrapper,
     TokenserverMetrics(mut metrics): TokenserverMetrics,
+    #[cfg(feature = "last_seen")] state: Data<super::ServerState>,
 ) -> Result<HttpResponse, TokenserverError> {
     let updates = update_user(&req, db).await?;
 
@@ -67,6 +68,12 @@ pub async fn get_tokenserver_result(
         // Get the token and secret
         Tokenlib::get_token_and_derived_secret(token_plaintext, &req.shared_secret)?
     };
+
+    // Record the activity.  Takes the buffer lock briefly and never waits for BigQuery.
+    #[cfg(feature = "last_seen")]
+    if let Some(collector) = &state.last_seen {
+        collector.record(&req.auth_data.fxa_uid, &req.auth_data.client_id, Utc::now());
+    }
 
     let result = TokenserverResult {
         id: token,
@@ -429,6 +436,56 @@ mod tests {
         make_state_with_db_pool(set_verifiers, Box::new(MockDbPool::new()))
     }
 
+    #[cfg(feature = "last_seen")]
+    #[actix_web::test]
+    async fn test_last_seen_records_only_successful_token_exchanges() {
+        use crate::tokenserver::last_seen::Collector;
+
+        let mut state = make_state(vec![]);
+        let collector = Arc::new(Collector::new(Arc::clone(&state.metrics)));
+        state.last_seen = Some(Arc::clone(&collector));
+        state.oauth_verifier = Box::new(MockVerifier {
+            valid: true,
+            verify_output: oauth::VerifyOutput {
+                fxa_uid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned(),
+                client_id: "bbbbbbbbbbbbbbbb".to_owned(),
+                generation: Some(1234),
+            },
+        });
+        let mut failed_state = state.clone();
+        failed_state.oauth_verifier = Box::new(MockVerifier::<oauth::VerifyOutput> {
+            valid: false,
+            ..Default::default()
+        });
+
+        let app = make_app_from_state(state).await;
+        for _ in 0..2 {
+            let request = TestRequest::get()
+                .uri("/1.0/sync/1.5")
+                .insert_header(("authorization", "Bearer test-oauth-token"))
+                .insert_header(("x-keyid", "0000000001234-qqo"))
+                .to_request();
+            let response = test::call_service(&app, request).await;
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+        let batch = collector.take_all();
+        assert_eq!(batch.len(), 1);
+        assert!(batch.contains_key(&(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned(),
+            "bbbbbbbbbbbbbbbb".to_owned(),
+        )));
+
+        let app = make_app_from_state(failed_state).await;
+        let request = TestRequest::get()
+            .uri("/1.0/sync/1.5")
+            .insert_header(("authorization", "Bearer rejected-token"))
+            .insert_header(("x-keyid", "0000000001234-qqo"))
+            .to_request();
+        let response = test::call_service(&app, request).await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert!(collector.is_empty());
+    }
+
     async fn make_app(
         set_verifiers: Vec<SETVerifierImpl>,
     ) -> impl actix_web::dev::Service<
@@ -464,6 +521,8 @@ mod tests {
             fxa_webhook_enabled: true,
             fxa_webhook_metrics_only: false,
             allow_new_users: true,
+            #[cfg(feature = "last_seen")]
+            last_seen: None,
         }
     }
 

@@ -4773,6 +4773,7 @@ dependencies = [
  "mime",
  "rand 0.10.2",
  "regex",
+ "reqwest 0.13.4",
  "sentry",
  "serde",
  "serde_json",
@@ -5282,6 +5283,7 @@ name = "tokenserver-settings"
 version = "0.23.3"
 dependencies = [
  "jsonwebtoken 11.0.0",
+ "regex",
  "serde",
  "tokenserver-common",
 ]
