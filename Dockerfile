@@ -45,11 +45,15 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/app/target,sharing=locked \
     set -x && \
+    LAST_SEEN_FEATURES="" && \
+    if [ "$SYNCSTORAGE_DATABASE_BACKEND" = "spanner" ]; then \
+        LAST_SEEN_FEATURES="--features=syncserver/last_seen"; \
+    fi && \
     TOKENSERVER_FEATURES="" && \
     if [ "$TOKENSERVER_DATABASE_BACKEND" = "postgres" ]; then \
         TOKENSERVER_FEATURES="--features=tokenserver-db/postgres"; \
     fi && \
-    cargo chef cook --release --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND $TOKENSERVER_FEATURES --features=py_verifier --recipe-path recipe.json
+    cargo chef cook --release --no-default-features --features=syncserver/$SYNCSTORAGE_DATABASE_BACKEND $TOKENSERVER_FEATURES --features=py_verifier $LAST_SEEN_FEATURES --recipe-path recipe.json
 
 ENV POETRY_HOME="/opt/poetry" \
     POETRY_VIRTUALENVS_IN_PROJECT=1 \
@@ -99,13 +103,17 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/app/target,sharing=locked \
     set -x && \
+    LAST_SEEN_FEATURES="" && \
+    if [ "$SYNCSTORAGE_DATABASE_BACKEND" = "spanner" ]; then \
+        LAST_SEEN_FEATURES="--features=last_seen"; \
+    fi && \
     TOKENSERVER_FEATURES="" && \
     if [ "$TOKENSERVER_DATABASE_BACKEND" = "postgres" ]; then \
         TOKENSERVER_FEATURES="--features=tokenserver-db/postgres"; \
     fi && \
     cargo --version && \
     rustc --version && \
-    cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND $TOKENSERVER_FEATURES --features=py_verifier --locked --root /app
+    cargo install --path ./syncserver --no-default-features --features=$SYNCSTORAGE_DATABASE_BACKEND $TOKENSERVER_FEATURES --features=py_verifier $LAST_SEEN_FEATURES --locked --root /app
 
 FROM docker.io/library/debian:trixie-slim
 ARG SYNCSTORAGE_DATABASE_BACKEND
