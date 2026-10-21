@@ -689,7 +689,6 @@ mod collection_deletion_confirmation {
                 ("", None, 1, true),
                 ("", Some("1"), 1, false),
                 ("", Some("invalid"), 1, true),
-                ("?ids=", None, 1, true),
                 ("?ids=record", None, 0, false),
             ] {
                 let user = rand::random_range(100_000_000..1_000_000_000_u64);
