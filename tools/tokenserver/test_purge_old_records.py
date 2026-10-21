@@ -12,7 +12,7 @@ import tokenlib
 from wsgiref.simple_server import make_server
 
 from database import Database
-from purge_old_records import LastSeen, purge_old_records
+from purge_old_records import purge_old_records
 from util import get_timestamp
 
 
