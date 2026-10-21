@@ -485,13 +485,13 @@ def main(args=None):
     parser.add_option(
         "",
         "--last-seen-staging-table",
-        help="BigQuery last-seen staging table (PROJECT.DATASET.TABLE); "
+        help="BigQuery last-seen staging table (PROJECT.DATASET.TABLE)"
         "requires --last-seen-table",
     )
     parser.add_option(
         "",
         "--last-seen-table",
-        help="BigQuery last-seen final table (PROJECT.DATASET.TABLE); "
+        help="BigQuery last-seen final table (PROJECT.DATASET.TABLE)"
         "requires --last-seen-staging-table",
     )
     util.add_metric_options(parser)
