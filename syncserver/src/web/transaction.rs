@@ -71,6 +71,12 @@ fn ensure_last_modified(resp: &mut HttpResponse, resource_ts: SyncTimestamp) {
 }
 
 impl DbTransactionPool {
+    /// read lock to avoid creating collection metadata for an ignored deletion
+    pub fn with_read_only_transaction(mut self) -> Self {
+        self.is_read = true;
+        self
+    }
+
     /// Tag the transaction this pool opens. The tag is applied to the db before
     /// the transaction begins, so Spanner records it on the change stream
     /// (no-op on other backends). Used to mark the batch commit. See STOR-668.

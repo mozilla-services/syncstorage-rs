@@ -438,10 +438,13 @@ def test_run_level_metrics_are_emitted(purge_db, mock_service_server):
     database = purge_db
     node_secret = "SECRET"
 
-    # Seed two old records so backlog.size > 0 and batch.fetched > 0.
+    # Backdate replacements so both rows are eligible when the purge starts.
+    replaced_at = get_timestamp() - 1000
     for email in ("a@mozilla.com", "b@mozilla.com"):
-        user = database.allocate_user(email, client_state="aa", generation=1)
-        database.update_user(user, client_state="bb", generation=2)
+        user = database.allocate_user(
+            email, client_state="aa", generation=1, timestamp=replaced_at - 1000
+        )
+        database.replace_user_record(user["uid"], timestamp=replaced_at)
 
     metrics = _RecordingMetrics()
     assert purge_old_records(node_secret, grace_period=0, metrics=metrics) is True

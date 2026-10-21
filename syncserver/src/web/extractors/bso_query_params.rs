@@ -13,8 +13,14 @@ use syncstorage_db::{Sorting, SyncTimestamp, params};
 use super::{BATCH_MAX_IDS, RequestErrorLocation, VALID_ID_REGEX, request_error};
 use crate::web::error::ValidationErrorKind;
 
-/// Verifies that the list of id's is not too long and that the ids are valid
-pub fn validate_qs_ids(ids: &[String]) -> Result<(), ValidationError> {
+/// Verifies that the list of ids is non-empty, not too long and that the ids are valid
+fn validate_qs_ids(ids: &[String]) -> Result<(), ValidationError> {
+    if ids.is_empty() {
+        return Err(request_error(
+            "No ids provided",
+            RequestErrorLocation::QueryString,
+        ));
+    }
     if ids.len() > BATCH_MAX_IDS {
         return Err(request_error(
             "Too many ids provided",
@@ -33,42 +39,34 @@ pub fn validate_qs_ids(ids: &[String]) -> Result<(), ValidationError> {
 }
 
 /// Deserialize a header string value (epoch seconds with 2 decimal places) as SyncTimestamp
-pub fn deserialize_sync_timestamp<'de, D>(
-    deserializer: D,
-) -> Result<Option<SyncTimestamp>, D::Error>
+fn deserialize_sync_timestamp<'de, D>(deserializer: D) -> Result<Option<SyncTimestamp>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let maybe_str: Option<String> = Deserialize::deserialize(deserializer)?;
-    if let Some(val) = maybe_str {
-        let result = SyncTimestamp::from_header(&val).map_err(SerdeError::custom);
-        Ok(Some(result?))
-    } else {
-        Ok(None)
-    }
+    let val = String::deserialize(deserializer)?;
+    Ok(Some(
+        SyncTimestamp::from_header(&val).map_err(SerdeError::custom)?,
+    ))
 }
 
-pub fn deserialize_offset<'de, D>(deserializer: D) -> Result<Option<params::Offset>, D::Error>
+fn deserialize_offset<'de, D>(deserializer: D) -> Result<Option<params::Offset>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let maybe_str: Option<String> = Deserialize::deserialize(deserializer)?;
-    if let Some(val) = maybe_str {
-        return Ok(Some(
-            params::Offset::from_str(&val).map_err(SerdeError::custom)?,
-        ));
-    }
-    Ok(None)
+    let val = String::deserialize(deserializer)?;
+    Ok(Some(
+        params::Offset::from_str(&val).map_err(SerdeError::custom)?,
+    ))
 }
 
 /// Deserialize a comma separated string
-pub fn deserialize_comma_sep_string<'de, D, E>(deserializer: D) -> Result<Vec<E>, D::Error>
+fn deserialize_comma_sep_string<'de, D, E>(deserializer: D) -> Result<Option<Vec<E>>, D::Error>
 where
     D: Deserializer<'de>,
     E: FromStr,
 {
-    let str: String = Deserialize::deserialize(deserializer)?;
-    let lst: Vec<String> = str
+    let val = String::deserialize(deserializer)?;
+    let lst: Vec<String> = val
         .split(',')
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
@@ -80,17 +78,16 @@ where
                 .map_err(|_| SerdeError::custom("Invalid value in list"))?,
         );
     }
-    Ok(parsed_lst)
+    Ok(Some(parsed_lst))
 }
 
 /// Deserialize a value as True if it exists, False otherwise
-#[allow(clippy::unnecessary_wraps)] // serde::Deserialize requires Result<bool>
-pub fn deserialize_present_value<'de, D>(deserializer: D) -> Result<bool, D::Error>
+fn deserialize_present_value<'de, D>(deserializer: D) -> Result<bool, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let maybe_str: Option<String> = Option::deserialize(deserializer).unwrap_or(None);
-    Ok(maybe_str.is_some())
+    let _ = String::deserialize(deserializer)?;
+    Ok(true)
 }
 
 /// Validator to extract BSO search parameters from the query string.
@@ -109,7 +106,6 @@ pub struct BsoQueryParams {
     pub older: Option<SyncTimestamp>,
 
     /// order in which to return results (string)
-    #[serde(default)]
     pub sort: Sorting,
 
     /// maximum number of items to return (integer)
@@ -120,11 +116,11 @@ pub struct BsoQueryParams {
     pub offset: Option<params::Offset>,
 
     /// a comma-separated list of BSO ids (list of strings)
-    #[serde(deserialize_with = "deserialize_comma_sep_string", default)]
+    #[serde(deserialize_with = "deserialize_comma_sep_string")]
     #[validate(custom(function = "validate_qs_ids"))]
-    pub ids: Vec<String>,
+    pub ids: Option<Vec<String>>,
 
-    // flag, whether to include full bodies (bool)
+    /// flag of whether to include full bodies (bool)
     #[serde(deserialize_with = "deserialize_present_value")]
     pub full: bool,
 }
@@ -235,10 +231,26 @@ mod tests {
             .data(make_state())
             .to_http_request();
         let result = block_on(BsoQueryParams::extract(&req)).unwrap();
-        assert_eq!(result.ids, vec!["1", "2"]);
+        assert_eq!(result.ids.unwrap(), vec!["1", "2"]);
         assert_eq!(result.sort, Sorting::Index);
         assert_eq!(result.older.unwrap(), SyncTimestamp::from_seconds(2.43));
         assert!(result.full);
+    }
+
+    #[test]
+    fn test_empty_ids_rejected() {
+        // an "ids" param with no usable value is a validation error: it must
+        // not be treated the same as omitting "ids" (which, for a collection
+        // DELETE, deletes the entire collection)
+        for uri in &["/?ids=", "/?ids=%20", "/?ids=,"] {
+            let req = TestRequest::with_uri(uri)
+                .data(make_state())
+                .to_http_request();
+            let result = block_on(BsoQueryParams::extract(&req));
+            assert!(result.is_err(), "{uri} should be rejected");
+            let response: HttpResponse = result.err().unwrap().into();
+            assert_eq!(response.status(), 400, "{uri} should be a 400");
+        }
     }
 
     #[test]
