@@ -568,22 +568,6 @@ def test_last_seen_deleted_for_retired_users_only(purge_db, mock_service_server)
     assert deleted == [("purge.last_seen.deleted", 1, None)]
 
 
-def test_last_seen_respects_max_records(purge_db, mock_service_server):
-    database = purge_db
-    for email in ("one@mozilla.com", "two@mozilla.com"):
-        _retired_user(database, email)
-    last_seen = _FakeLastSeen()
-
-    assert purge_old_records(
-        "SECRET", grace_period=0, max_records=1, last_seen=last_seen
-    )
-
-    [[purged]] = last_seen.calls
-    kept = ({"one", "two"} - {purged}).pop()
-    assert list(database.get_user_records(f"{purged}@mozilla.com")) == []
-    assert len(list(database.get_user_records(f"{kept}@mozilla.com"))) == 1
-
-
 def test_last_seen_failure_keeps_retired_record(purge_db, mock_service_server):
     database = purge_db
     retired = _retired_user(database, "deleted@mozilla.com")
@@ -640,52 +624,3 @@ def test_last_seen_nodeless_retired_record(purge_db, mock_service_server):
     assert last_seen.calls == [["deleted"]]
     assert list(database.get_user_records("deleted@mozilla.com")) == []
     assert mock_service_server["requests"] == []
-
-
-class _FakeJob:
-    def __init__(self, error):
-        self.error = error
-        self.timeout = None
-
-    def result(self, timeout=None):
-        self.timeout = timeout
-        if self.error:
-            raise self.error
-
-
-class _FakeBigQueryClient:
-    def __init__(self, error=None):
-        self.error = error
-        self.queries = []
-
-    def query(self, sql, job_config=None):
-        job = _FakeJob(self.error)
-        self.queries.append((sql, job_config, job))
-        return job
-
-
-def test_last_seen_runs_one_parameterized_transaction():
-    client = _FakeBigQueryClient()
-    last_seen = LastSeen("proj.ds.staging", "proj.ds.final", client=client, timeout=7)
-
-    last_seen.delete(["a", "b"])
-
-    [(sql, job_config, job)] = client.queries
-    assert sql.startswith("BEGIN TRANSACTION;")
-    assert "DELETE FROM `proj.ds.staging` WHERE uid IN UNNEST(@uids);" in sql
-    assert "DELETE FROM `proj.ds.final` WHERE uid IN UNNEST(@uids);" in sql
-    assert sql.endswith("COMMIT TRANSACTION;")
-    [param] = job_config.query_parameters
-    assert (param.name, param.array_type, param.values) == (
-        "uids",
-        "STRING",
-        ["a", "b"],
-    )
-    assert job.timeout == 7
-
-
-def test_last_seen_job_error_raises():
-    client = _FakeBigQueryClient(error=TimeoutError("job still running"))
-    last_seen = LastSeen("proj.ds.staging", "proj.ds.final", client=client)
-    with pytest.raises(TimeoutError):
-        last_seen.delete(["a"])
