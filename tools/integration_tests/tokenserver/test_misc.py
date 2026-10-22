@@ -140,9 +140,17 @@ def test_user_updates_with_new_client_state(ts_ctx):
     db_conn = ts_ctx["db_conn"]
     app = ts_ctx["app"]
     service_id = ts_ctx["service_id"]
-    # Start with a single user in the database
+    # Start with a single user in the database. Give it a created_at in the
+    # past: the server only marks rows created strictly before the request's
+    # timestamp as replaced, and a fast request can land in the same
+    # millisecond as add_user.
     uid = add_user(
-        db_conn, service_id, generation=1234, keys_changed_at=1234, client_state="aaaa"
+        db_conn,
+        service_id,
+        generation=1234,
+        keys_changed_at=1234,
+        client_state="aaaa",
+        created_at=1234,
     )
     # Send a request, updating the generation, keys_changed_at, and client_state
     headers = build_oauth_headers(
