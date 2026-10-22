@@ -21,10 +21,14 @@ def test_user_creation(ts_ctx):
     app = ts_ctx["app"]
     service_id = ts_ctx["service_id"]
 
-    # Add a few more nodes
-    add_node(db_conn, service_id, available=0, node="https://node1")
-    add_node(db_conn, service_id, available=1, node="https://node2")
-    add_node(db_conn, service_id, available=5, node="https://node3")
+    # Add a few more nodes. They are as empty as the default node, so the
+    # tie-break on id decides: give them ids after NODE_ID. Left to the
+    # database, PostgreSQL would number them from its identity sequence,
+    # which the explicit id of the default node does not advance (ids
+    # below 800), unlike MySQL's AUTO_INCREMENT.
+    add_node(db_conn, service_id, available=0, node="https://node1", id=NODE_ID + 1)
+    add_node(db_conn, service_id, available=1, node="https://node2", id=NODE_ID + 2)
+    add_node(db_conn, service_id, available=5, node="https://node3", id=NODE_ID + 3)
 
     # Send a request from an unseen user
     headers = build_oauth_headers(
