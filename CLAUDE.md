@@ -92,11 +92,13 @@ syncstorage-db-common/ Syncstorage shared database types and traits
 syncstorage-mysql/     MySQL backend for syncstorage
 syncstorage-postgres/  PostgreSQL backend for syncstorage
 syncstorage-spanner/   Google Cloud Spanner backend for syncstorage
+syncstorage-sqlite/    SQLite backend for syncstorage (local dev; no separate DB server)
 syncstorage-settings/  Syncstorage configuration types
 tokenserver-db/        Tokenserver database abstraction layer
 tokenserver-db-common/ Tokenserver shared database types
 tokenserver-mysql/     MySQL backend for tokenserver
 tokenserver-postgres/  PostgreSQL backend for tokenserver
+tokenserver-sqlite/    SQLite backend for tokenserver (local dev; no separate DB server)
 tokenserver-auth/      HAWK token generation and verification
 tokenserver-common/    Shared tokenserver utilities
 tokenserver-settings/  Tokenserver configuration types
@@ -129,6 +131,9 @@ cargo build --no-default-features --features=syncstorage-db/postgres --features=
 
 # Spanner
 cargo build --no-default-features --features=syncstorage-db/spanner --features=py_verifier
+
+# SQLite (local dev; no separate DB server required)
+cargo build --no-default-features --features=syncstorage-db/sqlite --features=tokenserver-db/sqlite --features=py_verifier
 ```
 
 ## Rust tests

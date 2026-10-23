@@ -18,6 +18,8 @@
 # annotated `Settings` structs in `*-settings/src/lib.rs`.
 #
 # For the Spanner build, see `config/local.example.spanner.toml`.
+# For the SQLite build (no database server required), see
+# `config/local.example.sqlite.toml`.
 # =============================================================================
 
 # REQUIRED. Secret used to derive the Hawk signing/token secrets. Use a long,
