@@ -78,3 +78,48 @@ fn should_reject(ua: &str) -> bool {
         .unwrap_or(20);
     0 < major && major < 20
 }
+
+#[cfg(test)]
+mod tests {
+    use super::should_reject;
+
+    fn ios_ua(version: &str) -> String {
+        format!("Firefox-iOS-Sync/{version} (iPhone; iPhone OS 13.2.2) (Firefox)")
+    }
+
+    #[test]
+    fn test_reject_ios_below_v20() {
+        for version in ["1.0b1", "18.0b1", "19.0b1", "19.9.1b12345"] {
+            assert!(should_reject(&ios_ua(version)), "{version}");
+        }
+    }
+
+    #[test]
+    fn test_accept_ios_v20_and_above() {
+        for version in ["20.0b1", "20.1b1", "23.0b17297", "100.0b1"] {
+            assert!(!should_reject(&ios_ua(version)), "{version}");
+        }
+    }
+
+    #[test]
+    fn test_accept_ios_dev_builds() {
+        assert!(!should_reject(&ios_ua("0.0.1b1")));
+    }
+
+    #[test]
+    fn test_accept_unmatched_user_agents() {
+        for ua in [
+            "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0",
+            // dev build with no numeric version
+            &ios_ua("dev"),
+            // no build number
+            "Firefox-iOS-Sync/18.0 (iPhone; iPhone OS 13.2.2) (Firefox)",
+            // no iPhone OS system version
+            "Firefox-iOS-Sync/18.0b1 (iPhone) (Firefox)",
+            // major version overflows u32
+            &ios_ua("99999999999.0b1"),
+        ] {
+            assert!(!should_reject(ua), "{ua}");
+        }
+    }
+}
