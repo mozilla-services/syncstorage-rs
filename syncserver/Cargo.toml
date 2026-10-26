@@ -54,7 +54,7 @@ syncstorage-db = { path = "../syncstorage-db" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 tokenserver-auth = { path = "../tokenserver-auth" }
 tokenserver-common = { path = "../tokenserver-common" }
-tokenserver-db = { path = "../tokenserver-db" }
+tokenserver-db = { path = "../tokenserver-db", default-features = false }
 tokenserver-settings = { path = "../tokenserver-settings" }
 tokio = { workspace = true, features = ["macros", "rt", "signal", "sync", "time"] }
 urlencoding = "2.1"
@@ -82,7 +82,7 @@ default = ["mysql", "py_verifier"]
 no_auth = []
 last_seen = []
 py_verifier = ["tokenserver-auth/py", "tokenserver-common/py"]
-mysql = ["syncstorage-db/mysql"]
-postgres = ["syncstorage-db/postgres"]
+mysql = ["syncstorage-db/mysql", "tokenserver-db/mysql"]
+postgres = ["syncstorage-db/postgres", "tokenserver-db/postgres" ]
 spanner = ["syncstorage-db/spanner"]
 actix-compress = ["actix-web/compress-brotli", "actix-web/compress-gzip", "actix-web/compress-zstd"]
