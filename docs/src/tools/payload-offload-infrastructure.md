@@ -113,7 +113,7 @@ identity on the tenant GKE service account.
 | Change stream and access role DDL source of truth | `syncstorage-spanner/src/schema.ddl` | syncstorage-rs |
 | Dataflow flex template image and metadata | `tools/payload-link-dataflow/` | syncstorage-rs |
 | Image build and template spec publish | `.github/workflows/mozcloud-publish.yaml` | syncstorage-rs |
-| Helm charts for sync, tokenserver, sync-jobs, sync-test | `sync/k8s/` | webservices-infra |
+| Helm charts for sync and tokenserver | `sync/k8s/` | webservices-infra |
 
 ## Repos and how each is applied
 
