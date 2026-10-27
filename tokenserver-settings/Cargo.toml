@@ -8,6 +8,7 @@ edition.workspace=true
 [dependencies]
 regex.workspace = true
 serde.workspace=true
+serde_json.workspace=true
 jsonwebtoken.workspace=true
 
 tokenserver-common = { path = "../tokenserver-common" }

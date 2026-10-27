@@ -5284,6 +5284,7 @@ dependencies = [
  "jsonwebtoken 11.0.0",
  "regex",
  "serde",
+ "serde_json",
  "tokenserver-common",
 ]
 

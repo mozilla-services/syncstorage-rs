@@ -455,6 +455,53 @@ mod test {
         );
     }
 
+    fn jwk_env_vars(jwk: &str, kid: &'static str) -> Vec<(String, Option<&'static str>)> {
+        [
+            ("KTY", "RSA"),
+            ("ALG", "RS256"),
+            ("USE", "sig"),
+            ("KID", kid),
+            ("N", "2_xtUxR3TPmvkwbVwHQYoEI3TjzLaJcCpYYyxFxzX7k"),
+            ("E", "AQAB"),
+        ]
+        .into_iter()
+        .map(|(field, value)| {
+            (
+                format!("SYNC_TOKENSERVER__FXA_OAUTH_{jwk}_JWK__{field}"),
+                Some(value),
+            )
+        })
+        .collect()
+    }
+
+    fn settings_with_jwks(primary_kid: &'static str, secondary_kid: &'static str) -> Settings {
+        let mut vars = jwk_env_vars("PRIMARY", primary_kid);
+        vars.extend(jwk_env_vars("SECONDARY", secondary_kid));
+        vars.push((
+            "SYNC_SYNCSTORAGE__DATABASE_URL".to_owned(),
+            Some(TEST_SYNCSTORAGE_DATABASE_URL),
+        ));
+        temp_env::with_vars(vars, || Settings::with_env_and_config_file(None).unwrap())
+    }
+
+    #[test]
+    fn test_jwk_env_vars_with_integer_like_kid() {
+        let settings = settings_with_jwks("20251204", "20251205");
+        let primary = settings.tokenserver.fxa_oauth_primary_jwk.unwrap();
+        let secondary = settings.tokenserver.fxa_oauth_secondary_jwk.unwrap();
+        assert_eq!(primary.common.key_id.as_deref(), Some("20251204"));
+        assert_eq!(secondary.common.key_id.as_deref(), Some("20251205"));
+    }
+
+    #[test]
+    fn test_jwk_env_vars_with_string_kid() {
+        let settings = settings_with_jwks("dev-20251204", "dev-20251205");
+        let primary = settings.tokenserver.fxa_oauth_primary_jwk.unwrap();
+        let secondary = settings.tokenserver.fxa_oauth_secondary_jwk.unwrap();
+        assert_eq!(primary.common.key_id.as_deref(), Some("dev-20251204"));
+        assert_eq!(secondary.common.key_id.as_deref(), Some("dev-20251205"));
+    }
+
     #[test]
     fn test_missing_syncstorage_database_url_fails_fast() {
         // syncstorage is enabled by default, so an unset DATABASE_URL must
