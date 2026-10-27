@@ -27,7 +27,7 @@ dev = [
     "mypy>=1.16.0",
     "pydocstyle>=6.3.0",
     "ruff>=0.15.6",
-    "black>=26.3.0",
+    "black>=26.10.1",
     "bandit>=1.9.4",
     "isort>=8.0.1",
 ]
