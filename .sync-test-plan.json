@@ -1,0 +1,4 @@
+{"checks": [
+  {"name": "a Spanner DSN under the mysql feature panics with the consistent Invalid DSN message",
+   "cmd": "cd /workspace && export RUSTUP_HOME=/opt/rust/rustup PATH=/opt/rust/cargo/bin:$PATH && SYNC_SYNCSTORAGE__DATABASE_URL=spanner://projects/p/instances/i/databases/d SYNC_TOKENSERVER__DATABASE_URL=mysql://sync:test@127.0.0.1:3306/tokenserver_test RUST_TEST_THREADS=1 PYTHONPATH=$($HOME/.syncstorage-venv/bin/python -c 'import site; print(site.getsitepackages()[0])') cargo nextest run --workspace --color never --no-fail-fast -E 'package(syncserver) and test(=server::test::collections)' 2>&1 | grep -F 'Invalid DSN specified for mysql feature, please correct: spanner://projects/p/instances/i/databases/d'"}
+]}
