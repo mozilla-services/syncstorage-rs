@@ -275,7 +275,7 @@ async fn pending_batch_size(
 ) -> DbResult<usize> {
     let current_batch_size: i64 = batch_bsos::table
         .select(sql::<BigInt>(
-            "COALESCE(SUM(LENGTH(COALESCE(payload, ''))), 0)::BIGINT",
+            "COALESCE(SUM(OCTET_LENGTH(COALESCE(payload, ''))), 0)::BIGINT",
         ))
         .filter(batch_bsos::user_id.eq(user_id))
         .filter(batch_bsos::collection_id.eq(collection_id))

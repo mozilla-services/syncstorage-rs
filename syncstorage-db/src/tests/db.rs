@@ -662,6 +662,34 @@ async fn get_collection_usage() -> Result<(), DbError> {
     .await
 }
 
+// MySQL's latin1 payload column cannot store multi-byte text.
+#[cfg(feature = "postgres")]
+#[tokio::test]
+async fn usage_counts_multibyte_payload_bytes() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        // 3 characters, 9 UTF-8 bytes
+        let payload = "é€😀";
+        let bytes = payload.len();
+        db.set_quota(true, 1_000_000, false);
+        db.put_bso(pbso(uid, "bookmarks", "b0", Some(payload), None, None))
+            .await?;
+
+        let expected = HashMap::from([("bookmarks".to_owned(), bytes as i64)]);
+        assert_eq!(db.get_collection_usage(hid(uid)).await?, expected);
+        assert_eq!(db.get_storage_usage(hid(uid)).await?, bytes as u64);
+        let quota = db
+            .get_quota_usage(params::GetQuotaUsage {
+                user_id: hid(uid),
+                collection: "bookmarks".to_owned(),
+            })
+            .await?;
+        assert_eq!(quota.total_bytes, bytes);
+        Ok(())
+    })
+    .await
+}
+
 #[tokio::test]
 async fn test_quota() -> Result<(), DbError> {
     let settings = Settings::test_settings();
