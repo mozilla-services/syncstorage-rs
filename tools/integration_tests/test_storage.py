@@ -1438,6 +1438,38 @@ def test_bulk_update_of_ttls_without_sending_data(st_ctx):
     assert items["06"]["modified"] == ts2
 
 
+def test_batch_update_of_ttls_without_sending_data(st_ctx):
+    """Test bulk update of ttls without sending data, through a batch."""
+    app = st_ctx["app"]
+    root = st_ctx["root"]
+    endpoint = root + "/storage/xxx_col2"
+    bsos = [{"id": str(i).zfill(2), "payload": "x", "ttl": 1} for i in range(5)]
+    r = retry_post_json(app, endpoint, bsos)
+    ts1 = float(r.headers["X-Last-Modified"])
+    time.sleep(0.2)
+    bsos = [{"id": str(i).zfill(2), "ttl": 10} for i in range(3, 7)]
+    bsos[0]["payload"] = "xx"
+    r = retry_post_json(app, endpoint + "?batch=true", bsos)
+    assert len(r.json["success"]) == 4
+    batch = r.json["batch"]
+    r = retry_post_json(app, endpoint + f"?batch={batch}&commit=true", [])
+    ts2 = float(r.headers["X-Last-Modified"])
+    assert ts2 > ts1
+    time.sleep(0.8)
+    items = app.get(endpoint + "?full=1").json
+    items = {item["id"]: item for item in items}
+    assert sorted(items.keys()) == ["03", "04", "05", "06"]
+    assert items["03"]["payload"] == "xx"
+    assert items["04"]["payload"] == "x"
+    assert items["05"]["payload"] == ""
+    assert items["06"]["payload"] == ""
+    # Just bumping the ttl should not bump timestamp, as in a non-batch write.
+    assert items["03"]["modified"] == ts2
+    assert items["04"]["modified"] == ts1
+    assert items["05"]["modified"] == ts2
+    assert items["06"]["modified"] == ts2
+
+
 def test_that_negative_integer_fields_are_not_accepted(st_ctx):
     """Test that negative integer fields are not accepted."""
     app = st_ctx["app"]
