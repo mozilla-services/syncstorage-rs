@@ -195,6 +195,43 @@ async fn append_commit_offloaded() -> Result<(), DbError> {
     .await
 }
 
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn test_commit_batch_ttl_only_preserves_offloaded_bso() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = 1;
+        let coll = "clients";
+        let ts1 = with_delta!(db, -100, {
+            let mut bso = pbso(uid, coll, "b0", None, Some(1), Some(60));
+            bso.payload_link = Some(GS_URL.to_owned());
+            bso.payload_size = Some(4096);
+            db.put_bso(bso).await?;
+            db.timestamp()
+        });
+
+        let new_batch = db
+            .create_batch(cb(uid, coll, vec![postbso("b0", None, None, Some(3600))]))
+            .await?;
+        let batch = db.get_batch(gb(uid, coll, new_batch.id)).await?.unwrap();
+        db.commit_batch(params::CommitBatch {
+            user_id: hid(uid),
+            collection: coll.to_owned(),
+            batch,
+        })
+        .await?;
+
+        let got = db.get_bso(gbso(uid, coll, "b0")).await?.unwrap();
+        assert_eq!(got.modified, ts1);
+        assert_eq!(got.payload, "");
+        assert_eq!(got.payload_link.as_deref(), Some(GS_URL));
+        assert_eq!(got.payload_size, Some(4096));
+        assert_eq!(got.sortindex, Some(1));
+        assert_eq!(got.expiry, db.timestamp().as_i64() + 3_600_000);
+        Ok(())
+    })
+    .await
+}
+
 /// A payload_link alone counts as a payload change, so it bumps modified.
 #[cfg(feature = "spanner")]
 #[tokio::test]
