@@ -34,7 +34,7 @@ wsgiproxy2 = "^0.5.1"
 mypy = "^1.19.1"
 pydocstyle = "^6.3.0"
 ruff = "^0.15.6"
-black = "^26.3.1"
+black = "^26.10.1"
 bandit = "^1.9.4"
 isort = "^8.0.1"
 
