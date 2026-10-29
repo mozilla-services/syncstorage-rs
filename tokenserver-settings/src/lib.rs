@@ -1,6 +1,7 @@
 use jsonwebtoken::jwk::Jwk;
 use regex::Regex;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
+use serde_json::Value;
 
 use tokenserver_common::NodeType;
 
@@ -42,9 +43,11 @@ pub struct Settings {
     /// prevents it from making an external API call to FxA to get the JWK, yielding substantial
     /// performance benefits. This value should match that on the `/v1/jwks` endpoint on the FxA
     /// Auth Server.
+    #[serde(deserialize_with = "deserialize_jwk")]
     pub fxa_oauth_primary_jwk: Option<Jwk>,
     /// A secondary JWK to be used to verify OAuth tokens. This is intended to be used to enable
     /// seamless key rotations on FxA.
+    #[serde(deserialize_with = "deserialize_jwk")]
     pub fxa_oauth_secondary_jwk: Option<Jwk>,
     /// The rate at which capacity should be released from nodes that are at capacity.
     pub node_capacity_release_rate: Option<f32>,
@@ -96,6 +99,26 @@ pub struct Settings {
     /// The maximum number of concurrent last-seen uploads.
     /// Defaults to 4.
     pub last_seen_max_concurrent_flushes: usize,
+}
+
+/// Env vars are read with `try_parsing`, which turns a value such as a `kid` of `20251204`
+/// into a number. Every scalar JWK field is a string, so turn such values back into strings.
+/// The parse is lossy: `0123` comes back as `"123"`, and `TRUE` as `"true"`.
+fn deserialize_jwk<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Jwk>, D::Error> {
+    let Some(fields) = Option::<serde_json::Map<String, Value>>::deserialize(deserializer)? else {
+        return Ok(None);
+    };
+    let fields = fields
+        .into_iter()
+        .map(|(key, value)| match value {
+            Value::Number(n) => (key, Value::String(n.to_string())),
+            Value::Bool(b) => (key, Value::String(b.to_string())),
+            value => (key, value),
+        })
+        .collect();
+    serde_json::from_value(Value::Object(fields))
+        .map(Some)
+        .map_err(serde::de::Error::custom)
 }
 
 /// Splits a fully qualified BigQuery table ID into `(project, dataset, table)`.
