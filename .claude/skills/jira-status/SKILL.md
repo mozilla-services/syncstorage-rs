@@ -50,7 +50,7 @@ Table: Key (linked) | Summary | Updated | By
 
 ## Mode: `me`
 
-Work assigned to the person running this skill. Ask: "What is your Jira email or display name?" — use their response to filter.
+Work assigned to the person running this skill. Use the runtime `userEmail` context (or `mcp__atlassian__atlassianUserInfo`); only ask if neither is available.
 
 ```jql
 project = STOR AND assignee = "<user>" AND statusCategory != Done ORDER BY updated DESC
@@ -199,9 +199,10 @@ Create a new Jira issue in STOR from natural language.
 1. Parse the description to infer:
    - **Summary** — one clear sentence (≤ 100 chars)
    - **Issue type** — Bug / Task / Story / Spike (infer from language; ask if ambiguous)
-   - **Priority** — infer from language ("critical", "blocking" → Critical; "nice to have" → Minor; default → Major). Valid STOR priorities: `Blocker`, `Critical`, `Major`, `Minor`. `Trivial` is rejected by the project — do not use it.
+   - **Priority** — STOR uses `P0` to `P4`. Infer from language ("blocking", "outage" -> P0; "critical", "this week" -> P1; default -> P2; "nice to have" -> P3; "someday" -> P4). Don't use the legacy names (`Major`, `Critical`, `Trivial`); they aren't valid in STOR.
    - **Work category** — `Feature Engineering` / `Engineering Excellence` / `Operational Excellence`. See [Work categories](#work-categories) below for definitions and inference rules. Always classify; if unsure between EE and OpEx, the planned/reactive distinction decides it.
    - **Assignee** — if this `create` invocation is part of the same workflow that opens a GitHub PR for the work, set the assignee to the current user. Look up their accountId via `mcp__atlassian__lookupJiraAccountId` using the email from the runtime `userEmail` context. Otherwise leave unassigned unless the user named a specific person.
+   - **Labels** — ask whether it needs `no-sync`. STOR issues mirror to the public syncstorage-rs GitHub repo unless labeled `no-sync`, and the label only works if set at create time. Default to `no-sync` for anything touching infra, security, secrets, internal docs or internal links.
    - **Parent** — if the description references an epic (e.g. "under STOR-506", "in STOR-506", "linked to <epic>"), set `parent` to that key when calling `createJiraIssue`.
    - **Description body** — expand the user's language into a structured description, leading with the category:
      - **Category:** {one of the three categories} — *one-sentence rationale*
@@ -216,6 +217,7 @@ Create a new Jira issue in STOR from natural language.
    Project:  STOR
    Parent:   {parent key or none}
    Priority: {priority}
+   Labels:   {labels or none}
    Category: {category}
    Assignee: {display name or "unassigned"}
    Summary:  {summary}
@@ -230,7 +232,7 @@ Create a new Jira issue in STOR from natural language.
    - `issueTypeName: {type}`
    - `summary: {summary}`
    - `description: {description}` with `contentFormat: markdown`
-   - `additional_fields: { "priority": { "name": "{priority}" } }`
+   - `additional_fields: { "priority": { "name": "{priority}" }, "labels": [{labels}] }`. After creating, read the issue back and confirm the labels took; a malformed field is dropped silently and the issue syncs to GitHub.
    - `assignee_account_id: {accountId}` — only when auto-assignment applies or the user named an assignee
    - `parent: {epic_key}` — only when a parent epic was identified
 
