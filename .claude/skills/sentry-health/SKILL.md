@@ -10,10 +10,10 @@ You are acting as **both engineer and engineering manager** for syncstorage-rs. 
 Start by reading `.claude/mcp-context.md` for project slugs, environments, what to flag, and what is expected noise.
 
 Parse `$ARGUMENTS` (trimmed, lowercased). Default is `full`. Valid modes:
-- `new` — issues first seen in the last 7 days
-- `regressions` — previously resolved issues that have recurred
-- `volume` — high-event-count issues
-- `full` — all of the above
+- `new` -- issues first seen in the last 7 days
+- `regressions` -- previously resolved issues that have recurred
+- `volume` -- high-event-count issues
+- `full` -- all of the above
 - `triage <issue>` -- one issue in depth: where it comes from, whether it should be in Sentry at all, and what to do with it. Skips Steps 2 to 5; go to "Mode: triage" at the end.
 
 ---
@@ -31,7 +31,7 @@ Use available Sentry MCP tools to fetch issues for `syncstorage-rs`. Apply envir
 Fetch based on the selected mode:
 
 ### New issues (`new`, `full`)
-Issues with `firstSeen` in the last 7 days that have not been resolved. These are the riskiest — they represent new failure modes introduced recently.
+Issues with `firstSeen` in the last 7 days that have not been resolved. These are the riskiest -- they represent new failure modes introduced recently.
 
 Sort by: event count descending.
 
@@ -65,15 +65,15 @@ For each, capture:
 
 For every issue surfaced, classify it against the known patterns in `.claude/mcp-context.md`:
 
-**Tokenserver auth path** — involves `HawkIdentifier` (`web/extractors/hawk_identifier.rs`), FxA OAuth, `tokenserver-auth/`, `client_state`, `keys_changed_at`. These are user-facing auth failures — high priority.
+**Tokenserver auth path** -- involves `HawkIdentifier` (`web/extractors/hawk_identifier.rs`), FxA OAuth, `tokenserver-auth/`, `client_state`, `keys_changed_at`. These are user-facing auth failures -- high priority.
 
-**Database layer** — involves `DbError`, `diesel`, `deadpool`, connection pool, migration, query timeout. May indicate infrastructure problems.
+**Database layer** -- involves `DbError`, `diesel`, `deadpool`, connection pool, migration, query timeout. May indicate infrastructure problems.
 
-**Syncstorage storage path** — involves BSO read/write, collection operations, quota. Usually lower priority unless volume is very high.
+**Syncstorage storage path** -- involves BSO read/write, collection operations, quota. Usually lower priority unless volume is very high.
 
-**Expected noise** — 409 Conflict, 503 during deployment, errors only seen in `stage` or `dev`. Mark as "noise" and exclude from the action list.
+**Expected noise** -- 409 Conflict, 503 during deployment, errors only seen in `stage` or `dev`. Mark as "noise" and exclude from the action list.
 
-**Spanner-specific** — RST_STREAM, gRPC errors in production (not emulator). These should NOT appear in production — flag immediately.
+**Spanner-specific** -- RST_STREAM, gRPC errors in production (not emulator). These should NOT appear in production -- flag immediately.
 
 ---
 
@@ -81,7 +81,7 @@ For every issue surfaced, classify it against the known patterns in `.claude/mcp
 
 If recent Jira data is available in this conversation, check whether any Sentry issues correspond to open `STOR-` bugs. Note the link if found.
 
-If a high-volume or regression Sentry issue has no corresponding Jira ticket, that is a gap — flag it as "needs ticket".
+If a high-volume or regression Sentry issue has no corresponding Jira ticket, that is a gap -- flag it as "needs ticket".
 
 ---
 
@@ -119,11 +119,11 @@ Brief list of issues seen but classified as expected noise. One line each. This 
 
 ## Guidelines
 
-- Do not fabricate event counts or timestamps — use exactly what Sentry returns
+- Do not fabricate event counts or timestamps -- use exactly what Sentry returns
 - If a query fails or a tool is unavailable, note it and work with available data
-- `is_sentry_event()` in `syncserver/src/error.rs` is the canonical routing decision — errors that are HTTP 4xx should generally not be in Sentry at high volume; flag if they are
+- `is_sentry_event()` in `syncserver/src/error.rs` is the canonical routing decision -- errors that are HTTP 4xx should generally not be in Sentry at high volume; flag if they are
 - Focus on `prod` (and `ent-prod`); `stage` and `dev` errors are informational only
-- An issue being "old" does not mean it's not important — check event count trends, not just age
+- An issue being "old" does not mean it's not important -- check event count trends, not just age
 - Sentry issue IDs should be referenced in full (e.g. `SYNCSTORAGE-RS-####`) if available
 
 ---

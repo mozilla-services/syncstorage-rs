@@ -27,7 +27,7 @@ Key files:
 - `syncstorage-db-common/src/error.rs`, `syncserver-db-common/src/error.rs` - shared DB error types
 - `tokenserver-common/src/error.rs`, `tokenserver-db-common/src/error.rs` - tokenserver error types
 
-## Step 1 — Find changed error files
+## Step 1 -- Find changed error files
 
 ```bash
 poetry -C tools/devtools run python -m devtools.changed_scope
@@ -41,13 +41,13 @@ Also check for new `From<>` impls that convert external errors into repo error t
 git diff origin/master...HEAD | grep -E "impl From|Into<.*Error"
 ```
 
-## Step 2 — Diff each error file
+## Step 2 -- Diff each error file
 
 ```bash
 git diff origin/master...HEAD -- <error_file>
 ```
 
-## Step 3 — Review checklist
+## Step 3 -- Review checklist
 
 For each new or modified error variant:
 
@@ -65,7 +65,7 @@ For each new or modified error variant:
 
 ### Response body safety
 - Does the error's `Display` or serialization leak internal state (SQL query text, file paths, internal IDs, stack traces)?
-- Check `ApiError`'s response serialization — internal error messages must not reach the client.
+- Check `ApiError`'s response serialization -- internal error messages must not reach the client.
 
 ### Backtrace
 - Does `backtrace()` return a captured backtrace for new unexpected/internal variants?
@@ -74,7 +74,7 @@ For each new or modified error variant:
 ### Metric naming
 - If the variant is metric-only, does `metric_label()` return a name, and is it consistent with existing conventions (`storage.spanner.grpc.internal`, etc.)?
 
-## Step 4 — Check `From` impl chains
+## Step 4 -- Check `From` impl chains
 
 New error types often get wrapped through multiple `From` impls before reaching the HTTP layer. Trace the chain to verify classification survives the conversion:
 

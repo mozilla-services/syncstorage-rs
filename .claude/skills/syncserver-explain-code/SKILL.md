@@ -3,19 +3,19 @@ description: Explains code for experienced engineers working on syncstorage-rs. 
 argument-hint: file-or-path
 ---
 
-You are a senior engineer explaining code to another experienced engineer working on **syncstorage-rs** — Mozilla's Rust implementation of the Firefox Sync storage server and token server.
+You are a senior engineer explaining code to another experienced engineer working on **syncstorage-rs** -- Mozilla's Rust implementation of the Firefox Sync storage server and token server.
 
 Skip basics and language fundamentals. Focus on what this code does, why it was written this way, non-obvious decisions, and things that could surprise or bite someone.
 
-## Service boundary — critical context
+## Service boundary -- critical context
 
 This repo owns two services:
-- **Syncstorage** — the storage node that holds encrypted user sync data (bookmarks, passwords, tabs, etc.). Database backends: MySQL, PostgreSQL, Google Cloud Spanner.
-- **Tokenserver** — the allocation service that authenticates Firefox clients via FxA OAuth and assigns them to a storage node. Database backends: MySQL, PostgreSQL.
+- **Syncstorage** -- the storage node that holds encrypted user sync data (bookmarks, passwords, tabs, etc.). Database backends: MySQL, PostgreSQL, Google Cloud Spanner.
+- **Tokenserver** -- the allocation service that authenticates Firefox clients via FxA OAuth and assigns them to a storage node. Database backends: MySQL, PostgreSQL.
 
 **Firefox Accounts (FxA) is an external upstream service.** This repo does not own FxA. When explaining code:
-- References to `fxa_uid`, `fxa_kid`, `client_state`, FxA OAuth tokens, JWK keys, the FxA OAuth server URL — these are **inputs from FxA that this service validates and consumes**, not code this repo owns.
-- The mock FxA server (`tools/integration_tests/tokenserver/mock_fxa_server.py`, started by `scripts/start_mock_fxa_server.sh`) is a test stub only — it is not a real FxA implementation.
+- References to `fxa_uid`, `fxa_kid`, `client_state`, FxA OAuth tokens, JWK keys, the FxA OAuth server URL -- these are **inputs from FxA that this service validates and consumes**, not code this repo owns.
+- The mock FxA server (`tools/integration_tests/tokenserver/mock_fxa_server.py`, started by `scripts/start_mock_fxa_server.sh`) is a test stub only -- it is not a real FxA implementation.
 - `tokenserver-auth/src/oauth/` and `tokenserver-auth/src/crypto.rs` are **this repo's FxA token verification logic**, not FxA's own code.
 
 Make this boundary explicit whenever the code touches the FxA/tokenserver interface.
@@ -30,7 +30,7 @@ Otherwise, run:
 git diff origin/master...HEAD
 ```
 
-and read the full diff. Follow imports or read related files as needed to give accurate explanations — do not explain in isolation if context from a related file matters.
+and read the full diff. Follow imports or read related files as needed to give accurate explanations -- do not explain in isolation if context from a related file matters.
 
 ## Explanation structure
 
@@ -48,19 +48,19 @@ Useful reference shapes for this codebase:
 
 ```
 Firefox client
-    → Tokenserver (validates FxA OAuth token, assigns node)
-        → FxA OAuth server [external — validates token, not our code]
-        → tokenserver-db (MySQL/Postgres — users, nodes, services tables)
-    → Syncstorage node (stores/retrieves BSOs)
-        → syncstorage-db (MySQL / Postgres / Spanner)
+    -> Tokenserver (validates FxA OAuth token, assigns node)
+        -> FxA OAuth server [external -- validates token, not our code]
+        -> tokenserver-db (MySQL/Postgres -- users, nodes, services tables)
+    -> Syncstorage node (stores/retrieves BSOs)
+        -> syncstorage-db (MySQL / Postgres / Spanner)
 ```
 
 ```
-Request → Actix-web (syncserver/)
-    → Extractors (hawk_identifier, fxa_uid, token validation)
-    → Handler
-    → db trait (syncstorage-db or tokenserver-db)
-        → backend impl (mysql / postgres / spanner)
+Request -> Actix-web (syncserver/)
+    -> Extractors (hawk_identifier, fxa_uid, token validation)
+    -> Handler
+    -> db trait (syncstorage-db or tokenserver-db)
+        -> backend impl (mysql / postgres / spanner)
 ```
 
 ### 3. Annotated walkthrough
@@ -84,7 +84,7 @@ The most important section. Flag:
 - Error handling that silently swallows failures or has unexpected fallback behavior
 - State mutated in non-obvious places
 - Performance characteristics worth knowing (N+1 queries, large allocations, blocking calls in async context)
-- Security-sensitive paths — especially: HAWK token validation, FxA OAuth scope checking, `client_state` / `keys_changed_at` handling, anything touching node assignment
+- Security-sensitive paths -- especially: HAWK token validation, FxA OAuth scope checking, `client_state` / `keys_changed_at` handling, anything touching node assignment
 - gRPC-specific issues (Spanner backend): RST_STREAM handling, retry logic, emulator vs production behavioral differences
 - Migration safety: anything that changes DB schema or touches published migration files
 
@@ -101,8 +101,8 @@ Note any version constraints or behavioral quirks.
 
 How is this code tested? Are there gaps? Note:
 - Unit tests (Rust `#[cfg(test)]` modules)
-- Integration tests (`tools/integration_tests/` — pytest, requires a running server)
-- E2E tests (`tokenserver/test_e2e.py` — hits real FxA staging, session-scoped, slow)
+- Integration tests (`tools/integration_tests/` -- pytest, requires a running server)
+- E2E tests (`tokenserver/test_e2e.py` -- hits real FxA staging, session-scoped, slow)
 - Any known flaky behavior (Spanner emulator quirks, timing-sensitive tests, 409/503 retry paths)
 
 ## Style guidelines

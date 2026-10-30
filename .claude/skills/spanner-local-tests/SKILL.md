@@ -12,7 +12,7 @@ There are two test surfaces in this repo:
 
 | Surface | What it covers | Time | Needs |
 |---|---|---|---|
-| **Unit tests** (this skill's default) | Direct calls into `SpannerDb` — exercises every DML path through `update_user_collection_quotas`, batch ops, BSO CRUD, tombstones, quota. | ~30s after warm-up | emulator only |
+| **Unit tests** (this skill's default) | Direct calls into `SpannerDb` -- exercises every DML path through `update_user_collection_quotas`, batch ops, BSO CRUD, tombstones, quota. | ~30s after warm-up | emulator only |
 | **Docker e2e** | Full syncserver + emulator + tokenserver + mock FxA, hit over HTTP by the Python integration suite. | 5-15 min | freshly-built `app:build` image |
 
 Default to unit tests. Reach for e2e only when changes touch HTTP routing, token handling, or cross-backend behavior CI would catch first.
@@ -34,15 +34,15 @@ If the emulator is **not** running, use the helper:
 ./scripts/spanner-local-test-setup.sh
 ```
 
-That script brings up the emulator, provisions the database/schema, and runs the suite. It's idempotent — re-running just executes the tests if the stack is already up.
+That script brings up the emulator, provisions the database/schema, and runs the suite. It's idempotent -- re-running just executes the tests if the stack is already up.
 
-## From scratch — the full flow
+## From scratch -- the full flow
 
 ### 1. Prerequisites
 
 - **Docker Desktop running.** The emulator runs as a container.
 - **Rust toolchain** matching `rust-version` in the root `Cargo.toml` (or close).
-- For e2e only: enough Docker memory (≥ 8 GB recommended) — the `app:build` image compiles grpcio-sys from source and OOMs on small allocations.
+- For e2e only: enough Docker memory (>= 8 GB recommended) -- the `app:build` image compiles grpcio-sys from source and OOMs on small allocations.
 
 ### 2. Start the emulator
 
@@ -52,8 +52,8 @@ docker compose -f docker/docker-compose.spanner.yaml up -d sync-db
 
 This starts the [`gcr.io/cloud-spanner-emulator/emulator`](https://cloud.google.com/spanner/docs/emulator) image. Two ports:
 
-- **9010** — gRPC. The Rust client (and production) talk this.
-- **9020** — REST. Used for admin (create instance / create database / DDL).
+- **9010** -- gRPC. The Rust client (and production) talk this.
+- **9020** -- REST. Used for admin (create instance / create database / DDL).
 
 Wait ~2 seconds for the emulator to be ready. Confirm:
 
@@ -75,7 +75,7 @@ curl -fsS -X POST "http://localhost:9020/v1/projects/test-project/instances/test
 
 ### 4. Apply the schema
 
-⚠️ **Do not run `scripts/prepare-spanner.sh` directly on macOS.** Its `sed` invocation uses GNU `\+` syntax that BSD `sed` doesn't accept. The script is designed to run inside the Linux container (where GNU sed lives). When you run it from a macOS host, the DDL parsing silently returns an empty array, the database gets created with no tables, and tests fail with cryptic *"Table not found: collections"* errors.
+Warning: **Do not run `scripts/prepare-spanner.sh` directly on macOS.** Its `sed` invocation uses GNU `\+` syntax that BSD `sed` doesn't accept. The script is designed to run inside the Linux container (where GNU sed lives). When you run it from a macOS host, the DDL parsing silently returns an empty array, the database gets created with no tables, and tests fail with cryptic *"Table not found: collections"* errors.
 
 Use this macOS-safe inline equivalent:
 
@@ -112,10 +112,10 @@ cargo test --no-default-features --features=syncstorage-db/spanner --package syn
 
 Two non-obvious env vars:
 
-- `SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST` — the gRPC endpoint. **This is what tells the client to skip OAuth.** If you leave it unset, every test fails with *"Error occurred when fetching oauth2 token"* because the client tries to authenticate against the real Google API.
-- `RUST_TEST_THREADS=1` — required. Many tests share the same database and assert on counts/timestamps; parallel runs race.
+- `SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST` -- the gRPC endpoint. **This is what tells the client to skip OAuth.** If you leave it unset, every test fails with *"Error occurred when fetching oauth2 token"* because the client tries to authenticate against the real Google API.
+- `RUST_TEST_THREADS=1` -- required. Many tests share the same database and assert on counts/timestamps; parallel runs race.
 
-Expected output: `test result: ok. 39 passed; 0 failed; …`.
+Expected output: `test result: ok. 39 passed; 0 failed; ...`.
 
 ### 6. Run a single test
 
@@ -127,7 +127,7 @@ cargo test --no-default-features --features=syncstorage-db/spanner --package syn
   tests::db::delete_collection_tombstone -- --nocapture
 ```
 
-`--nocapture` is essential when tests fail — without it, errors get swallowed.
+`--nocapture` is essential when tests fail -- without it, errors get swallowed.
 
 ### 7. Teardown
 
@@ -135,7 +135,7 @@ cargo test --no-default-features --features=syncstorage-db/spanner --package syn
 docker compose -f docker/docker-compose.spanner.yaml down -v
 ```
 
-The `-v` wipes named volumes for the whole compose project — including `tokenserver_db_data`. If you have the full e2e stack (or anything else from this compose file) running in parallel, prefer the helper script's narrower teardown instead:
+The `-v` wipes named volumes for the whole compose project -- including `tokenserver_db_data`. If you have the full e2e stack (or anything else from this compose file) running in parallel, prefer the helper script's narrower teardown instead:
 
 ```bash
 ./scripts/spanner-local-test-setup.sh down
@@ -149,14 +149,14 @@ That only stops + removes the `sync-db` container. The emulator keeps no data in
 |---|---|---|
 | `Error occurred when fetching oauth2 token` | Forgot `SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST`. Client is trying real Google OAuth. | Export the var. |
 | `Table not found: collections [at 2:25]` | DDL didn't apply. Most often because `prepare-spanner.sh` was run on macOS and produced an empty statement list. | Use the inline DDL block in step 4. |
-| `INVALID_ARGUMENT: …` on `INSERT OR UPDATE` | Emulator version too old (< 1.5.x). | Update `docker/docker-compose.spanner.yaml`'s image tag. |
-| 39 tests "pass" in 0.2s | Tests didn't actually connect — they're failing the OAuth check and treating it as a fresh start. Check the first test's error. | Same as the OAuth row above. |
+| `INVALID_ARGUMENT: ...` on `INSERT OR UPDATE` | Emulator version too old (< 1.5.x). | Update `docker/docker-compose.spanner.yaml`'s image tag. |
+| 39 tests "pass" in 0.2s | Tests didn't actually connect -- they're failing the OAuth check and treating it as a fresh start. Check the first test's error. | Same as the OAuth row above. |
 | Tests intermittently fail with timestamp/count mismatches | `RUST_TEST_THREADS=1` not set. | Set it. |
 | `cargo test` error: *the package 'syncstorage-db' does not contain this feature: py_verifier* | `py_verifier` is on the `syncserver` crate. | Drop `--features=py_verifier` when running tests on `syncstorage-db` alone. |
 
 ## Docker e2e (optional, slower path)
 
-The Makefile target `docker_run_spanner_e2e_tests` spins up the full stack and runs the Python integration suite twice (with and without JWK cache). It requires the `app:build` image to be **current** — built against the working tree's code.
+The Makefile target `docker_run_spanner_e2e_tests` spins up the full stack and runs the Python integration suite twice (with and without JWK cache). It requires the `app:build` image to be **current** -- built against the working tree's code.
 
 ```bash
 docker build -t app:build .
@@ -174,22 +174,22 @@ Two tests will always fail locally and can be safely ignored:
 - `tools/integration_tests/tokenserver/test_e2e.py::test_unauthorized_oauth_error_status`
 - `tools/integration_tests/tokenserver/test_e2e.py::test_valid_oauth_request`
 
-Both hit **real FxA stage** (`api-accounts.stage.mozaws.net`, `oauth.stage.mozaws.net`) and need live network + production credentials the docker stack doesn't have. They surface as `fxa.errors.OutOfProtocolError: API responded with non-json content-type` — FxA returning an HTML error page because the request can't authenticate. CLAUDE.md excludes these from `make run_local_e2e_tests` via `--ignore=tokenserver/test_e2e.py`; the docker e2e target doesn't apply that exclusion, so expect `149 passed, 2 errors` not `151 passed`.
+Both hit **real FxA stage** (`api-accounts.stage.mozaws.net`, `oauth.stage.mozaws.net`) and need live network + production credentials the docker stack doesn't have. They surface as `fxa.errors.OutOfProtocolError: API responded with non-json content-type` -- FxA returning an HTML error page because the request can't authenticate. CLAUDE.md excludes these from `make run_local_e2e_tests` via `--ignore=tokenserver/test_e2e.py`; the docker e2e target doesn't apply that exclusion, so expect `149 passed, 2 errors` not `151 passed`.
 
 Notes:
 
-- The image build compiles grpcio-sys from C++ source. On Docker Desktop for Mac, allocate **≥ 8 GB** memory.
+- The image build compiles grpcio-sys from C++ source. On Docker Desktop for Mac, allocate **>= 8 GB** memory.
 - The build takes 10-20 minutes from cold. Subsequent rebuilds reuse cache layers and are much faster *unless* `Cargo.lock` or the Rust toolchain changed.
 - Results land in `workflow/test-results/` as JUnit XML (`TEST_RESULTS_DIR` in the Makefile).
 - The make target tears the stack down on completion.
 
 ### `ar: unable to copy file 'libgrpc.a'; reason: Success`
 
-Misleading message — the linker wasn't killed, the BuildKit cache mount got into a corrupt state. Seen on macOS with stale buildkit caches (mine had ~19 GB accumulated).
+Misleading message -- the linker wasn't killed, the BuildKit cache mount got into a corrupt state. Seen on macOS with stale buildkit caches (mine had ~19 GB accumulated).
 
 Fix:
 
-> ⚠️ `docker builder prune -f` clears BuildKit cache mounts for **every** Docker project on the host, not just this repo. Unrelated projects' next builds will go from cached to cold. Run it only when the link error reproduces and you've ruled out a real OOM.
+> Warning: `docker builder prune -f` clears BuildKit cache mounts for **every** Docker project on the host, not just this repo. Unrelated projects' next builds will go from cached to cold. Run it only when the link error reproduces and you've ruled out a real OOM.
 
 ```bash
 docker builder prune -f
@@ -198,7 +198,7 @@ docker build -t app:build .
 
 The prune drops the cache mounts grpcio-sys writes its 100+ MB `libgrpc.a` into. The next build re-creates them clean and the link step succeeds. If it fails a second time after prune, *then* suspect a real OOM and bump Docker Desktop memory.
 
-If the local build won't cooperate, CI on push runs the same e2e suite — relying on it is reasonable for refactors that don't touch HTTP/auth/routing.
+If the local build won't cooperate, CI on push runs the same e2e suite -- relying on it is reasonable for refactors that don't touch HTTP/auth/routing.
 
 ## When to invoke this skill
 
@@ -209,7 +209,7 @@ Reach for it when:
 - You're investigating an emulator-vs-prod behavior question.
 - You forgot the env-var dance for the third time this month.
 
-Don't invoke it for changes that don't touch Spanner — the MySQL or Postgres backends have their own test paths through the Makefile's `test_with_coverage` and `postgres_test_with_coverage` targets.
+Don't invoke it for changes that don't touch Spanner -- the MySQL or Postgres backends have their own test paths through the Makefile's `test_with_coverage` and `postgres_test_with_coverage` targets.
 
 ## Output format
 
@@ -217,8 +217,8 @@ After running, report:
 
 1. **Emulator state:** running / fresh / pre-existing
 2. **Schema applied:** N statements
-3. **Test results:** `X passed; Y failed; Z ignored` — list the failed test names if any
+3. **Test results:** `X passed; Y failed; Z ignored` -- list the failed test names if any
 4. **Total wall time**
 5. **Teardown:** done / left running for follow-up
 
-If anything failed, surface the actual error message (not just the test name) — Spanner emulator errors are verbose but informative, and the first line is usually enough to diagnose.
+If anything failed, surface the actual error message (not just the test name) -- Spanner emulator errors are verbose but informative, and the first line is usually enough to diagnose.

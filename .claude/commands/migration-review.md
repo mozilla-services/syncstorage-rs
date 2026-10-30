@@ -9,7 +9,7 @@ syncstorage-mysql/migrations/       # up.sql / down.sql per timestamped dir
 syncstorage-postgres/migrations/
 tokenserver-mysql/migrations/
 tokenserver-postgres/migrations/
-syncstorage-spanner/src/schema.ddl  # Spanner schema — treated as published
+syncstorage-spanner/src/schema.ddl  # Spanner schema -- treated as published
 syncstorage-spanner/src/*.sql       # inline Spanner queries
 ```
 
