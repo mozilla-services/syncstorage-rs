@@ -2,7 +2,7 @@ Generate a PR title and summary from the current branch diff, following the repo
 
 You are a PR description writer for syncstorage-rs. Your job is to inspect the current branch changes and produce a ready-to-use PR title and body that follows the conventions in CONTRIBUTING.md.
 
-## Step 1 — Gather branch context
+## Step 1 -- Gather branch context
 
 ```bash
 git diff origin/master...HEAD --name-only
@@ -10,7 +10,7 @@ git log origin/master..HEAD --oneline
 git diff origin/master...HEAD --stat
 ```
 
-## Step 2 — Read the full diff for context
+## Step 2 -- Read the full diff for context
 
 ```bash
 git diff origin/master...HEAD
@@ -18,36 +18,36 @@ git diff origin/master...HEAD
 
 Focus on understanding *what changed and why*, not just listing files.
 
-## Step 3 — Classify the change type
+## Step 3 -- Classify the change type
 
 Based on changed files, determine the primary `type`:
 
-- `feat` — new functionality added
-- `fix` — bug fix
-- `refactor` — code restructured, no behavior change
-- `test` — test additions or changes only
-- `chore` — build, CI, tooling, dependencies
-- `docs` — documentation only
-- `perf` — performance improvement
-- `style` — formatting, lint fixes only
+- `feat` -- new functionality added
+- `fix` -- bug fix
+- `refactor` -- code restructured, no behavior change
+- `test` -- test additions or changes only
+- `chore` -- build, CI, tooling, dependencies
+- `docs` -- documentation only
+- `perf` -- performance improvement
+- `style` -- formatting, lint fixes only
 
 If multiple types apply, use the most significant one.
 
-## Step 4 — Determine scope (optional)
+## Step 4 -- Determine scope (optional)
 
 If the change is clearly scoped to one subsystem, add it in parentheses:
 - `tokenserver`, `syncstorage`, `spanner`, `mysql`, `postgres`, `auth`, `migrations`, `ci`, `tools`
 
 Example: `refactor(tokenserver): ...`
 
-## Step 5 — Draft the PR title
+## Step 5 -- Draft the PR title
 
 Rules from CONTRIBUTING.md:
 - Format: `type(scope): subject` or `type: subject`
 - Subject: imperative present tense, no capital first letter, no trailing period
 - Keep it under 70 characters
 
-## Step 6 — Draft the PR body
+## Step 6 -- Draft the PR body
 
 Follow the repo's `PULL_REQUEST_TEMPLATE.md` sections. Keep it short and plain.
 
@@ -67,11 +67,11 @@ Closes STOR-#### (or Closes #N for community contributors)
 
 Pre-fill Testing based on file types changed:
 
-- Rust source changed → `- [ ] \`make clippy_<backend>\` passes`, `- [ ] Unit tests pass (\`make test\`)`
-- Python source changed → `- [ ] \`make ruff-lint\` and \`make mypy\` pass`, `- [ ] Integration tests pass (\`make run_local_e2e_tests\`)`
-- SQL migrations added → `- [ ] \`/migration-review\` passes`, `- [ ] Migration applies cleanly on a fresh DB`
-- `.github/` changed → `- [ ] CI workflow runs successfully on this branch`
-- `CLAUDE.md` or docs changed → `- [ ] Renders correctly on GitHub`
+- Rust source changed -> `- [ ] \`make clippy_<backend>\` passes`, `- [ ] Unit tests pass (\`make test\`)`
+- Python source changed -> `- [ ] \`make ruff-lint\` and \`make mypy\` pass`, `- [ ] Integration tests pass (\`make run_local_e2e_tests\`)`
+- SQL migrations added -> `- [ ] \`/migration-review\` passes`, `- [ ] Migration applies cleanly on a fresh DB`
+- `.github/` changed -> `- [ ] CI workflow runs successfully on this branch`
+- `CLAUDE.md` or docs changed -> `- [ ] Renders correctly on GitHub`
 
 ## Step 7 -- Validate
 

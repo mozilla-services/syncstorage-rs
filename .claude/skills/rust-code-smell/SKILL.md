@@ -7,7 +7,7 @@ argument-hint: "[mysql|postgres|spanner|deps]"
 
 # Rust Code Smell Detector
 
-You are a Rust code quality reviewer for syncstorage-rs. Your job is to run the full set of mechanical checks relevant to the current branch's changes, then layer on a manual smell pass for patterns that tooling misses. Run checks for every backend touched by the diff — not just the default.
+You are a Rust code quality reviewer for syncstorage-rs. Your job is to run the full set of mechanical checks relevant to the current branch's changes, then layer on a manual smell pass for patterns that tooling misses. Run checks for every backend touched by the diff -- not just the default.
 
 ## Standing authorization
 
@@ -20,7 +20,7 @@ When this skill is invoked, you have standing authorization to run the following
 - `make clippy_release_mysql`, `make clippy_release_postgres`, `make clippy_release_spanner`
 - `cargo audit`
 - `cargo check --workspace ...`
-- `cargo test --no-run` (compile-check only — do NOT run actual tests without explicit permission, since they require DB setup)
+- `cargo test --no-run` (compile-check only -- do NOT run actual tests without explicit permission, since they require DB setup)
 - `cargo update --precise <ver> -p <crate>` (lockfile-only adjustments during bisection)
 - `git worktree add /tmp/baseline origin/master` / `git worktree remove /tmp/baseline` (for baseline comparison; don't use `git stash`, the stash stack is shared across worktrees)
 
@@ -47,15 +47,15 @@ It prints JSON. Use `backends` and `clippy_targets` as-is; don't re-derive them.
 
 If `backends` is empty there's no Rust to check; say so and stop. If `dependency_files` is the only Rust change, switch to `deps` mode. `skills` lists the other reviews the diff calls for (e.g. `multi-backend-consistency`, `rust-error-review`, `migration-review`); mention them in the verdict.
 
-## Step 2 — Format check
+## Step 2 -- Format check
 
 ```bash
 cargo fmt -- --check
 ```
 
-If formatting issues exist, stop and report them. Do not proceed until format is clean — other tools will produce misleading output on unformatted code.
+If formatting issues exist, stop and report them. Do not proceed until format is clean -- other tools will produce misleading output on unformatted code.
 
-## Step 3 — Run Clippy for each affected backend
+## Step 3 -- Run Clippy for each affected backend
 
 Run only the backends identified in Step 1. Use the exact Makefile targets:
 
@@ -73,9 +73,9 @@ make clippy_release_postgres   # if postgres affected
 make clippy_release_spanner    # if spanner affected
 ```
 
-Collect all warnings and errors. Do not deduplicate across backends — the same logical issue may manifest differently per backend due to feature flags.
+Collect all warnings and errors. Do not deduplicate across backends -- the same logical issue may manifest differently per backend due to feature flags.
 
-## Step 4 — Security audit
+## Step 4 -- Security audit
 
 ```bash
 cargo audit
@@ -83,7 +83,7 @@ cargo audit
 
 Flag any **critical** or **high** severity advisories as blockers. List **medium** as warnings. Note the affected crate and advisory ID for each.
 
-## Step 5 — Manual smell pass
+## Step 5 -- Manual smell pass
 
 Read the diff:
 
@@ -94,17 +94,17 @@ git diff origin/master...HEAD
 Check for the following patterns that Clippy does not catch:
 
 ### Async/blocking
-- `std::thread::sleep` inside an async function — use `tokio::time::sleep`
+- `std::thread::sleep` inside an async function -- use `tokio::time::sleep`
 - Blocking DB calls inside async handlers without `spawn_blocking`
 - `.unwrap()` or `.expect()` on `Result`/`Option` in production paths (test code is fine)
 
 ### gRPC / Spanner-specific
-- `grpcio::RpcStatus` errors caught and silently dropped without either Sentry classification or metric emission — see `is_sentry_event()` / `is_ignored_internal()` pattern
+- `grpcio::RpcStatus` errors caught and silently dropped without either Sentry classification or metric emission -- see `is_sentry_event()` / `is_ignored_internal()` pattern
 - Retry logic that doesn't cap attempts or uses `std::thread::sleep` instead of exponential backoff
 - Spanner mutations not batched where they could be
 
 ### Error handling
-- `map_err(|_| ...)` that discards the original error without logging — information loss
+- `map_err(|_| ...)` that discards the original error without logging -- information loss
 - `unwrap()` on lock acquisition (implies the lock is poisonable)
 - New `From` impls that convert specific errors into generic `InternalError` without preserving context
 
@@ -142,7 +142,7 @@ Check for the following patterns that Clippy does not catch:
 **Manual smells found:**
 List each with file:line, smell type, and a one-line explanation.
 
-**Verdict:** Clean / N issues need attention — list blockers vs warnings separately.
+**Verdict:** Clean / N issues need attention -- list blockers vs warnings separately.
 
 ---
 
@@ -156,7 +156,7 @@ Use this flow when the branch only changes `Cargo.toml` / `Cargo.lock`, the user
 - `git diff origin/master...HEAD --name-only` returns only `Cargo.toml` and/or `Cargo.lock`.
 - User explicitly says "check this dep bump" / "verify the cargo updates" / "is this PR safe".
 
-## Step D1 — Establish the baseline
+## Step D1 -- Establish the baseline
 
 The single most valuable signal is whether the gates already pass on `origin/master` before the bump. Run the gate in a throwaway worktree on `origin/master`:
 
@@ -166,22 +166,22 @@ make -C /tmp/baseline clippy_mysql 2>&1 | tail -10
 git worktree remove /tmp/baseline
 ```
 
-If `origin/master` already fails a gate, stop and surface that to the user — the bump did not introduce the failure and pretending otherwise wastes time.
+If `origin/master` already fails a gate, stop and surface that to the user -- the bump did not introduce the failure and pretending otherwise wastes time.
 
-## Step D2 — Classify the bumps
+## Step D2 -- Classify the bumps
 
 Categorize every changed crate before running anything else. Read the manifest diff plus dependabot's release notes (in the PR body) and assign each crate to one of:
 
-- **Routine** — patch/minor bumps to leaf-ish deps (`env_logger`, `reqwest`, `utoipa`, `uuid`, `cadence`, `jsonwebtoken`, `config`, `pyo3` patches). Group these.
-- **Ecosystem-coupled** — crates whose versions must move together. In this repo:
-  - `diesel-async` and `deadpool` are paired — Cargo.toml comments already say so.
+- **Routine** -- patch/minor bumps to leaf-ish deps (`env_logger`, `reqwest`, `utoipa`, `uuid`, `cadence`, `jsonwebtoken`, `config`, `pyo3` patches). Group these.
+- **Ecosystem-coupled** -- crates whose versions must move together. In this repo:
+  - `diesel-async` and `deadpool` are paired -- Cargo.toml comments already say so.
   - `diesel_migrations` is ecosystem-coupled with `diesel-async` even on patch bumps (history: 2.3.2 broke against diesel-async 0.7; the repo is now on 0.9).
   - `protobuf` for the Spanner backend must match what `google-cloud-rust-raw` resolves. Do not bump `syncstorage-spanner`'s pinned `protobuf` ahead of `google-cloud-rust-raw`.
-- **Major / breaking** — any `x.0 → y.0` or `0.x → 0.y` bump on a direct dep. Flag for human review even if compilation passes.
+- **Major / breaking** -- any `x.0 -> y.0` or `0.x -> 0.y` bump on a direct dep. Flag for human review even if compilation passes.
 
 Recommend splitting a grouped dependabot PR along these lines: one PR per category, with the riskier categories held until their constraints clear.
 
-## Step D3 — Apply bumps surgically
+## Step D3 -- Apply bumps surgically
 
 When applying a chosen group, use `--precise` per crate so transitive deps don't drift:
 
@@ -189,11 +189,11 @@ When applying a chosen group, use `--precise` per crate so transitive deps don't
 cargo update --precise <version> -p <crate>
 ```
 
-Do not run a bare `cargo update -p <crate>` — that will pull in unrelated transitive bumps (e.g. `hashlink 0.10 → 0.11`, `anstream 0.6 → 1.0`) and you'll then have to debug whether those broke something. `--precise` keeps the diff to exactly what was requested.
+Do not run a bare `cargo update -p <crate>` -- that will pull in unrelated transitive bumps (e.g. `hashlink 0.10 -> 0.11`, `anstream 0.6 -> 1.0`) and you'll then have to debug whether those broke something. `--precise` keeps the diff to exactly what was requested.
 
 Cargo only accepts one `--precise` per invocation. To apply N crates, run N sequential `cargo update --precise` commands.
 
-If two crates share a version qualifier (`reqwest@0.13.2`), cargo will demand the disambiguator — use the form it suggests in the error.
+If two crates share a version qualifier (`reqwest@0.13.2`), cargo will demand the disambiguator -- use the form it suggests in the error.
 
 After every cargo-update batch, run:
 
@@ -203,7 +203,7 @@ git diff origin/master -- Cargo.lock | grep -E '^[-+]version = ' | sort | uniq -
 
 Verify the version-change set matches the intended group. Anything you did not request showing up is a red flag.
 
-## Step D4 — Run the gates
+## Step D4 -- Run the gates
 
 Run, in order, stopping at the first failure:
 
@@ -218,9 +218,9 @@ cargo test --workspace --no-run    # compile-check only
 
 `make test` (running the suite) requires a real MySQL on `localhost:3306` with `sample_user:sample_password` and the schemas pre-created. If the user's environment doesn't have it, report that explicitly and recommend `make docker_run_mysql_e2e_tests` / `make docker_run_postgres_e2e_tests` for full verification. Do not attempt to set up the DB.
 
-`cargo test --no-run` also requires a libpython linkable on disk because `pyo3` is a default-feature dep (the one matching your Poetry Python; Docker images use 3.13). If that fails at the link stage with `library 'python3.x' not found`, report it as a local env issue, not a bump regression. Confirm by running the same `--no-run` against the baseline (Step D1) — if it fails there too, it's not your problem.
+`cargo test --no-run` also requires a libpython linkable on disk because `pyo3` is a default-feature dep (the one matching your Poetry Python; Docker images use 3.13). If that fails at the link stage with `library 'python3.x' not found`, report it as a local env issue, not a bump regression. Confirm by running the same `--no-run` against the baseline (Step D1) -- if it fails there too, it's not your problem.
 
-## Step D5 — Bisect on failure
+## Step D5 -- Bisect on failure
 
 If a gate fails, do not start guessing. Bisect:
 
@@ -231,7 +231,7 @@ If a gate fails, do not start guessing. Bisect:
 
 When a crate is identified as incompatible with the current group, remove it from the group, return it to the manifest's previous version, and update the Jira ticket (or PR description) to note it's been moved to whichever group it now belongs with.
 
-## Step D6 — Report
+## Step D6 -- Report
 
 Output one table:
 
@@ -254,9 +254,9 @@ End with one paragraph: what landed, what was excluded and why, and what should 
 
 ## Known coupling notes for this repo
 
-Keep these in mind when classifying bumps — they cost real time to rediscover:
+Keep these in mind when classifying bumps -- they cost real time to rediscover:
 
 - **`diesel-async` + `deadpool`** are paired. Cargo.toml comments say so. Do not move one without the other.
 - **`protobuf`** is pinned with `=<version>` in `syncstorage-spanner/Cargo.toml` deliberately. The pin must match what `google-cloud-rust-raw` resolves to. Currently both should be `2.28.0`. Bumping the spanner pin ahead of `google-cloud-rust-raw` will cause two protobuf majors in the lockfile and break compilation (RepeatedField doesn't exist in protobuf 3.x).
-- **`make clippy_mysql` / `clippy_postgres` / `clippy_spanner`** all use `--workspace --all-targets` — every backend crate compiles under every feature set. A failure in `syncstorage-postgres` source under `clippy_mysql` is not a misconfiguration; it means a workspace-shared dep changed something diesel-postgres can't tolerate.
+- **`make clippy_mysql` / `clippy_postgres` / `clippy_spanner`** all use `--workspace --all-targets` -- every backend crate compiles under every feature set. A failure in `syncstorage-postgres` source under `clippy_mysql` is not a misconfiguration; it means a workspace-shared dep changed something diesel-postgres can't tolerate.
 - **`pyo3` + libpython link** is required for default-feature builds on this repo. Local `cargo test --no-run` will fail at link without it. Docker e2e is the fallback for full test verification.

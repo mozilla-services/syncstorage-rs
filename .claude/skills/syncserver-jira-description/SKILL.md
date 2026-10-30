@@ -6,7 +6,7 @@ user-invocable: true
 
 # Syncserver Jira Description
 
-Draft a Jira description for a syncstorage-rs task. Output the description only — do not create, edit, or suggest changes to any source files.
+Draft a Jira description for a syncstorage-rs task. Output the description only -- do not create, edit, or suggest changes to any source files.
 
 ## Step 1: Gather context
 
@@ -14,9 +14,9 @@ If a planning doc, epic description, or tech spec was provided, read it first an
 
 Required information:
 - **What:** What is being built or changed, in one sentence
-- **Why:** Motivation — user need, requirement, bug, or tech debt
+- **Why:** Motivation -- user need, requirement, bug, or tech debt
 - **Crates:** Which specific crate(s) will be modified (e.g. `syncstorage-spanner`, `tokenserver-auth`, `syncserver`, `tokenserver-postgres`)
-- **Constraints:** DB migration required, multi-backend impact (MySQL/Postgres/Spanner), breaking API change, feature flag, FxA contract change — or none
+- **Constraints:** DB migration required, multi-backend impact (MySQL/Postgres/Spanner), breaking API change, feature flag, FxA contract change -- or none
 
 If all four are clear from provided context, proceed directly to Step 2. Otherwise ask for only what is missing in a single message. Also invite related PRs, tickets, existing approach notes, or architecture notes that would add useful context.
 
@@ -31,7 +31,7 @@ Identify:
 - Whether new migrations are required (and which crates: `syncstorage-mysql`, `syncstorage-postgres`, `tokenserver-mysql`, `tokenserver-postgres`)
 - Whether tests, metrics (Glean/StatsD), or Sentry error handling apply
 
-Incorporate findings directly into the draft — do not list them separately or ask for confirmation. Surface genuine blockers as Open Questions.
+Incorporate findings directly into the draft -- do not list them separately or ask for confirmation. Surface genuine blockers as Open Questions.
 
 ## Step 3: Output
 
@@ -63,8 +63,8 @@ Also set `summary` (100 chars max), `issue_type`, `priority` (`P0` to `P4`), `la
 
 ## Guidelines
 
-- Output the description only — no source file changes
-- Implementation Steps should give enough detail to start work without follow-up questions — crate paths, file paths, and patterns, not prose
+- Output the description only -- no source file changes
+- Implementation Steps should give enough detail to start work without follow-up questions -- crate paths, file paths, and patterns, not prose
 - Multi-backend tasks: always explicitly name which backends (MySQL / PostgreSQL / Spanner) need matching changes; do not say "all backends" without listing them
 - Migration tasks: always reference the no-edit-published-migrations rule
 - Omit redundant or obvious acceptance criteria
