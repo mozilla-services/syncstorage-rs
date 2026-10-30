@@ -41,7 +41,7 @@ That script brings up the emulator, provisions the database/schema, and runs the
 ### 1. Prerequisites
 
 - **Docker Desktop running.** The emulator runs as a container.
-- **Rust toolchain** matching `rust-toolchain.toml` (or close).
+- **Rust toolchain** matching `rust-version` in the root `Cargo.toml` (or close).
 - For e2e only: enough Docker memory (≥ 8 GB recommended) — the `app:build` image compiles grpcio-sys from source and OOMs on small allocations.
 
 ### 2. Start the emulator
@@ -180,7 +180,7 @@ Notes:
 
 - The image build compiles grpcio-sys from C++ source. On Docker Desktop for Mac, allocate **≥ 8 GB** memory.
 - The build takes 10-20 minutes from cold. Subsequent rebuilds reuse cache layers and are much faster *unless* `Cargo.lock` or the Rust toolchain changed.
-- Results land in `workspace/test-results/` as JUnit XML.
+- Results land in `workflow/test-results/` as JUnit XML (`TEST_RESULTS_DIR` in the Makefile).
 - The make target tears the stack down on completion.
 
 ### `ar: unable to copy file 'libgrpc.a'; reason: Success`

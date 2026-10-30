@@ -15,7 +15,7 @@ This repo owns two services:
 
 **Firefox Accounts (FxA) is an external upstream service.** This repo does not own FxA. When explaining code:
 - References to `fxa_uid`, `fxa_kid`, `client_state`, FxA OAuth tokens, JWK keys, the FxA OAuth server URL — these are **inputs from FxA that this service validates and consumes**, not code this repo owns.
-- The `mock-fxa-server` in `scripts/` is a test stub only — it is not a real FxA implementation.
+- The mock FxA server (`tools/integration_tests/tokenserver/mock_fxa_server.py`, started by `scripts/start_mock_fxa_server.sh`) is a test stub only — it is not a real FxA implementation.
 - `tokenserver-auth/src/oauth/` and `tokenserver-auth/src/crypto.rs` are **this repo's FxA token verification logic**, not FxA's own code.
 
 Make this boundary explicit whenever the code touches the FxA/tokenserver interface.
