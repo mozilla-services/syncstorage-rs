@@ -18,21 +18,21 @@ Each migration directory is named `YYYY-MM-DD-hhmmss_description/` and contains 
 ## Step 1 — Find changed migration files
 
 ```bash
-git diff main...HEAD --name-only | grep -E "migrations/|schema\.ddl|\.sql"
+git diff origin/master...HEAD --name-only | grep -E "migrations/|schema\.ddl|\.sql"
 ```
 
 ## Step 2 — Classify each changed file
 
 For each changed SQL file:
 
-- **New migration directory** (path did not exist on main) → allowed, proceed to Step 3
-- **Existing migration file modified** (path existed on main and content changed) → **VIOLATION** — flag as a blocker
+- **New migration directory** (path did not exist on origin/master) → allowed, proceed to Step 3
+- **Existing migration file modified** (path existed on origin/master and content changed) → **VIOLATION** — flag as a blocker
 - **schema.ddl modified** → **VIOLATION** — flag as a blocker
 - **Inline .sql query file modified** (non-migration) → review for intent, flag if it changes schema
 
-Check whether a file existed on main:
+Check whether a file existed on origin/master:
 ```bash
-git show main:<path>
+git show origin/master:<path>
 ```
 
 ## Step 3 — Validate new migrations

@@ -5,15 +5,15 @@ You are a PR description writer for syncstorage-rs. Your job is to inspect the c
 ## Step 1 — Gather branch context
 
 ```bash
-git diff main...HEAD --name-only
-git log main...HEAD --oneline
-git diff main...HEAD --stat
+git diff origin/master...HEAD --name-only
+git log origin/master..HEAD --oneline
+git diff origin/master...HEAD --stat
 ```
 
 ## Step 2 — Read the full diff for context
 
 ```bash
-git diff main...HEAD
+git diff origin/master...HEAD
 ```
 
 Focus on understanding *what changed and why*, not just listing files.

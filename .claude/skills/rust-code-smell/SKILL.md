@@ -32,7 +32,7 @@ Do not run anything destructive (commit, push, rebase, branch deletion, `cargo c
 ## Step 1 — Identify which backends are affected
 
 ```bash
-git diff main...HEAD --name-only
+git diff origin/master...HEAD --name-only
 ```
 
 Determine which backends the changes touch:
@@ -83,7 +83,7 @@ Flag any **critical** or **high** severity advisories as blockers. List **medium
 Read the diff:
 
 ```bash
-git diff main...HEAD
+git diff origin/master...HEAD
 ```
 
 Check for the following patterns that Clippy does not catch:
@@ -148,12 +148,12 @@ Use this flow when the branch only changes `Cargo.toml` / `Cargo.lock`, the user
 ## When to enter this mode
 
 - User invokes the skill on a dependabot PR (e.g. mozilla-services/syncstorage-rs#NNNN).
-- `git diff main...HEAD --name-only` returns only `Cargo.toml` and/or `Cargo.lock`.
+- `git diff origin/master...HEAD --name-only` returns only `Cargo.toml` and/or `Cargo.lock`.
 - User explicitly says "check this dep bump" / "verify the cargo updates" / "is this PR safe".
 
 ## Step D1 — Establish the baseline
 
-The single most valuable signal is whether the gates already pass on `main` before the bump. Stash, test, restore:
+The single most valuable signal is whether the gates already pass on `origin/master` before the bump. Stash, test, restore:
 
 ```bash
 git stash
@@ -161,7 +161,7 @@ make clippy_mysql 2>&1 | tail -10
 git stash pop
 ```
 
-If `main` already fails a gate, stop and surface that to the user — the bump did not introduce the failure and pretending otherwise wastes time.
+If `origin/master` already fails a gate, stop and surface that to the user — the bump did not introduce the failure and pretending otherwise wastes time.
 
 ## Step D2 — Classify the bumps
 
