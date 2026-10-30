@@ -8,12 +8,20 @@ use syncstorage_db_common::{BatchDb, Db, DbPool, params, results};
 
 use crate::DbError;
 
-#[derive(Clone, Debug)]
-pub struct MockDbPool;
+#[derive(Clone, Debug, Default)]
+pub struct MockDbPool {
+    fail_begin: bool,
+}
 
 impl MockDbPool {
     pub fn new() -> Self {
-        MockDbPool
+        MockDbPool::default()
+    }
+
+    /// Fails `begin`, leaving `rollback` a noop as Spanner's is once begin
+    /// has failed. See STOR-658.
+    pub fn with_failing_begin() -> Self {
+        MockDbPool { fail_begin: true }
     }
 }
 
@@ -22,7 +30,9 @@ impl DbPool for MockDbPool {
     type Error = DbError;
 
     async fn get(&self) -> Result<Box<dyn Db<Error = DbError>>, Self::Error> {
-        Ok(Box::new(MockDb::new()))
+        Ok(Box::new(MockDb {
+            fail_begin: self.fail_begin,
+        }))
     }
 
     fn validate_batch_id(&self, _: params::ValidateBatchId) -> Result<(), DbError> {
@@ -45,12 +55,14 @@ impl GetPoolStatus for MockDbPool {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct MockDb;
+#[derive(Clone, Debug, Default)]
+pub struct MockDb {
+    fail_begin: bool,
+}
 
 impl MockDb {
     pub fn new() -> Self {
-        MockDb
+        MockDb::default()
     }
 }
 
@@ -65,6 +77,9 @@ impl Db for MockDb {
     }
 
     async fn begin(&mut self, _for_write: bool) -> Result<(), Self::Error> {
+        if self.fail_begin {
+            return Err(DbError::internal("mock begin failure".to_owned()));
+        }
         Ok(())
     }
 
