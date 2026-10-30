@@ -23,7 +23,7 @@ use serde::Deserialize;
 use sha2::Sha256;
 use syncserver_common::Taggable;
 use syncserver_settings::Secrets;
-use tokenserver_auth::{FxaWebhookClaims, JWTVerifyError};
+use tokenserver_auth::{FxaDeleteAssertionClaims, FxaWebhookClaims, JWTVerifyError};
 use tokenserver_common::{ErrorLocation, NodeType, TokenserverError};
 use tokenserver_db::{Db, DbPool, SYNC_SERVICE_NAME, params, results};
 
@@ -664,6 +664,83 @@ impl FromRequest for FxaWebhookToken {
     }
 }
 
+/// An FxA-signed assertion authorizing deletion of one user's syncstorage
+/// data.
+///
+/// Note the trust direction matches the other two authenticated routes on this
+/// service — `Authorization: Bearer` carries a token FxA issued, verified
+/// against FxA's public JWKs — but the separation between the three is doing
+/// real work here, because this one authorizes an irreversible operation. See
+/// the verifier table in `tokenserver-auth`'s crypto module.
+///
+/// Carries the verified claims rather than being a bare marker, so a handler
+/// cannot act on a uid other than the authenticated `sub`.
+pub struct DeleteAssertion(pub FxaDeleteAssertionClaims);
+
+impl FromRequest for DeleteAssertion {
+    type Error = TokenserverError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        let req = req.clone();
+
+        Box::pin(async move {
+            let state = get_server_state(&req)?;
+            let token = BearerToken::extract(&req).await?.into_token();
+
+            let unauthorized = |context: &str| TokenserverError {
+                // Deliberately carries no uid: `context` reaches the
+                // structured request log.
+                context: context.to_owned(),
+                tags: Some(vec![("reason", "delete_assertion".to_owned())]),
+                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
+            };
+
+            let mut claims = None;
+            for verifier in &state.delete_assertion_verifiers {
+                match verifier.verify(&token) {
+                    Ok(verified) => {
+                        claims = Some(verified);
+                        break;
+                    }
+                    // Another configured key may be the right one.
+                    Err(JWTVerifyError::InvalidSignature) => continue,
+                    Err(e) => {
+                        return Err(unauthorized(&format!(
+                            "Delete assertion rejected: {}",
+                            e.metric_label()
+                        )));
+                    }
+                }
+            }
+            let claims = claims.ok_or_else(|| {
+                unauthorized("Delete assertion signature invalid for all available keys")
+            })?;
+
+            // Authenticate the subject, then confirm the request is about that
+            // subject. Byte-exact: `sub` is not a secret — it is already in the
+            // URL — so constant time is irrelevant, and case-insensitive
+            // matching would gratuitously widen what the assertion authorizes.
+            //
+            // The route matched, so `fxa_uid` is present.
+            let path_uid = req.match_info().get("fxa_uid").unwrap();
+            if claims.sub != path_uid {
+                return Err(unauthorized(
+                    "Delete assertion sub does not match the path fxa_uid",
+                ));
+            }
+
+            // Required by protocol and recorded for correlation, deliberately
+            // not stored.
+            if let Some(jti) = &claims.jti {
+                LogItemsMutator::from(&req).insert("jti".to_owned(), jti.clone());
+            }
+
+            Ok(DeleteAssertion(claims))
+        })
+    }
+}
+
 fn get_server_state(req: &HttpRequest) -> Result<&Data<ServerState>, TokenserverError> {
     req.app_data::<Data<ServerState>>()
         .ok_or_else(|| TokenserverError {
@@ -686,7 +763,7 @@ fn get_secret(req: &HttpRequest) -> Result<String, TokenserverError> {
     })
 }
 
-fn fxa_metrics_hash(fxa_uid: &str, hmac_key: &[u8]) -> String {
+pub(crate) fn fxa_metrics_hash(fxa_uid: &str, hmac_key: &[u8]) -> String {
     let mut mac = Hmac::<Sha256>::new_from_slice(hmac_key).expect("HMAC has no key size limit");
     mac.update(fxa_uid.as_bytes());
 
@@ -694,7 +771,7 @@ fn fxa_metrics_hash(fxa_uid: &str, hmac_key: &[u8]) -> String {
     hex::encode(result)
 }
 
-fn hash_device_id(fxa_uid: &str, hmac_key: &[u8]) -> String {
+pub(crate) fn hash_device_id(fxa_uid: &str, hmac_key: &[u8]) -> String {
     let mut to_hash = String::from(fxa_uid);
     // TODO: This value originally was the deviceID from BrowserID.
     // When support was dropped for BrowserID, the device string
@@ -1400,6 +1477,9 @@ mod tests {
             set_verifiers: Vec::new(),
             fxa_webhook_enabled: false,
             fxa_webhook_metrics_only: false,
+            fxa_delete_data_enabled: false,
+            delete_assertion_verifiers: vec![],
+            storage_client: reqwest::Client::new(),
             allow_new_users: true,
             #[cfg(feature = "last_seen")]
             last_seen: None,
@@ -1426,6 +1506,9 @@ mod tests {
             set_verifiers,
             fxa_webhook_enabled: true,
             fxa_webhook_metrics_only: false,
+            fxa_delete_data_enabled: false,
+            delete_assertion_verifiers: vec![],
+            storage_client: reqwest::Client::new(),
             allow_new_users: true,
             #[cfg(feature = "last_seen")]
             last_seen: None,

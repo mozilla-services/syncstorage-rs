@@ -1578,3 +1578,61 @@ async fn request_duration_is_emitted_for_requests_rejected_before_routing() {
         assert!(timing.contains(tag), "missing tag {tag}: {timing}");
     }
 }
+
+/// Sign a request the way `delete_user_syncstorage_data` does in production:
+/// mint via `Tokenlib`, then sign with hawk's client.
+///
+/// Deliberately does not reuse `create_hawk_header`, which hand-rolls the token
+/// so it can control the payload. The point here is to exercise the real mint
+/// path end to end against a real node.
+fn create_minted_hawk_header(method: &str, port: u16, path: &str, uid: i64) -> String {
+    let shared_secret =
+        String::from_utf8(SECRETS.master_secret.clone()).expect("Could not read the master secret");
+    let plaintext = tokenserver_auth::MakeTokenPlaintext {
+        node: format!("http://{}:{}", TEST_HOST, port),
+        fxa_kid: format!("xxx_test_kid_{}", *RAND_UID),
+        fxa_uid: format!("xxx_test_uid_{}", *RAND_UID),
+        hashed_device_id: "xxx_test".to_owned(),
+        hashed_fxa_uid: format!("xxx_test_hashed_fxa_uid_{}", *RAND_UID),
+        expires: (Utc::now().timestamp() + 300) as u64,
+        uid,
+        tokenserver_origin: Default::default(),
+    };
+    let (token, derived_secret) =
+        tokenserver_auth::Tokenlib::get_token_and_derived_secret(plaintext, &shared_secret)
+            .expect("Could not mint the token");
+
+    let credentials = Credentials {
+        id: token,
+        key: Key::new(derived_secret.as_bytes(), hawk::DigestAlgorithm::Sha256)
+            .expect("Could not build the hawk key"),
+    };
+    let header = RequestBuilder::new(method, TEST_HOST, port, path)
+        .request()
+        .make_header(&credentials)
+        .expect("Could not sign the hawk request");
+    format!("Hawk {}", header)
+}
+
+#[actix_rt::test]
+async fn delete_all_accepts_a_tokenserver_minted_token() {
+    let settings = get_test_settings();
+    let app = init_app!(settings.clone()).await;
+
+    let path = "/1.5/42/storage";
+    let req = test::TestRequest::with_uri(path)
+        .method(http::Method::DELETE)
+        .insert_header((
+            "Authorization",
+            create_minted_hawk_header("DELETE", settings.port, path, 42),
+        ))
+        .insert_header(("Accept", "application/json"))
+        .to_request();
+
+    let sresp = app.call(req).await.expect("Could not get sresp");
+    assert_eq!(
+        sresp.response().status(),
+        StatusCode::OK,
+        "a token minted the way the deletion endpoint mints it must be accepted"
+    );
+}

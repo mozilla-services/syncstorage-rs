@@ -20,7 +20,6 @@ tokenlib = "^2.0.0"
 [tool.poetry.group.tokenserver-unit-tests.dependencies]
 cryptography = "50.0.2"
 hawkauthlib = "^2.0.0"
-konfig = "^1.1"
 mysqlclient = "^2.2.7"
 psutil = "^7.0.0"
 pyjwt = "^2.15.0"

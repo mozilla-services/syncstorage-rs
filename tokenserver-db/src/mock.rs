@@ -11,11 +11,14 @@ use tokenserver_db_common::{Db, DbError, DbPool, params, results};
 pub struct CallLog {
     pub retire_user: Arc<Mutex<Vec<params::RetireUser>>>,
     pub update_user_generation: Arc<Mutex<Vec<params::UpdateUserGeneration>>>,
+    pub get_users: Arc<Mutex<Vec<params::GetUsers>>>,
+    pub get_service_id: Arc<Mutex<Vec<params::GetServiceId>>>,
 }
 
 #[derive(Clone, Default)]
 pub struct MockDbPool {
     call_log: CallLog,
+    users: Arc<Mutex<results::GetUsers>>,
 }
 
 impl MockDbPool {
@@ -25,6 +28,16 @@ impl MockDbPool {
 
     pub fn with_capture() -> (Self, CallLog) {
         let pool = MockDbPool::default();
+        let call_log = pool.call_log.clone();
+        (pool, call_log)
+    }
+
+    /// Seed the rows `get_users` will return, and capture calls.
+    pub fn with_users(users: results::GetUsers) -> (Self, CallLog) {
+        let pool = MockDbPool {
+            users: Arc::new(Mutex::new(users)),
+            ..MockDbPool::default()
+        };
         let call_log = pool.call_log.clone();
         (pool, call_log)
     }
@@ -39,6 +52,7 @@ impl DbPool for MockDbPool {
     async fn get(&self) -> Result<Box<dyn Db>, DbError> {
         Ok(Box::new(MockDb {
             call_log: self.call_log.clone(),
+            users: self.users.clone(),
         }))
     }
 
@@ -61,6 +75,7 @@ impl GetPoolStatus for MockDbPool {
 #[derive(Clone, Default)]
 pub struct MockDb {
     call_log: CallLog,
+    users: Arc<Mutex<results::GetUsers>>,
 }
 
 impl MockDb {
@@ -138,8 +153,9 @@ impl Db for MockDb {
         Ok(())
     }
 
-    async fn get_users(&mut self, _params: params::GetUsers) -> Result<results::GetUsers, DbError> {
-        Ok(results::GetUsers::default())
+    async fn get_users(&mut self, params: params::GetUsers) -> Result<results::GetUsers, DbError> {
+        self.call_log.get_users.lock().unwrap().push(params);
+        Ok(self.users.lock().unwrap().clone())
     }
 
     async fn get_or_create_user(
@@ -151,8 +167,9 @@ impl Db for MockDb {
 
     async fn get_service_id(
         &mut self,
-        _params: params::GetServiceId,
+        params: params::GetServiceId,
     ) -> Result<results::GetServiceId, DbError> {
+        self.call_log.get_service_id.lock().unwrap().push(params);
         Ok(results::GetServiceId::default())
     }
 
