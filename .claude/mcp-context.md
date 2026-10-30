@@ -102,7 +102,7 @@ Workflow transitions (via `transitionJiraIssue`): fetch available transitions fi
 - **New issues** introduced in the last release or last 7 days — especially those not seen in prior releases
 - **Regressions**: issues that were previously resolved and have recurred
 - **High-volume errors**: issues with > 100 events in 24h that are not already triaged
-- **Tokenserver auth errors**: errors from `tokenserver-auth/`, `hawk_identifier`, or FxA OAuth paths — these are user-facing auth failures
+- **Tokenserver auth errors**: errors from `tokenserver-auth/`, `HawkIdentifier` (`web/extractors/hawk_identifier.rs`), or FxA OAuth paths — these are user-facing auth failures
 - **Database errors**: connection pool exhaustion, migration failures, query timeouts (look for `DbError`, `diesel::result::Error`, `deadpool` in fingerprints)
 - **Spanner RST_STREAM / gRPC errors**: these are known-flaky from the Spanner emulator in test but should not appear in production
 - **Errors that are `is_sentry_event() = false` appearing anyway**: miscategorized errors that should be suppressed
