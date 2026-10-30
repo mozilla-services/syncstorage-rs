@@ -10,7 +10,7 @@ from devtools.draft_lint import lint
 from devtools.models import JiraDraft, PrDraft, SreinRequest, main
 
 STOR = "https://mozilla-hub.atlassian.net/browse/STOR-789"
-WSI = "https://github.com/mozilla/webservices-infra/pull/13343"
+WSI = "https://github.com/mozilla/webservices-infra/pull/1"
 EE = {"summary": "x", "category": "Engineering Excellence", "background": "y"}
 
 

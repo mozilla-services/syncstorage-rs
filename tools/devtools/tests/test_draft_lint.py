@@ -11,7 +11,7 @@ SREIN_OK = (
     "* Service: syncstorage-rs\n* Engineering Team: STOR\n"
     "* Details and context: x\n* Request: y\n* Urgency: Within a week\n"
 )
-WSI = "https://github.com/mozilla/webservices-infra/pull/13343"
+WSI = "https://github.com/mozilla/webservices-infra/pull/1"
 
 
 def test_clean_pr_passes() -> None:
@@ -72,7 +72,7 @@ def test_jira_internal_link_needs_no_sync() -> None:
 
 def test_pr_internal_link_is_a_warning() -> None:
     """Internal links in a public PR warn but do not block."""
-    result = lint(PR_OK + f"\nSee {WSI} and SREIN-1886\n", "pr")
+    result = lint(PR_OK + f"\nSee {WSI} and SREIN-1\n", "pr")
     assert result.ok
     assert result.internal_links == ["webservices-infra", "SREIN"]
     assert any("public repo" in w for w in result.warnings)
