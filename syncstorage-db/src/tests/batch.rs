@@ -195,6 +195,74 @@ async fn append_commit_offloaded() -> Result<(), DbError> {
     .await
 }
 
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn test_commit_batch_ttl_only_preserves_offloaded_bso() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = 1;
+        let coll = "clients";
+        let ts1 = with_delta!(db, -100, {
+            let mut bso = pbso(uid, coll, "b0", None, Some(1), Some(60));
+            bso.payload_link = Some(GS_URL.to_owned());
+            bso.payload_size = Some(4096);
+            db.put_bso(bso).await?;
+            db.timestamp()
+        });
+
+        let new_batch = db
+            .create_batch(cb(uid, coll, vec![postbso("b0", None, None, Some(3600))]))
+            .await?;
+        let batch = db.get_batch(gb(uid, coll, new_batch.id)).await?.unwrap();
+        db.commit_batch(params::CommitBatch {
+            user_id: hid(uid),
+            collection: coll.to_owned(),
+            batch,
+        })
+        .await?;
+
+        let got = db.get_bso(gbso(uid, coll, "b0")).await?.unwrap();
+        assert_eq!(got.modified, ts1);
+        assert_eq!(got.payload, "");
+        assert_eq!(got.payload_link.as_deref(), Some(GS_URL));
+        assert_eq!(got.payload_size, Some(4096));
+        assert_eq!(got.sortindex, Some(1));
+        assert_eq!(got.expiry, db.timestamp().as_i64() + 3_600_000);
+        Ok(())
+    })
+    .await
+}
+
+/// A payload_link alone counts as a payload change, so it bumps modified.
+#[cfg(feature = "spanner")]
+#[tokio::test]
+async fn test_commit_batch_payload_link_bumps_modified() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = 1;
+        let coll = "clients";
+        with_delta!(db, -100, {
+            db.put_bso(pbso(uid, coll, "b0", Some("x"), None, None))
+                .await
+        })?;
+        let mut bso = postbso("b0", None, None, None);
+        bso.payload_link = Some(GS_URL.to_owned());
+        bso.payload_size = Some(4096);
+        let new_batch = db.create_batch(cb(uid, coll, vec![bso])).await?;
+
+        let batch = db.get_batch(gb(uid, coll, new_batch.id)).await?.unwrap();
+        db.commit_batch(params::CommitBatch {
+            user_id: hid(uid),
+            collection: coll.to_owned(),
+            batch,
+        })
+        .await?;
+
+        let got = db.get_bso(gbso(uid, coll, "b0")).await?.unwrap();
+        assert_eq!(got.modified, db.timestamp());
+        Ok(())
+    })
+    .await
+}
+
 #[tokio::test]
 async fn quota_test_create_batch() -> Result<(), DbError> {
     let mut settings = Settings::test_settings().syncstorage;
@@ -634,6 +702,58 @@ async fn test_commit_batch_partial_overlap() -> Result<(), DbError> {
         let new = db.get_bso(gbso(uid, coll, bid_new)).await?.unwrap();
         assert_eq!(new.payload, new_payload);
         assert_eq!(new.sortindex, Some(3));
+
+        Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_commit_batch_ttl_only_keeps_modified() -> Result<(), DbError> {
+    let settings = Settings::test_settings().syncstorage;
+    with_test_transaction(settings, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = 1;
+        let coll = "clients";
+        let ts1 = with_delta!(db, -100, {
+            for bid in ["b_ttl", "b_sortindex", "b_payload"] {
+                db.put_bso(pbso(uid, coll, bid, Some("x"), Some(1), Some(60)))
+                    .await?;
+            }
+            db.timestamp()
+        });
+
+        let new_batch = db.create_batch(cb(uid, coll, vec![])).await?;
+        db.append_to_batch(ab(
+            uid,
+            coll,
+            new_batch.clone(),
+            vec![
+                postbso("b_ttl", None, None, Some(3600)),
+                postbso("b_sortindex", None, Some(2), None),
+                postbso("b_payload", Some("y"), None, None),
+                postbso("b_new", Some("z"), None, None),
+            ],
+        ))
+        .await?;
+        let batch = db
+            .get_batch(gb(uid, coll, new_batch.id.clone()))
+            .await?
+            .unwrap();
+        db.commit_batch(params::CommitBatch {
+            user_id: hid(uid),
+            collection: coll.to_owned(),
+            batch,
+        })
+        .await?;
+        let ts2 = db.timestamp();
+
+        let ttl_only = db.get_bso(gbso(uid, coll, "b_ttl")).await?.unwrap();
+        assert_eq!(ttl_only.modified, ts1);
+        assert!(ttl_only.expiry > ts2.as_i64() + 60_000);
+        for bid in ["b_sortindex", "b_payload", "b_new"] {
+            let bso = db.get_bso(gbso(uid, coll, bid)).await?.unwrap();
+            assert_eq!(bso.modified, ts2, "{bid}");
+        }
 
         Ok(())
     })
