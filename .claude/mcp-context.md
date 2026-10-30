@@ -91,8 +91,9 @@ Workflow transitions (via `transitionJiraIssue`): fetch available transitions fi
 
 - **MCP tool prefix:** `mcp__sentry__`
 - **Organization:** mozilla (confirm with `find_projects` if slug changes)
-- **Project slug:** `syncstorage-prod`
-- **Environments:** production, staging
+- **Project slug:** `syncstorage-rs` (storage nodes and tokenserver, all envs since STOR-541)
+- **Environments:** `prod`, `stage`, `ent-prod`, `dev`
+- **Telling services apart:** `server_name:tokenserver-*` / `debug-tokenserver-*` vs `syncapp-*`
 - **Primary language:** Rust (via `sentry-rust` SDK); Python errors from integration test tooling are noise
 
 ### What to flag
@@ -109,7 +110,8 @@ Workflow transitions (via `transitionJiraIssue`): fetch available transitions fi
 
 - `409 Conflict` from syncstorage BSO writes (client retry behavior, not a server error)
 - `503 Service Unavailable` spikes during deployments (transient)
-- Test environment errors tagged with `environment: staging` during CI runs
+- Test environment errors tagged with `environment: stage` during CI runs
+- `TokenserverError: Test error for Sentry` from `/__error__` checks
 
 ### Error routing context
 
