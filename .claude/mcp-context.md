@@ -11,8 +11,8 @@ Skills read this file at runtime — do not expect it to be auto-loaded.
 - **Project key:** `STOR`
 - **Board URL:** https://mozilla-hub.atlassian.net/jira/software/projects/STOR/boards (confirm with `getAccessibleAtlassianResources` if the URL changes)
 - **Issue types in use:** Bug, Task, Story, Spike
-- **Priority labels:** Blocker, Critical, Major, Minor, Trivial
-- **Relevant components:** syncstorage, tokenserver, spanner, postgres, mysql, infrastructure
+- **Priorities:** `P0` (blocker/outage) to `P4` (no deadline); team default `P2`. Legacy names like Major/Critical/Trivial aren't valid in STOR
+- **Components:** none configured in STOR; use labels or the summary to tag backends (spanner, postgres, mysql, tokenserver)
 - **Typical sprint cadence:** 2-week sprints
 - **Commit/branch format:** `type/description-STOR-####` (see CLAUDE.md)
 
@@ -38,7 +38,7 @@ project = STOR AND created >= -14d ORDER BY created DESC
 project = STOR AND statusCategory = "In Progress" AND updated <= -5d ORDER BY updated ASC
 
 -- Blocking issues (linked "blocks" relationship)
-project = STOR AND issue in linkedIssues("STOR-*", "blocks") AND statusCategory != Done
+project = STOR AND issueLinkType = blocks AND statusCategory != Done
 
 -- All open epics
 project = STOR AND issuetype = Epic AND statusCategory != Done ORDER BY priority DESC, updated DESC
@@ -69,7 +69,8 @@ When creating or editing issues via `createJiraIssue` / `editJiraIssue`:
 |---|---|
 | `project` | `STOR` |
 | `issuetype` | `Bug` / `Task` / `Story` / `Spike` |
-| `priority` | `Blocker` / `Critical` / `Major` / `Minor` / `Trivial` |
+| `priority` | `P0` / `P1` / `P2` / `P3` / `P4` |
+| `labels` | `["no-sync"]` for infra, security, secrets or internal-doc issues (must be set at create) |
 | `summary` | ≤ 100 characters, imperative present tense |
 | `description` | Structured: Background, Acceptance Criteria, Notes |
 | `assignee` | Jira account ID or email (look up if needed) |
