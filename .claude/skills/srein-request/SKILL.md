@@ -24,7 +24,7 @@ Pull from the current session first, then ask only for what's missing:
 
 ## Step 2: Draft the request
 
-Use this exact structure. It matches past STOR requests (SREIN-1886, SREIN-1769, SREIN-1633).
+Use this exact structure. It matches past STOR requests in SREIN.
 
 ```
 Summary: <short imperative, <= 80 chars>
