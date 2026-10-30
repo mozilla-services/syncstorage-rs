@@ -204,11 +204,15 @@ Create a new Jira issue in STOR from natural language.
    - **Assignee** — if this `create` invocation is part of the same workflow that opens a GitHub PR for the work, set the assignee to the current user. Look up their accountId via `mcp__atlassian__lookupJiraAccountId` using the email from the runtime `userEmail` context. Otherwise leave unassigned unless the user named a specific person.
    - **Labels** — ask whether it needs `no-sync`. STOR issues mirror to the public syncstorage-rs GitHub repo unless labeled `no-sync`, and the label only works if set at create time. Default to `no-sync` for anything touching infra, security, secrets, internal docs or internal links.
    - **Parent** — if the description references an epic (e.g. "under STOR-506", "in STOR-506", "linked to <epic>"), set `parent` to that key when calling `createJiraIssue`.
-   - **Description body** — expand the user's language into a structured description, leading with the category:
-     - **Category:** {one of the three categories} — *one-sentence rationale*
-     - **Background:** why this is needed
-     - **Acceptance Criteria:** observable, testable outcomes
-     - **Notes:** any constraints or references mentioned
+   - **Description body** -- use the one template in `/syncserver-jira-description` Step 3. Keep tickets light: category, background, acceptance criteria and links are usually enough. Fill only the sections the user's language supports.
+
+   Put all of the above in a `JiraDraft` JSON in a temp file outside the repo and render it:
+
+   ```bash
+   poetry -C tools/devtools run python -m devtools.models render --kind jira draft.json
+   ```
+
+   The rendered text is the description. If it fails, fix what it reports. A `no-sync` error means the draft has internal links (webservices-infra, global-platform-admin, cloudops-infra, Confluence, SREIN, `*.mozgcp.net`): add the label or take the links out.
 
 2. Show the draft to the user before creating:
    ```
