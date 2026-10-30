@@ -49,18 +49,23 @@ Rules from CONTRIBUTING.md:
 
 ## Step 6 — Draft the PR body
 
+Follow the repo's `PULL_REQUEST_TEMPLATE.md` sections. Keep it short and plain.
+
 ```markdown
-## Summary
+## Description
 
-<2–4 bullet points covering what changed and why. Lead with the motivating
-problem or context, then the solution. Skip obvious restatements of the title.>
+<A few sentences: the motivating problem, then what changed. Skip restating the title.>
 
-## Test plan
+## Testing
 
-<Bulleted checklist pre-filled based on what changed:>
+<How reviewers can verify, pre-filled from what changed (see below).>
+
+## Issue(s)
+
+Closes STOR-#### (or Closes #N for community contributors)
 ```
 
-Pre-fill the test plan based on file types changed:
+Pre-fill Testing based on file types changed:
 
 - Rust source changed → `- [ ] \`make clippy_<backend>\` passes`, `- [ ] Unit tests pass (\`make test\`)`
 - Python source changed → `- [ ] \`make ruff-lint\` and \`make mypy\` pass`, `- [ ] Integration tests pass (\`make run_local_e2e_tests\`)`
@@ -70,6 +75,6 @@ Pre-fill the test plan based on file types changed:
 
 ## Step 7 — Output
 
-Print the final PR title and body, ready to paste into GitHub. Also include the suggested branch name if the current branch name doesn't follow `type/description-STOR-####` or `type/description-####` format.
+Print the final PR title and body, ready to paste into GitHub. All commits must be signed (the template says so). When opening it with `gh pr create`, add `--assignee @me`. Also include the suggested branch name if the current branch name doesn't follow `type/description-STOR-####` or `type/description-####` format.
 
 Note any breaking changes that should be called out explicitly.
