@@ -16,6 +16,7 @@ Do NOT print or log the values of any secrets. Use placeholders like `[set]` or 
 | `TOKENSERVER_HOST` | starts with `http://` or `https://` | default: `http://localhost:8000` |
 | `SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL` | starts with `http://` or `https://` | default: `http://localhost:6000` for local |
 | `PYTHONPATH` | contains `tools/` path | required for PyO3 and test imports |
+| `SYNC_SERVER_URL` | starts with `http://` or `https://` | default: `http://localhost:8000` |
 
 ### Required only for real FxA e2e tests (`test_e2e.py`)
 
@@ -25,16 +26,20 @@ Do NOT print or log the values of any secrets. Use placeholders like `[set]` or 
 | `SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KID` | secret — report [set] or [not set] only |
 | `SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__N` | secret — report [set] or [not set] only |
 | `SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__E` | secret — report [set] or [not set] only |
+| `SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__ALG`, `__USE`, `__FXA_CREATED_AT` | report [set] or [not set] |
 
 ## Step 1 — Check each variable
 
 ```bash
 echo "SYNC_MASTER_SECRET: $([ -n "$SYNC_MASTER_SECRET" ] && echo '[set]' || echo '[NOT SET]')"
-echo "SYNC_SYNCSTORAGE__DATABASE_URL: ${SYNC_SYNCSTORAGE__DATABASE_URL:-[NOT SET]}"
-echo "SYNC_TOKENSERVER__DATABASE_URL: ${SYNC_TOKENSERVER__DATABASE_URL:-[NOT SET]}"
+# DB URLs can carry user:password, so mask the userinfo before printing
+mask() { printf '%s' "$1" | sed -E 's#(://)[^/@]*@#\1***@#'; }
+echo "SYNC_SYNCSTORAGE__DATABASE_URL: $(mask "${SYNC_SYNCSTORAGE__DATABASE_URL:-[NOT SET]}")"
+echo "SYNC_TOKENSERVER__DATABASE_URL: $(mask "${SYNC_TOKENSERVER__DATABASE_URL:-[NOT SET]}")"
 echo "TOKENSERVER_HOST: ${TOKENSERVER_HOST:-[NOT SET - default: http://localhost:8000]}"
 echo "SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: ${SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL:-[NOT SET - default: http://localhost:6000]}"
 echo "PYTHONPATH: ${PYTHONPATH:-[NOT SET]}"
+echo "SYNC_SERVER_URL: ${SYNC_SERVER_URL:-[NOT SET - default: http://localhost:8000]}"
 ```
 
 ## Step 2 — Validate database URL format
@@ -47,7 +52,7 @@ For `SYNC_SYNCSTORAGE__DATABASE_URL` and `SYNC_TOKENSERVER__DATABASE_URL`:
 ## Step 3 — Check PYTHONPATH contains tools/
 
 ```bash
-python3 -c "import tools.integration_tests" 2>&1
+python3 -c "import integration_tests" 2>&1
 ```
 
 If this fails, the `PYTHONPATH` is not set correctly for test imports.
