@@ -81,10 +81,19 @@ pub trait Db: BatchDb {
 
     async fn lock_for_write(&mut self, params: params::LockCollection) -> Result<(), Self::Error>;
 
+    /// A failed begin must leave no transaction open, so the `rollback` that
+    /// follows is a noop. See STOR-658.
     async fn begin(&mut self, for_write: bool) -> Result<(), Self::Error>;
 
+    /// Finish the transaction. Spanner noops for reads; the diesel backends
+    /// issue a real COMMIT, which also releases read locks. Implementors that
+    /// can tell a begun write from an open transaction should error when they
+    /// see the former without the latter, rather than silently dropping the
+    /// write.
     async fn commit(&mut self) -> Result<(), Self::Error>;
 
+    /// Always called to finish a request, so it noops when no transaction is
+    /// open rather than erroring.
     async fn rollback(&mut self) -> Result<(), Self::Error>;
 
     async fn get_collection_timestamps(

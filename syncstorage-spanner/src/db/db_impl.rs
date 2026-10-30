@@ -137,7 +137,6 @@ impl Db for SpannerDb {
         let mut options = TransactionOptions::new();
         if for_write {
             options.set_read_write(TransactionOptions_ReadWrite::new());
-            self.session.in_write_transaction = true;
         } else {
             options.set_read_only(TransactionOptions_ReadOnly::new());
         }
@@ -156,6 +155,10 @@ impl Db for SpannerDb {
         let mut ts = TransactionSelector::new();
         ts.set_id(transaction_id);
         self.session.transaction = Some(ts);
+        if for_write {
+            // Set only after begin succeeds. See STOR-658.
+            self.session.in_write_transaction = true;
+        }
 
         Ok(())
     }
@@ -204,6 +207,8 @@ impl Db for SpannerDb {
                 .await?;
             Ok(())
         } else {
+            // Unreachable: begin only sets in_write_transaction once it has a
+            // transaction. Kept as a sanity check. See STOR-658.
             Err(DbError::internal("No transaction to rollback".to_owned()))
         }
     }
