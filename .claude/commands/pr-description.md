@@ -73,7 +73,18 @@ Pre-fill Testing based on file types changed:
 - `.github/` changed → `- [ ] CI workflow runs successfully on this branch`
 - `CLAUDE.md` or docs changed → `- [ ] Renders correctly on GitHub`
 
-## Step 7 — Output
+## Step 7 -- Validate
+
+Write the title and sections into a `PrDraft` JSON (`title`, `description`, `testing`, `issues`) in a temp file outside the repo, then render and lint it:
+
+```bash
+poetry -C tools/devtools run python -m devtools.models render --kind pr draft.json > /tmp/pr-body.md
+poetry -C tools/devtools run python -m devtools.draft_lint --kind pr /tmp/pr-body.md
+```
+
+`render` enforces the title format and fails on non-ASCII or secrets. `draft_lint` also warns about internal links. This repo is public: if the PR touches infrastructure or links webservices-infra, global-platform-admin, cloudops-infra, Confluence, SREIN, `*.mozgcp.net`, keep that detail out of the PR body, link the STOR ticket instead, and make sure that ticket was created with `no-sync`.
+
+## Step 8 -- Output
 
 Print the final PR title and body, ready to paste into GitHub. All commits must be signed (the template says so). When opening it with `gh pr create`, add `--assignee @me`. Also include the suggested branch name if the current branch name doesn't follow `type/description-STOR-####` or `type/description-####` format.
 
