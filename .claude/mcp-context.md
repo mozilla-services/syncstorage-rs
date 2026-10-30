@@ -70,9 +70,9 @@ When creating or editing issues via `createJiraIssue` / `editJiraIssue`:
 | `project` | `STOR` |
 | `issuetype` | `Bug` / `Task` / `Story` / `Spike` |
 | `priority` | `P0` / `P1` / `P2` / `P3` / `P4` |
-| `labels` | `["no-sync"]` for infra, security, secrets or internal-doc issues (must be set at create) |
+| `labels` | `["no-sync"]` for infra, security, secrets or internal-doc issues, and for anything linking webservices-infra, global-platform-admin, cloudops-infra, Confluence, SREIN, `*.mozgcp.net`. Must be set at create; read it back after |
 | `summary` | ≤ 100 characters, imperative present tense |
-| `description` | Structured: Background, Acceptance Criteria, Notes |
+| `description` | Rendered from a `JiraDraft` (`/syncserver-jira-description` Step 3); `devtools.models render --kind jira` |
 | `assignee` | Jira account ID or email (look up if needed) |
 | `parent` | Epic key (e.g. `STOR-100`) if issue belongs to an epic |
 

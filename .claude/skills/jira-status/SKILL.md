@@ -257,7 +257,15 @@ Modify an existing issue. Changes can be natural language.
    - Status transition ("mark as done", "move to in progress") → use `mcp__atlassian__getTransitionsForJiraIssue` then `mcp__atlassian__transitionJiraIssue`
    - Comment ("add a comment: ...") → use `mcp__atlassian__addCommentToJiraIssue`
 
-3. Show the proposed changes before applying:
+3. Lint any new description or comment text against the issue's current labels. Comments on a synced issue mirror to GitHub too, and adding `no-sync` later does not pull them back:
+
+   ```bash
+   poetry -C tools/devtools run python -m devtools.draft_lint --kind jira --label <each current label> draft.md
+   ```
+
+   If it reports internal links (webservices-infra, global-platform-admin, cloudops-infra, Confluence, SREIN, `*.mozgcp.net`) and the issue isn't `no-sync`, take the links and internal detail out of the text rather than posting them.
+
+4. Show the proposed changes before applying:
    ```
    Updating STOR-####: {current summary}
    Changes:
@@ -268,7 +276,7 @@ Modify an existing issue. Changes can be natural language.
    Apply? (yes / edit / cancel)
    ```
 
-4. Apply on confirmation. Return confirmation with the issue link.
+5. Apply on confirmation. Return confirmation with the issue link.
 
 ---
 
