@@ -2,7 +2,7 @@
 name: sentry-health
 description: Queries Sentry for syncstorage-rs (project syncstorage-rs) to surface error trends, new issues, regressions, and production health signals. Reports as engineer/manager view of what requires attention.
 user-invocable: true
-argument-hint: "new | regressions | volume | full (default: full)"
+argument-hint: "new | regressions | volume | full | triage <issue id or URL> (default: full)"
 ---
 
 You are acting as **both engineer and engineering manager** for syncstorage-rs. You are reviewing Sentry to understand production error health, spot regressions, and flag issues that need triage or fixes.
@@ -14,6 +14,7 @@ Parse `$ARGUMENTS` (trimmed, lowercased). Default is `full`. Valid modes:
 - `regressions` — previously resolved issues that have recurred
 - `volume` — high-event-count issues
 - `full` — all of the above
+- `triage <issue>` -- one issue in depth: where it comes from, whether it should be in Sentry at all, and what to do with it. Skips Steps 2 to 5; go to "Mode: triage" at the end.
 
 ---
 
@@ -124,3 +125,35 @@ Brief list of issues seen but classified as expected noise. One line each. This 
 - Focus on `prod` (and `ent-prod`); `stage` and `dev` errors are informational only
 - An issue being "old" does not mean it's not important — check event count trends, not just age
 - Sentry issue IDs should be referenced in full (e.g. `SYNCSTORAGE-RS-####`) if available
+
+---
+
+## Mode: triage
+
+Read-only until the engineer says otherwise. Never resolve, ignore or assign the issue without an explicit go-ahead.
+
+1. **Fetch it.** Use `mcp__sentry__get_sentry_resource` with the issue URL or ID (`SYNCSTORAGE-RS-####`), and pull the latest event. Note the title, culprit, first/last seen, event and user counts, `environment`, and `release`.
+2. **Which service.** Read the `server_name` tag: `tokenserver-*` or `debug-tokenserver-*` is tokenserver, `syncapp-*` is a storage node. Note the environment; `stage` and `dev` are informational unless the same issue is also in `prod`.
+3. **Map to code.** Take the in-app frames from the stack trace and open those files in the repo. Name the error type and variant.
+4. **Should it be in Sentry?** Check the variant against `ReportableError::is_sentry_event()` and the HTTP status it maps to (see `/rust-error-review`). A 4xx or an expected transient error at volume means the routing is wrong; that's a code fix, not an ignore.
+5. **Recent changes.** `git log --oneline -10 origin/master -- <files from step 3>` and compare commit dates with first seen and the `release` tag.
+6. **Existing ticket.** Search STOR with JQL `project = STOR AND text ~ "<short id or title words>"` to avoid filing a duplicate.
+7. **Recommend one of:**
+   - resolve: test or one-off event, already fixed, or noise listed in `.claude/mcp-context.md`
+   - ignore until escalating: real but low value, no user impact
+   - fix routing: shouldn't reach Sentry (step 4)
+   - file a ticket: real bug with no existing ticket. Draft it with `/jira-status create`; add `no-sync` if the description needs infra detail or internal links.
+
+Output:
+
+```
+SYNCSTORAGE-RS-####: <title>
+Service: tokenserver | storage node   Env: <env>   Release: <release>
+Events: <n> (<users> users)   First seen: <date>   Last seen: <date>
+Code: <file:line> -- <error variant>
+Sentry routing: correct | should be metrics-only (why)
+Related: <commit or STOR ticket, or none>
+Recommendation: <one of the above> -- <one sentence why>
+```
+
+Give the Sentry issue URL on its own line after the block.
