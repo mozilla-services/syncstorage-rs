@@ -1,0 +1,27 @@
+[project]
+name = "devtools"
+version = "0.1.0"
+description = "Small deterministic helpers the repo's Claude skills call: change scoping, draft linting, migration checks, and draft models."
+authors = [
+    {name = "Mozilla Sync"}
+]
+license = "Mozilla Public License Version 2.0"
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.dependencies]
+pydantic = "^2.9"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.0.3"
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+strict = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
