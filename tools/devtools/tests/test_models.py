@@ -11,6 +11,7 @@ from devtools.models import JiraDraft, PrDraft, SreinRequest, main
 
 STOR = "https://mozilla-hub.atlassian.net/browse/STOR-789"
 WSI = "https://github.com/mozilla/webservices-infra/pull/13343"
+EE = {"summary": "x", "category": "Engineering Excellence", "background": "y"}
 
 
 def _srein(**overrides: Any) -> dict[str, Any]:
@@ -49,6 +50,7 @@ def test_jira_internal_link_needs_no_sync() -> None:
     """A Jira draft with an internal link only validates with no-sync."""
     base: dict[str, Any] = {
         "summary": "Pin health check",
+        "category": "Operational Excellence",
         "background": "See below.",
         "links": [WSI],
     }
@@ -62,9 +64,24 @@ def test_jira_internal_link_needs_no_sync() -> None:
 def test_jira_renders_only_filled_sections() -> None:
     """Empty optional sections are left out."""
     text = JiraDraft(
-        summary="x", background="Why.", acceptance_criteria=["It works"]
+        summary="x",
+        category="Engineering Excellence",
+        category_reason="tooling",
+        background="Why.",
+        acceptance_criteria=["It works"],
     ).render()
-    assert text == "## Background\n\nWhy.\n\n## Acceptance criteria\n\n- It works\n"
+    assert text == (
+        "Category: Engineering Excellence -- tooling\n\n"
+        "## Background\n\nWhy.\n\n## Acceptance criteria\n\n- It works\n"
+    )
+
+
+def test_jira_requires_a_valid_category() -> None:
+    """Category is required and limited to the three work categories."""
+    with pytest.raises(ValidationError):
+        JiraDraft.model_validate({"summary": "x", "background": "y"})
+    with pytest.raises(ValidationError):
+        JiraDraft.model_validate({**EE, "category": "KTLO"})
 
 
 def test_jira_rejects_bad_priority_and_parent() -> None:
@@ -74,13 +91,13 @@ def test_jira_rejects_bad_priority_and_parent() -> None:
             {"summary": "x", "background": "y", "priority": "Major"}
         )
     with pytest.raises(ValidationError):
-        JiraDraft(summary="x", background="y", parent="SREIN-1")
+        JiraDraft.model_validate({**EE, "parent": "SREIN-1"})
 
 
 def test_non_ascii_is_rejected() -> None:
     """Em-dashes never make it into a rendered draft."""
     with pytest.raises(ValidationError, match="EM DASH"):
-        JiraDraft(summary="x", background="a — b")
+        JiraDraft.model_validate({**EE, "background": "a \u2014 b"})
 
 
 @pytest.mark.parametrize(
@@ -113,7 +130,7 @@ def test_pr_renders_template() -> None:
 def test_extra_fields_are_rejected() -> None:
     """Typos in field names fail instead of being dropped."""
     with pytest.raises(ValidationError):
-        JiraDraft.model_validate({"summary": "x", "background": "y", "lables": []})
+        JiraDraft.model_validate({**EE, "lables": []})
 
 
 def test_cli_render_and_errors(

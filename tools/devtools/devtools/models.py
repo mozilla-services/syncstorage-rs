@@ -18,6 +18,9 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from devtools.draft_lint import lint
 
 Priority = Literal["P0", "P1", "P2", "P3", "P4"]
+WorkCategory = Literal[
+    "Feature Engineering", "Engineering Excellence", "Operational Excellence"
+]
 STOR_KEY = r"^STOR-\d+$"
 COMMIT_TYPES = "feat|fix|docs|style|refactor|perf|test|chore"
 REPO_URL = "https://github.com/mozilla-services/syncstorage-rs"
@@ -80,19 +83,30 @@ class SreinRequest(_Draft):
 
 
 class JiraDraft(_Draft):
-    """A STOR ticket. Only background is required; keep tickets light."""
+    """A STOR ticket, in the syncserver-jira-description section order.
+
+    Only category and background are required. Empty sections are left out,
+    so a light ticket and an implementation-ready one use the same model.
+    """
 
     kind = "jira"
 
-    summary: str = Field(max_length=120)
+    summary: str = Field(max_length=100)
     issue_type: Literal["Task", "Bug", "Story", "Spike"] = "Task"
-    priority: Priority = "P3"
+    priority: Priority = "P2"
     labels: list[str] = Field(default_factory=list)
     parent: str | None = Field(default=None, pattern=STOR_KEY)
+    category: WorkCategory
+    category_reason: str = Field(default="", description="one sentence")
     background: str
     acceptance_criteria: list[str] = Field(default_factory=list)
     implementation_steps: list[str] = Field(default_factory=list)
+    database_migrations: list[str] = Field(default_factory=list)
+    tests: list[str] = Field(default_factory=list)
+    metrics_and_errors: list[str] = Field(default_factory=list)
+    reference_files: list[str] = Field(default_factory=list)
     out_of_scope: list[str] = Field(default_factory=list)
+    open_questions: list[str] = Field(default_factory=list)
     links: list[str] = Field(default_factory=list)
 
     def labels_for_lint(self) -> list[str]:
@@ -101,11 +115,19 @@ class JiraDraft(_Draft):
 
     def render(self) -> str:
         """Render the Jira description (markdown)."""
-        parts = [f"## Background\n\n{self.background}"]
+        category = f"Category: {self.category}"
+        if self.category_reason:
+            category += f" -- {self.category_reason}"
+        parts = [category, f"## Background\n\n{self.background}"]
         sections = (
             ("Acceptance criteria", self.acceptance_criteria),
             ("Implementation steps", self.implementation_steps),
+            ("Database migrations", self.database_migrations),
+            ("Tests", self.tests),
+            ("Metrics and error handling", self.metrics_and_errors),
+            ("Key reference files", self.reference_files),
             ("Out of scope", self.out_of_scope),
+            ("Open questions", self.open_questions),
             ("Links", self.links),
         )
         parts += [
