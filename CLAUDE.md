@@ -297,6 +297,7 @@ Use the skills below to query them. Do not call MCP tools ad-hoc without reading
 |---|---|---|
 | Jira status | `/jira-status [me\|epic KEY\|epics\|sprint\|summary ...\|create ...\|update STOR-#### ...]` | Task landscape, epics, personal view, summaries, create/edit tickets |
 | Sentry health | `/sentry-health [new\|regressions\|volume\|full]` | Production error trends, regressions, new issues |
+| SRE request | `/srein-request <what SRE needs to do>` | Draft an SREIN intake request from the session context; files only on approval |
 
 **Shared context:** `.claude/mcp-context.md` contains project IDs, JQL patterns, Sentry project slug, what to flag, and known noise. Skills read this at runtime. Read it before any ad-hoc MCP query.
 
