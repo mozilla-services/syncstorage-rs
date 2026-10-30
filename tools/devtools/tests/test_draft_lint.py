@@ -36,7 +36,7 @@ def test_srein_sections_required() -> None:
 
 def test_non_ascii_reports_position() -> None:
     """Em-dashes and arrows are reported with line and column."""
-    result = lint("ok\na — b → c", "comment")
+    result = lint("ok\na \u2014 b \u2192 c", "comment")
     assert result.errors == [
         "line 2 col 3: non-ASCII EM DASH",
         "line 2 col 7: non-ASCII RIGHTWARDS ARROW",
