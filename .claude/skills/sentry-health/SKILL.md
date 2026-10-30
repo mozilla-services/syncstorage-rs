@@ -122,7 +122,7 @@ Brief list of issues seen but classified as expected noise. One line each. This 
 - Do not fabricate event counts or timestamps -- use exactly what Sentry returns
 - If a query fails or a tool is unavailable, note it and work with available data
 - `is_sentry_event()` in `syncserver/src/error.rs` is the canonical routing decision -- errors that are HTTP 4xx should generally not be in Sentry at high volume; flag if they are
-- Focus on `prod` (and `ent-prod`); `stage` and `dev` errors are informational only
+- Focus on `prod`; `stage` and `dev` errors are informational only
 - An issue being "old" does not mean it's not important -- check event count trends, not just age
 - Sentry issue IDs should be referenced in full (e.g. `SYNCSTORAGE-RS-####`) if available
 
