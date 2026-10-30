@@ -120,3 +120,13 @@ From `syncserver/src/error.rs`:
 - Errors that are HTTP 4xx (client errors) are generally metrics-only
 - Errors that are HTTP 5xx (server errors) route to Sentry
 - `ApiError` wraps both — check the inner error type when triaging
+
+---
+
+## SRE intake (SREIN)
+
+- **Project key:** `SREIN` (same Jira site and `cloudId` as STOR)
+- **Form:** https://mozilla-hub.atlassian.net/jira/software/c/projects/SREIN/form/1344
+- **Issue type:** Task. **Priority:** P1 unless the engineer says otherwise (P0 for blockers)
+- **Description fields:** Service, Engineering Team, Details and context, Request, Urgency
+- **Skill:** `/srein-request`. Draft only; file after explicit approval
