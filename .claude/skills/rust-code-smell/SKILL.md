@@ -2,6 +2,7 @@
 name: rust-code-smell
 description: Runs clippy, cargo audit, and all relevant multi-backend Makefile targets for files changed in the current branch. Detects code smells, anti-patterns specific to this codebase, and surfaces issues across every affected backend before CI catches them. Also handles dependency-update verification (Cargo.toml / Cargo.lock changes from dependabot or manual bumps) via the `deps` mode.
 user-invocable: true
+argument-hint: "[mysql|postgres|spanner|deps]"
 ---
 
 # Rust Code Smell Detector
@@ -12,6 +13,7 @@ You are a Rust code quality reviewer for syncstorage-rs. Your job is to run the 
 
 When this skill is invoked, you have standing authorization to run the following without per-command confirmation:
 
+- `poetry -C tools/devtools run python -m devtools.changed_scope`
 - `cargo fmt -- --check`
 - `cargo clippy ...` (any feature combination)
 - `make clippy_mysql`, `make clippy_postgres`, `make clippy_spanner`
@@ -26,21 +28,24 @@ Do not run anything destructive (commit, push, rebase, branch deletion, `cargo c
 
 ## Mode selection
 
-- **Default mode** — branch under review contains Rust source changes (not just `Cargo.toml`/`Cargo.lock`). Run Steps 1–5 below.
-- **`deps` mode** — branch only changes `Cargo.toml` / `Cargo.lock`, or the user invokes the skill in the context of a dependabot PR / dependency bump. Jump to the "Dependency update verification" section near the end and follow that flow instead.
+- **Default mode** -- branch under review contains Rust source changes (not just `Cargo.toml`/`Cargo.lock`). Run Steps 1 to 5 below.
+- **Backend mode** -- invoked with `mysql`, `postgres` or `spanner`. Skip Step 1, run Steps 2 to 4 for that backend only, and skip the manual smell pass unless asked. Use it for a quick pre-push check of one backend.
+- **`deps` mode** -- branch only changes `Cargo.toml` / `Cargo.lock`, or the user invokes the skill in the context of a dependabot PR / dependency bump. Jump to the "Dependency update verification" section near the end and follow that flow instead.
 
-## Step 1 — Identify which backends are affected
+## Step 1 -- Identify which backends are affected
 
 ```bash
-git diff origin/master...HEAD --name-only
+poetry -C tools/devtools run python -m devtools.changed_scope
 ```
 
-Determine which backends the changes touch:
+It prints JSON. Use `backends` and `clippy_targets` as-is; don't re-derive them. The mapping it applies:
 
-- Files in `syncstorage-mysql/` or `tokenserver-mysql/` → **mysql**
-- Files in `syncstorage-postgres/` or `tokenserver-postgres/` → **postgres**
-- Files in `syncstorage-spanner/` → **spanner**
-- Anything else (`syncserver*`, `syncstorage-db/`, `tokenserver-db/`, any `*-common`, `*-settings`, `tokenserver-auth/`, `glean/`) → **all three backends**. Every clippy target runs `--workspace`, so shared crates affect all of them.
+- `syncstorage-mysql/`, `tokenserver-mysql/` to mysql
+- `syncstorage-postgres/`, `tokenserver-postgres/` to postgres
+- `syncstorage-spanner/` to spanner
+- any other Rust file or `Cargo.toml` / `Cargo.lock` to all three. Every clippy target runs `--workspace`, so shared crates affect all of them.
+
+If `backends` is empty there's no Rust to check; say so and stop. If `dependency_files` is the only Rust change, switch to `deps` mode. `skills` lists the other reviews the diff calls for (e.g. `multi-backend-consistency`, `rust-error-review`, `migration-review`); mention them in the verdict.
 
 ## Step 2 — Format check
 

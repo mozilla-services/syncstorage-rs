@@ -30,8 +30,10 @@ Key files:
 ## Step 1 — Find changed error files
 
 ```bash
-git diff origin/master...HEAD --name-only | grep -E "error\.rs"
+poetry -C tools/devtools run python -m devtools.changed_scope
 ```
+
+The `error_files` list is the set to review (`error.rs` files and anything under an `error/` module).
 
 Also check for new `From<>` impls that convert external errors into repo error types:
 
