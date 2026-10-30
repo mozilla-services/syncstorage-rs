@@ -5,13 +5,13 @@ You are a senior engineer doing a history-aware code review. Your job is to look
 ## Step 1 — Get the current diff
 
 ```bash
-git diff main...HEAD
+git diff origin/master...HEAD
 ```
 
 ## Step 2 — Get the list of changed files
 
 ```bash
-git diff main...HEAD --name-only
+git diff origin/master...HEAD --name-only
 ```
 
 ## Step 3 — For each changed file, examine recent commit history

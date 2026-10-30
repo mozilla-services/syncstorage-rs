@@ -27,7 +27,7 @@ If `$ARGUMENTS` is provided, read that file or directory.
 Otherwise, run:
 
 ```bash
-git diff main...HEAD
+git diff origin/master...HEAD
 ```
 
 and read the full diff. Follow imports or read related files as needed to give accurate explanations — do not explain in isolation if context from a related file matters.

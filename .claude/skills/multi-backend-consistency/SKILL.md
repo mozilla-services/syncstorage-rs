@@ -24,13 +24,13 @@ tokenserver-db/         ← trait definitions
 ## Step 1 — Find changed trait files
 
 ```bash
-git diff main...HEAD --name-only | grep -E "syncstorage-db/|tokenserver-db/"
+git diff origin/master...HEAD --name-only | grep -E "syncstorage-db/|tokenserver-db/"
 ```
 
 If no trait files changed, check whether any backend implementation changed without a corresponding trait change — that may indicate the trait was bypassed or duplicated.
 
 ```bash
-git diff main...HEAD --name-only | grep -E "syncstorage-(mysql|postgres|spanner)/|tokenserver-(mysql|postgres)/"
+git diff origin/master...HEAD --name-only | grep -E "syncstorage-(mysql|postgres|spanner)/|tokenserver-(mysql|postgres)/"
 ```
 
 ## Step 2 — Diff the traits
@@ -38,7 +38,7 @@ git diff main...HEAD --name-only | grep -E "syncstorage-(mysql|postgres|spanner)
 For each changed trait file:
 
 ```bash
-git diff main...HEAD -- <file>
+git diff origin/master...HEAD -- <file>
 ```
 
 List every added, removed, or modified method signature.
@@ -73,7 +73,7 @@ Review the diff for patterns that are safe on one backend but wrong on another:
 Changes to `syncstorage-db-common/` or `tokenserver-db-common/` affect all backends. Verify nothing in those changes makes backend-specific assumptions.
 
 ```bash
-git diff main...HEAD --name-only | grep "db-common"
+git diff origin/master...HEAD --name-only | grep "db-common"
 ```
 
 ## Output format

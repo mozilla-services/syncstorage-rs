@@ -25,7 +25,7 @@ Fixtures yield context dicts. Helpers are plain functions imported directly by t
 ## Step 1 — Find changed test files
 
 ```bash
-git diff main...HEAD --name-only | grep -E "tools/integration_tests"
+git diff origin/master...HEAD --name-only | grep -E "tools/integration_tests"
 ```
 
 Read each changed file in full.

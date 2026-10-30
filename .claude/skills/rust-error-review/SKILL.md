@@ -25,19 +25,19 @@ Key files:
 ## Step 1 — Find changed error files
 
 ```bash
-git diff main...HEAD --name-only | grep -E "error\.rs"
+git diff origin/master...HEAD --name-only | grep -E "error\.rs"
 ```
 
 Also check for new `From<>` impls that convert external errors into repo error types:
 
 ```bash
-git diff main...HEAD | grep -E "impl From|Into<.*Error"
+git diff origin/master...HEAD | grep -E "impl From|Into<.*Error"
 ```
 
 ## Step 2 — Diff each error file
 
 ```bash
-git diff main...HEAD -- <error_file>
+git diff origin/master...HEAD -- <error_file>
 ```
 
 ## Step 3 — Review checklist
