@@ -110,6 +110,7 @@ tools/
   spanner/             Spanner utilities
   hawk/                HAWK token generation utility
   syncstorage-loadtest/ Molotov load tests
+  devtools/            Deterministic helpers the Claude skills call (scope, migration and draft checks)
 docker/                Docker Compose files for each backend
 config/                Local TOML configuration files
 docs/                  mdBook documentation source
@@ -296,8 +297,10 @@ Use the skills below to query them. Do not call MCP tools ad-hoc without reading
 | Skill | Invocation | Purpose |
 |---|---|---|
 | Jira status | `/jira-status [me\|epic KEY\|epics\|sprint\|summary ...\|create ...\|update STOR-#### ...]` | Task landscape, epics, personal view, summaries, create/edit tickets |
-| Sentry health | `/sentry-health [new\|regressions\|volume\|full]` | Production error trends, regressions, new issues |
+| Sentry health | `/sentry-health [new\|regressions\|volume\|full\|triage <issue>]` | Production error trends, regressions, new issues; single-issue triage |
 | SRE request | `/srein-request <what SRE needs to do>` | Draft an SREIN intake request from the session context; files only on approval |
+
+**Helper scripts:** skills call `tools/devtools` (`poetry -C tools/devtools install` once) for change scoping, migration checks, and draft rendering/linting. See `tools/devtools/README.md`.
 
 **Shared context:** `.claude/mcp-context.md` contains project IDs, JQL patterns, Sentry project slug, what to flag, and known noise. Skills read this at runtime. Read it before any ad-hoc MCP query.
 
