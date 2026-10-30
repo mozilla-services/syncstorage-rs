@@ -303,4 +303,4 @@ Use the skills below to query them. Do not call MCP tools ad-hoc without reading
 **Identity when using these tools:** You are acting as both engineer and engineering manager. Surface patterns, not just raw lists. Distinguish "needs action now" from "worth monitoring". Do not fabricate data — if a query returns nothing, say so.
 
 **Jira project:** `STOR` — `https://mozilla-hub.atlassian.net`
-**Sentry project:** `syncstorage-prod` — org `mozilla`
+**Sentry project:** `syncstorage-rs` (storage nodes and tokenserver) — org `mozilla`

@@ -1,6 +1,6 @@
 ---
 name: sentry-health
-description: Queries Sentry for syncstorage-rs (project syncstorage-prod) to surface error trends, new issues, regressions, and production health signals. Reports as engineer/manager view of what requires attention.
+description: Queries Sentry for syncstorage-rs (project syncstorage-rs) to surface error trends, new issues, regressions, and production health signals. Reports as engineer/manager view of what requires attention.
 user-invocable: true
 argument-hint: "new | regressions | volume | full (default: full)"
 ---
@@ -19,13 +19,13 @@ Parse `$ARGUMENTS` (trimmed, lowercased). Default is `full`. Valid modes:
 
 ## Step 1: Confirm the project
 
-Call `mcp__sentry__find_projects` and locate the `syncstorage-prod` project under the `mozilla` organization. Confirm the project slug and organization slug before querying. If the project is not found, report the available projects and stop.
+Call `mcp__sentry__find_projects` and locate the `syncstorage-rs` project under the `mozilla` organization. Confirm the project slug and organization slug before querying. If the project is not found, report the available projects and stop.
 
 ---
 
 ## Step 2: Gather issue data
 
-Use available Sentry MCP tools to fetch issues for `syncstorage-prod`. Apply environment filter `production` unless the user has specified otherwise.
+Use available Sentry MCP tools to fetch issues for `syncstorage-rs`. Apply environment filter `prod` unless the user has specified otherwise.
 
 Fetch based on the selected mode:
 
@@ -123,4 +123,4 @@ Brief list of issues seen but classified as expected noise. One line each. This 
 - `is_sentry_event()` in `syncserver/src/error.rs` is the canonical routing decision — errors that are HTTP 4xx should generally not be in Sentry at high volume; flag if they are
 - Focus on production environment; staging errors are informational only
 - An issue being "old" does not mean it's not important — check event count trends, not just age
-- Sentry issue IDs should be referenced in full (e.g. `SYNCSTORAGE-PROD-####`) if available
+- Sentry issue IDs should be referenced in full (e.g. `SYNCSTORAGE-RS-####`) if available
