@@ -16,6 +16,7 @@ import time
 import urllib.parse as urlparse
 from base64 import urlsafe_b64encode as b64encode
 
+from fxa_delete.make_delete_token import make_delete_token
 from sqlalchemy.sql import text as sqltext
 from tokenlib.utils import decode_token_bytes
 from webtest import TestApp
@@ -27,6 +28,17 @@ NODE_URL = "https://example.com"
 FXA_EMAIL_DOMAIN = "api-accounts.stage.mozaws.net"
 TOKEN_SIGNING_SECRET = os.environ.get("SYNC_MASTER_SECRET", "secret0")
 FXA_METRICS_HASH_SECRET = os.environ.get("SYNC_MASTER_SECRET", "secret0")
+
+#: Shared secret for the FxA data deletion endpoint. Comma separated on the
+#: wire so a rotation can carry two secrets; the first is enough to mint with.
+DELETE_DATA_SECRET = os.environ.get(
+    "SYNC_TOKENSERVER__FXA_DELETE_DATA_SECRETS", ""
+).split(",")[0]
+
+#: The syncstorage instance the tests actually talk to. The default node
+#: (NODE_URL) is unroutable on purpose, which is fine for token issuance but
+#: not for a delete that has to reach a real node.
+LOCAL_NODE_URL = os.environ.get("SYNC_SERVER_URL", "http://localhost:8000")
 
 
 # ── DB-mode helpers ───────────────────────────────────────────────────────────
@@ -148,6 +160,20 @@ def add_node(
         result = cursor.lastrowid
     cursor.close()
     return result
+
+
+def seeded_ctx(conn, app, service_id: int, node_url: str):
+    """Yield a per-test tokenserver context seeded with `node_url`."""
+    clear_db(conn)
+    add_node(conn, service_id, capacity=100, node=node_url, id=NODE_ID)
+    yield {
+        "db_conn": conn,
+        "app": app,
+        "service_id": service_id,
+        "db_mode": get_db_mode(),
+        "expected_node_type": get_expected_node_type(),
+    }
+    clear_db(conn)
 
 
 def get_node(conn, node_id: int) -> dict:
@@ -351,3 +377,19 @@ def make_app(host: str) -> TestApp:
 def unsafe_parse_token(token: str) -> dict:
     """Parse a tokenlib token without verifying its HMAC signature."""
     return json.loads(decode_token_bytes(token)[:-32].decode("utf8"))  # type: ignore[no-any-return]
+
+
+def delete_syncstorage_data(app, fxa_uid: str, secret: str | None = None, **kwargs):
+    """Call the FxA data deletion endpoint for `fxa_uid`.
+
+    Mints the request-bound credential the endpoint expects, using the same
+    reference implementation documented for the FxA Auth Server.
+    """
+    token = make_delete_token(
+        secret if secret is not None else DELETE_DATA_SECRET, fxa_uid
+    )
+    return app.delete(
+        f"/1.0/users/{fxa_uid}/storage",
+        headers={"Authorization": f"Bearer {token}"},
+        **kwargs,
+    )

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Duration};
+use std::{cmp, collections::HashMap, sync::Arc, time::Duration};
 
 use actix_web::{Error, HttpResponse, http::StatusCode, web::Data};
 use base64::{Engine, engine};
@@ -8,17 +8,27 @@ use serde_json::Value;
 use tokio::time::timeout;
 use utoipa::ToSchema;
 
+use hawk::{Credentials, Key, RequestBuilder};
+use reqwest::Url;
 use syncserver_common::Metrics;
+use syncserver_settings::Secrets;
 use tokenserver_auth::{MakeTokenPlaintext, Tokenlib, TokenserverOrigin};
-use tokenserver_common::{NodeType, TokenserverError};
+use tokenserver_common::{ErrorLocation, NodeType, TokenserverError};
 use tokenserver_db::{
     Db, SYNC_SERVICE_NAME,
-    params::{GetNodeId, PostUser, PutUser, ReplaceUsers, RetireUser, UpdateUserGeneration},
+    params::{
+        GetNodeId, GetServiceId, GetUsers, PostUser, PutUser, ReplaceUsers, RetireUser,
+        UpdateUserGeneration,
+    },
+    results::GetRawUser,
 };
 
 use super::{
     TokenserverMetrics,
-    extractors::{DbWrapper, FxaWebhookToken, TokenserverRequest},
+    extractors::{
+        DbWrapper, FxaWebhookToken, ServiceToken, TokenserverRequest, fxa_metrics_hash,
+        hash_device_id,
+    },
 };
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -289,6 +299,35 @@ async fn update_user(
 const METRIC_EVENTS_RECEIVED: &str = "webhook.events_received";
 const METRIC_EVENTS_PROCESSED: &str = "webhook.events_processed";
 
+// statsd names for the FxA-triggered data deletion endpoint.
+const METRIC_DELETE_REQUESTS: &str = "fxa_delete_data.requests";
+const METRIC_DELETE_NODE: &str = "fxa_delete_data.node_delete";
+const METRIC_DELETE_SKIPPED: &str = "fxa_delete_data.skipped";
+const METRIC_DELETE_TIMER: &str = "fxa_delete_data";
+
+/// How long the HAWK credential minted for the storage node stays valid.
+///
+/// It is used within milliseconds; a short life limits the damage if a signed
+/// header ever reaches a log. Note the node only exempts
+/// `/1.5/{uid}/info/collections` from the expiry check, so a DELETE genuinely
+/// needs this in the future.
+const NODE_TOKEN_TTL_SECS: i64 = 300;
+
+/// Upper bound on the whole delete, independent of the per-request client
+/// timeout, so a slow node cannot pin a worker indefinitely.
+const DELETE_OVERALL_TIMEOUT_SECS: u64 = 60;
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct DeleteUserDataResult {
+    /// Whether a storage node was asked to delete, and confirmed.
+    ///
+    /// `false` means the user's current record has no node assignment, so
+    /// there was no node to ask and no data location to derive. That is a
+    /// success — there is nothing to delete — but it is worth distinguishing
+    /// from a delete that actually happened.
+    deleted: bool,
+}
+
 pub async fn handle_fxa_events(
     FxaWebhookToken(claims): FxaWebhookToken,
     DbWrapper(mut db): DbWrapper,
@@ -351,6 +390,257 @@ pub async fn handle_fxa_events(
 }
 
 #[utoipa::path(
+    delete,
+    path = "/1.0/users/{fxa_uid}/storage",
+    tag = "tokenserver",
+    summary = "Delete a user's syncstorage data",
+    description = "Deletes all syncstorage data for the user's current node assignment, \
+                   leaving the Tokenserver user record intact so the account can keep \
+                   syncing. Intended for the FxA Auth Server; authenticated with a \
+                   request-bound MAC rather than an end-user credential.",
+    params(
+        ("fxa_uid" = String, Path, description = "The user's FxA account id")
+    ),
+    responses(
+        (status = 200, description = "Deleted, or the user has no node assignment", body = DeleteUserDataResult, content_type = "application/json"),
+        (status = 401, description = "Unauthorized - missing, malformed, expired, or mis-bound credential"),
+        (status = 404, description = "Not Found - no Tokenserver record for this fxa_uid"),
+        (status = 500, description = "Internal Server Error"),
+        (status = 503, description = "Service Unavailable - the storage node could not be reached"),
+    )
+)]
+pub async fn delete_user_syncstorage_data(
+    ServiceToken(fxa_uid): ServiceToken,
+    DbWrapper(mut db): DbWrapper,
+    state: Data<super::ServerState>,
+    secrets: Data<Arc<Secrets>>,
+    TokenserverMetrics(mut metrics): TokenserverMetrics,
+) -> Result<HttpResponse, TokenserverError> {
+    // Same secret the node derives its token key from; see Secrets::new.
+    let shared_secret =
+        String::from_utf8(secrets.master_secret.clone()).map_err(|e| TokenserverError {
+            context: format!("Failed to read the master secret: {}", e),
+            ..TokenserverError::internal_error()
+        })?;
+    metrics.start_timer(METRIC_DELETE_TIMER, None);
+
+    let email = format!("{}@{}", fxa_uid, state.fxa_email_domain);
+    let hashed_fxa_uid = {
+        let full = fxa_metrics_hash(&fxa_uid, state.fxa_metrics_hash_secret.as_bytes());
+        full[0..32].to_owned()
+    };
+
+    let service_id = db
+        .get_service_id(GetServiceId {
+            service: SYNC_SERVICE_NAME.to_owned(),
+        })
+        .await?
+        .id;
+
+    let mut rows =
+        apply_timeout(db.timeout(), db.get_users(GetUsers { email, service_id })).await?;
+
+    // Release the pooled connection before any network I/O
+    drop(db);
+
+    if rows.is_empty() {
+        metrics.incr_with_tag(METRIC_DELETE_REQUESTS, "result", "not_found");
+        return Err(TokenserverError {
+            context: format!("No tokenserver user records for {}", hashed_fxa_uid),
+            description: "Unknown user".to_owned(),
+            http_status: http::StatusCode::NOT_FOUND,
+            location: ErrorLocation::Url,
+            ..TokenserverError::default()
+        });
+    }
+
+    // Same "current user" rule as `Db::get_or_create_user`: greatest
+    // (generation, created_at) wins. Older rows belong to superseded key epochs
+    // and are left to purge_old_records.py.
+    rows.sort_by_key(|row| cmp::Reverse((row.generation, row.created_at)));
+    let row = &rows[0];
+
+    let Some(node) = &row.node else {
+        // No node assignment means no location to derive and nothing to ask.
+        info!(
+            "No node assigned, nothing to delete";
+            "metrics_uid" => &hashed_fxa_uid
+        );
+        metrics.incr_with_tag(METRIC_DELETE_SKIPPED, "reason", "no_node");
+        metrics.incr_with_tag(METRIC_DELETE_REQUESTS, "result", "ok");
+        return Ok(HttpResponse::Ok().json(DeleteUserDataResult { deleted: false }));
+    };
+
+    info!(
+        "Deleting syncstorage data";
+        "metrics_uid" => &hashed_fxa_uid,
+        "uid" => row.uid
+    );
+
+    apply_timeout(
+        Some(Duration::from_secs(DELETE_OVERALL_TIMEOUT_SECS)),
+        delete_node_data(&state, &fxa_uid, &hashed_fxa_uid, node, row, &shared_secret),
+    )
+    .await
+    .inspect_err(|_| metrics.incr_with_tag(METRIC_DELETE_REQUESTS, "result", "failed"))?;
+
+    metrics.incr_with_tag(METRIC_DELETE_REQUESTS, "result", "ok");
+    Ok(HttpResponse::Ok().json(DeleteUserDataResult { deleted: true }))
+}
+
+/// Derive the `fxa_kid` the user's syncstorage data is filed under.
+fn node_fxa_kid(row: &GetRawUser) -> Result<String, TokenserverError> {
+    // Python does `user.keys_changed_at or user.generation`, where 0 is falsy.
+    // These rows are raw db values and do not pass through
+    // `convert_zero_to_none`, so normalize here: treating Some(0) as set would
+    // derive a different fxa_kid than the data is stored under.
+    let keys_changed_at = match row.keys_changed_at {
+        Some(0) | None => None,
+        value => value,
+    };
+    let client_state = hex::decode(&row.client_state).map_err(|e| TokenserverError {
+        context: format!("Failed to decode the client state hex: {}", e),
+        ..TokenserverError::internal_error()
+    })?;
+
+    Ok(format!(
+        "{:013}-{:}",
+        keys_changed_at.unwrap_or(row.generation),
+        engine::general_purpose::URL_SAFE_NO_PAD.encode(client_state)
+    ))
+}
+
+/// Mint a tokenlib token for `plaintext` and return the `Authorization` value
+/// authenticating a DELETE of `url`.
+fn delete_auth_header(
+    url: &Url,
+    plaintext: MakeTokenPlaintext,
+    shared_secret: &str,
+) -> Result<String, TokenserverError> {
+    let (token, derived_secret) = Tokenlib::get_token_and_derived_secret(plaintext, shared_secret)?;
+
+    let credentials = Credentials {
+        id: token,
+        key: Key::new(derived_secret.as_bytes(), hawk::SHA256).map_err(|e| TokenserverError {
+            context: format!("Failed to build the hawk key: {}", e),
+            ..TokenserverError::internal_error()
+        })?,
+    };
+    let header = RequestBuilder::from_url("DELETE", url)
+        .map_err(|e| TokenserverError {
+            context: format!("Failed to build the hawk request: {}", e),
+            ..TokenserverError::internal_error()
+        })?
+        .request()
+        .make_header(&credentials)
+        .map_err(|e| TokenserverError {
+            context: format!("Failed to sign the hawk request: {}", e),
+            ..TokenserverError::internal_error()
+        })?;
+
+    Ok(format!("Hawk {}", header))
+}
+
+/// Mint a HAWK credential for `row` and ask its storage node to delete the
+/// user's data, mirroring `delete_service_data()` in
+/// tools/tokenserver/purge_old_records.py.
+async fn delete_node_data(
+    state: &super::ServerState,
+    fxa_uid: &str,
+    hashed_fxa_uid: &str,
+    node: &str,
+    row: &GetRawUser,
+    shared_secret: &str,
+) -> Result<(), TokenserverError> {
+    let metrics = Metrics::from(&state.metrics);
+    let node_result = |result: &str| metrics.incr_with_tag(METRIC_DELETE_NODE, "result", result);
+
+    let fxa_kid = node_fxa_kid(row).map_err(|e| {
+        node_result("bad_client_state");
+        TokenserverError {
+            context: format!("{} for {}", e.context, hashed_fxa_uid),
+            ..e
+        }
+    })?;
+
+    let plaintext = MakeTokenPlaintext {
+        node: node.to_owned(),
+        fxa_kid,
+        fxa_uid: fxa_uid.to_owned(),
+        hashed_device_id: hash_device_id(hashed_fxa_uid, state.fxa_metrics_hash_secret.as_bytes()),
+        hashed_fxa_uid: hashed_fxa_uid.to_owned(),
+        expires: (Utc::now() + TimeDelta::seconds(NODE_TOKEN_TTL_SECS)).timestamp() as u64,
+        uid: row.uid,
+        tokenserver_origin: TokenserverOrigin::Rust,
+    };
+
+    let url =
+        Url::parse(&format!("{}/1.5/{}", node.trim_end_matches('/'), row.uid)).map_err(|e| {
+            TokenserverError {
+                context: format!("Invalid node url {:?}: {}", node, e),
+                ..TokenserverError::internal_error()
+            }
+        })?;
+
+    let auth = delete_auth_header(&url, plaintext, shared_secret)?;
+
+    let response = state
+        .storage_client
+        .delete(url)
+        .header(reqwest::header::AUTHORIZATION, auth)
+        .send()
+        .await
+        .map_err(|e| {
+            node_result(if e.is_timeout() { "timeout" } else { "connect" });
+            TokenserverError {
+                context: format!("Storage node request failed for {}", hashed_fxa_uid),
+                tags: Some(vec![("reason", "node_unreachable".to_owned())]),
+                ..TokenserverError::resource_unavailable()
+            }
+        })?;
+
+    let status = response.status();
+    // 404 is success, matching purge_old_records.py
+    if status.is_success() || status == reqwest::StatusCode::NOT_FOUND {
+        node_result(if status == reqwest::StatusCode::NOT_FOUND {
+            "not_found"
+        } else {
+            "ok"
+        });
+        return Ok(());
+    }
+
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        // We minted this token ourselves, so a rejection is our bug
+        node_result("unauthorized");
+        return Err(TokenserverError {
+            context: format!(
+                "Storage node rejected our minted token for {}",
+                hashed_fxa_uid
+            ),
+            ..TokenserverError::internal_error()
+        });
+    }
+
+    node_result(if status.is_server_error() {
+        "http_5xx"
+    } else if status.is_client_error() {
+        "http_4xx"
+    } else {
+        "http_other"
+    });
+    Err(TokenserverError {
+        context: format!(
+            "Storage node returned {} for {}",
+            status.as_u16(),
+            hashed_fxa_uid
+        ),
+        tags: Some(vec![("reason", "node_error".to_owned())]),
+        ..TokenserverError::resource_unavailable()
+    })
+}
+
+#[utoipa::path(
     get,
     path = "/__heartbeat__",
     tag = "tokenserver",
@@ -404,7 +694,7 @@ pub async fn test_error() -> Result<HttpResponse, TokenserverError> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use actix_web::middleware::ErrorHandlers;
@@ -413,7 +703,11 @@ mod tests {
         App, HttpRequest, HttpResponse, http::StatusCode, http::header::LOCATION,
         middleware::from_fn, web, web::Data,
     };
+    use base64::{Engine as _, engine};
+    use chrono::Utc;
+    use hmac::{Hmac, KeyInit, Mac};
     use serde_json::json;
+    use sha2::Sha256;
     use utoipa::OpenApi;
     use utoipa_swagger_ui::SwaggerUi;
 
@@ -424,11 +718,13 @@ mod tests {
     };
     use tokenserver_auth::{MockVerifier, SETVerifierImpl, oauth};
     use tokenserver_db::mock::MockDbPool;
+    use tokenserver_db::results::GetRawUser;
     use tokenserver_settings::Settings as TokenserverSettings;
 
     use crate::build_app_without_syncstorage;
     use crate::error::ApiError;
     use crate::server::{ApiDoc, TOKENSERVER_DOCS_URL};
+    use crate::tokenserver::handlers::node_fxa_kid;
     use crate::tokenserver::{self, ServerState};
     use crate::web::middleware;
 
@@ -520,6 +816,9 @@ mod tests {
             set_verifiers,
             fxa_webhook_enabled: true,
             fxa_webhook_metrics_only: false,
+            fxa_delete_data_enabled: false,
+            fxa_delete_data_secrets: vec![],
+            storage_client: reqwest::Client::new(),
             allow_new_users: true,
             #[cfg(feature = "last_seen")]
             last_seen: None,
@@ -719,5 +1018,339 @@ mod tests {
 
         assert_eq!(call_log.update_user_generation.lock().unwrap().len(), 0);
         assert_eq!(call_log.retire_user.lock().unwrap().len(), 0);
+    }
+
+    // ---- FxA-triggered syncstorage data deletion ----
+
+    const TEST_DELETE_SECRET: &str = "0123456789abcdef0123456789abcdef";
+    const TEST_FXA_UID: &str = "testuid";
+
+    /// Mint the credential the endpoint expects, the way FxA will.
+    fn delete_token(secret: &str, fxa_uid: &str, exp: i64) -> String {
+        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).unwrap();
+        mac.update(format!("syncstorage-delete/v1\n{}\n{}", fxa_uid, exp).as_bytes());
+        format!(
+            "{}.{}",
+            exp,
+            engine::general_purpose::URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes())
+        )
+    }
+
+    fn valid_delete_token(fxa_uid: &str) -> String {
+        delete_token(TEST_DELETE_SECRET, fxa_uid, Utc::now().timestamp() + 60)
+    }
+
+    fn user_row(uid: i64, node: Option<String>) -> GetRawUser {
+        GetRawUser {
+            uid,
+            client_state: "aaaa".to_owned(),
+            generation: 1234,
+            node,
+            keys_changed_at: Some(1234),
+            created_at: 1,
+            replaced_at: None,
+        }
+    }
+
+    async fn make_delete_app(
+        users: Vec<GetRawUser>,
+    ) -> (
+        impl actix_web::dev::Service<
+            actix_http::Request,
+            Response = actix_web::dev::ServiceResponse<impl actix_web::body::MessageBody>,
+            Error = actix_web::Error,
+        >,
+        tokenserver_db::mock::CallLog,
+    ) {
+        let (pool, call_log) = tokenserver_db::mock::MockDbPool::with_users(users);
+        let mut state = make_state_with_db_pool(vec![], Box::new(pool));
+        state.fxa_delete_data_enabled = true;
+        state.fxa_delete_data_secrets = vec![TEST_DELETE_SECRET.to_owned()];
+        (make_app_from_state(state).await, call_log)
+    }
+
+    fn delete_request(fxa_uid: &str, auth: Option<&str>) -> actix_http::Request {
+        let mut req = TestRequest::delete().uri(&format!("/1.0/users/{}/storage", fxa_uid));
+        if let Some(auth) = auth {
+            req = req.insert_header(("authorization", format!("Bearer {}", auth)));
+        }
+        req.to_request()
+    }
+
+    /// Requests a [`fake_node`] received, as `(path, authorization)`.
+    type NodeRequests = Arc<Mutex<Vec<(String, String)>>>;
+
+    /// httptest has no request-capture facility, so record from a matcher that
+    /// always matches.
+    struct Capture(NodeRequests);
+
+    impl httptest::matchers::Matcher<httptest::http::Request<httptest::bytes::Bytes>> for Capture {
+        fn matches(
+            &mut self,
+            req: &httptest::http::Request<httptest::bytes::Bytes>,
+            _ctx: &mut httptest::matchers::ExecutionContext,
+        ) -> bool {
+            let auth = req
+                .headers()
+                .get("authorization")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .to_owned();
+            self.0
+                .lock()
+                .unwrap()
+                .push((req.uri().path().to_owned(), auth));
+            true
+        }
+
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Capture")
+        }
+    }
+
+    /// A storage node that answers `status` and records what it was asked.
+    fn fake_node(status: u16) -> (httptest::Server, NodeRequests) {
+        use httptest::{Expectation, matchers::*, responders::*};
+
+        let seen: NodeRequests = Arc::new(Mutex::new(vec![]));
+        let server = httptest::Server::run();
+        server.expect(
+            Expectation::matching(all_of![request::method("DELETE"), Capture(seen.clone()),])
+                .times(..)
+                .respond_with(status_code(status)),
+        );
+        (server, seen)
+    }
+
+    #[test]
+    fn test_node_fxa_kid() {
+        let kid = |keys_changed_at, generation, client_state: &str| {
+            node_fxa_kid(&GetRawUser {
+                keys_changed_at,
+                generation,
+                client_state: client_state.to_owned(),
+                ..Default::default()
+            })
+        };
+
+        // keys_changed_at wins when it is genuinely set.
+        assert_eq!(kid(Some(5000), 1234, "aaaa").unwrap(), "0000000005000-qqo");
+
+        // Both of these mean "unset" and must fall back to generation. Python
+        // conflates them via a falsy check; a naive `unwrap_or` would not, and
+        // would address a keyspace holding none of the user's data.
+        assert_eq!(kid(None, 1234, "aaaa").unwrap(), "0000000001234-qqo");
+        assert_eq!(kid(Some(0), 1234, "aaaa").unwrap(), "0000000001234-qqo");
+
+        // Legacy rows carry no client state; the trailing dash is correct.
+        assert_eq!(kid(Some(1), 1, "").unwrap(), "0000000000001-");
+
+        // Non-hex client_state is corruption on our side, not a bad request.
+        let err = kid(Some(1), 1, "zzzz").unwrap_err();
+        assert_eq!(err.http_status, http::StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[actix_web::test]
+    async fn test_delete_data_happy_path() {
+        let (node, seen) = fake_node(200);
+        let (app, call_log) = make_delete_app(vec![user_row(42, Some(node.url_str("")))]).await;
+
+        let response = test::call_service(
+            &app,
+            delete_request(TEST_FXA_UID, Some(&valid_delete_token(TEST_FXA_UID))),
+        )
+        .await;
+        let status = response.status();
+        let body = test::read_body(response).await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "body: {:?}",
+            String::from_utf8_lossy(&body)
+        );
+
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(body["deleted"], true);
+
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 1);
+        assert_eq!(seen[0].0, "/1.5/42");
+        assert!(seen[0].1.starts_with("Hawk "), "got {:?}", seen[0].1);
+
+        // The user record must survive: this is reset-sync-data, not account
+        // deletion.
+        assert!(call_log.retire_user.lock().unwrap().is_empty());
+        assert!(call_log.update_user_generation.lock().unwrap().is_empty());
+
+        // And it must look the user up by the derived FxA email.
+        let lookups = call_log.get_users.lock().unwrap();
+        assert_eq!(lookups.len(), 1);
+        assert_eq!(lookups[0].email, "testuid@api.accounts.firefox.com");
+    }
+
+    #[actix_web::test]
+    async fn test_delete_data_uses_newest_row_only() {
+        let (node, seen) = fake_node(200);
+        let url = node.url_str("");
+        // Lowest generation first, so a naive implementation picks the wrong one.
+        let mut old = user_row(1, Some(url.clone()));
+        old.generation = 1;
+        old.created_at = 1;
+        let mut newest = user_row(99, Some(url));
+        newest.generation = 5000;
+        newest.created_at = 2;
+        let (app, _) = make_delete_app(vec![old, newest]).await;
+
+        let response = test::call_service(
+            &app,
+            delete_request(TEST_FXA_UID, Some(&valid_delete_token(TEST_FXA_UID))),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 1, "only the current row should be deleted");
+        assert_eq!(seen[0].0, "/1.5/99");
+    }
+
+    #[actix_web::test]
+    async fn test_delete_data_no_node_assignment() {
+        let (app, _) = make_delete_app(vec![user_row(42, None)]).await;
+
+        let response = test::call_service(
+            &app,
+            delete_request(TEST_FXA_UID, Some(&valid_delete_token(TEST_FXA_UID))),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = test::read_body(response).await;
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        // No node assigned: a success, but nothing was deleted.
+        assert_eq!(body["deleted"], false);
+    }
+
+    #[actix_web::test]
+    async fn test_delete_data_unknown_user_is_404() {
+        let (app, _) = make_delete_app(vec![]).await;
+
+        let response = test::call_service(
+            &app,
+            delete_request(TEST_FXA_UID, Some(&valid_delete_token(TEST_FXA_UID))),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_web::test]
+    async fn test_delete_data_node_404_is_success() {
+        let (node, _) = fake_node(404);
+        let (app, _) = make_delete_app(vec![user_row(42, Some(node.url_str("")))]).await;
+
+        let response = test::call_service(
+            &app,
+            delete_request(TEST_FXA_UID, Some(&valid_delete_token(TEST_FXA_UID))),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[actix_web::test]
+    async fn test_delete_data_node_401_is_500() {
+        // Our own minted token being rejected is our bug, not the caller's.
+        let (node, _) = fake_node(401);
+        let (app, _) = make_delete_app(vec![user_row(42, Some(node.url_str("")))]).await;
+
+        let response = test::call_service(
+            &app,
+            delete_request(TEST_FXA_UID, Some(&valid_delete_token(TEST_FXA_UID))),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[actix_web::test]
+    async fn test_delete_data_rejects_bad_credentials() {
+        let (node, seen) = fake_node(200);
+        let url = node.url_str("");
+        let now = Utc::now().timestamp();
+
+        let cases: Vec<(&str, Option<String>)> = vec![
+            ("missing header", None),
+            (
+                "wrong secret",
+                Some(delete_token(
+                    "x".repeat(32).as_str(),
+                    TEST_FXA_UID,
+                    now + 60,
+                )),
+            ),
+            (
+                "expired",
+                Some(delete_token(TEST_DELETE_SECRET, TEST_FXA_UID, now - 1)),
+            ),
+            // Minted far enough ahead that it would never go stale.
+            (
+                "forward dated",
+                Some(delete_token(TEST_DELETE_SECRET, TEST_FXA_UID, now + 86400)),
+            ),
+            // Valid MAC, but for a different uid than the path.
+            (
+                "wrong uid binding",
+                Some(delete_token(TEST_DELETE_SECRET, "otheruid", now + 60)),
+            ),
+            ("not exp.mac", Some("garbage".to_owned())),
+            ("non numeric exp", Some("abc.YWJj".to_owned())),
+            ("bad base64", Some(format!("{}.!!!!", now + 60))),
+        ];
+
+        for (name, auth) in cases {
+            let (app, _) = make_delete_app(vec![user_row(42, Some(url.clone()))]).await;
+            let response =
+                test::call_service(&app, delete_request(TEST_FXA_UID, auth.as_deref())).await;
+            assert_eq!(
+                response.status(),
+                StatusCode::UNAUTHORIZED,
+                "expected 401 for {}",
+                name
+            );
+        }
+
+        assert!(
+            seen.lock().unwrap().is_empty(),
+            "no storage node request may be made for a rejected credential"
+        );
+    }
+
+    #[actix_web::test]
+    async fn test_delete_data_zero_keys_changed_at_falls_back_to_generation() {
+        // Python's `keys_changed_at or generation` treats 0 as unset. These rows
+        // skip `convert_zero_to_none`, so a naive `unwrap_or` would mint a
+        // different fxa_kid than the data is stored under and delete nothing.
+        let (node, seen) = fake_node(200);
+        let mut row = user_row(42, Some(node.url_str("")));
+        row.keys_changed_at = Some(0);
+        row.generation = 1234;
+        let (app, _) = make_delete_app(vec![row]).await;
+
+        let response = test::call_service(
+            &app,
+            delete_request(TEST_FXA_UID, Some(&valid_delete_token(TEST_FXA_UID))),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let seen = seen.lock().unwrap();
+        let auth = &seen[0].1;
+        let id = auth
+            .split("id=\"")
+            .nth(1)
+            .and_then(|rest| rest.split('"').next())
+            .expect("hawk id");
+        let decoded = engine::general_purpose::URL_SAFE.decode(id).unwrap();
+        // The token is the JSON payload followed by a 32 byte HMAC.
+        let payload: serde_json::Value =
+            serde_json::from_slice(&decoded[..decoded.len() - 32]).unwrap();
+        assert_eq!(payload["fxa_kid"], "0000000001234-qqo");
     }
 }

@@ -86,6 +86,16 @@ pub struct Settings {
     pub fxa_webhook_set_client_id: Option<String>,
     /// The `iss` of Security Event Tokens received on the account events webhook endpoint.
     pub fxa_webhook_set_issuer: Option<String>,
+    /// Whether to enable the FxA-triggered syncstorage data deletion endpoint.
+    /// Defaults to false: the route is not registered at all when disabled.
+    pub fxa_delete_data_enabled: bool,
+    /// Shared secrets accepted on the data deletion endpoint. Each request
+    /// presents an HMAC over the target `fxa_uid` and an expiry rather than the
+    /// secret itself; every entry is tried, so a rotation can list both the
+    /// outgoing and incoming secret.
+    pub fxa_delete_data_secrets: Vec<String>,
+    /// The timeout to be used when asking a storage node to delete user data.
+    pub fxa_delete_data_request_timeout: u64,
     /// Whether new users may register to the Tokenserver.
     /// Defaults to true.
     pub allow_new_users: bool,
@@ -163,6 +173,9 @@ impl Default for Settings {
             fxa_webhook_metrics_only: false,
             fxa_webhook_set_client_id: None,
             fxa_webhook_set_issuer: None,
+            fxa_delete_data_enabled: false,
+            fxa_delete_data_secrets: vec![],
+            fxa_delete_data_request_timeout: 30,
             allow_new_users: true,
             last_seen_enabled: false,
             last_seen_staging_table: None,

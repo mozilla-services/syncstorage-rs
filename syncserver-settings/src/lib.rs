@@ -15,6 +15,8 @@ use url::Url;
 pub const COLLECTION_ID_REGEX: &str = r"[a-zA-Z0-9._-]{1,32}";
 static PREFIX: &str = "sync";
 
+const MIN_DELETE_DATA_SECRET_LEN: usize = 32;
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -88,6 +90,7 @@ impl Settings {
                 // commas are untouched.
                 .list_separator(",")
                 .with_list_parse_key("syncstorage.gcs_payload_offload_collections")
+                .with_list_parse_key("tokenserver.fxa_delete_data_secrets")
                 .try_parsing(true),
         );
         let settings: Config = builder.build()?;
@@ -176,6 +179,27 @@ impl Settings {
             return Err(ConfigError::Message(
                 "SYNC_TOKENSERVER__DATABASE_URL must be set".to_owned(),
             ));
+        }
+
+        if self.tokenserver.enabled && self.tokenserver.fxa_delete_data_enabled {
+            if self.tokenserver.fxa_delete_data_secrets.is_empty() {
+                return Err(ConfigError::Message(
+                    "SYNC_TOKENSERVER__FXA_DELETE_DATA_SECRETS must be set when \
+                     SYNC_TOKENSERVER__FXA_DELETE_DATA_ENABLED is true"
+                        .to_owned(),
+                ));
+            }
+            if self
+                .tokenserver
+                .fxa_delete_data_secrets
+                .iter()
+                .any(|secret| secret.len() < MIN_DELETE_DATA_SECRET_LEN)
+            {
+                return Err(ConfigError::Message(format!(
+                    "Every SYNC_TOKENSERVER__FXA_DELETE_DATA_SECRETS entry must be at \
+                     least {MIN_DELETE_DATA_SECRET_LEN} characters"
+                )));
+            }
         }
 
         // overriding limits must be > 0 and validate names while we're at it

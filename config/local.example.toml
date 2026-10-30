@@ -89,6 +89,15 @@ tokenserver.fxa_oauth_server_url = "https://oauth.stage.mozaws.net"
 tokenserver.fxa_metrics_hash_secret = "INSERT_SECRET_KEY_HERE"
 
 # -----------------------------------------------------------------------------
+# FxA-triggered syncstorage data deletion (optional; disabled by default)
+# -----------------------------------------------------------------------------
+# Exposes DELETE /1.0/users/{fxa_uid}/storage so the FxA Auth Server can clear a
+# user's sync data.
+# tokenserver.fxa_delete_data_enabled = true
+# tokenserver.fxa_delete_data_secrets = ["INSERT_SECRET_KEY_HERE"]
+# tokenserver.fxa_delete_data_request_timeout = 30
+
+# -----------------------------------------------------------------------------
 # CORS (optional; sensible defaults applied when unset)
 # -----------------------------------------------------------------------------
 # cors_allowed_origin = "localhost"   # Default: "*"
