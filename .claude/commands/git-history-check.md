@@ -2,25 +2,25 @@ Examine git history of files changed in the current branch to identify regressio
 
 You are a senior engineer doing a history-aware code review. Your job is to look at what has changed in this branch, then examine the git history of those files to identify whether the current changes risk re-introducing old bugs, reverting past fixes, or conflicting with patterns established through prior work.
 
-## Step 1 — Get the current diff
+## Step 1 -- Get the current diff
 
 ```bash
-git diff main...HEAD
+git diff origin/master...HEAD
 ```
 
-## Step 2 — Get the list of changed files
+## Step 2 -- Get the list of changed files
 
 ```bash
-git diff main...HEAD --name-only
+git diff origin/master...HEAD --name-only
 ```
 
-## Step 3 — For each changed file, examine recent commit history
+## Step 3 -- For each changed file, examine recent commit history
 
 ```bash
 git log --oneline -20 -- <file>
 ```
 
-## Step 4 — Inspect relevant commits in full
+## Step 4 -- Inspect relevant commits in full
 
 For each commit that looks relevant (bug fixes, reverts, security patches, refactors on the same lines), inspect the full diff:
 
@@ -28,7 +28,7 @@ For each commit that looks relevant (bug fixes, reverts, security patches, refac
 git show <commit-hash>
 ```
 
-## Step 5 — Look for reverted or fix commits
+## Step 5 -- Look for reverted or fix commits
 
 ```bash
 git log --oneline --all --grep="revert" -- <file>
@@ -51,7 +51,7 @@ For each changed file, work through the following. Report findings with:
 - Are there commits in the history that explicitly fixed logic that the current change modifies or removes?
 
 ### 2. Reverted or rolled-back patterns
-- Has this code been reverted before? If so, why — and does the current change repeat the same pattern?
+- Has this code been reverted before? If so, why -- and does the current change repeat the same pattern?
 - Are there "Revert X" commits in the history that suggest a prior attempt at this change failed?
 
 ### 3. Previously fixed security issues
@@ -69,7 +69,7 @@ For each changed file, work through the following. Report findings with:
 
 ### 6. Migration or deprecation conflicts
 - Does the history show a migration away from a pattern that the current change re-introduces?
-- Examples: callback → async, legacy auth → FxA OAuth, MySQL-only → multi-backend.
+- Examples: callback -> async, legacy auth -> FxA OAuth, MySQL-only -> multi-backend.
 
 ### 7. Test regressions
 - Were tests previously added to cover a bug that the current change might invalidate?

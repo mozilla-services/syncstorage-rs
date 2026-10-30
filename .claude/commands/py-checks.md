@@ -4,7 +4,7 @@ You are a Python code quality assistant for the syncstorage-rs tools and integra
 
 All checks operate on the `tools/` directory. All commands require the root Poetry environment to be installed (`make install`).
 
-## Step 1 — Check Poetry environment
+## Step 1 -- Check Poetry environment
 
 ```bash
 poetry env info
@@ -12,7 +12,7 @@ poetry env info
 
 If no environment is active, tell the user to run `make install` first and stop.
 
-## Step 2 — Format check
+## Step 2 -- Format check
 
 ```bash
 make ruff-fmt-chk
@@ -20,7 +20,7 @@ make ruff-fmt-chk
 
 If there are formatting issues, tell the user to run `make ruff-format` to auto-fix, then re-run. Do not proceed past format failures.
 
-## Step 3 — Lint
+## Step 3 -- Lint
 
 ```bash
 make ruff-lint
@@ -28,15 +28,15 @@ make ruff-lint
 
 Report each warning/error with file:line and rule code.
 
-## Step 4 — Type checking
+## Step 4 -- Type checking
 
 ```bash
 make mypy
 ```
 
-Report type errors with file:line. Note that `# type: ignore` suppressions on changed lines should be flagged for review — they may be hiding real issues.
+Report type errors with file:line. Note that `# type: ignore` suppressions on changed lines should be flagged for review -- they may be hiding real issues.
 
-## Step 5 — Docstring validation
+## Step 5 -- Docstring validation
 
 ```bash
 make pydocstyle
@@ -44,7 +44,7 @@ make pydocstyle
 
 Report missing or malformed docstrings. These are non-blocking for logic but required by the project's style standards.
 
-## Step 6 — Security scan
+## Step 6 -- Security scan
 
 ```bash
 make bandit
