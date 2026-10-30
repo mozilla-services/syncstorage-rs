@@ -92,7 +92,7 @@ Workflow transitions (via `transitionJiraIssue`): fetch available transitions fi
 - **MCP tool prefix:** `mcp__sentry__`
 - **Organization:** mozilla (confirm with `find_projects` if slug changes)
 - **Project slug:** `syncstorage-rs` (storage nodes and tokenserver, all envs since STOR-541)
-- **Environments:** `prod`, `stage`, `ent-prod`, `dev`
+- **Environments:** `prod`, `stage`, `dev`
 - **Telling services apart:** `server_name:tokenserver-*` / `debug-tokenserver-*` vs `syncapp-*`
 - **Primary language:** Rust (via `sentry-rust` SDK); Python errors from integration test tooling are noise
 
