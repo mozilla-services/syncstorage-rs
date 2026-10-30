@@ -1340,7 +1340,10 @@ def test_if_modified_since_on_info_views(st_ctx):
     headers = {"X-If-Modified-Since": str(ts1)}
     for view in INFO_VIEWS:
         app.get(root + view, headers=headers, status=304)
-    # Change a collection.
+    # Change a collection. Timestamps have centisecond precision and the
+    # server only ensures a write advances its own collection's timestamp:
+    # wait, so that this first write to xxx_col2 doesn't get ts1 too.
+    time.sleep(0.01)
     bso = {"payload": "TEST"}
     r = retry_put_json(app, root + "/storage/xxx_col2/TEST", bso)
     ts2 = r.headers["X-Last-Modified"]
