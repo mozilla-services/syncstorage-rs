@@ -15,37 +15,30 @@ syncstorage-spanner/src/*.sql       # inline Spanner queries
 
 Each migration directory is named `YYYY-MM-DD-hhmmss_description/` and contains `up.sql` and `down.sql`.
 
-## Step 1 — Find changed migration files
+## Step 1 -- Run the mechanical check
 
 ```bash
-git diff origin/master...HEAD --name-only | grep -E "migrations/|schema\.ddl|\.sql"
+poetry -C tools/devtools run python -m devtools.migration_check
 ```
 
-## Step 2 — Classify each changed file
+It prints JSON and exits 1 on violations. It already covers:
 
-For each changed SQL file:
+- edits to any migration file that exists on `origin/master`, and any edit to `schema.ddl` (violations)
+- new migration dirs missing `up.sql` or `down.sql`, or with a comment-only body (violations)
+- new timestamps that don't sort after every existing migration in that crate (violations)
+- `DROP TABLE`, `DROP COLUMN`, `DROP INDEX`, `TRUNCATE`, `DELETE FROM` in a new `up.sql` (warnings)
+- changed non-migration `.sql` files such as `syncstorage-spanner/src/*.sql` (warnings; review them for schema changes)
 
-- **New migration directory** (path did not exist on origin/master) → allowed, proceed to Step 3
-- **Existing migration file modified** (path existed on origin/master and content changed) → **VIOLATION** — flag as a blocker
-- **schema.ddl modified** → **VIOLATION** — flag as a blocker
-- **Inline .sql query file modified** (non-migration) → review for intent, flag if it changes schema
+Report its violations as-is. Don't re-check those items by hand.
 
-Check whether a file existed on origin/master:
-```bash
-git show origin/master:<path>
-```
+## Step 2 -- Read what the script can't judge
 
-## Step 3 — Validate new migrations
+For each entry in `new_migrations`, read `up.sql` and `down.sql` and check:
 
-For each new migration directory:
+1. `down.sql` actually reverses `up.sql` (not just non-empty)
+2. column types and constraints match the existing schema in the same crate
 
-1. Confirm both `up.sql` and `down.sql` exist
-2. Confirm `down.sql` is a genuine rollback of `up.sql` (not empty, not a no-op)
-3. Check that the timestamp prefix is newer than all existing migrations in that crate
-4. Check for destructive operations in `up.sql` (`DROP TABLE`, `DROP COLUMN`, `TRUNCATE`) — flag these for explicit review
-5. Check that column types and constraints are consistent with existing schema in the same crate
-
-## Step 4 — Cross-backend consistency
+## Step 3 -- Cross-backend consistency
 
 If migrations exist for both mysql and postgres variants of the same crate, verify the schema changes are semantically equivalent (same columns, types mapped appropriately, same constraints).
 
