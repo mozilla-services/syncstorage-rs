@@ -10,17 +10,22 @@ You are a Rust error handling reviewer for syncstorage-rs. This repo has a speci
 
 ## The pattern
 
+Every reportable error implements the `ReportableError` trait (`syncserver-common/src/lib.rs`): `is_sentry_event()`, `metric_label()`, `backtrace()`, `tags()`, `reportable_source()`. The Sentry middleware (`syncserver-common/src/middleware/sentry.rs`) asks `is_sentry_event()`:
+
 ```
-SyncstorageError / DbError
-    → is_sentry_event() → true  → sent to Sentry
-    → is_sentry_event() → false → maybe_emit_metrics() → StatsD counter
+error -> is_sentry_event() true  -> event sent to Sentry
+      -> is_sentry_event() false -> maybe_emit_metrics() -> StatsD counter named by metric_label()
 ```
 
+`ApiError::is_sentry_event()` (`syncserver/src/error.rs`) only reports 5xx statuses, then defers to the DB error or to whether a `metric_label()` exists.
+
 Key files:
-- `syncstorage-spanner/src/error.rs` — `DbError`, `DbErrorKind`, `is_sentry_event()`, `is_ignored_internal()`
-- `syncstorage-db-common/src/error.rs` — shared error types
-- `syncserver/src/error.rs` — top-level `ApiError`, HTTP response mapping
-- `tokenserver-common/src/error.rs` — tokenserver error types
+- `syncserver-common/src/lib.rs` - the `ReportableError` trait
+- `syncserver-common/src/middleware/sentry.rs` - routing, `maybe_emit_metrics()`, header scrubbing
+- `syncserver/src/error.rs` - top-level `ApiError`, HTTP status mapping, the 5xx gate
+- `syncstorage-spanner/src/error.rs` - `DbError`, `DbErrorKind`, `is_ignored_internal()`
+- `syncstorage-db-common/src/error.rs`, `syncserver-db-common/src/error.rs` - shared DB error types
+- `tokenserver-common/src/error.rs`, `tokenserver-db-common/src/error.rs` - tokenserver error types
 
 ## Step 1 — Find changed error files
 
@@ -61,11 +66,11 @@ For each new or modified error variant:
 - Check `ApiError`'s response serialization — internal error messages must not reach the client.
 
 ### Backtrace
-- Is `capture_backtrace()` called for new unexpected/internal error variants?
-- Is it *not* called for expected operational errors (quota, not found, conflict)?
+- Does `backtrace()` return a captured backtrace for new unexpected/internal variants?
+- Is capture skipped for expected operational errors (quota, not found, conflict)?
 
 ### Metric naming
-- If the variant routes to `maybe_emit_metrics()`, is the metric name consistent with existing conventions (`storage.spanner.grpc.internal`, etc.)?
+- If the variant is metric-only, does `metric_label()` return a name, and is it consistent with existing conventions (`storage.spanner.grpc.internal`, etc.)?
 
 ## Step 4 — Check `From` impl chains
 

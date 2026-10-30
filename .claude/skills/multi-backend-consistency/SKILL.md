@@ -11,20 +11,22 @@ You are a Rust trait/implementation consistency reviewer for syncstorage-rs. Cha
 ## Backend map
 
 ```
-syncstorage-db/         ← trait definitions (DbPool, Db, etc.)
-  → syncstorage-mysql/
-  → syncstorage-postgres/
-  → syncstorage-spanner/
+syncstorage-db-common/src/lib.rs   <- trait definitions (DbPool, Db, BatchDb)
+syncstorage-db/                    <- feature-gated dispatch to one backend
+  -> syncstorage-mysql/
+  -> syncstorage-postgres/
+  -> syncstorage-spanner/
 
-tokenserver-db/         ← trait definitions
-  → tokenserver-mysql/
-  → tokenserver-postgres/
+tokenserver-db-common/src/lib.rs   <- trait definitions (DbPool, Db)
+tokenserver-db/                    <- feature-gated dispatch
+  -> tokenserver-mysql/
+  -> tokenserver-postgres/
 ```
 
 ## Step 1 — Find changed trait files
 
 ```bash
-git diff origin/master...HEAD --name-only | grep -E "syncstorage-db/|tokenserver-db/"
+git diff origin/master...HEAD --name-only | grep -E "(syncstorage|tokenserver)-db(-common)?/"
 ```
 
 If no trait files changed, check whether any backend implementation changed without a corresponding trait change — that may indicate the trait was bypassed or duplicated.
@@ -64,7 +66,7 @@ Review the diff for patterns that are safe on one backend but wrong on another:
 - **Auto-increment IDs** — MySQL/Postgres use serial/auto-increment; Spanner uses explicit INT64. Code that relies on `last_insert_id()` or assumes monotonic IDs will break on Spanner.
 - **Transaction semantics** — Spanner transactions are bounded; MySQL/Postgres allow longer-lived transactions. Check for assumptions about transaction scope.
 - **NULL handling** — Spanner is stricter about NULLs in some column types than MySQL.
-- **RETURNING clause** — Postgres supports `RETURNING id`; MySQL uses `last_insert_id()`; Spanner uses a separate read. Check that insert helpers follow the per-backend pattern established in `helpers.py` / existing db impls.
+- **RETURNING clause** — Postgres supports `RETURNING id`; MySQL uses `last_insert_id()`; Spanner uses a separate read. Check that insert helpers follow the per-backend pattern in the existing db impls.
 - **Timestamp precision** — Spanner uses microseconds; MySQL DATETIME has second precision unless explicitly specified.
 - **Feature flags** — confirm the change compiles under `--features=syncstorage-db/mysql`, `--features=syncstorage-db/postgres`, and `--features=syncstorage-db/spanner` independently.
 
