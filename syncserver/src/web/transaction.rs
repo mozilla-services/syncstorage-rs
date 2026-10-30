@@ -121,10 +121,8 @@ impl DbTransactionPool {
             return Err(e.into());
         }
 
-        // XXX: lock_for_x usually begins transactions but Dbs may also
-        // implicitly create them, so commit/rollback are always called to
-        // finish them. They noop when no implicit transaction was created
-        // (maybe rename them to maybe_commit/rollback?)
+        // commit/rollback are always called to finish the transaction; see the
+        // Db trait for when they noop.
         match action(&mut *db).await {
             Ok(resp) => Ok((resp, db)),
             Err(e) => {
