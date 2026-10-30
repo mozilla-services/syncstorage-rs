@@ -26,8 +26,10 @@ tokenserver-db/                    <- feature-gated dispatch
 ## Step 1 — Find changed trait files
 
 ```bash
-git diff origin/master...HEAD --name-only | grep -E "(syncstorage|tokenserver)-db(-common)?/"
+poetry -C tools/devtools run python -m devtools.changed_scope
 ```
+
+The `trait_files` list is the set to review (Rust files under `(syncstorage|tokenserver)-db(-common)?/src/`).
 
 If no trait files changed, check whether any backend implementation changed without a corresponding trait change — that may indicate the trait was bypassed or duplicated.
 
