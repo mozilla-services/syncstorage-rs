@@ -517,6 +517,52 @@ async fn test_append_upsert_overwrites_same_batch_bso_id() -> Result<(), DbError
 }
 
 #[tokio::test]
+async fn test_append_upsert_keeps_other_batch_bsos() -> Result<(), DbError> {
+    let settings = Settings::test_settings().syncstorage;
+    with_test_transaction(settings, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = 1;
+        let coll = "clients";
+
+        let new_batch = db.create_batch(cb(uid, coll, vec![])).await?;
+        db.append_to_batch(ab(
+            uid,
+            coll,
+            new_batch.clone(),
+            vec![
+                postbso("a", Some("a1"), None, None),
+                postbso("b", Some("b1"), None, None),
+            ],
+        ))
+        .await?;
+        db.append_to_batch(ab(
+            uid,
+            coll,
+            new_batch.clone(),
+            vec![postbso("a", Some("a2"), None, None)],
+        ))
+        .await?;
+
+        let batch = db
+            .get_batch(gb(uid, coll, new_batch.id.clone()))
+            .await?
+            .unwrap();
+        db.commit_batch(params::CommitBatch {
+            user_id: hid(uid),
+            collection: coll.to_owned(),
+            batch,
+        })
+        .await?;
+
+        let a = db.get_bso(gbso(uid, coll, "a")).await?.unwrap();
+        assert_eq!(a.payload, "a2");
+        let b = db.get_bso(gbso(uid, coll, "b")).await?.unwrap();
+        assert_eq!(b.payload, "b1");
+        Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
 async fn test_quota_pending_batch_accumulates() -> Result<(), DbError> {
     let settings = Settings::test_settings();
     if !settings.syncstorage.enable_quota {
