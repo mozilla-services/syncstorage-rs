@@ -34,6 +34,10 @@ lazy_static! {
     static ref CLIENT_STATE_REGEX: Regex = Regex::new("^[a-zA-Z0-9._-]{1,32}$").unwrap();
 }
 
+/// The client state is stored hex-encoded in a VARCHAR(32) column, so at most 16 raw bytes.
+/// Keep in step with the {1,32} limit in CLIENT_STATE_REGEX.
+const MAX_CLIENT_STATE_BYTES: usize = 16;
+
 /// Information from the request needed to process a Tokenserver request.
 #[derive(Debug, Default, Eq, PartialEq)]
 pub struct TokenserverRequest {
@@ -559,6 +563,18 @@ impl FromRequest for KeyId {
                             ),
                             ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
                         })?;
+
+                    // Anything longer can't fit the client_state column; under strict
+                    // SQL mode the insert fails and surfaces as a 500
+                    if bytes.len() > MAX_CLIENT_STATE_BYTES {
+                        return Err(TokenserverError {
+                            context: format!(
+                                "Client state in X-KeyID too long: {} bytes",
+                                bytes.len()
+                            ),
+                            ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
+                        });
+                    }
 
                     hex::encode(bytes)
                 };
