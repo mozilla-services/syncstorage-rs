@@ -1022,6 +1022,31 @@ mod tests {
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
 
+        // X-KeyID header with a client state longer than the 16 bytes the DB can hold
+        // (17 bytes of 0xaa, URL-safe base64 with no padding)
+        {
+            let request = build_request()
+                .insert_header(("x-keyid", "0000000001234-qqqqqqqqqqqqqqqqqqqqqqo"))
+                .to_http_request();
+            let error = KeyId::extract(&request).await.unwrap_err();
+            assert_eq!(error.context, "Client state in X-KeyID too long: 17 bytes");
+            let response: HttpResponse = error.into();
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+            let expected_error = TokenserverError::invalid_credentials("Unauthorized".to_owned());
+            let body = extract_body_as_str(ServiceResponse::new(request, response));
+            assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
+        }
+
+        // X-KeyID header with a 16-byte client state, the longest allowed
+        {
+            let request = build_request()
+                .insert_header(("x-keyid", "0000000001234-qqqqqqqqqqqqqqqqqqqqqg"))
+                .to_http_request();
+            let key_id = KeyId::extract(&request).await.unwrap();
+            assert_eq!(key_id.client_state, "aa".repeat(16));
+        }
+
         // X-KeyID header with non-UTF-8 bytes
         {
             let request = build_request()
