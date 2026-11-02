@@ -263,7 +263,7 @@ impl PgDb {
     ) -> DbResult<results::GetQuotaUsage> {
         let (total_bytes, count): (i64, i64) = bsos::table
             .select((
-                sql::<BigInt>("COALESCE(SUM(LENGTH(COALESCE(payload, ''))),0)::BIGINT"),
+                sql::<BigInt>("COALESCE(SUM(OCTET_LENGTH(COALESCE(payload, ''))),0)::BIGINT"),
                 sql::<BigInt>("COALESCE(COUNT(*),0)"),
             ))
             .filter(bsos::user_id.eq(user_id))

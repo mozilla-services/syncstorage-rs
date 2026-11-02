@@ -116,6 +116,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     cargo install --path ./syncserver --no-default-features --features=$SYNCSTORAGE_DATABASE_BACKEND $TOKENSERVER_FEATURES --features=py_verifier $LAST_SEEN_FEATURES --locked --root /app
 
 FROM docker.io/library/debian:trixie-slim
+LABEL org.opencontainers.image.source="https://github.com/mozilla-services/syncstorage-rs"
 ARG SYNCSTORAGE_DATABASE_BACKEND
 ARG TOKENSERVER_DATABASE_BACKEND
 ARG MYSQLCLIENT_PKG
