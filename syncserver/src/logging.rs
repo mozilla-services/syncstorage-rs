@@ -57,7 +57,7 @@ pub fn init_logging(json: bool) -> ApiResult<()> {
         Box::new(slog_envlogger::new(drain).fuse())
     } else if connected_to_journal() {
         #[cfg(target_os = "linux")]
-        let drain = slog_journald::JournaldDrain.fuse();
+        let drain = slog_journald::JournaldDrain::default().fuse();
         #[cfg(not(target_os = "linux"))]
         let drain = slog::Discard;
         Box::new(slog_envlogger::new(drain).fuse())
