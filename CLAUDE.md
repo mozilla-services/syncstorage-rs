@@ -128,7 +128,7 @@ cargo build
 cargo build --no-default-features --features=syncstorage-db/postgres --features=tokenserver-db/postgres --features=py_verifier
 
 # Spanner
-cargo build --no-default-features --features=syncstorage-db/spanner --features=py_verifier
+cargo build --no-default-features --features=syncserver/spanner --features=py_verifier
 ```
 
 ## Rust tests
