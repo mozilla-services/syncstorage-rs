@@ -70,22 +70,48 @@ fn get_test_settings() -> Settings {
             .as_str(),
     )
     .expect("Could not get pool_size in get_test_settings");
+    check_database_url(&settings);
+    settings.port = port;
+    settings.host = host;
+    settings.syncstorage.database_pool_max_size = pool_size + 1;
+    settings
+}
+
+fn check_database_url(settings: &Settings) {
     if cfg!(feature = "mysql") && settings.syncstorage.uses_spanner() {
         panic!(
-            "Spanner database_url specified for MySQL feature, please correct.\n\t{}",
+            "Invalid DSN specified for mysql feature, please correct: {}",
             settings.syncstorage.database_url
         )
     }
     if cfg!(feature = "spanner") && !&settings.syncstorage.uses_spanner() {
         panic!(
-            "MySQL database_url specified for Spanner feature, please correct.\n\t{}",
+            "Invalid DSN specified for spanner feature, please correct: {}",
             settings.syncstorage.database_url
         )
     }
-    settings.port = port;
-    settings.host = host;
-    settings.syncstorage.database_pool_max_size = pool_size + 1;
-    settings
+}
+
+#[cfg(feature = "mysql")]
+#[actix_rt::test]
+#[should_panic(
+    expected = "Invalid DSN specified for mysql feature, please correct: spanner://projects/p/instances/i/databases/d"
+)]
+async fn invalid_dsn_for_mysql_feature() {
+    let mut settings = Settings::default();
+    settings.syncstorage.database_url = "spanner://projects/p/instances/i/databases/d".to_owned();
+    check_database_url(&settings);
+}
+
+#[cfg(feature = "spanner")]
+#[actix_rt::test]
+#[should_panic(
+    expected = "Invalid DSN specified for spanner feature, please correct: mysql://sync:test@localhost/syncstorage"
+)]
+async fn invalid_dsn_for_spanner_feature() {
+    let mut settings = Settings::default();
+    settings.syncstorage.database_url = "mysql://sync:test@localhost/syncstorage".to_owned();
+    check_database_url(&settings);
 }
 
 async fn get_test_state(settings: &Settings) -> ServerState {
