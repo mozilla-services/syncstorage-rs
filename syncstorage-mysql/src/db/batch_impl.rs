@@ -307,7 +307,8 @@ pub async fn do_append(
             diesel::update(
                 batch_upload_items::table
                     .filter(batch_upload_items::user_id.eq(user_id.legacy_id as i64))
-                    .filter(batch_upload_items::batch_id.eq(batch_id)),
+                    .filter(batch_upload_items::batch_id.eq(batch_id))
+                    .filter(batch_upload_items::id.eq(&bso.id)),
             )
             .set(&UpdateBatches {
                 payload: bso.payload,
