@@ -350,7 +350,8 @@ impl From<pyo3::prelude::PyErr> for TokenserverError {
 #[cfg(test)]
 mod tests {
     use super::TokenserverError;
-    use syncserver_common::middleware::sentry::exception_from_reportable_error;
+    use http::StatusCode;
+    use syncserver_common::{ReportableError, middleware::sentry::exception_from_reportable_error};
 
     #[test]
     fn sentry_event() {
@@ -361,5 +362,21 @@ mod tests {
         let exc = exception_from_reportable_error(&err);
         assert_eq!(exc.ty, "TokenserverError");
         assert_eq!(exc.value, Some(err.context));
+    }
+
+    #[test]
+    fn oauth_fxa_unavailable() {
+        let err = TokenserverError::oauth_fxa_unavailable("FxA returned junk".to_owned());
+        assert_eq!(err.http_status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(err.context, "FxA returned junk");
+        assert!(!err.is_sentry_event());
+        assert_eq!(
+            err.metric_label(),
+            Some("request.error.resource_unavailable")
+        );
+        assert_eq!(
+            err.tags(),
+            vec![("reason", "oauth_fxa_unavailable".to_owned())]
+        );
     }
 }

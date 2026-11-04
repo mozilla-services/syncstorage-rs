@@ -204,3 +204,133 @@ fn pyerr_to_tokenserver_error(e: PyErr) -> TokenserverError {
         ..TokenserverError::internal_error()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A stand-in for PyFxA so these tests don't need it installed or a network call. The
+    // error classes mirror the `fxa.errors` hierarchy and the client raises one per token.
+    const FXA_STUB: &CStr = c_str!(
+        r#"
+import sys
+import types
+
+class Error(Exception): pass
+class OutOfProtocolError(Error): pass
+class InProtocolError(Error): pass
+class ClientError(InProtocolError): pass
+class ServerError(InProtocolError): pass
+class TrustError(Error): pass
+
+ERRORS = {
+    "non-json": OutOfProtocolError("API responded with non-json content-type: "),
+    "server-error": ServerError("Internal Server Error"),
+    "client-error": ClientError("invalid token"),
+    "trust-error": TrustError("invalid signature"),
+    "other-error": ValueError("unexpected"),
+}
+
+class Client:
+    def __init__(self, server_url=None, jwks=None):
+        pass
+
+    def verify_token(self, token, scope=None):
+        if token in ERRORS:
+            raise ERRORS[token]
+        return {"user": "fxa_id", "client_id": "client_id", "generation": 123}
+
+def install():
+    names = ("fxa", "fxa.errors", "fxa.oauth")
+    saved = {name: sys.modules.get(name) for name in names}
+    fxa = types.ModuleType("fxa")
+    errors = types.ModuleType("fxa.errors")
+    oauth = types.ModuleType("fxa.oauth")
+    for cls in (OutOfProtocolError, ServerError, ClientError, TrustError):
+        setattr(errors, cls.__name__, cls)
+    oauth.Client = Client
+    fxa.errors = errors
+    fxa.oauth = oauth
+    sys.modules.update({"fxa": fxa, "fxa.errors": errors, "fxa.oauth": oauth})
+    return saved
+
+def restore(saved):
+    for name, module in saved.items():
+        if module is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = module
+"#
+    );
+
+    /// Builds a `Verifier` whose verify.py is bound to the PyFxA stub.
+    fn stub_verifier() -> Verifier {
+        let (stub, saved) = Python::attach(|py| -> PyResult<(Py<PyAny>, Py<PyAny>)> {
+            let stub =
+                PyModule::from_code(py, FXA_STUB, c_str!("fxa_stub.py"), c_str!("fxa_stub"))?;
+            let saved = stub.getattr("install")?.call0()?;
+            Ok((stub.into_any().unbind(), saved.unbind()))
+        })
+        .unwrap();
+        let verifier = Verifier::new(&Settings::default(), Arc::new(BlockingThreadpool::new(1)));
+        // verify.py has already bound the stub's names, so put the real modules back
+        Python::attach(|py| -> PyResult<()> {
+            stub.bind(py).getattr("restore")?.call1((saved.bind(py),))?;
+            Ok(())
+        })
+        .unwrap();
+        verifier.unwrap()
+    }
+
+    async fn verify(token: &str) -> Result<VerifyOutput, TokenserverError> {
+        stub_verifier()
+            .verify(token.to_owned(), &Default::default())
+            .await
+    }
+
+    #[tokio::test]
+    async fn valid_token() {
+        let output = verify("valid").await.unwrap();
+        assert_eq!(output.fxa_uid, "fxa_id");
+        assert_eq!(output.client_id, "client_id");
+        assert_eq!(output.generation, Some(123));
+    }
+
+    #[tokio::test]
+    async fn fxa_unavailable_is_503() {
+        for token in ["non-json", "server-error"] {
+            let err = verify(token).await.unwrap_err();
+            assert_eq!(err.http_status.as_u16(), 503, "{token}");
+            assert_eq!(
+                err.tags,
+                Some(vec![("reason", "oauth_fxa_unavailable".to_owned())]),
+                "{token}"
+            );
+            assert!(
+                err.context
+                    .starts_with("FxA unavailable in OAuth verifier: "),
+                "{token}: {}",
+                err.context
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn invalid_token_is_401() {
+        for token in ["client-error", "trust-error"] {
+            let err = verify(token).await.unwrap_err();
+            assert_eq!(err.http_status.as_u16(), 401, "{token}");
+        }
+    }
+
+    #[tokio::test]
+    async fn other_python_error_is_500() {
+        let err = verify("other-error").await.unwrap_err();
+        assert_eq!(err.http_status.as_u16(), 500);
+        assert!(
+            err.context.starts_with("pyo3 error in OAuth verifier: "),
+            "{}",
+            err.context
+        );
+    }
+}
