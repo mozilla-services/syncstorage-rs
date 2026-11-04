@@ -26,7 +26,7 @@ use tokenserver_db::{
 use super::{
     TokenserverMetrics,
     extractors::{
-        DbWrapper, FxaWebhookToken, ServiceToken, TokenserverRequest, fxa_metrics_hash,
+        DbWrapper, DeleteAssertion, FxaWebhookToken, TokenserverRequest, fxa_metrics_hash,
         hash_device_id,
     },
 };
@@ -396,26 +396,31 @@ pub async fn handle_fxa_events(
     summary = "Delete a user's syncstorage data",
     description = "Deletes all syncstorage data for the user's current node assignment, \
                    leaving the Tokenserver user record intact so the account can keep \
-                   syncing. Intended for the FxA Auth Server; authenticated with a \
-                   request-bound MAC rather than an end-user credential.",
+                   syncing. Intended for the FxA Auth Server; authenticated with an \
+                   FxA-signed assertion naming the target user in `sub`, not with an \
+                   end-user credential.",
     params(
         ("fxa_uid" = String, Path, description = "The user's FxA account id")
     ),
     responses(
         (status = 200, description = "Deleted, or the user has no node assignment", body = DeleteUserDataResult, content_type = "application/json"),
-        (status = 401, description = "Unauthorized - missing, malformed, expired, or mis-bound credential"),
+        (status = 401, description = "Unauthorized - credential missing, malformed, expired, wrongly typed, or its `sub` does not match the path uid"),
         (status = 404, description = "Not Found - no Tokenserver record for this fxa_uid"),
         (status = 500, description = "Internal Server Error"),
         (status = 503, description = "Service Unavailable - the storage node could not be reached"),
     )
 )]
+/// Deletes the user's syncstorage data, leaving their Tokenserver record
+/// alone.
 pub async fn delete_user_syncstorage_data(
-    ServiceToken(fxa_uid): ServiceToken,
+    DeleteAssertion(claims): DeleteAssertion,
     DbWrapper(mut db): DbWrapper,
     state: Data<super::ServerState>,
     secrets: Data<Arc<Secrets>>,
     TokenserverMetrics(mut metrics): TokenserverMetrics,
 ) -> Result<HttpResponse, TokenserverError> {
+    let fxa_uid = claims.sub;
+
     // Same secret the node derives its token key from; see Secrets::new.
     let shared_secret =
         String::from_utf8(secrets.master_secret.clone()).map_err(|e| TokenserverError {
@@ -704,19 +709,17 @@ mod tests {
         middleware::from_fn, web, web::Data,
     };
     use base64::{Engine as _, engine};
-    use chrono::Utc;
-    use hmac::{Hmac, KeyInit, Mac};
     use serde_json::json;
-    use sha2::Sha256;
     use utoipa::OpenApi;
     use utoipa_swagger_ui::SwaggerUi;
 
     use syncserver_common::middleware::{request_metrics::request_metrics, sentry::SentryWrapper};
     use syncserver_settings::Settings;
     use tokenserver_auth::test_utils::{
-        OTHER_PRIVATE_KEY_PEM, TEST_PRIVATE_KEY_PEM, make_set, test_jwk,
+        DeleteAssertionBuilder, OTHER_PRIVATE_KEY_PEM, TEST_PRIVATE_KEY_PEM, make_set,
+        other_test_jwk, test_jwk,
     };
-    use tokenserver_auth::{MockVerifier, SETVerifierImpl, oauth};
+    use tokenserver_auth::{FxaDeleteAssertionVerifier, MockVerifier, SETVerifierImpl, oauth};
     use tokenserver_db::mock::MockDbPool;
     use tokenserver_db::results::GetRawUser;
     use tokenserver_settings::Settings as TokenserverSettings;
@@ -817,7 +820,7 @@ mod tests {
             fxa_webhook_enabled: true,
             fxa_webhook_metrics_only: false,
             fxa_delete_data_enabled: false,
-            fxa_delete_data_secrets: vec![],
+            delete_assertion_verifiers: vec![],
             storage_client: reqwest::Client::new(),
             allow_new_users: true,
             #[cfg(feature = "last_seen")]
@@ -1022,22 +1025,17 @@ mod tests {
 
     // ---- FxA-triggered syncstorage data deletion ----
 
-    const TEST_DELETE_SECRET: &str = "0123456789abcdef0123456789abcdef";
+    const TEST_DELETE_AUD: &str = "urn:mozilla:fxa:tokenserver:sync-data-delete";
+    const TEST_DELETE_ISS: &str = "https://accounts.firefox.com";
     const TEST_FXA_UID: &str = "testuid";
 
-    /// Mint the credential the endpoint expects, the way FxA will.
-    fn delete_token(secret: &str, fxa_uid: &str, exp: i64) -> String {
-        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).unwrap();
-        mac.update(format!("syncstorage-delete/v1\n{}\n{}", fxa_uid, exp).as_bytes());
-        format!(
-            "{}.{}",
-            exp,
-            engine::general_purpose::URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes())
-        )
+    /// Mint the assertion the endpoint expects, the way FxA will.
+    fn assertion(sub: &str) -> DeleteAssertionBuilder {
+        DeleteAssertionBuilder::new(sub, TEST_DELETE_AUD, TEST_DELETE_ISS)
     }
 
     fn valid_delete_token(fxa_uid: &str) -> String {
-        delete_token(TEST_DELETE_SECRET, fxa_uid, Utc::now().timestamp() + 60)
+        assertion(fxa_uid).build()
     }
 
     fn user_row(uid: i64, node: Option<String>) -> GetRawUser {
@@ -1065,7 +1063,9 @@ mod tests {
         let (pool, call_log) = tokenserver_db::mock::MockDbPool::with_users(users);
         let mut state = make_state_with_db_pool(vec![], Box::new(pool));
         state.fxa_delete_data_enabled = true;
-        state.fxa_delete_data_secrets = vec![TEST_DELETE_SECRET.to_owned()];
+        state.delete_assertion_verifiers = vec![
+            FxaDeleteAssertionVerifier::new(&test_jwk(), TEST_DELETE_AUD, TEST_DELETE_ISS).unwrap(),
+        ];
         (make_app_from_state(state).await, call_log)
     }
 
@@ -1269,56 +1269,144 @@ mod tests {
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
+    /// Key rotation is the ADR's main argument for this scheme over a shared
+    /// secret, so prove it works: an assertion signed with either configured
+    /// JWK is accepted, in either position.
+    #[actix_web::test]
+    async fn test_delete_data_accepts_either_configured_jwk() {
+        let (node, _) = fake_node(200);
+        let other_jwk = other_test_jwk();
+
+        for (name, jwks) in [
+            ("incoming key second", vec![other_jwk.clone(), test_jwk()]),
+            ("incoming key first", vec![test_jwk(), other_jwk.clone()]),
+        ] {
+            let (pool, _) = tokenserver_db::mock::MockDbPool::with_users(vec![user_row(
+                42,
+                Some(node.url_str("")),
+            )]);
+            let mut state = make_state_with_db_pool(vec![], Box::new(pool));
+            state.fxa_delete_data_enabled = true;
+            state.delete_assertion_verifiers = jwks
+                .iter()
+                .map(|jwk| {
+                    FxaDeleteAssertionVerifier::new(jwk, TEST_DELETE_AUD, TEST_DELETE_ISS).unwrap()
+                })
+                .collect();
+            let app = make_app_from_state(state).await;
+
+            let response = test::call_service(
+                &app,
+                delete_request(TEST_FXA_UID, Some(&valid_delete_token(TEST_FXA_UID))),
+            )
+            .await;
+            assert_eq!(response.status(), StatusCode::OK, "{name}");
+        }
+    }
+
     #[actix_web::test]
     async fn test_delete_data_rejects_bad_credentials() {
         let (node, seen) = fake_node(200);
         let url = node.url_str("");
-        let now = Utc::now().timestamp();
 
         let cases: Vec<(&str, Option<String>)> = vec![
             ("missing header", None),
+            ("not a jwt", Some("garbage".to_owned())),
             (
-                "wrong secret",
-                Some(delete_token(
-                    "x".repeat(32).as_str(),
+                "wrong signing key",
+                Some(assertion(TEST_FXA_UID).key(OTHER_PRIVATE_KEY_PEM).build()),
+            ),
+            ("expired", Some(assertion(TEST_FXA_UID).exp_in(-60).build())),
+            // Minted far enough ahead that it would never go stale, which the
+            // lifetime cap exists to refuse.
+            (
+                "over the lifetime cap",
+                Some(assertion(TEST_FXA_UID).exp_in(86400).build()),
+            ),
+            (
+                "wrong audience",
+                Some(assertion(TEST_FXA_UID).aud("urn:mozilla:fxa:other").build()),
+            ),
+            (
+                "wrong issuer",
+                Some(assertion(TEST_FXA_UID).iss("https://evil.example").build()),
+            ),
+            (
+                "no audience claim",
+                Some(assertion(TEST_FXA_UID).without_aud().build()),
+            ),
+            (
+                "wrong typ",
+                Some(assertion(TEST_FXA_UID).typ("at+jwt").build()),
+            ),
+            (
+                "no jti",
+                Some(assertion(TEST_FXA_UID).without_jti().build()),
+            ),
+            // Validly signed, but naming a different user than the path.
+            (
+                "sub does not match the path",
+                Some(assertion("otheruid").build()),
+            ),
+            // A webhook SET must not authorize a deletion.
+            (
+                "webhook SET",
+                Some(make_set(
                     TEST_FXA_UID,
-                    now + 60,
+                    TEST_DELETE_AUD,
+                    json!({}),
+                    TEST_PRIVATE_KEY_PEM,
                 )),
             ),
-            (
-                "expired",
-                Some(delete_token(TEST_DELETE_SECRET, TEST_FXA_UID, now - 1)),
-            ),
-            // Minted far enough ahead that it would never go stale.
-            (
-                "forward dated",
-                Some(delete_token(TEST_DELETE_SECRET, TEST_FXA_UID, now + 86400)),
-            ),
-            // Valid MAC, but for a different uid than the path.
-            (
-                "wrong uid binding",
-                Some(delete_token(TEST_DELETE_SECRET, "otheruid", now + 60)),
-            ),
-            ("not exp.mac", Some("garbage".to_owned())),
-            ("non numeric exp", Some("abc.YWJj".to_owned())),
-            ("bad base64", Some(format!("{}.!!!!", now + 60))),
         ];
 
         for (name, auth) in cases {
-            let (app, _) = make_delete_app(vec![user_row(42, Some(url.clone()))]).await;
+            let (app, call_log) = make_delete_app(vec![user_row(42, Some(url.clone()))]).await;
             let response =
                 test::call_service(&app, delete_request(TEST_FXA_UID, auth.as_deref())).await;
             assert_eq!(
                 response.status(),
                 StatusCode::UNAUTHORIZED,
-                "expected 401 for {}",
-                name
+                "expected 401 for {name}"
+            );
+            // Authentication must fail before the user is even looked up.
+            assert!(
+                call_log.get_users.lock().unwrap().is_empty(),
+                "{name} reached the database"
             );
         }
 
         assert!(
             seen.lock().unwrap().is_empty(),
             "no storage node request may be made for a rejected credential"
+        );
+    }
+
+    /// The reverse confusion direction. A delete assertion must not drive the
+    /// webhook, and in particular must not retire the account — the one thing
+    /// this endpoint exists to avoid doing.
+    #[actix_web::test]
+    async fn test_delete_assertion_cannot_drive_the_webhook() {
+        let verifier =
+            SETVerifierImpl::new(&test_jwk(), "fxa-webhook-client-id", TEST_DELETE_ISS).unwrap();
+        let (pool, call_log) = tokenserver_db::mock::MockDbPool::with_capture();
+        let mut state = make_state_with_db_pool(vec![verifier], Box::new(pool));
+        state.fxa_webhook_enabled = true;
+        let app = make_app_from_state(state).await;
+
+        let request = TestRequest::post()
+            .uri("/1.0/webhooks/fxa/events")
+            .insert_header((
+                "authorization",
+                format!("Bearer {}", assertion(TEST_FXA_UID).build()),
+            ))
+            .to_request();
+        let response = test::call_service(&app, request).await;
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert!(
+            call_log.retire_user.lock().unwrap().is_empty(),
+            "a delete assertion must never retire an account"
         );
     }
 

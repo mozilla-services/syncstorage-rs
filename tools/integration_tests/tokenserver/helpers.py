@@ -13,10 +13,12 @@ import json
 import math
 import os
 import time
+import uuid
 import urllib.parse as urlparse
 from base64 import urlsafe_b64encode as b64encode
 
-from fxa_delete.make_delete_token import make_delete_token
+from fxa_delete.make_delete_assertion import TYP as DELETE_ASSERTION_TYP
+from fxa_delete.make_delete_assertion import make_delete_assertion
 from sqlalchemy.sql import text as sqltext
 from tokenlib.utils import decode_token_bytes
 from webtest import TestApp
@@ -29,11 +31,24 @@ FXA_EMAIL_DOMAIN = "api-accounts.stage.mozaws.net"
 TOKEN_SIGNING_SECRET = os.environ.get("SYNC_MASTER_SECRET", "secret0")
 FXA_METRICS_HASH_SECRET = os.environ.get("SYNC_MASTER_SECRET", "secret0")
 
-#: Shared secret for the FxA data deletion endpoint. Comma separated on the
-#: wire so a rotation can carry two secrets; the first is enough to mint with.
-DELETE_DATA_SECRET = os.environ.get(
-    "SYNC_TOKENSERVER__FXA_DELETE_DATA_SECRETS", ""
-).split(",")[0]
+#: Signing key for delete assertions. In production FxA signs these; the e2e
+#: stack configures the public half of this key as a tokenserver JWK.
+DELETE_SIGNING_KEY_PEM = os.environ.get(
+    "FXA_DELETE_SIGNING_KEY_PEM",
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "fxa_delete",
+        "testing",
+        "delete_test_key.pem",
+    ),
+)
+DELETE_DATA_AUDIENCE = os.environ.get(
+    "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE",
+    "urn:mozilla:fxa:tokenserver:sync-data-delete",
+)
+DELETE_DATA_ISSUER = os.environ.get(
+    "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER", "https://accounts.firefox.com"
+)
 
 #: The syncstorage instance the tests actually talk to. The default node
 #: (NODE_URL) is unroutable on purpose, which is fine for token issuance but
@@ -379,15 +394,48 @@ def unsafe_parse_token(token: str) -> dict:
     return json.loads(decode_token_bytes(token)[:-32].decode("utf8"))  # type: ignore[no-any-return]
 
 
-def delete_syncstorage_data(app, fxa_uid: str, secret: str | None = None, **kwargs):
+def make_delete_token(
+    fxa_uid: str,
+    sub: str | None = None,
+    audience: str | None = None,
+    issuer: str | None = None,
+    ttl: int = 30,
+    typ: str = DELETE_ASSERTION_TYP,
+    jti: str | None = "",
+    key_path: str | None = None,
+) -> str:
+    """Mint a delete assertion, with per-claim overrides for the failure cases.
+
+    `sub` defaults to the uid in the path; a test overrides it to prove the two
+    must agree. `jti` defaults to a fresh uuid; pass None to omit it.
+    """
+    with open(key_path or DELETE_SIGNING_KEY_PEM, "rb") as handle:
+        pem = handle.read()
+    # Annotated local: mypy cannot see through PyJWT's untyped `encode`, so
+    # the minter's declared `-> str` arrives here as Any.
+    token: str = make_delete_assertion(
+        pem,
+        sub if sub is not None else fxa_uid,
+        audience=audience or DELETE_DATA_AUDIENCE,
+        issuer=issuer or DELETE_DATA_ISSUER,
+        ttl=ttl,
+        typ=typ,
+        jti=str(uuid.uuid4()) if jti == "" else jti,
+    )
+    return token
+
+
+def delete_syncstorage_data(app, fxa_uid: str, **kwargs):
     """Call the FxA data deletion endpoint for `fxa_uid`.
 
-    Mints the request-bound credential the endpoint expects, using the same
-    reference implementation documented for the FxA Auth Server.
+    Mints the assertion the endpoint expects with the same reference
+    implementation given to the FxA Auth Server. Keyword arguments not consumed
+    by the minter are passed through to WebTest, so a test can assert on a
+    specific status.
     """
-    token = make_delete_token(
-        secret if secret is not None else DELETE_DATA_SECRET, fxa_uid
-    )
+    mint_keys = {"sub", "audience", "issuer", "ttl", "typ", "jti", "key_path"}
+    mint = {k: kwargs.pop(k) for k in list(kwargs) if k in mint_keys}
+    token = make_delete_token(fxa_uid, **mint)
     return app.delete(
         f"/1.0/users/{fxa_uid}/storage",
         headers={"Authorization": f"Bearer {token}"},

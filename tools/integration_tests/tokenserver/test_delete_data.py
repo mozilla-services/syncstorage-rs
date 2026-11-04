@@ -112,13 +112,40 @@ def test_delete_data_unknown_user_is_404(ts_local_node_ctx):
 
 
 def test_delete_data_rejects_bad_credentials(ts_local_node_ctx):
-    """A wrong secret, and a missing header, are both 401."""
+    """Every way an assertion can be wrong is a 401."""
     app = ts_local_node_ctx["app"]
     conn = ts_local_node_ctx["db_conn"]
     add_user(conn, ts_local_node_ctx["service_id"], email=EMAIL)
 
-    wrong = delete_syncstorage_data(app, FXA_UID, secret="w" * 32, status=401)
-    assert wrong.status_code == 401
-
     missing = app.delete(f"/1.0/users/{FXA_UID}/storage", status=401)
     assert missing.status_code == 401
+
+    bad = {
+        "wrong audience": {"audience": "urn:mozilla:fxa:something-else"},
+        "wrong issuer": {"issuer": "https://evil.example"},
+        # at+jwt is an oldsync access token; it must not authorize a delete.
+        "access token typ": {"typ": "at+jwt"},
+        "no jti": {"jti": None},
+        "expired": {"ttl": -120},
+        # The server caps how far ahead exp may sit, independently of what the
+        # issuer asked for.
+        "over the lifetime cap": {"ttl": 86400},
+    }
+    for name, overrides in bad.items():
+        response = delete_syncstorage_data(app, FXA_UID, status=401, **overrides)
+        assert response.status_code == 401, name
+
+
+def test_delete_data_rejects_sub_path_mismatch(ts_local_node_ctx):
+    """An assertion only authorizes the user it names in `sub`.
+
+    This is the property that stops a validly-signed assertion for one account
+    being replayed against another.
+    """
+    app = ts_local_node_ctx["app"]
+    conn = ts_local_node_ctx["db_conn"]
+    add_user(conn, ts_local_node_ctx["service_id"], email=EMAIL)
+
+    response = delete_syncstorage_data(app, FXA_UID, sub="someoneelse", status=401)
+
+    assert response.status_code == 401

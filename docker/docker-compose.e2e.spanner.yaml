@@ -5,8 +5,6 @@ services:
       SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: api-accounts.stage.mozaws.net
       SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: secret0
       SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
-      SYNC_TOKENSERVER__FXA_DELETE_DATA_ENABLED: "true"
-      SYNC_TOKENSERVER__FXA_DELETE_DATA_SECRETS: e2e-delete-data-secret-0123456789abcdef
   e2e-tests:
     container_name: spanner-e2e-tests
     depends_on:
@@ -23,7 +21,6 @@ services:
       SYNC_SERVER_URL: http://syncserver:8000
       TOKENSERVER_HOST: http://syncserver:8000
       SYNC_MASTER_SECRET: secret0
-      SYNC_TOKENSERVER__FXA_DELETE_DATA_SECRETS: e2e-delete-data-secret-0123456789abcdef
       SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
       SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9010
       SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver

@@ -15,8 +15,6 @@ use url::Url;
 pub const COLLECTION_ID_REGEX: &str = r"[a-zA-Z0-9._-]{1,32}";
 static PREFIX: &str = "sync";
 
-const MIN_DELETE_DATA_SECRET_LEN: usize = 32;
-
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -90,7 +88,6 @@ impl Settings {
                 // commas are untouched.
                 .list_separator(",")
                 .with_list_parse_key("syncstorage.gcs_payload_offload_collections")
-                .with_list_parse_key("tokenserver.fxa_delete_data_secrets")
                 .try_parsing(true),
         );
         let settings: Config = builder.build()?;
@@ -182,23 +179,64 @@ impl Settings {
         }
 
         if self.tokenserver.enabled && self.tokenserver.fxa_delete_data_enabled {
-            if self.tokenserver.fxa_delete_data_secrets.is_empty() {
+            let ts = &self.tokenserver;
+            let required = |name: &str, value: &Option<String>| {
+                value
+                    .as_deref()
+                    .filter(|v| !v.trim().is_empty())
+                    .map(str::to_owned)
+                    .ok_or_else(|| {
+                        ConfigError::Message(format!(
+                            "{name} must be set when \
+                             SYNC_TOKENSERVER__FXA_DELETE_DATA_ENABLED is true"
+                        ))
+                    })
+            };
+            let audience = required(
+                "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE",
+                &ts.fxa_delete_data_audience,
+            )?;
+            let issuer = required(
+                "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER",
+                &ts.fxa_delete_data_issuer,
+            )?;
+
+            // `iss` is compared as an exact string, so a trailing-slash typo
+            // would otherwise fail closed at request time rather than here.
+            if Url::parse(&issuer).is_err() {
                 return Err(ConfigError::Message(
-                    "SYNC_TOKENSERVER__FXA_DELETE_DATA_SECRETS must be set when \
+                    "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER must be an absolute URL".to_owned(),
+                ));
+            }
+
+            // Delete assertions are only ever verified against locally
+            // configured JWKs; there is no remote-JWKS fallback on this path.
+            if ts.fxa_oauth_primary_jwk.is_none() && ts.fxa_oauth_secondary_jwk.is_none() {
+                return Err(ConfigError::Message(
+                    "SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK or _SECONDARY_JWK must be set when \
                      SYNC_TOKENSERVER__FXA_DELETE_DATA_ENABLED is true"
                         .to_owned(),
                 ));
             }
-            if self
-                .tokenserver
-                .fxa_delete_data_secrets
-                .iter()
-                .any(|secret| secret.len() < MIN_DELETE_DATA_SECRET_LEN)
-            {
-                return Err(ConfigError::Message(format!(
-                    "Every SYNC_TOKENSERVER__FXA_DELETE_DATA_SECRETS entry must be at \
-                     least {MIN_DELETE_DATA_SECRET_LEN} characters"
-                )));
+
+            // The audience is what keeps a delete assertion from being
+            // interchangeable with the other FxA-signed credentials on the
+            // same JWKS. Enforce that separation at boot rather than trusting
+            // it to stay true.
+            if ts.fxa_webhook_set_client_id.as_deref() == Some(audience.as_str()) {
+                return Err(ConfigError::Message(
+                    "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE must differ from \
+                     SYNC_TOKENSERVER__FXA_WEBHOOK_SET_CLIENT_ID: a shared audience would make \
+                     webhook SETs and delete assertions interchangeable"
+                        .to_owned(),
+                ));
+            }
+            if ts.fxa_oauth_server_url == audience {
+                return Err(ConfigError::Message(
+                    "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE must differ from \
+                     SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"
+                        .to_owned(),
+                ));
             }
         }
 
@@ -751,6 +789,106 @@ mod test {
                 );
             },
         );
+    }
+
+    /// Minimum env needed for a Tokenserver-only boot with deletes enabled.
+    fn delete_data_env() -> Vec<(&'static str, Option<&'static str>)> {
+        vec![
+            ("SYNC_SYNCSTORAGE__ENABLED", Some("false")),
+            ("SYNC_TOKENSERVER__ENABLED", Some("true")),
+            (
+                "SYNC_TOKENSERVER__DATABASE_URL",
+                Some("mysql://test:test@localhost/tokenserver"),
+            ),
+            ("SYNC_TOKENSERVER__FXA_DELETE_DATA_ENABLED", Some("true")),
+            (
+                "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE",
+                Some("urn:mozilla:fxa:tokenserver:sync-data-delete"),
+            ),
+            (
+                "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER",
+                Some("https://accounts.firefox.com"),
+            ),
+            ("SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KTY", Some("RSA")),
+            (
+                "SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__ALG",
+                Some("RS256"),
+            ),
+            ("SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__N", Some("abc")),
+            ("SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__E", Some("AQAB")),
+        ]
+    }
+
+    #[test]
+    fn test_delete_data_requires_its_config() {
+        // Each of these omissions must stop the server starting, rather than
+        // leaving an endpoint that destroys user data misconfigured.
+        for missing in [
+            "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE",
+            "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER",
+        ] {
+            let vars: Vec<_> = delete_data_env()
+                .into_iter()
+                .map(|(k, v)| if k == missing { (k, None) } else { (k, v) })
+                .collect();
+            temp_env::with_vars(vars, || {
+                assert!(
+                    Settings::with_env_and_config_file(None).is_err(),
+                    "must not boot without {missing}"
+                );
+            });
+        }
+
+        // An empty value is as bad as an absent one.
+        let mut blank = delete_data_env();
+        blank.retain(|(k, _)| *k != "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE");
+        blank.push(("SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE", Some("   ")));
+        temp_env::with_vars(blank, || {
+            assert!(Settings::with_env_and_config_file(None).is_err());
+        });
+
+        // `iss` is matched as an exact string; catch a non-URL at boot.
+        let mut bad_iss = delete_data_env();
+        bad_iss.retain(|(k, _)| *k != "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER");
+        bad_iss.push((
+            "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER",
+            Some("not a url"),
+        ));
+        temp_env::with_vars(bad_iss, || {
+            assert!(Settings::with_env_and_config_file(None).is_err());
+        });
+    }
+
+    /// The boot-time half of non-interchangeability: a shared audience would
+    /// make webhook SETs and delete assertions substitutable, so the process
+    /// refuses to start rather than relying on anyone noticing.
+    #[test]
+    fn test_delete_data_audience_must_not_collide() {
+        let aud = "urn:mozilla:fxa:tokenserver:sync-data-delete";
+
+        let mut webhook = delete_data_env();
+        webhook.push(("SYNC_TOKENSERVER__FXA_WEBHOOK_SET_CLIENT_ID", Some(aud)));
+        temp_env::with_vars(webhook, || {
+            let err = Settings::with_env_and_config_file(None)
+                .expect_err("audience must differ from the webhook client id")
+                .to_string();
+            assert!(
+                err.contains("FXA_WEBHOOK_SET_CLIENT_ID"),
+                "rejected for the wrong reason: {err}"
+            );
+        });
+
+        let mut oauth = delete_data_env();
+        oauth.push(("SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL", Some(aud)));
+        temp_env::with_vars(oauth, || {
+            let err = Settings::with_env_and_config_file(None)
+                .expect_err("audience must differ from the oauth server url")
+                .to_string();
+            assert!(
+                err.contains("FXA_OAUTH_SERVER_URL"),
+                "rejected for the wrong reason: {err}"
+            );
+        });
     }
 
     #[test]

@@ -13,7 +13,6 @@ use actix_web::{
     web::{Data, Query},
 };
 use base64::{Engine, engine};
-use chrono::Utc;
 use futures::future::LocalBoxFuture;
 use hex;
 use hmac::{Hmac, KeyInit, Mac};
@@ -24,7 +23,7 @@ use serde::Deserialize;
 use sha2::Sha256;
 use syncserver_common::Taggable;
 use syncserver_settings::Secrets;
-use tokenserver_auth::{FxaWebhookClaims, JWTVerifyError};
+use tokenserver_auth::{FxaDeleteAssertionClaims, FxaWebhookClaims, JWTVerifyError};
 use tokenserver_common::{ErrorLocation, NodeType, TokenserverError};
 use tokenserver_db::{Db, DbPool, SYNC_SERVICE_NAME, params, results};
 
@@ -665,30 +664,20 @@ impl FromRequest for FxaWebhookToken {
     }
 }
 
-/// Domain separation for the data deletion credential. Prevents a MAC minted
-/// for this scheme being replayed against any other HMAC use of the same key,
-/// and the version suffix leaves room to change the canonical form later.
-const DELETE_TOKEN_DOMAIN: &str = "syncstorage-delete/v1";
-
-/// Furthest into the future a deletion credential's `exp` may sit. Without an
-/// upper bound a caller could mint one valid for years, which would put us back
-/// to an unexpiring bearer credential.
-const DELETE_TOKEN_MAX_TTL_SECS: i64 = 120;
-
-/// Proof that the caller holds a configured delete-data secret *and* minted the
-/// credential for this specific `fxa_uid`, recently.
+/// An FxA-signed assertion authorizing deletion of one user's syncstorage
+/// data.
 ///
-/// Note the trust direction is inverted relative to the other two authenticated
-/// routes on this service. There, `Authorization: Bearer` carries a token FxA
-/// issued, which we verify against FxA's public JWKs. Here it carries a MAC
-/// computed with a symmetric secret we also hold.
+/// Note the trust direction matches the other two authenticated routes on this
+/// service — `Authorization: Bearer` carries a token FxA issued, verified
+/// against FxA's public JWKs — but the separation between the three is doing
+/// real work here, because this one authorizes an irreversible operation. See
+/// the verifier table in `tokenserver-auth`'s crypto module.
 ///
-/// The credential is bound to the uid and expires, so a captured header only
-/// authorizes deleting that one uid for the next couple of minutes rather than
-/// being a standing capability over every user.
-pub struct ServiceToken(pub String);
+/// Carries the verified claims rather than being a bare marker, so a handler
+/// cannot act on a uid other than the authenticated `sub`.
+pub struct DeleteAssertion(pub FxaDeleteAssertionClaims);
 
-impl FromRequest for ServiceToken {
+impl FromRequest for DeleteAssertion {
     type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -699,76 +688,67 @@ impl FromRequest for ServiceToken {
             let state = get_server_state(&req)?;
             let token = BearerToken::extract(&req).await?.into_token();
 
-            // Never trust a uid the caller asserts: authenticate against the one
-            // this request is actually about to delete.
-            //
-            // If we've reached this extractor the route matched, so `fxa_uid` is
-            // present in the URL and we can `unwrap()`.
-            let fxa_uid = req.match_info().get("fxa_uid").unwrap().to_owned();
-
-            if state.fxa_delete_data_secrets.is_empty() {
+            if state.delete_assertion_verifiers.is_empty() {
                 // Unreachable: `Settings::validate` refuses to boot with the
-                // endpoint enabled and no secret, and the route is not
-                // registered when it is disabled. Fail closed regardless.
+                // endpoint enabled and no JWK, and the route is not registered
+                // when it is disabled. Fail closed regardless.
                 return Err(TokenserverError {
-                    context: "No delete-data secrets configured".to_owned(),
+                    context: "No delete assertion verifiers configured".to_owned(),
                     ..TokenserverError::internal_error()
                 });
             }
 
-            verify_delete_token(&token, &fxa_uid, &state.fxa_delete_data_secrets)?;
-            Ok(ServiceToken(fxa_uid))
+            let unauthorized = |context: &str| TokenserverError {
+                // Deliberately carries no uid: `context` reaches the
+                // structured request log.
+                context: context.to_owned(),
+                tags: Some(vec![("reason", "delete_assertion".to_owned())]),
+                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
+            };
+
+            let mut claims = None;
+            for verifier in &state.delete_assertion_verifiers {
+                match verifier.verify(&token) {
+                    Ok(verified) => {
+                        claims = Some(verified);
+                        break;
+                    }
+                    // Another configured key may be the right one.
+                    Err(JWTVerifyError::InvalidSignature) => continue,
+                    Err(e) => {
+                        return Err(unauthorized(&format!(
+                            "Delete assertion rejected: {}",
+                            e.metric_label()
+                        )));
+                    }
+                }
+            }
+            let claims = claims.ok_or_else(|| {
+                unauthorized("Delete assertion signature invalid for all available keys")
+            })?;
+
+            // Authenticate the subject, then confirm the request is about that
+            // subject. Byte-exact: `sub` is not a secret — it is already in the
+            // URL — so constant time is irrelevant, and case-insensitive
+            // matching would gratuitously widen what the assertion authorizes.
+            //
+            // The route matched, so `fxa_uid` is present.
+            let path_uid = req.match_info().get("fxa_uid").unwrap();
+            if claims.sub != path_uid {
+                return Err(unauthorized(
+                    "Delete assertion sub does not match the path fxa_uid",
+                ));
+            }
+
+            // Required by protocol and recorded for correlation, deliberately
+            // not stored.
+            if let Some(jti) = &claims.jti {
+                LogItemsMutator::from(&req).insert("jti".to_owned(), jti.clone());
+            }
+
+            Ok(DeleteAssertion(claims))
         })
     }
-}
-
-/// Verify a `<exp>.<base64url(mac)>` deletion credential against `fxa_uid`.
-///
-/// Every configured secret is tried so that a rotation can list the outgoing
-/// and incoming secret simultaneously.
-fn verify_delete_token(
-    token: &str,
-    fxa_uid: &str,
-    secrets: &[String],
-) -> Result<(), TokenserverError> {
-    let unauthorized = |context: &str| TokenserverError {
-        context: context.to_owned(),
-        tags: Some(vec![("reason", "service_token".to_owned())]),
-        ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
-    };
-
-    let (exp_str, mac_b64) = token
-        .split_once('.')
-        .ok_or_else(|| unauthorized("Delete token is not <exp>.<mac>"))?;
-    let exp: i64 = exp_str
-        .parse()
-        .map_err(|_| unauthorized("Delete token has a non-numeric exp"))?;
-
-    // Both bounds matter: the lower rejects a stale credential, the upper
-    // rejects one minted far enough ahead to never go stale.
-    let now = Utc::now().timestamp();
-    if exp <= now || exp > now + DELETE_TOKEN_MAX_TTL_SECS {
-        return Err(unauthorized("Delete token exp is outside the valid window"));
-    }
-
-    let presented = engine::general_purpose::URL_SAFE_NO_PAD
-        .decode(mac_b64)
-        .map_err(|_| unauthorized("Delete token mac is not base64url"))?;
-
-    // Newline delimited so that a uid ending in digits cannot be confused with
-    // a shifted exp.
-    let message = format!("{DELETE_TOKEN_DOMAIN}\n{fxa_uid}\n{exp}");
-
-    for secret in secrets {
-        let mut mac =
-            Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC has no key size limit");
-        mac.update(message.as_bytes());
-        if mac.verify_slice(&presented).is_ok() {
-            return Ok(());
-        }
-    }
-
-    Err(unauthorized("Delete token mac did not verify"))
 }
 
 fn get_server_state(req: &HttpRequest) -> Result<&Data<ServerState>, TokenserverError> {
@@ -816,71 +796,6 @@ pub(crate) fn hash_device_id(fxa_uid: &str, hmac_key: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Fixture shared with `tools/fxa_delete/make_delete_token.py`. FxA
-    /// implements this canonical string from scratch, so pin the exact bytes:
-    /// a change here silently breaks every caller rather than failing a build.
-    #[test]
-    fn test_verify_delete_token_matches_reference_implementation() {
-        let secret = "0123456789abcdef0123456789abcdef".to_owned();
-        let token = "1800000000.hrHUmSbWiYxHXwaCP9HNsadjsQwVABOZE5mv3-rwlXg";
-
-        // The fixture's exp is far in the past, so verify the MAC directly
-        // rather than going through the window check.
-        let expected = token.split_once('.').unwrap().1;
-        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).unwrap();
-        mac.update(format!("{DELETE_TOKEN_DOMAIN}\ntestuid\n1800000000").as_bytes());
-        let actual = engine::general_purpose::URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes());
-        assert_eq!(actual, expected);
-    }
-
-    fn mint_delete_token(secret: &str, fxa_uid: &str, exp: i64) -> String {
-        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).unwrap();
-        mac.update(format!("{DELETE_TOKEN_DOMAIN}\n{fxa_uid}\n{exp}").as_bytes());
-        format!(
-            "{}.{}",
-            exp,
-            engine::general_purpose::URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes())
-        )
-    }
-
-    #[test]
-    fn test_verify_delete_token() {
-        let secret = "0123456789abcdef0123456789abcdef".to_owned();
-        let secrets = vec![secret.clone()];
-        let now = Utc::now().timestamp();
-        let valid = mint_delete_token(&secret, "testuid", now + 60);
-
-        assert!(verify_delete_token(&valid, "testuid", &secrets).is_ok());
-
-        // Bound to the uid: the same credential must not work elsewhere.
-        assert!(verify_delete_token(&valid, "otheruid", &secrets).is_err());
-
-        // Expired, and minted so far ahead it would never expire.
-        let stale = mint_delete_token(&secret, "testuid", now - 1);
-        assert!(verify_delete_token(&stale, "testuid", &secrets).is_err());
-        let forward_dated = mint_delete_token(&secret, "testuid", now + 86400);
-        assert!(verify_delete_token(&forward_dated, "testuid", &secrets).is_err());
-
-        // Wrong secret, and malformed shapes.
-        let other = mint_delete_token(&"z".repeat(32), "testuid", now + 60);
-        assert!(verify_delete_token(&other, "testuid", &secrets).is_err());
-        for malformed in ["", "garbage", "abc.YWJj", &format!("{}.!!!", now + 60)] {
-            assert!(
-                verify_delete_token(malformed, "testuid", &secrets).is_err(),
-                "accepted {malformed:?}"
-            );
-        }
-
-        // Rotation: a credential minted with either configured secret works.
-        let rotating = vec!["o".repeat(32), secret.clone()];
-        assert!(verify_delete_token(&valid, "testuid", &rotating).is_ok());
-        let incoming = mint_delete_token("o".repeat(32).as_str(), "testuid", now + 60);
-        assert!(verify_delete_token(&incoming, "testuid", &rotating).is_ok());
-
-        // No secrets configured must never authorize anything.
-        assert!(verify_delete_token(&valid, "testuid", &[]).is_err());
-    }
 
     use actix_web::{
         HttpResponse,
@@ -1573,7 +1488,7 @@ mod tests {
             fxa_webhook_enabled: false,
             fxa_webhook_metrics_only: false,
             fxa_delete_data_enabled: false,
-            fxa_delete_data_secrets: vec![],
+            delete_assertion_verifiers: vec![],
             storage_client: reqwest::Client::new(),
             allow_new_users: true,
             #[cfg(feature = "last_seen")]
@@ -1602,7 +1517,7 @@ mod tests {
             fxa_webhook_enabled: true,
             fxa_webhook_metrics_only: false,
             fxa_delete_data_enabled: false,
-            fxa_delete_data_secrets: vec![],
+            delete_assertion_verifiers: vec![],
             storage_client: reqwest::Client::new(),
             allow_new_users: true,
             #[cfg(feature = "last_seen")]
