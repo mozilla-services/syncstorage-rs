@@ -1,3 +1,61 @@
+<a name="0.24.1"></a>
+## 0.24.1 (2026-11-04)
+
+
+#### Test
+
+* **storage:**  cover info/collections timestamp after collection delete (#2713) ([11e1ba9f](https://github.com/mozilla-services/syncstorage-rs/commit/11e1ba9fa290546610c5b0e357cecd6954c47b80))
+
+#### Chore
+
+* **deps:**
+  *  update deps with critical and high vulnerability findings (#2728) ([7f3b7347](https://github.com/mozilla-services/syncstorage-rs/commit/7f3b73474c0c6a6d0486b2c4c958397ebfb12ea9))
+  *  bump the prod-deps group across 1 directory with 15 updates (#2725) ([2924e883](https://github.com/mozilla-services/syncstorage-rs/commit/2924e8834590aaee430153218ee2706f26a59f3d))
+  *  bump cryptography in / (#2720) ([4068bffc](https://github.com/mozilla-services/syncstorage-rs/commit/4068bffc94bd480c69e4e47646422b42a13046b0))
+  *  bump pyasn1 (#2726) ([34f6addb](https://github.com/mozilla-services/syncstorage-rs/commit/34f6addb9b73aa6c4583b78cb7bafe91dee72f18))
+  *  bump pyasn1 in /tools/payload-reconciler (#2724) ([8e2e7d27](https://github.com/mozilla-services/syncstorage-rs/commit/8e2e7d279a1e5c982f4ed7eab78ff2d10c10a2cc))
+  *  bump pyasn1 from 0.6.4 to 0.6.5 in /tools/tokenserver (#2723) ([d0ff218d](https://github.com/mozilla-services/syncstorage-rs/commit/d0ff218d0ca85de4e1162b3842b90fc613bd059f))
+  *  bump the actions-deps group with 7 updates (#2721) ([a17aeb58](https://github.com/mozilla-services/syncstorage-rs/commit/a17aeb581363833c90072a8356b6966b201ac0e6))
+  *  bump authlib in /tools/tokenserver/loadtests (#2708) ([66a0e941](https://github.com/mozilla-services/syncstorage-rs/commit/66a0e941f3d2da7078be7ccb22ac6ba58663f370))
+  *  bump msgpack in /tools/tokenserver/loadtests (#2700) ([b2c49d5d](https://github.com/mozilla-services/syncstorage-rs/commit/b2c49d5d5aaa264cf3a49b449d6833d8ec140547))
+  *  bump opentelemetry-api in /tools/spanner (#2689) ([7f002cf6](https://github.com/mozilla-services/syncstorage-rs/commit/7f002cf690b3f4b7edd5501ef1f188acc09d1b43))
+  *  bump opentelemetry-api (#2686) ([3820b10e](https://github.com/mozilla-services/syncstorage-rs/commit/3820b10edf42a0aaafa6f41f060c2d524697bf6c))
+  *  bump brotli in /tools/tokenserver/loadtests (#2688) ([8e5f3710](https://github.com/mozilla-services/syncstorage-rs/commit/8e5f3710381c6bdac06bd1c8c1fc3e4a373acef2))
+  *  bump certifi in /tools/tokenserver/loadtests (#2692) ([418789b7](https://github.com/mozilla-services/syncstorage-rs/commit/418789b7595ee0def370acbf8f407af5fac89794))
+  *  bump certifi (#2693) ([1bfc65c1](https://github.com/mozilla-services/syncstorage-rs/commit/1bfc65c1601c19c97449c2bff19c1d7a2f3f52bb))
+  *  bump certifi from 2026.5.20 to 2026.10.18 (#2691) ([7e28269e](https://github.com/mozilla-services/syncstorage-rs/commit/7e28269e87a36aa547a7de529d1acf4072491c89))
+  *  update for RUSTSEC-2026-{0385,0391,0398,0403,0410} (#2690) ([b9570b3f](https://github.com/mozilla-services/syncstorage-rs/commit/b9570b3f32f1f06e5c4f177507cac5cb41e47ded))
+* **deps-dev:**
+  *  bump black from 26.5.1 to 26.10.1 (#2712) ([a8e2f648](https://github.com/mozilla-services/syncstorage-rs/commit/a8e2f648971da4e2050d0d0d0dc973596453499d))
+  *  bump virtualenv from 21.14.9 to 21.14.13 (#2711) ([e06052a2](https://github.com/mozilla-services/syncstorage-rs/commit/e06052a2ac036cc599afa31d84f9ba93d5b82c08))
+  *  bump filelock from 3.29.1 to 4.2.1 (#2710) ([593d4abc](https://github.com/mozilla-services/syncstorage-rs/commit/593d4abc2851dd16c344b4d16d0980f99cf108a7))
+  *  bump black in /tools/integration_tests (#2709) ([2c0d5018](https://github.com/mozilla-services/syncstorage-rs/commit/2c0d50186cd25a3fc6095045768fbded12d0a65a))
+  *  bump black (#2697) ([7e51b2f0](https://github.com/mozilla-services/syncstorage-rs/commit/7e51b2f0de1c83f620211b2bf06a6041da63c761))
+  *  bump black in /tools/syncstorage-loadtest (#2685) ([cbccee70](https://github.com/mozilla-services/syncstorage-rs/commit/cbccee7097bb4aaa2ef3b4424e3152be5c20b67f))
+  *  bump black in /tools/payload-reconciler (#2687) ([eb4d2f7e](https://github.com/mozilla-services/syncstorage-rs/commit/eb4d2f7e1f0d4314f1ad083b1c1513fe5ef6d2ea))
+* **docker:**  add OCI source label to the syncstorage-rs image (#2701) ([bb7f0396](https://github.com/mozilla-services/syncstorage-rs/commit/bb7f039692947297deec31b5e329236aa269b614))
+
+#### Bug Fixes
+
+*   stop a failed begin from being reported as a rollback error (#2698) ([0d7dfed8](https://github.com/mozilla-services/syncstorage-rs/commit/0d7dfed81cb9f607c547ef067e944575a566eab6))
+* **deps:**
+  *  bump utoipa-swagger-ui to 10.0.2 for RUSTSEC-2026-0429 (#2722) ([5eb7a7f3](https://github.com/mozilla-services/syncstorage-rs/commit/5eb7a7f36ed9107c9f29c2771dce5d9207e2edb5))
+  *  bump libz-sys to 1.1.31 for RUSTSEC-2026-0418 (#2716) ([b374e898](https://github.com/mozilla-services/syncstorage-rs/commit/b374e89878f3039eef84f709ee700dba13737510))
+* **postgres:**  count payload size in bytes, not characters (#2705) ([52d60639](https://github.com/mozilla-services/syncstorage-rs/commit/52d606394d24b7cdbcf52d5f61fc67968fcbb146))
+* **syncserver:**  use one format for invalid DSN test panics (#2703) ([b656d621](https://github.com/mozilla-services/syncstorage-rs/commit/b656d6216c93182e0146b9440b960299754ff25a))
+* **syncstorage-mysql:**  update only the re-appended BSO in a batch (#2729) ([19b9db93](https://github.com/mozilla-services/syncstorage-rs/commit/19b9db93691aa7f49f65497658a2e47793f0aeb9))
+* **tokenserver:**
+  *  reject client states too long for the db (#2727) ([b646f8a3](https://github.com/mozilla-services/syncstorage-rs/commit/b646f8a31c87e777e2e16b1a44b54c5c7881ab62))
+  *  accept integer-like JWK fields from env vars (#2702) ([c38b4bcc](https://github.com/mozilla-services/syncstorage-rs/commit/c38b4bcc256cda36b41a68a306d3202b6482638b))
+  *  tag tokens without an origin as purge_script (#2704) ([66fbc1d1](https://github.com/mozilla-services/syncstorage-rs/commit/66fbc1d11a9413c8ec25ef4b1b511cf5f5d68d54))
+
+#### Doc
+
+*   fix sentry project slug and stale sentry docs (#2717) ([190adea1](https://github.com/mozilla-services/syncstorage-rs/commit/190adea173109543f5a50882a71951c5e614dad6))
+*   drop references to the removed sync-test and sync-jobs charts (#2683) ([fd4e22e5](https://github.com/mozilla-services/syncstorage-rs/commit/fd4e22e5c8ff4928686d3ef190ea82c973efdad1))
+
+
+
 <a name="0.24.0"></a>
 ## 0.24.0 (2026-10-22)
 
