@@ -3,7 +3,7 @@ use jsonwebtoken::jwk::{AlgorithmParameters, Jwk, PublicKeyUse, RSAKeyParameters
 use pyo3::{
     Bound,
     ffi::c_str,
-    prelude::{Py, PyAny, PyErr, PyModule, Python},
+    prelude::{Py, PyAny, PyErr, PyModule, PyResult, Python},
     types::{IntoPyDict, PyAnyMethods, PyString},
 };
 use serde_json;
@@ -23,6 +23,8 @@ use std::{sync::Arc, time::Duration};
 pub struct Verifier {
     // pointer
     inner: Arc<Py<PyAny>>,
+    // verify.py's `FxaUnavailableError` class, raised when FxA errors or misbehaves
+    fxa_unavailable_error: Arc<Py<PyAny>>,
     timeout: u64,
     blocking_threadpool: Arc<BlockingThreadpool>,
 }
@@ -32,7 +34,7 @@ impl Verifier {
         settings: &Settings,
         blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> Result<Self, TokenserverError> {
-        let inner: Py<PyAny> = Python::attach(|py| -> Result<Py<PyAny>, TokenserverError> {
+        let (inner, fxa_unavailable_error) = Python::attach(|py| -> Result<_, TokenserverError> {
             let code: &CStr = c_str!(include_str!("verify.py"));
             let module = PyModule::from_code(py, code, c_str!("verify.py"), c_str!("verify.py"))
                 .map_err(pyerr_to_tokenserver_error)?;
@@ -97,12 +99,17 @@ impl Verifier {
                     pyerr_to_tokenserver_error(e)
                 })?
                 .into();
+            let fxa_unavailable_error: Py<PyAny> = module
+                .getattr("FxaUnavailableError")
+                .map_err(pyerr_to_tokenserver_error)?
+                .into();
 
-            Ok(object)
+            Ok((object, fxa_unavailable_error))
         })?;
 
         Ok(Self {
             inner: Arc::new(inner),
+            fxa_unavailable_error: Arc::new(fxa_unavailable_error),
             timeout: settings.fxa_oauth_request_timeout,
             blocking_threadpool,
         })
@@ -127,21 +134,32 @@ impl VerifyToken for Verifier {
         let verify_inner = |verifier: &Self| {
             let maybe_verify_output_string = Python::attach(|py| {
                 let client = verifier.inner.bind(py);
-                // `client.verify_token(token)`
-                let result: Bound<PyAny> = client
-                    .getattr("verify_token")?
-                    .call((token,), None)
-                    .inspect_err(|e| e.print_and_set_sys_last_vars(py))?;
-                if result.is_none() {
-                    Ok(None)
-                } else {
-                    let verify_output_python_string = result.cast::<PyString>()?;
-                    verify_output_python_string.extract::<String>().map(Some)
-                }
-            })
-            .map_err(|e| TokenserverError {
-                context: format!("pyo3 error in OAuth verifier: {}", e),
-                ..TokenserverError::internal_error()
+                let call = || -> PyResult<Option<String>> {
+                    // `client.verify_token(token)`
+                    let result: Bound<PyAny> = client
+                        .getattr("verify_token")?
+                        .call((token,), None)
+                        .inspect_err(|e| e.print_and_set_sys_last_vars(py))?;
+                    if result.is_none() {
+                        Ok(None)
+                    } else {
+                        let verify_output_python_string = result.cast::<PyString>()?;
+                        verify_output_python_string.extract::<String>().map(Some)
+                    }
+                };
+                call().map_err(|e| {
+                    if e.is_instance(py, verifier.fxa_unavailable_error.bind(py)) {
+                        TokenserverError::oauth_fxa_unavailable(format!(
+                            "FxA unavailable in OAuth verifier: {}",
+                            e
+                        ))
+                    } else {
+                        TokenserverError {
+                            context: format!("pyo3 error in OAuth verifier: {}", e),
+                            ..TokenserverError::internal_error()
+                        }
+                    }
+                })
             })?;
 
             match maybe_verify_output_string {
