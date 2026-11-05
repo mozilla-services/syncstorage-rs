@@ -153,6 +153,22 @@ impl FromRequest for BsoQueryParams {
                 )
             })?;
 
+            // Spanner pagination ignores the timestamp, so reject it rather than drop it silently
+            if cfg!(feature = "spanner")
+                && params
+                    .offset
+                    .as_ref()
+                    .is_some_and(|o| o.timestamp.is_some())
+            {
+                return Err(ValidationErrorKind::FromDetails(
+                    "Invalid Offset".to_owned(),
+                    RequestErrorLocation::QueryString,
+                    Some("offset".to_owned()),
+                    None,
+                )
+                .into());
+            }
+
             if params.sort != Sorting::Index
                 && let Some(timestamp) = params.offset.as_ref().and_then(|offset| offset.timestamp)
             {
@@ -277,6 +293,8 @@ mod tests {
         assert_eq!(resp.status(), 400);
     }
 
+    // Spanner rejects extended offsets
+    #[cfg(not(feature = "spanner"))]
     #[test]
     fn test_offset_bound_within_range() {
         let state = make_state();
@@ -287,6 +305,8 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    // Spanner rejects extended offsets
+    #[cfg(not(feature = "spanner"))]
     #[test]
     fn test_bound_validation_skipped_for_index_sort() {
         let state = make_state();
@@ -295,6 +315,30 @@ mod tests {
             .to_http_request();
         let result = block_on(BsoQueryParams::extract(&req));
         assert!(result.is_ok());
+    }
+
+    #[cfg(feature = "spanner")]
+    #[test]
+    fn test_extended_offset_rejected_for_spanner() {
+        let req = TestRequest::with_uri("/?offset=1111:1")
+            .data(make_state())
+            .to_http_request();
+        let result = block_on(BsoQueryParams::extract(&req));
+        assert!(result.is_err());
+        let resp: HttpResponse = result.err().unwrap().into();
+        assert_eq!(resp.status(), 400);
+    }
+
+    #[cfg(feature = "spanner")]
+    #[test]
+    fn test_plain_offset_accepted_for_spanner() {
+        let req = TestRequest::with_uri("/?offset=1234")
+            .data(make_state())
+            .to_http_request();
+        let result = block_on(BsoQueryParams::extract(&req)).unwrap();
+        let offset = result.offset.unwrap();
+        assert_eq!(offset.offset, 1234);
+        assert_eq!(offset.timestamp, None);
     }
 
     #[actix_rt::test]
