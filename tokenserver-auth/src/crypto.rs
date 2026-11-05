@@ -281,8 +281,8 @@ pub struct FxaDeleteAssertionClaims {
     pub aud: String,
     pub exp: i64,
     /// Required by protocol and logged for correlation, deliberately not
-    /// stored — see the ADR-0052 reply, §3. This is *not* replay protection;
-    /// `exp` plus the lifetime cap are what bound replay.
+    /// stored. This is *not* replay protection; `exp` plus the lifetime cap
+    /// are what bound replay.
     pub jti: Option<String>,
     pub iat: Option<i64>,
 }
@@ -545,7 +545,7 @@ mod tests {
     /// The reverse direction. Today this is blocked by `aud` and by
     /// `FxaWebhookClaims` requiring `events` — the latter an accident of a
     /// serde field list rather than a check. If this test ever starts failing,
-    /// the webhook has widened; see the ADR-0052 reply follow-ups.
+    /// the webhook has widened.
     #[test]
     fn test_set_verifier_rejects_a_delete_assertion() {
         let verifier = SETVerifierImpl::new(&test_jwk(), "fxa-webhook-client-id", DEL_ISS).unwrap();

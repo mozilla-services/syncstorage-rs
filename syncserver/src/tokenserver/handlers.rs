@@ -1268,9 +1268,9 @@ mod tests {
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
-    /// Key rotation is the ADR's main argument for this scheme over a shared
-    /// secret, so prove it works: an assertion signed with either configured
-    /// JWK is accepted, in either position.
+    /// Key rotation is the main argument for this scheme over a shared secret,
+    /// so prove it works: an assertion signed with either configured JWK is
+    /// accepted, in either position.
     #[actix_web::test]
     async fn test_delete_data_accepts_either_configured_jwk() {
         let (node, _) = fake_node(200);

@@ -688,16 +688,6 @@ impl FromRequest for DeleteAssertion {
             let state = get_server_state(&req)?;
             let token = BearerToken::extract(&req).await?.into_token();
 
-            if state.delete_assertion_verifiers.is_empty() {
-                // Unreachable: `Settings::validate` refuses to boot with the
-                // endpoint enabled and no JWK, and the route is not registered
-                // when it is disabled. Fail closed regardless.
-                return Err(TokenserverError {
-                    context: "No delete assertion verifiers configured".to_owned(),
-                    ..TokenserverError::internal_error()
-                });
-            }
-
             let unauthorized = |context: &str| TokenserverError {
                 // Deliberately carries no uid: `context` reaches the
                 // structured request log.
