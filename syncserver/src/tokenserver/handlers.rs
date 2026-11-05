@@ -495,14 +495,9 @@ pub async fn delete_user_syncstorage_data(
 
 /// Derive the `fxa_kid` the user's syncstorage data is filed under.
 fn node_fxa_kid(row: &GetRawUser) -> Result<String, TokenserverError> {
-    // Python does `user.keys_changed_at or user.generation`, where 0 is falsy.
-    // These rows are raw db values and do not pass through
-    // `convert_zero_to_none`, so normalize here: treating Some(0) as set would
-    // derive a different fxa_kid than the data is stored under.
-    let keys_changed_at = match row.keys_changed_at {
-        Some(0) | None => None,
-        value => value,
-    };
+    // NOTE: `purge_old_records.py` does `user.keys_changed_at or
+    // user.generation`, where 0 is falsy, so it gets this wrong for
+    // the same rows. Match the token, not the script.
     let client_state = hex::decode(&row.client_state).map_err(|e| TokenserverError {
         context: format!("Failed to decode the client state hex: {}", e),
         ..TokenserverError::internal_error()
@@ -510,7 +505,7 @@ fn node_fxa_kid(row: &GetRawUser) -> Result<String, TokenserverError> {
 
     Ok(format!(
         "{:013}-{:}",
-        keys_changed_at.unwrap_or(row.generation),
+        row.keys_changed_at.unwrap_or(row.generation),
         engine::general_purpose::URL_SAFE_NO_PAD.encode(client_state)
     ))
 }
@@ -1133,14 +1128,18 @@ mod tests {
             })
         };
 
-        // keys_changed_at wins when it is genuinely set.
+        // keys_changed_at wins when set.
         assert_eq!(kid(Some(5000), 1234, "aaaa").unwrap(), "0000000005000-qqo");
 
-        // Both of these mean "unset" and must fall back to generation. Python
-        // conflates them via a falsy check; a naive `unwrap_or` would not, and
-        // would address a keyspace holding none of the user's data.
+        // Only an absent keys_changed_at falls back to generation.
         assert_eq!(kid(None, 1234, "aaaa").unwrap(), "0000000001234-qqo");
-        assert_eq!(kid(Some(0), 1234, "aaaa").unwrap(), "0000000001234-qqo");
+
+        // A stored 0 is a real value, not "unset". `update_user` keeps it as
+        // `Some(0)`, so the user's own token addresses
+        // `0000000000000-<client_state>` and the delete must target that.
+        // Treating it as unset here would address an empty keyspace and
+        // silently delete nothing.
+        assert_eq!(kid(Some(0), 1234, "aaaa").unwrap(), "0000000000000-qqo");
 
         // Legacy rows carry no client state; the trailing dash is correct.
         assert_eq!(kid(Some(1), 1, "").unwrap(), "0000000000001-");
@@ -1411,10 +1410,12 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_delete_data_zero_keys_changed_at_falls_back_to_generation() {
-        // Python's `keys_changed_at or generation` treats 0 as unset. These rows
-        // skip `convert_zero_to_none`, so a naive `unwrap_or` would mint a
-        // different fxa_kid than the data is stored under and delete nothing.
+    async fn test_delete_data_zero_keys_changed_at_is_preserved() {
+        // End-to-end counterpart of the node_fxa_kid unit test: prove the kid
+        // for a stored `keys_changed_at` of 0 reaches the wire as
+        // 0000000000000-, which is where such a user's own sync token files
+        // their data. Treating the 0 as unset would address an empty keyspace
+        // and the delete would report success having removed nothing.
         let (node, seen) = fake_node(200);
         let mut row = user_row(42, Some(node.url_str("")));
         row.keys_changed_at = Some(0);
@@ -1439,6 +1440,6 @@ mod tests {
         // The token is the JSON payload followed by a 32 byte HMAC.
         let payload: serde_json::Value =
             serde_json::from_slice(&decoded[..decoded.len() - 32]).unwrap();
-        assert_eq!(payload["fxa_kid"], "0000000001234-qqo");
+        assert_eq!(payload["fxa_kid"], "0000000000000-qqo");
     }
 }
