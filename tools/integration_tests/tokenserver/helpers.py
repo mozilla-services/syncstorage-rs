@@ -19,6 +19,7 @@ from base64 import urlsafe_b64encode as b64encode
 
 from fxa_delete.make_delete_assertion import TYP as DELETE_ASSERTION_TYP
 from fxa_delete.make_delete_assertion import make_delete_assertion
+from integration_tests.helpers import make_test_app
 from sqlalchemy.sql import text as sqltext
 from tokenlib.utils import decode_token_bytes
 from webtest import TestApp
@@ -441,3 +442,16 @@ def delete_syncstorage_data(app, fxa_uid: str, **kwargs):
         headers={"Authorization": f"Bearer {token}"},
         **kwargs,
     )
+
+
+def storage_app_for_token(token: dict) -> tuple[TestApp, str]:
+    """Build a hawk-signed app for the storage node a token points at.
+
+    Returns `(app, root)` where `root` is the `/1.5/<uid>` prefix.
+    """
+    endpoint = urlparse.urlparse(token["api_endpoint"])
+    app = make_test_app(
+        f"{endpoint.scheme}://{endpoint.netloc}",
+        {"auth_token": token["id"], "auth_secret": token["key"]},
+    )
+    return app, endpoint.path

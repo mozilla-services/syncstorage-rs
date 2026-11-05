@@ -10,12 +10,14 @@ data really goes away, and the account really survives.
 
 import time
 
+from integration_tests.helpers import retry_put_json
 from integration_tests.tokenserver.helpers import (
     FXA_EMAIL_DOMAIN,
     add_user,
     build_oauth_headers,
     delete_syncstorage_data,
     get_user,
+    storage_app_for_token,
 )
 
 FXA_UID = "deletedatauid"
@@ -23,7 +25,7 @@ EMAIL = f"{FXA_UID}@{FXA_EMAIL_DOMAIN}"
 
 
 def test_delete_data_clears_storage_and_keeps_the_user(ts_local_node_ctx):
-    """Data is removed; the Tokenserver record is left usable."""
+    """Data really is removed, and the Tokenserver record is left usable."""
     app = ts_local_node_ctx["app"]
     conn = ts_local_node_ctx["db_conn"]
     service_id = ts_local_node_ctx["service_id"]
@@ -31,10 +33,23 @@ def test_delete_data_clears_storage_and_keeps_the_user(ts_local_node_ctx):
     uid = add_user(conn, service_id, email=EMAIL)
     before = get_user(conn, uid)
 
+    headers = build_oauth_headers(
+        generation=1234, keys_changed_at=1234, client_state="aaaa", user=FXA_UID
+    )
+    token = app.get("/1.0/sync/1.5", headers=headers).json
+    assert token["uid"] == uid
+    storage, root = storage_app_for_token(token)
+
+    retry_put_json(storage, f"{root}/storage/col1/bso1", {"payload": "hello"})
+    assert "col1" in storage.get(f"{root}/info/collections").json
+
     response = delete_syncstorage_data(app, FXA_UID)
 
     assert response.status_code == 200
     assert response.json["deleted"] is True
+
+    # The data is gone, not merely reported gone.
+    assert storage.get(f"{root}/info/collections").json == {}
 
     # The account must survive: this is "reset sync data", not a deletion.
     # A bumped generation would lock the user out, and a replaced_at would
