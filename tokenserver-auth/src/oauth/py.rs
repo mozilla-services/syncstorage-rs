@@ -131,52 +131,18 @@ impl VerifyToken for Verifier {
         // clone it. Cloning it is only necessary if we need to verify the token remotely via FxA,
         // since that would require passing `self` to a separate thread. Passing &Self to a closure
         // gives us the flexibility to clone only when necessary.
-        let verify_inner = |verifier: &Self| {
-            let maybe_verify_output_string = Python::attach(|py| {
-                let client = verifier.inner.bind(py);
-                let call = || -> PyResult<Option<String>> {
-                    // `client.verify_token(token)`
-                    let result: Bound<PyAny> = client
-                        .getattr("verify_token")?
-                        .call((token,), None)
-                        .inspect_err(|e| e.print_and_set_sys_last_vars(py))?;
-                    if result.is_none() {
-                        Ok(None)
-                    } else {
-                        let verify_output_python_string = result.cast::<PyString>()?;
-                        verify_output_python_string.extract::<String>().map(Some)
-                    }
-                };
-                call().map_err(|e| {
-                    if e.is_instance(py, verifier.fxa_unavailable_error.bind(py)) {
-                        TokenserverError::oauth_fxa_unavailable(format!(
-                            "FxA unavailable in OAuth verifier: {}",
-                            e
-                        ))
-                    } else {
-                        TokenserverError {
-                            context: format!("pyo3 error in OAuth verifier: {}", e),
-                            ..TokenserverError::internal_error()
-                        }
-                    }
-                })
-            })?;
-
-            match maybe_verify_output_string {
-                Some(verify_output_string) => {
-                    serde_json::from_str::<VerifyOutput>(&verify_output_string).map_err(|e| {
-                        TokenserverError {
-                            context: format!("Invalid OAuth verify output: {}", e),
-                            ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
-                        }
-                    })
-                }
-                None => Err(TokenserverError {
-                    context: "Invalid OAuth token".to_owned(),
+        let verify_inner =
+            |verifier: &Self| {
+                let output_string = Python::attach(|py| verify_py(py, verifier, token))?
+                    .ok_or_else(|| TokenserverError {
+                        context: "Invalid OAuth token".to_owned(),
+                        ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
+                    })?;
+                serde_json::from_str::<VerifyOutput>(&output_string).map_err(|e| TokenserverError {
+                    context: format!("Invalid OAuth verify output: {}", e),
                     ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
-                }),
-            }
-        };
+                })
+            };
 
         let verifier = self.clone();
 
@@ -196,6 +162,40 @@ impl VerifyToken for Verifier {
             .await
             .map_err(|_| TokenserverError::oauth_timeout())?
     }
+}
+
+fn verify_py(
+    py: Python,
+    verifier: &Verifier,
+    token: String,
+) -> Result<Option<String>, TokenserverError> {
+    let client = verifier.inner.bind(py);
+    let call = || -> PyResult<Option<String>> {
+        // `client.verify_token(token)`
+        let result: Bound<PyAny> = client
+            .getattr("verify_token")?
+            .call((token,), None)
+            .inspect_err(|e| e.print_and_set_sys_last_vars(py))?;
+        if result.is_none() {
+            Ok(None)
+        } else {
+            let verify_output_python_string = result.cast::<PyString>()?;
+            verify_output_python_string.extract::<String>().map(Some)
+        }
+    };
+    call().map_err(|e| {
+        if e.is_instance(py, verifier.fxa_unavailable_error.bind(py)) {
+            TokenserverError::oauth_fxa_unavailable(format!(
+                "FxA unavailable in OAuth verifier: {}",
+                e
+            ))
+        } else {
+            TokenserverError {
+                context: format!("pyo3 error in OAuth verifier: {}", e),
+                ..TokenserverError::internal_error()
+            }
+        }
+    })
 }
 
 fn pyerr_to_tokenserver_error(e: PyErr) -> TokenserverError {
