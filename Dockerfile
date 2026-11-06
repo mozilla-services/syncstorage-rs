@@ -110,6 +110,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     TOKENSERVER_FEATURES="" && \
     if [ "$TOKENSERVER_DATABASE_BACKEND" = "postgres" ]; then \
         TOKENSERVER_FEATURES="--features=tokenserver-db/postgres"; \
+    else \
+        TOKENSERVER_FEATURES="--features=tokenserver-db/mysql"; \
     fi && \
     cargo --version && \
     rustc --version && \
