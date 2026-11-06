@@ -15,3 +15,21 @@
 | `test_scripts.py`            | Testing module to test the various scripts in this directory.               |
 | `unassign_node.py`           | Removes a node from the system and clears any assignments to the named node.| 
 | `update_node.py`             | Script to update node status in the db.                                     |
+
+## Unit tests
+
+Install dependencies with `poetry -C tools/tokenserver install --only main`.
+Run against a disposable, migrated Tokenserver database (the fixtures delete
+users, nodes, and services):
+
+```sh
+SYNC_TOKENSERVER__DATABASE_URL=mysql://test:test@127.0.0.1/tokenserver make run_tokenserver_unit_tests
+SYNC_TOKENSERVER__DATABASE_URL=postgres://test:test@127.0.0.1/tokenserver make run_tokenserver_unit_tests TOKENSERVER_TEST_BACKEND=postgres
+```
+
+CI runs these after the Rust unit tests in the MySQL and PostgreSQL jobs.
+The PostgreSQL job explicitly initializes the schema for the Python tests because
+the Rust tests roll back their schema changes with their test transactions.
+Reports go to
+`workflow/test-results/*unit__tokenserver-{mysql,postgres}-results.xml` and use
+the existing unit report uploads.
