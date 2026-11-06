@@ -19,6 +19,7 @@ HAWK_DIR := $(TOOLS_DIR)/hawk
 INTEGRATION_TEST_DIR := $(TOOLS_DIR)/integration_tests
 INTEGRATION_TEST_DIR_TOKENSERVER := $(TOOLS_DIR)/integration_tests/tokenserver
 SPANNER_DIR := $(TOOLS_DIR)/spanner
+TOKENSERVER_TEST_BACKEND ?= mysql
 TOKENSERVER_UTIL_DIR := $(TOOLS_DIR)/tokenserver
 LOAD_TEST_DIR := $(TOOLS_DIR)/tokenserver/loadtests
 SYNCSTORAGE_LOAD_TEST_DIR := $(TOOLS_DIR)/syncstorage-loadtest
@@ -40,6 +41,7 @@ TEST_FILE_PREFIX := $(if $(GITHUB_ACTIONS),$(GITHUB_RUN_NUMBER)__$(EPOCH_TIME)__
 UNIT_MYSQL_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__mysql-results.xml
 UNIT_POSTGRES_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__postgres-results.xml
 UNIT_SPANNER_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__spanner-results.xml
+UNIT_TOKENSERVER_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__tokenserver-$(TOKENSERVER_TEST_BACKEND)-results.xml
 UNIT_COVERAGE_MYSQL_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__mysql-coverage.json
 UNIT_COVERAGE_POSTGRES_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__postgres-coverage.json
 UNIT_COVERAGE_SPANNER_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__spanner-coverage.json
@@ -288,11 +290,14 @@ postgres_test_with_coverage:
 	mv target/nextest/${TEST_PROFILE}/junit.xml ${UNIT_POSTGRES_JUNIT_XML}
 	exit $$exit_code
 
-.ONESHELL:
-run_token_server_integration_tests:
-	cd tools/tokenserver
-	poetry install --no-root --without dev
-	poetry run pytest tools/tokenserver --junit-xml=${INTEGRATION_JUNIT_XML}
+.PHONY: run_tokenserver_unit_tests
+run_tokenserver_unit_tests:
+	$(if $(filter file,$(origin SYNC_TOKENSERVER__DATABASE_URL)),$(error Set an explicit SYNC_TOKENSERVER__DATABASE_URL to a disposable migrated database))
+	$(if $(strip $(SYNC_TOKENSERVER__DATABASE_URL)),,$(error Set an explicit nonempty SYNC_TOKENSERVER__DATABASE_URL to a disposable migrated database))
+	mkdir -p $(TEST_RESULTS_DIR)
+	SYNC_TOKENSERVER__DATABASE_URL=$(SYNC_TOKENSERVER__DATABASE_URL) \
+	$(POETRY) -C $(TOKENSERVER_UTIL_DIR) run pytest . \
+		--junit-xml=$(abspath $(UNIT_TOKENSERVER_JUNIT_XML))
 
 run_local_e2e_tests:
 	PYTHONPATH=$(PWD)/tools \

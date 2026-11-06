@@ -342,7 +342,7 @@ emulators:
 | `payload-link-publisher` | Python publisher (default) | polls change stream → publishes to Pub/Sub |
 | `payload-reconciler` | primary image, entrypoint override | drains Pub/Sub → patches/deletes GCS objects |
 | `syncserver` | primary image | offload enabled for all `test_storage.py` collections |
-| `e2e-tests` | primary image | runs `pytest tools/integration_tests/ tools/tokenserver/` |
+| `e2e-tests` | primary image | runs `pytest tools/integration_tests/` |
 
 Two publisher variants:
 
