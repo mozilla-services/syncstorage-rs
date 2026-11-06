@@ -1,0 +1,27 @@
+[package]
+name = "tokenserver-sqlite"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+chrono.workspace = true
+deadpool.workspace = true
+diesel = { workspace = true, features = ["sqlite"] }
+diesel-async = { workspace = true, features = ["sync-connection-wrapper"] }
+diesel_migrations = { workspace = true, features = ["sqlite"] }
+http.workspace = true
+slog-scope.workspace = true
+tokio = { workspace = true, features = ["macros", "sync"] }
+
+syncserver-common = { path = "../syncserver-common" }
+syncserver-db-common = { path = "../syncserver-db-common" }
+tokenserver-common = { path = "../tokenserver-common" }
+tokenserver-db-common = { path = "../tokenserver-db-common" }
+tokenserver-settings = { path = "../tokenserver-settings" }
+
+[dev-dependencies]
+env_logger.workspace = true
