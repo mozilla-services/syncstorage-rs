@@ -15,7 +15,7 @@ use syncserver_settings::Secrets;
 use tokenserver_auth::{MakeTokenPlaintext, Tokenlib, TokenserverOrigin};
 use tokenserver_common::{ErrorLocation, NodeType, TokenserverError};
 use tokenserver_db::{
-    Db, SYNC_SERVICE_NAME,
+    Db, MAX_GENERATION, SYNC_SERVICE_NAME,
     params::{
         GetNodeId, GetServiceId, GetUsers, PostUser, PutUser, ReplaceUsers, RetireUser,
         UpdateUserGeneration,
@@ -465,6 +465,24 @@ pub async fn delete_user_syncstorage_data(
     rows.sort_by_key(|row| cmp::Reverse((row.generation, row.created_at)));
     let row = &rows[0];
 
+    // Note that `replaced_at` is deliberately not checked here: a current row
+    // marked as replaced still holds data under the user's most current key
+    // (that we know about), which technically is "live" data that they're
+    // asking us to delete -- so delete in that case.
+    //
+    // Whereas 404 on a retired user (deleted account) as there's no live sync
+    // account to act on (which is not likely to be triggered by FxA anyway).
+    if row.generation == MAX_GENERATION {
+        metrics.incr_with_tag(METRIC_DELETE_REQUESTS, "result", "retired");
+        return Err(TokenserverError {
+            context: format!("Tokenserver user {} is retired", hashed_fxa_uid),
+            description: "Unknown user".to_owned(),
+            http_status: http::StatusCode::NOT_FOUND,
+            location: ErrorLocation::Url,
+            ..TokenserverError::default()
+        });
+    }
+
     let Some(node) = &row.node else {
         // No node assignment means no location to derive and nothing to ask.
         info!(
@@ -495,14 +513,25 @@ pub async fn delete_user_syncstorage_data(
 
 /// Derive the `fxa_kid` the user's syncstorage data is filed under.
 fn node_fxa_kid(row: &GetRawUser) -> Result<String, TokenserverError> {
-    // NOTE: `purge_old_records.py` does `user.keys_changed_at or
-    // user.generation`, where 0 is falsy, so it gets this wrong for
-    // the same rows. Match the token, not the script.
+    // Retired users are already rejected but just in case, guard against a
+    // MAX_GENERATION tombstone here too: it would produce a nonsense kid of
+    // `9223372036854775807-<client_state>`, and the delete would report
+    // success having removed nothing.
+    if row.keys_changed_at.is_none() && row.generation == MAX_GENERATION {
+        return Err(TokenserverError {
+            context: "Refusing to derive an fxa_kid from the retirement tombstone".to_owned(),
+            ..TokenserverError::internal_error()
+        });
+    }
+
     let client_state = hex::decode(&row.client_state).map_err(|e| TokenserverError {
         context: format!("Failed to decode the client state hex: {}", e),
         ..TokenserverError::internal_error()
     })?;
 
+    // NOTE: `purge_old_records.py` does `user.keys_changed_at or
+    // user.generation`, where 0 is falsy, so it gets this wrong for
+    // the same rows. Match the token, not the script.
     Ok(format!(
         "{:013}-{:}",
         row.keys_changed_at.unwrap_or(row.generation),
@@ -715,6 +744,7 @@ mod tests {
         other_test_jwk, test_jwk,
     };
     use tokenserver_auth::{FxaDeleteAssertionVerifier, MockVerifier, SETVerifierImpl, oauth};
+    use tokenserver_db::MAX_GENERATION;
     use tokenserver_db::mock::MockDbPool;
     use tokenserver_db::results::GetRawUser;
     use tokenserver_settings::Settings as TokenserverSettings;
@@ -1147,6 +1177,18 @@ mod tests {
         // Non-hex client_state is corruption on our side, not a bad request.
         let err = kid(Some(1), 1, "zzzz").unwrap_err();
         assert_eq!(err.http_status, http::StatusCode::INTERNAL_SERVER_ERROR);
+
+        // The retirement tombstone is not a generation. Falling back to it
+        // would mint a 19-digit kid addressing nothing, so refuse instead.
+        // The handler rejects retired users before reaching here; this proves
+        // the invariant holds for any other caller.
+        let err = kid(None, MAX_GENERATION, "aaaa").unwrap_err();
+        assert_eq!(err.http_status, http::StatusCode::INTERNAL_SERVER_ERROR);
+        // ...but a retired row with a real keys_changed_at is still derivable.
+        assert_eq!(
+            kid(Some(1234), MAX_GENERATION, "aaaa").unwrap(),
+            "0000000001234-qqo"
+        );
     }
 
     #[actix_web::test]
@@ -1227,6 +1269,58 @@ mod tests {
         let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
         // No node assigned: a success, but nothing was deleted.
         assert_eq!(body["deleted"], false);
+    }
+
+    /// A newest row flagged `replaced_at` but not retired still holds live
+    /// data -- the `unassign_node` decommission window, where no successor
+    /// row exists until the user next syncs. Deleting it is the whole point.
+    ///
+    /// Guards the comment at the selection site: collapsing the retirement
+    /// check into `replaced_at.is_some()` would subsume it and look tidier,
+    /// and would silently stop deleting data the user asked about.
+    #[actix_web::test]
+    async fn test_delete_data_acts_on_a_replaced_but_live_row() {
+        let (node, seen) = fake_node(200);
+        let mut row = user_row(42, Some(node.url_str("")));
+        row.replaced_at = Some(1);
+        let (app, _) = make_delete_app(vec![row]).await;
+
+        let response = test::call_service(
+            &app,
+            delete_request(TEST_FXA_UID, Some(&valid_delete_token(TEST_FXA_UID))),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            seen.lock().unwrap().len(),
+            1,
+            "a replaced-but-live row must still be deleted at its node"
+        );
+    }
+
+    /// A retired user is a deleted account; this endpoint resets a live one.
+    /// Reported as 404 like an absent user, since both mean "no live sync
+    /// account" to the caller.
+    #[actix_web::test]
+    async fn test_delete_data_retired_user_is_404() {
+        let (node, seen) = fake_node(200);
+        let mut row = user_row(42, Some(node.url_str("")));
+        row.generation = MAX_GENERATION;
+        row.replaced_at = Some(1);
+        let (app, _) = make_delete_app(vec![row]).await;
+
+        let response = test::call_service(
+            &app,
+            delete_request(TEST_FXA_UID, Some(&valid_delete_token(TEST_FXA_UID))),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert!(
+            seen.lock().unwrap().is_empty(),
+            "a retired user must not reach the storage node"
+        );
     }
 
     #[actix_web::test]

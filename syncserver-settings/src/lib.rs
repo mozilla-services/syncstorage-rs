@@ -201,8 +201,9 @@ impl Settings {
                 &ts.fxa_delete_data_issuer,
             )?;
 
-            // `iss` is compared as an exact string, so a trailing-slash typo
-            // would otherwise fail closed at request time rather than here.
+            // Rejects a value that is not a URL at all. It does NOT catch a
+            // trailing-slash mismatch: `iss` is compared byte-for-byte against
+            // the token's claim.
             if Url::parse(&issuer).is_err() {
                 return Err(ConfigError::Message(
                     "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER must be an absolute URL".to_owned(),
@@ -847,7 +848,8 @@ mod test {
             assert!(Settings::with_env_and_config_file(None).is_err());
         });
 
-        // `iss` is matched as an exact string; catch a non-URL at boot.
+        // Only outright garbage is caught at boot; a trailing-slash mismatch
+        // is not, and cannot be — see the comment on the check itself.
         let mut bad_iss = delete_data_env();
         bad_iss.retain(|(k, _)| *k != "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER");
         bad_iss.push((
