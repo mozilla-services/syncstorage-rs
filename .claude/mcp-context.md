@@ -1,7 +1,7 @@
 # MCP Context: syncstorage-rs
 
 Shared reference for Jira and Sentry MCP operations in this repository.
-Skills read this file at runtime — do not expect it to be auto-loaded.
+Skills read this file at runtime -- do not expect it to be auto-loaded.
 
 ---
 
@@ -11,8 +11,8 @@ Skills read this file at runtime — do not expect it to be auto-loaded.
 - **Project key:** `STOR`
 - **Board URL:** https://mozilla-hub.atlassian.net/jira/software/projects/STOR/boards (confirm with `getAccessibleAtlassianResources` if the URL changes)
 - **Issue types in use:** Bug, Task, Story, Spike
-- **Priority labels:** Blocker, Critical, Major, Minor, Trivial
-- **Relevant components:** syncstorage, tokenserver, spanner, postgres, mysql, infrastructure
+- **Priorities:** `P0` (blocker/outage) to `P4` (no deadline); team default `P2`. Legacy names like Major/Critical/Trivial aren't valid in STOR
+- **Components:** none configured in STOR; use labels or the summary to tag backends (spanner, postgres, mysql, tokenserver)
 - **Typical sprint cadence:** 2-week sprints
 - **Commit/branch format:** `type/description-STOR-####` (see CLAUDE.md)
 
@@ -38,7 +38,7 @@ project = STOR AND created >= -14d ORDER BY created DESC
 project = STOR AND statusCategory = "In Progress" AND updated <= -5d ORDER BY updated ASC
 
 -- Blocking issues (linked "blocks" relationship)
-project = STOR AND issue in linkedIssues("STOR-*", "blocks") AND statusCategory != Done
+project = STOR AND issueLinkType = blocks AND statusCategory != Done
 
 -- All open epics
 project = STOR AND issuetype = Epic AND statusCategory != Done ORDER BY priority DESC, updated DESC
@@ -69,13 +69,14 @@ When creating or editing issues via `createJiraIssue` / `editJiraIssue`:
 |---|---|
 | `project` | `STOR` |
 | `issuetype` | `Bug` / `Task` / `Story` / `Spike` |
-| `priority` | `Blocker` / `Critical` / `Major` / `Minor` / `Trivial` |
-| `summary` | ≤ 100 characters, imperative present tense |
-| `description` | Structured: Background, Acceptance Criteria, Notes |
+| `priority` | `P0` / `P1` / `P2` / `P3` / `P4` |
+| `labels` | `["no-sync"]` for infra, security, secrets or internal-doc issues, and for anything linking webservices-infra, global-platform-admin, cloudops-infra, Confluence, SREIN, `*.mozgcp.net`. Must be set at create; read it back after |
+| `summary` | <= 100 characters, imperative present tense |
+| `description` | Rendered from a `JiraDraft` (`/syncserver-jira-description` Step 3); `devtools.models render --kind jira` |
 | `assignee` | Jira account ID or email (look up if needed) |
 | `parent` | Epic key (e.g. `STOR-100`) if issue belongs to an epic |
 
-Workflow transitions (via `transitionJiraIssue`): fetch available transitions first with `getTransitionsForJiraIssue` — transition names and IDs vary by project config.
+Workflow transitions (via `transitionJiraIssue`): fetch available transitions first with `getTransitionsForJiraIssue` -- transition names and IDs vary by project config.
 
 ### What to flag
 
@@ -98,10 +99,10 @@ Workflow transitions (via `transitionJiraIssue`): fetch available transitions fi
 
 ### What to flag
 
-- **New issues** introduced in the last release or last 7 days — especially those not seen in prior releases
+- **New issues** introduced in the last release or last 7 days -- especially those not seen in prior releases
 - **Regressions**: issues that were previously resolved and have recurred
 - **High-volume errors**: issues with > 100 events in 24h that are not already triaged
-- **Tokenserver auth errors**: errors from `tokenserver-auth/`, `hawk_identifier`, or FxA OAuth paths — these are user-facing auth failures
+- **Tokenserver auth errors**: errors from `tokenserver-auth/`, `HawkIdentifier` (`web/extractors/hawk_identifier.rs`), or FxA OAuth paths -- these are user-facing auth failures
 - **Database errors**: connection pool exhaustion, migration failures, query timeouts (look for `DbError`, `diesel::result::Error`, `deadpool` in fingerprints)
 - **Spanner RST_STREAM / gRPC errors**: these are known-flaky from the Spanner emulator in test but should not appear in production
 - **Errors that are `is_sentry_event() = false` appearing anyway**: miscategorized errors that should be suppressed
@@ -119,4 +120,14 @@ From `syncserver/src/error.rs`:
 - `is_sentry_event()` controls whether errors route to Sentry vs. metrics-only
 - Errors that are HTTP 4xx (client errors) are generally metrics-only
 - Errors that are HTTP 5xx (server errors) route to Sentry
-- `ApiError` wraps both — check the inner error type when triaging
+- `ApiError` wraps both -- check the inner error type when triaging
+
+---
+
+## SRE intake (SREIN)
+
+- **Project key:** `SREIN` (same Jira site and `cloudId` as STOR)
+- **Form:** https://mozilla-hub.atlassian.net/jira/software/c/projects/SREIN/form/1344
+- **Issue type:** Task. **Priority:** P1 unless the engineer says otherwise (P0 for blockers)
+- **Description fields:** Service, Engineering Team, Details and context, Request, Urgency
+- **Skill:** `/srein-request`. Draft only; file after explicit approval
