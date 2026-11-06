@@ -398,6 +398,25 @@ jobs:
         env:
           SYNC_SYNCSTORAGE__DATABASE_URL: postgresql://test:test@127.0.0.1/syncstorage
 
+      - name: Set up Python for Tokenserver tests
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Tokenserver test dependencies
+        run: |
+          pip3 install poetry
+          poetry -C tools/tokenserver install --only main --no-interaction --no-ansi
+
+      # Rust test transactions roll back PostgreSQL schema changes.
+      - name: Initialize Tokenserver schema for Python tests
+        run: >-
+          psql "$SYNC_TOKENSERVER__DATABASE_URL" -v ON_ERROR_STOP=1
+          -f tokenserver-postgres/migrations/2025-09-02-195720_create_schema/up.sql
+
+      - name: Run Tokenserver unit tests
+        run: make run_tokenserver_unit_tests TOKENSERVER_TEST_BACKEND=postgres
+
       - name: Publish Test Report
         uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
         if: always()
@@ -680,6 +699,19 @@ jobs:
         run: make test_with_coverage
         env:
           SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
+
+      - name: Set up Python for Tokenserver tests
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Tokenserver test dependencies
+        run: |
+          pip3 install poetry
+          poetry -C tools/tokenserver install --only main --no-interaction --no-ansi
+
+      - name: Run Tokenserver unit tests
+        run: make run_tokenserver_unit_tests TOKENSERVER_TEST_BACKEND=mysql
 
       - name: Publish Test Report
         uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
