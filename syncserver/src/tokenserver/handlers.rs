@@ -311,7 +311,7 @@ const METRIC_DELETE_TIMER: &str = "fxa_delete_data";
 /// header ever reaches a log. Note the node only exempts
 /// `/1.5/{uid}/info/collections` from the expiry check, so a DELETE genuinely
 /// needs this in the future.
-const NODE_TOKEN_TTL_SECS: i64 = 300;
+const NODE_TOKEN_TTL_SECS: i64 = 120;
 
 /// Upper bound on the whole delete, independent of the per-request client
 /// timeout, so a slow node cannot pin a worker indefinitely.
