@@ -22,7 +22,11 @@ SELECT
         WHEN existing.payload_link IS NOT NULL THEN NULL
         ELSE COALESCE(existing.payload, '')
     END,
-    @timestamp,
+    CASE
+        WHEN bb.payload IS NOT NULL OR bb.sortindex IS NOT NULL OR bb.payload_link IS NOT NULL
+            THEN @timestamp
+        ELSE COALESCE(existing.modified, @timestamp)
+    END,
     COALESCE(
         TIMESTAMP_ADD(@timestamp, INTERVAL bb.ttl SECOND),
         existing.expiry,
@@ -41,7 +45,7 @@ SELECT
   FROM batch_bsos AS bb
   LEFT JOIN (
       SELECT fxa_uid, fxa_kid, collection_id, bso_id,
-             sortindex, payload, expiry, payload_link, payload_size
+             sortindex, payload, modified, expiry, payload_link, payload_size
         FROM bsos
        WHERE fxa_uid = @fxa_uid
          AND fxa_kid = @fxa_kid
