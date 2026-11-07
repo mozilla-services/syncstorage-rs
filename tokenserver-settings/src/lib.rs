@@ -86,6 +86,26 @@ pub struct Settings {
     pub fxa_webhook_set_client_id: Option<String>,
     /// The `iss` of Security Event Tokens received on the account events webhook endpoint.
     pub fxa_webhook_set_issuer: Option<String>,
+    /// Whether to enable the FxA-triggered syncstorage data deletion endpoint.
+    /// Defaults to false: the route is not registered at all when disabled.
+    pub fxa_delete_data_enabled: bool,
+    /// The `aud` of delete assertions accepted on the data deletion endpoint.
+    ///
+    /// This is the main thing keeping a delete assertion distinguishable from
+    /// the other FxA-signed credentials tokenserver accepts, so it must not
+    /// equal `fxa_webhook_set_client_id` or `fxa_oauth_server_url`; startup
+    /// refuses if it does.
+    pub fxa_delete_data_audience: Option<String>,
+    /// The `iss` of delete assertions.
+    ///
+    /// Normally the same value as `fxa_webhook_set_issuer`, but declared
+    /// separately: that one is `None` whenever the webhook is disabled, and
+    /// coupling two independently-flagged features produces a confusing boot
+    /// failure. Note `iss` separates nothing on its own — all three FxA
+    /// credential types share it.
+    pub fxa_delete_data_issuer: Option<String>,
+    /// The timeout to be used when asking a storage node to delete user data.
+    pub fxa_delete_data_request_timeout: u64,
     /// Whether new users may register to the Tokenserver.
     /// Defaults to true.
     pub allow_new_users: bool,
@@ -163,6 +183,10 @@ impl Default for Settings {
             fxa_webhook_metrics_only: false,
             fxa_webhook_set_client_id: None,
             fxa_webhook_set_issuer: None,
+            fxa_delete_data_enabled: false,
+            fxa_delete_data_audience: None,
+            fxa_delete_data_issuer: None,
+            fxa_delete_data_request_timeout: 30,
             allow_new_users: true,
             last_seen_enabled: false,
             last_seen_staging_table: None,

@@ -139,3 +139,19 @@ python purge_old_records.py --force secret_key
 
 ---
 
+## Relationship to the FxA data deletion endpoint
+
+`DELETE /1.0/users/{fxa_uid}/storage`
+(see [the Tokenserver API](../tokenserver/tokenserver-api.md)) reuses the same
+mechanism as `delete_service_data()` here: mint a tokenlib token for the user,
+then issue a HAWK-signed `DELETE {node}/1.5/{uid}`.
+
+The two are not substitutes:
+
+- The endpoint is synchronous and acts only on the user's **current** record,
+  and deliberately leaves the Tokenserver row alone. It serves "reset my sync
+  data", where the account lives on.
+- This script remains the authority for *retired* users. It is the only thing
+  that sweeps superseded records — including data under earlier `fxa_kid`s that
+  the endpoint does not touch — and the only thing that deletes the Tokenserver
+  row itself.
