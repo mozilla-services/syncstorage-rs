@@ -229,6 +229,48 @@ async fn get_bsos_limit_offset() -> Result<(), DbError> {
     .await
 }
 
+// Spanner issues plain offsets for every sort
+#[cfg(not(feature = "spanner"))]
+#[tokio::test]
+async fn get_bso_ids_newest_offset_token() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+        for i in 0..3 {
+            let bso = pbso(uid, coll, &format!("b{i}"), Some("x"), None, None);
+            with_delta!(db, i * 10, { db.put_bso(bso).await })?;
+        }
+
+        let mut ids = vec![];
+        let mut offset = "0".to_owned();
+        loop {
+            let page = db
+                .get_bso_ids(gbsos(
+                    uid,
+                    coll,
+                    &[],
+                    MAX_TIMESTAMP,
+                    0,
+                    Sorting::Newest,
+                    1,
+                    &offset,
+                ))
+                .await?;
+            ids.extend(page.items);
+            match page.offset {
+                Some(next) => {
+                    assert!(next.contains(':'), "{next} is not a timestamp token");
+                    offset = next;
+                }
+                None => break,
+            }
+        }
+        assert_eq!(ids, vec!["b2", "b1", "b0"]);
+        Ok(())
+    })
+    .await
+}
+
 #[tokio::test]
 async fn get_bsos_newer() -> Result<(), DbError> {
     with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
