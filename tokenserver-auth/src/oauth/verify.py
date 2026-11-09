@@ -1,8 +1,12 @@
 from fxa.oauth import Client
-from fxa.errors import ClientError, TrustError
+from fxa.errors import ClientError, OutOfProtocolError, ServerError, TrustError
 import json
 
 DEFAULT_OAUTH_SCOPE = 'https://identity.mozilla.com/apps/oldsync'
+
+
+class FxaUnavailableError(Exception):
+    """FxA errored or sent a malformed response; mapped to a 503 in py.rs."""
 
 
 class FxaOAuthClient:
@@ -17,3 +21,5 @@ class FxaOAuthClient:
             return json.dumps(token_data)
         except (ClientError, TrustError):
             return None
+        except (OutOfProtocolError, ServerError) as e:
+            raise FxaUnavailableError(str(e)) from e
