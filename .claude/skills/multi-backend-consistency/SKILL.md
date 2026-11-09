@@ -66,7 +66,7 @@ Review the diff for patterns that are safe on one backend but wrong on another:
 - **NULL handling** — Spanner is stricter about NULLs in some column types than MySQL.
 - **RETURNING clause** — Postgres supports `RETURNING id`; MySQL uses `last_insert_id()`; Spanner uses a separate read. Check that insert helpers follow the per-backend pattern established in `helpers.py` / existing db impls.
 - **Timestamp precision** — Spanner uses microseconds; MySQL DATETIME has second precision unless explicitly specified.
-- **Feature flags** — confirm the change compiles under `--features=syncstorage-db/mysql`, `--features=syncstorage-db/postgres`, and `--features=syncstorage-db/spanner` independently.
+- **Feature flags** — confirm the change compiles under `--features=syncserver/mysql`, `--features=syncserver/postgres`, and `--features=syncserver/spanner` independently.
 
 ## Step 5 — Check shared db-common crates
 

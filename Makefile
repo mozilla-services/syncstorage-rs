@@ -54,10 +54,10 @@ INT_RECONCILIATION_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integrati
 
 clippy_mysql:
 	# Matches what's run in circleci
-	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- -D clippy::dbg_macro -D warnings
+	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql --features=tokenserver-db/mysql --features=py_verifier -- -D clippy::dbg_macro -D warnings
 
 clippy_postgres:
-	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/postgres --features=py_verifier -- -D clippy::dbg_macro -D warnings
+	cargo clippy --workspace --all-targets --no-default-features --features=syncserver/postgres --features=py_verifier -- -D clippy::dbg_macro -D warnings
 
 clippy_spanner:
 	# Matches what's run in circleci
@@ -65,7 +65,7 @@ clippy_spanner:
 
 clippy_release_mysql:
 	# Release mode clippy — catches dead code and issues only visible with optimizations
-	cargo clippy --release --workspace --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- -D warnings
+	cargo clippy --release --workspace --no-default-features --features=syncstorage-db/mysql --features=tokenserver-db/mysql --features=py_verifier -- -D warnings
 
 clippy_release_postgres:
 	# Release mode clippy — catches dead code and issues only visible with optimizations
@@ -245,7 +245,7 @@ run_mysql: $(INSTALL_STAMP)
 	PYTHONPATH=$(PYTHON_SITE_PACKAGES) \
 	        RUST_LOG=$(RUST_LOG) \
 		RUST_BACKTRACE=full \
-		cargo run --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- --config config/local.toml
+		cargo run --no-default-features --features=syncstorage-db/mysql --features=tokenserver-db/mysql --features=py_verifier -- --config config/local.toml
 
 run_spanner: $(INSTALL_STAMP)
 	GOOGLE_APPLICATION_CREDENTIALS=$(PATH_TO_SYNC_SPANNER_KEYS) \
@@ -284,7 +284,7 @@ spanner_test_with_coverage:
 .ONESHELL:
 postgres_test_with_coverage:
 	cargo llvm-cov --summary-only --json --output-path ${UNIT_COVERAGE_POSTGRES_JSON} \
-		nextest --workspace --no-default-features --features=syncstorage-db/postgres --features=tokenserver-db/postgres --features=py_verifier --profile ${TEST_PROFILE}; exit_code=$$?
+		nextest --workspace --no-default-features --features=syncserver/postgres --features=py_verifier --profile ${TEST_PROFILE}; exit_code=$$?
 	mv target/nextest/${TEST_PROFILE}/junit.xml ${UNIT_POSTGRES_JUNIT_XML}
 	exit $$exit_code
 
