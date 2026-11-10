@@ -41,7 +41,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -103,7 +103,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -399,7 +399,7 @@ jobs:
           SYNC_SYNCSTORAGE__DATABASE_URL: postgresql://test:test@127.0.0.1/syncstorage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
+        uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
         if: always()
         with:
           name: Postgres Unit Tests
@@ -409,7 +409,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: postgres-test-results
           path: workflow/test-results/
@@ -491,7 +491,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: postgres-docker-image
           path: /tmp/postgres-image.tar
@@ -510,7 +510,7 @@ jobs:
           persist-credentials: false
 
       - name: Download Docker image
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: postgres-docker-image
           path: /tmp
@@ -528,7 +528,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
+        uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
         if: always()
         with:
           name: Postgres E2E Tests
@@ -538,7 +538,7 @@ jobs:
 
       - name: Upload e2e test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: postgres-e2e-test-results
           path: workflow/test-results/
@@ -682,7 +682,7 @@ jobs:
           SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
+        uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
         if: always()
         with:
           name: MySQL Unit Tests
@@ -692,7 +692,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mysql-test-results
           path: workflow/test-results/
@@ -775,7 +775,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mysql-docker-image
           path: /tmp/mysql-image.tar
@@ -794,7 +794,7 @@ jobs:
           persist-credentials: false
 
       - name: Download Docker image
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: mysql-docker-image
           path: /tmp
@@ -812,7 +812,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
+        uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
         if: always()
         with:
           name: MySQL E2E Tests
@@ -822,7 +822,7 @@ jobs:
 
       - name: Upload e2e test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mysql-e2e-test-results
           path: workflow/test-results/
@@ -1008,7 +1008,7 @@ jobs:
         run: make spanner_test_with_coverage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
+        uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
         if: always()
         with:
           name: Spanner Unit Tests
@@ -1018,7 +1018,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: spanner-test-results
           path: workflow/test-results/
@@ -1100,7 +1100,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: spanner-docker-image
           path: /tmp/spanner-image.tar
@@ -1120,7 +1120,7 @@ jobs:
           persist-credentials: false
 
       - name: Download Docker image
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: spanner-docker-image
           path: /tmp
@@ -1138,7 +1138,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
+        uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
         if: always()
         with:
           name: Spanner E2E Tests
@@ -1148,7 +1148,7 @@ jobs:
 
       - name: Upload e2e test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: spanner-e2e-test-results
           path: workflow/test-results/
@@ -1189,7 +1189,7 @@ jobs:
           persist-credentials: false
 
       - name: Download Docker image
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: spanner-docker-image
           path: /tmp
@@ -1207,7 +1207,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
+        uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
         if: always()
         with:
           name: Reconciliation E2E Tests
@@ -1217,7 +1217,7 @@ jobs:
 
       - name: Upload e2e test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: reconciliation-e2e-test-results
           path: workflow/test-results/

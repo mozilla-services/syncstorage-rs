@@ -158,6 +158,16 @@ impl TokenserverError {
         }
     }
 
+    /// FxA could not verify an OAuth token because it returned an error or a malformed
+    /// response (e.g. a non-JSON error page from a proxy).
+    pub fn oauth_fxa_unavailable(context: String) -> Self {
+        Self {
+            context,
+            tags: Some(vec![("reason", "oauth_fxa_unavailable".to_owned())]),
+            ..Self::resource_unavailable()
+        }
+    }
+
     pub fn unsupported(description: String, name: String) -> Self {
         Self {
             status: "error",

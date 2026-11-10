@@ -277,6 +277,7 @@ pub async fn do_append(
     #[derive(AsChangeset)]
     #[diesel(table_name = batch_upload_items)]
     struct UpdateBatches {
+        sortindex: Option<i32>,
         payload: Option<String>,
         payload_size: Option<i64>,
         ttl_offset: Option<i32>,
@@ -307,9 +308,11 @@ pub async fn do_append(
             diesel::update(
                 batch_upload_items::table
                     .filter(batch_upload_items::user_id.eq(user_id.legacy_id as i64))
-                    .filter(batch_upload_items::batch_id.eq(batch_id)),
+                    .filter(batch_upload_items::batch_id.eq(batch_id))
+                    .filter(batch_upload_items::id.eq(&bso.id)),
             )
             .set(&UpdateBatches {
+                sortindex: bso.sortindex,
                 payload: bso.payload,
                 payload_size,
                 ttl_offset: bso.ttl.map(|ttl| ttl as i32),

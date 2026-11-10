@@ -3,7 +3,7 @@ use jsonwebtoken::jwk::{AlgorithmParameters, Jwk, PublicKeyUse, RSAKeyParameters
 use pyo3::{
     Bound,
     ffi::c_str,
-    prelude::{Py, PyAny, PyErr, PyModule, Python},
+    prelude::{Py, PyAny, PyErr, PyModule, PyResult, Python},
     types::{IntoPyDict, PyAnyMethods, PyString},
 };
 use serde_json;
@@ -23,6 +23,8 @@ use std::{sync::Arc, time::Duration};
 pub struct Verifier {
     // pointer
     inner: Arc<Py<PyAny>>,
+    // verify.py's `FxaUnavailableError` class, raised when FxA errors or misbehaves
+    fxa_unavailable_error: Arc<Py<PyAny>>,
     timeout: u64,
     blocking_threadpool: Arc<BlockingThreadpool>,
 }
@@ -32,7 +34,7 @@ impl Verifier {
         settings: &Settings,
         blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> Result<Self, TokenserverError> {
-        let inner: Py<PyAny> = Python::attach(|py| -> Result<Py<PyAny>, TokenserverError> {
+        let (inner, fxa_unavailable_error) = Python::attach(|py| -> Result<_, TokenserverError> {
             let code: &CStr = c_str!(include_str!("verify.py"));
             let module = PyModule::from_code(py, code, c_str!("verify.py"), c_str!("verify.py"))
                 .map_err(pyerr_to_tokenserver_error)?;
@@ -97,12 +99,17 @@ impl Verifier {
                     pyerr_to_tokenserver_error(e)
                 })?
                 .into();
+            let fxa_unavailable_error: Py<PyAny> = module
+                .getattr("FxaUnavailableError")
+                .map_err(pyerr_to_tokenserver_error)?
+                .into();
 
-            Ok(object)
+            Ok((object, fxa_unavailable_error))
         })?;
 
         Ok(Self {
             inner: Arc::new(inner),
+            fxa_unavailable_error: Arc::new(fxa_unavailable_error),
             timeout: settings.fxa_oauth_request_timeout,
             blocking_threadpool,
         })
@@ -124,41 +131,18 @@ impl VerifyToken for Verifier {
         // clone it. Cloning it is only necessary if we need to verify the token remotely via FxA,
         // since that would require passing `self` to a separate thread. Passing &Self to a closure
         // gives us the flexibility to clone only when necessary.
-        let verify_inner = |verifier: &Self| {
-            let maybe_verify_output_string = Python::attach(|py| {
-                let client = verifier.inner.bind(py);
-                // `client.verify_token(token)`
-                let result: Bound<PyAny> = client
-                    .getattr("verify_token")?
-                    .call((token,), None)
-                    .inspect_err(|e| e.print_and_set_sys_last_vars(py))?;
-                if result.is_none() {
-                    Ok(None)
-                } else {
-                    let verify_output_python_string = result.cast::<PyString>()?;
-                    verify_output_python_string.extract::<String>().map(Some)
-                }
-            })
-            .map_err(|e| TokenserverError {
-                context: format!("pyo3 error in OAuth verifier: {}", e),
-                ..TokenserverError::internal_error()
-            })?;
-
-            match maybe_verify_output_string {
-                Some(verify_output_string) => {
-                    serde_json::from_str::<VerifyOutput>(&verify_output_string).map_err(|e| {
-                        TokenserverError {
-                            context: format!("Invalid OAuth verify output: {}", e),
-                            ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
-                        }
-                    })
-                }
-                None => Err(TokenserverError {
-                    context: "Invalid OAuth token".to_owned(),
+        let verify_inner =
+            |verifier: &Self| {
+                let output_string = Python::attach(|py| verify_py(py, verifier, token))?
+                    .ok_or_else(|| TokenserverError {
+                        context: "Invalid OAuth token".to_owned(),
+                        ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
+                    })?;
+                serde_json::from_str::<VerifyOutput>(&output_string).map_err(|e| TokenserverError {
+                    context: format!("Invalid OAuth verify output: {}", e),
                     ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
-                }),
-            }
-        };
+                })
+            };
 
         let verifier = self.clone();
 
@@ -180,9 +164,173 @@ impl VerifyToken for Verifier {
     }
 }
 
+fn verify_py(
+    py: Python,
+    verifier: &Verifier,
+    token: String,
+) -> Result<Option<String>, TokenserverError> {
+    let client = verifier.inner.bind(py);
+    let call = || -> PyResult<Option<String>> {
+        // `client.verify_token(token)`
+        let result: Bound<PyAny> = client
+            .getattr("verify_token")?
+            .call((token,), None)
+            .inspect_err(|e| e.print_and_set_sys_last_vars(py))?;
+        if result.is_none() {
+            Ok(None)
+        } else {
+            let verify_output_python_string = result.cast::<PyString>()?;
+            verify_output_python_string.extract::<String>().map(Some)
+        }
+    };
+    call().map_err(|e| {
+        if e.is_instance(py, verifier.fxa_unavailable_error.bind(py)) {
+            TokenserverError::oauth_fxa_unavailable(format!(
+                "FxA unavailable in OAuth verifier: {}",
+                e
+            ))
+        } else {
+            TokenserverError {
+                context: format!("pyo3 error in OAuth verifier: {}", e),
+                ..TokenserverError::internal_error()
+            }
+        }
+    })
+}
+
 fn pyerr_to_tokenserver_error(e: PyErr) -> TokenserverError {
     TokenserverError {
         context: e.to_string(),
         ..TokenserverError::internal_error()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A stand-in for PyFxA so these tests don't need it installed or a network call. The
+    // error classes mirror the `fxa.errors` hierarchy and the client raises one per token.
+    const FXA_STUB: &CStr = c_str!(
+        r#"
+import sys
+import types
+
+class Error(Exception): pass
+class OutOfProtocolError(Error): pass
+class InProtocolError(Error): pass
+class ClientError(InProtocolError): pass
+class ServerError(InProtocolError): pass
+class TrustError(Error): pass
+
+ERRORS = {
+    "non-json": OutOfProtocolError("API responded with non-json content-type: "),
+    "server-error": ServerError("Internal Server Error"),
+    "client-error": ClientError("invalid token"),
+    "trust-error": TrustError("invalid signature"),
+    "other-error": ValueError("unexpected"),
+}
+
+class Client:
+    def __init__(self, server_url=None, jwks=None):
+        pass
+
+    def verify_token(self, token, scope=None):
+        if token in ERRORS:
+            raise ERRORS[token]
+        return {"user": "fxa_id", "client_id": "client_id", "generation": 123}
+
+def install():
+    names = ("fxa", "fxa.errors", "fxa.oauth")
+    saved = {name: sys.modules.get(name) for name in names}
+    fxa = types.ModuleType("fxa")
+    errors = types.ModuleType("fxa.errors")
+    oauth = types.ModuleType("fxa.oauth")
+    for cls in (OutOfProtocolError, ServerError, ClientError, TrustError):
+        setattr(errors, cls.__name__, cls)
+    oauth.Client = Client
+    fxa.errors = errors
+    fxa.oauth = oauth
+    sys.modules.update({"fxa": fxa, "fxa.errors": errors, "fxa.oauth": oauth})
+    return saved
+
+def restore(saved):
+    for name, module in saved.items():
+        if module is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = module
+"#
+    );
+
+    /// Builds a `Verifier` whose verify.py is bound to the PyFxA stub.
+    fn stub_verifier() -> Verifier {
+        let (stub, saved) = Python::attach(|py| -> PyResult<(Py<PyAny>, Py<PyAny>)> {
+            let stub =
+                PyModule::from_code(py, FXA_STUB, c_str!("fxa_stub.py"), c_str!("fxa_stub"))?;
+            let saved = stub.getattr("install")?.call0()?;
+            Ok((stub.into_any().unbind(), saved.unbind()))
+        })
+        .unwrap();
+        let verifier = Verifier::new(&Settings::default(), Arc::new(BlockingThreadpool::new(1)));
+        // verify.py has already bound the stub's names, so put the real modules back
+        Python::attach(|py| -> PyResult<()> {
+            stub.bind(py).getattr("restore")?.call1((saved.bind(py),))?;
+            Ok(())
+        })
+        .unwrap();
+        verifier.unwrap()
+    }
+
+    async fn verify(token: &str) -> Result<VerifyOutput, TokenserverError> {
+        stub_verifier()
+            .verify(token.to_owned(), &Default::default())
+            .await
+    }
+
+    #[tokio::test]
+    async fn valid_token() {
+        let output = verify("valid").await.unwrap();
+        assert_eq!(output.fxa_uid, "fxa_id");
+        assert_eq!(output.client_id, "client_id");
+        assert_eq!(output.generation, Some(123));
+    }
+
+    #[tokio::test]
+    async fn fxa_unavailable_is_503() {
+        for token in ["non-json", "server-error"] {
+            let err = verify(token).await.unwrap_err();
+            assert_eq!(err.http_status.as_u16(), 503, "{token}");
+            assert_eq!(
+                err.tags,
+                Some(vec![("reason", "oauth_fxa_unavailable".to_owned())]),
+                "{token}"
+            );
+            assert!(
+                err.context
+                    .starts_with("FxA unavailable in OAuth verifier: "),
+                "{token}: {}",
+                err.context
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn invalid_token_is_401() {
+        for token in ["client-error", "trust-error"] {
+            let err = verify(token).await.unwrap_err();
+            assert_eq!(err.http_status.as_u16(), 401, "{token}");
+        }
+    }
+
+    #[tokio::test]
+    async fn other_python_error_is_500() {
+        let err = verify("other-error").await.unwrap_err();
+        assert_eq!(err.http_status.as_u16(), 500);
+        assert!(
+            err.context.starts_with("pyo3 error in OAuth verifier: "),
+            "{}",
+            err.context
+        );
     }
 }

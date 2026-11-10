@@ -14,8 +14,8 @@ requires-python = ">=3.10"
 package-mode = false
 
 [tool.poetry.dependencies]
-authlib = "^1.6.12"
-cryptography = "^50.0.1"
+authlib = "^1.9.1"
+cryptography = "^50.0.2"
 locust = "^2.37.10"
 pyjwt = "^2.15.0"
 sqlalchemy = "1.4.46"

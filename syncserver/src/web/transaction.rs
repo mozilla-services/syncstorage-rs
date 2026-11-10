@@ -121,10 +121,8 @@ impl DbTransactionPool {
             return Err(e.into());
         }
 
-        // XXX: lock_for_x usually begins transactions but Dbs may also
-        // implicitly create them, so commit/rollback are always called to
-        // finish them. They noop when no implicit transaction was created
-        // (maybe rename them to maybe_commit/rollback?)
+        // commit/rollback are always called to finish the transaction; see the
+        // Db trait for when they noop.
         match action(&mut *db).await {
             Ok(resp) => Ok((resp, db)),
             Err(e) => {
@@ -336,5 +334,44 @@ impl FromRequest for DbTransactionPool {
             Ok(pool)
         }
         .boxed_local()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use actix_web::test::TestRequest;
+    use syncstorage_db::mock::MockDbPool;
+
+    use super::*;
+
+    fn test_pool(pool: MockDbPool) -> DbTransactionPool {
+        DbTransactionPool {
+            pool: Box::new(pool),
+            is_read: false,
+            user_id: UserIdentifier::default(),
+            collection: None,
+            bso_opt: None,
+            precondition: PreConditionHeaderOpt { opt: None },
+            transaction_tag: None,
+        }
+    }
+
+    /// Regression test for STOR-658: when begin fails the rollback that
+    /// follows is a noop, so the caller sees the begin failure rather than a
+    /// "No transaction to rollback" error standing in for it.
+    #[actix_rt::test]
+    async fn begin_failure_reaches_the_caller() {
+        let pool = test_pool(MockDbPool::with_failing_begin());
+        let request = TestRequest::default().to_http_request();
+
+        let err = pool
+            .transaction(&request, async |_db| Ok(()))
+            .await
+            .expect_err("begin should have failed");
+
+        assert!(
+            err.to_string().contains("mock begin failure"),
+            "the begin failure did not reach the caller: {err}"
+        );
     }
 }

@@ -222,7 +222,10 @@ impl Db for PgDb {
     ) -> DbResult<results::GetCollectionUsage> {
         let counts = bsos::table
             .group_by(bsos::collection_id)
-            .select((bsos::collection_id, sql::<BigInt>("SUM(LENGTH(payload))")))
+            .select((
+                bsos::collection_id,
+                sql::<BigInt>("SUM(OCTET_LENGTH(payload))"),
+            ))
             .filter(bsos::user_id.eq(params.legacy_id as i64))
             .filter(bsos::expiry.gt(now))
             .load_stream::<(_, i64)>(&mut self.conn)
@@ -251,7 +254,7 @@ impl Db for PgDb {
         params: params::GetStorageUsage,
     ) -> DbResult<results::GetStorageUsage> {
         let total_bytes = bsos::table
-            .select(sql::<Nullable<BigInt>>("SUM(LENGTH(payload))"))
+            .select(sql::<Nullable<BigInt>>("SUM(OCTET_LENGTH(payload))"))
             .filter(bsos::user_id.eq(params.legacy_id as i64))
             .filter(bsos::expiry.gt(now))
             .get_result::<Option<i64>>(&mut self.conn)
