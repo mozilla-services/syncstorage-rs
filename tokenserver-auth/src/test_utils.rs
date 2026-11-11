@@ -5,33 +5,13 @@ use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use serde_json::json;
 
 /// RSA private key for TEST_JWK.
-pub const TEST_PRIVATE_KEY_PEM: &[u8] = b"-----BEGIN RSA PRIVATE KEY-----
-MIIEpAIBAAKCAQEAwDVLbkUbqt74yyEd1d5HQsmT/BVAMrausJCZq1FHyy9Ham+c
-6Uobln07+G2Wj/X0PaDUBfKq12M90hPKAsI1gvAIVs9TL6BOvFYQArodTGxya0JL
-v2GBSiJjgj8LQHL4DYbmvMsvtW6nHCGWtB9Fa9t9aN5R+/fcqj4mk0EzY5xL+cuz
-zxuMRhreMUL+WE74bzA+b4IT2SIJvYy4yYY0stLvC1DSqKNn9Z6jWMP4qIFz1OCk
-cJ74/wsUAIoicnVECe0jLEM+6xul6dIXwH2j7t105Kt+FSS+syOHqE+/oenfbrfO
-n0v0ILjiBPJFa6f3mN1jO4RwyvYj6vut4f9KfQIDAQABAoIBACFRq8mKA9WPUPgf
-fcVLArXmbTeT9HzGE8rKSkU7MhOcFshx4DTFsroX7Asw7hp3E7eSN2bvjeOIEdmm
-sgxf37haxUtNJdm586Qs1Bow6q7KltwWkjxzGd9Azliv9pKdy3fG1J1SKKtOKvxS
-q0X+rMFZe2gwL+yapz9Axl2c/hxMWRnU/4h2Z5yiAIMZ7fzWLvJcTU8Pd9yHeJDP
-N13sTl4o+O8cVGxfFkDWJQYVS11J3XW4jN7OALYBBQi0qhA0+wPZ3rlWoyvEc7nv
-TLtTVodNeu9pE8u1cPfaGt/NbWRw1HdgZx/KjHpfv2yd57ubLaeg3FftcWotXmdL
-0I9T+ekCgYEA55+/N19DZBybFZ1hGaY6cxVgwbQ1bKKdFDYxdL3n9PKWhQBsK5J0
-j6WkePzQV6fZgcGaioyatwghUe0uKC3F/18rB0XlJ0Mczq1USqG3XUF2Jc0nmn1S
-tEvJhL6ntBWz33K+33GPFsZbAhZ+tsmObCHs+v/6EygyLRBODNPl4bkCgYEA1G+i
-Q+DNO2Nea0ez7Cu68WYnQ3ccnPAJpCLgvvgmmBKWzl9A5MpspBHXv5P4DtdhXrmv
-ZjAA0ihbsYIdG6v730wXTTolOnTBs4dNg2u8o/yAmnPlxViqFCd6ZgSjr6K3lQu7
-Z+vW8P4tGAEIx2PHdbZwU3vZ1aF8ZqbM+g3vYOUCgYBUtI/6UQVVNDzm77IV7juL
-4LKMxDmRa/qj7JmzhsuwQZMYOqpUWO/1pG78rAAJPmIF2OaKapcd/oQo8OMjYHH7
-TTNwKnh+HkYHs02TKYbkPM9XTaqBDfnT469js1GjQxiPy+fP0Tix7IJVxiI6+IT0
-OIfw1vH+VYHcBw10FX4JSQKBgQCq980X4+xIR4jNvj9Ha0pgzV38JfiZNXYM6yUF
-jKFC8nL8VBzeBSu6P8HrJSMWjrCGk9pd23RNrr1c9uKGSrvC0nJObOVZTm42FkaD
-5klDkQvPQkdBtEHtRnhzcnhp+gLVqUOCN4QdH/MaxnpSPjNgwRtVlO+Txwtfcg61
-kFF/IQKBgQDe+BuvhET3OQtiiLUhZHkmtZTAc35+T1iArGVt/kFLARlhWRzGw4Ib
-7+TDE+0KxKloqo+oZGJFMD9qJWhxLEnChrgOFx0lN/2FRvntab97AKfJf0R1wHKj
-iXkKR8nsMwDtjLaoGsc8hbMT2nVRoPokfyIYJ5H+xzOfX1U05AZLjg==
------END RSA PRIVATE KEY-----";
+///
+/// Shared with the Python integration tests, which have to sign assertions the
+/// server will accept, so the material lives in one file rather than being
+/// duplicated per language. `Dockerfile` already copies `tools/fxa_delete`
+/// into the e2e image.
+pub const TEST_PRIVATE_KEY_PEM: &[u8] =
+    include_bytes!("../../tools/fxa_delete/testing/delete_test_key.pem");
 
 /// Private key for testing mismatching signatures.
 pub const OTHER_PRIVATE_KEY_PEM: &[u8] = b"-----BEGIN RSA PRIVATE KEY-----
@@ -62,26 +42,174 @@ yyVcq33mCxMSP9YqFrvZwjnoVMWCbVTPU7f6xzP4IGxXpySkVf8QwGp7Fc9q/XG4
 8DA43GmyC52UynXzmBzTZfURio3qSQRFPtyZApJDcicR1nUw22KolA==
 -----END RSA PRIVATE KEY-----";
 
-/// Public JWK of TEST_PRIVATE_KEY_PEM.
-pub const TEST_JWK: &str = r#"{
+/// Public JWK of TEST_PRIVATE_KEY_PEM. See the note there on the shared file.
+pub const TEST_JWK: &str = include_str!("../../tools/fxa_delete/testing/delete_test_jwk.json");
+
+/// Public JWK of OTHER_PRIVATE_KEY_PEM.
+///
+/// A second, genuinely distinct key, so key-rotation tests exercise two real
+/// keys rather than the same one twice.
+pub const OTHER_TEST_JWK: &str = r#"{
     "kty": "RSA",
     "alg": "RS256",
-    "n": "wDVLbkUbqt74yyEd1d5HQsmT_BVAMrausJCZq1FHyy9Ham-c6Uobln07-G2Wj_X0PaDUBfKq12M90hPKAsI1gvAIVs9TL6BOvFYQArodTGxya0JLv2GBSiJjgj8LQHL4DYbmvMsvtW6nHCGWtB9Fa9t9aN5R-_fcqj4mk0EzY5xL-cuzzxuMRhreMUL-WE74bzA-b4IT2SIJvYy4yYY0stLvC1DSqKNn9Z6jWMP4qIFz1OCkcJ74_wsUAIoicnVECe0jLEM-6xul6dIXwH2j7t105Kt-FSS-syOHqE-_oenfbrfOn0v0ILjiBPJFa6f3mN1jO4RwyvYj6vut4f9KfQ",
+    "n": "yd0B8fYfYJ8lKbkhii838MjGp3VTNnveK7C_sxWHysEcGioHTUvL9huz6tx41stE8Gi-uIGeXNzfcX3ZX2AFBnsT3z1-ndaPMw9dIhRWghrBp3u3KB8soG7M81b0fLtTyymBbUVCnA9NRgFjr9A2WJacuJp8CGHLzeNhKMXJLrskUJLaRktWeW79eyXTYuqiz0LlcDQAVjBeg30WPr80Wo6Scw55gC-c1dZl-P8FTX4_URxpdimwnyU9mfje21ZPlNiIYHjPFpg5Zim_QasjMHzUAVTOEBCvwWY2KRMWJRFPju0igoRkSV_MNq3doYKhQXM7cxKrhxsgNEhk9CTu7w",
     "e": "AQAB"
 }"#;
+
+pub fn other_test_jwk() -> Jwk {
+    serde_json::from_str(OTHER_TEST_JWK).unwrap()
+}
 
 pub fn test_jwk() -> Jwk {
     serde_json::from_str(TEST_JWK).unwrap()
 }
 
+/// Builds delete assertions for tests.
+///
+/// A builder rather than a wide positional function because the
+/// non-interchangeability tests vary exactly one field at a time, and a
+/// `make_delete_assertion(sub, aud, iss, typ, exp, jti, key)` call site is
+/// unreadable at the point where it matters most.
+///
+/// Defaults produce a token `FxaDeleteAssertionVerifier` accepts.
+pub struct DeleteAssertionBuilder {
+    sub: String,
+    aud: Option<String>,
+    iss: Option<String>,
+    /// Raw header value. FxA signs the unprefixed form; the verifier applies
+    /// RFC 7515 §4.1.9's implicit `application/` prefix.
+    typ: Option<String>,
+    exp_in: i64,
+    jti: Option<String>,
+    iat: Option<i64>,
+    key: Vec<u8>,
+}
+
+impl DeleteAssertionBuilder {
+    pub fn new(sub: &str, aud: &str, iss: &str) -> Self {
+        Self {
+            sub: sub.to_owned(),
+            aud: Some(aud.to_owned()),
+            iss: Some(iss.to_owned()),
+            typ: Some("fxa-sync-delete+jwt".to_owned()),
+            exp_in: 30,
+            jti: Some("test-jti".to_owned()),
+            iat: None,
+            key: TEST_PRIVATE_KEY_PEM.to_vec(),
+        }
+    }
+
+    /// Drop a claim entirely, rather than setting it wrong. jsonwebtoken only
+    /// checks `aud`/`iss` when the claim is *present*, so omission is a
+    /// distinct and more dangerous case than a mismatch.
+    pub fn without_aud(mut self) -> Self {
+        self.aud = None;
+        self
+    }
+    pub fn without_iss(mut self) -> Self {
+        self.iss = None;
+        self
+    }
+    pub fn without_jti(mut self) -> Self {
+        self.jti = None;
+        self
+    }
+    pub fn without_typ(mut self) -> Self {
+        self.typ = None;
+        self
+    }
+
+    pub fn aud(mut self, aud: &str) -> Self {
+        self.aud = Some(aud.to_owned());
+        self
+    }
+    pub fn iss(mut self, iss: &str) -> Self {
+        self.iss = Some(iss.to_owned());
+        self
+    }
+    pub fn typ(mut self, typ: &str) -> Self {
+        self.typ = Some(typ.to_owned());
+        self
+    }
+    /// Seconds from now; negative for an already-expired assertion.
+    pub fn exp_in(mut self, secs: i64) -> Self {
+        self.exp_in = secs;
+        self
+    }
+    pub fn key(mut self, pem: &[u8]) -> Self {
+        self.key = pem.to_vec();
+        self
+    }
+
+    /// A multi-valued `aud`. jsonwebtoken matches audiences by set
+    /// intersection, so without a single-valued claims type one token could
+    /// satisfy two differently configured verifiers.
+    pub fn build_with_aud_array(self, auds: &[&str]) -> String {
+        self.encode(Some(json!(auds)))
+    }
+
+    pub fn build(self) -> String {
+        let aud = self.aud.clone().map(|a| json!(a));
+        self.encode(aud)
+    }
+
+    fn encode(self, aud: Option<serde_json::Value>) -> String {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        let mut claims = serde_json::Map::new();
+        claims.insert("sub".to_owned(), json!(self.sub));
+        claims.insert("exp".to_owned(), json!(now + self.exp_in));
+        claims.insert("iat".to_owned(), json!(self.iat.unwrap_or(now)));
+        if let Some(aud) = aud {
+            claims.insert("aud".to_owned(), aud);
+        }
+        if let Some(iss) = self.iss {
+            claims.insert("iss".to_owned(), json!(iss));
+        }
+        if let Some(jti) = self.jti {
+            claims.insert("jti".to_owned(), json!(jti));
+        }
+
+        let mut header = Header::new(Algorithm::RS256);
+        // Header::new sets `typ: Some("JWT")`, so clearing it needs an
+        // explicit None rather than just not setting it.
+        header.typ = self.typ;
+
+        let key = EncodingKey::from_rsa_pem(&self.key).expect("invalid PEM key");
+        encode(&header, &serde_json::Value::Object(claims), &key).unwrap()
+    }
+}
+
+/// Happy-path delete assertion, signed with TEST_PRIVATE_KEY_PEM.
+pub fn make_delete_assertion(sub: &str, aud: &str, iss: &str) -> String {
+    DeleteAssertionBuilder::new(sub, aud, iss).build()
+}
+
 /// Sign a SET with the given PEM. Mirrors the claims the FxA Event Broker emits: {iss, aud, sub,
 /// iat, jti, events}
 pub fn make_set(sub: &str, aud: &str, events: serde_json::Value, private_key_pem: &[u8]) -> String {
+    make_set_with_exp(sub, aud, events, private_key_pem, None)
+}
+
+/// As [`make_set`], but able to add an `exp`.
+///
+/// Real FxA SETs carry no `exp` — that absence is one of the barriers stopping
+/// a SET being accepted as a delete assertion. Tests that want to prove the
+/// *other* barriers are load-bearing need to remove it from the equation.
+pub fn make_set_with_exp(
+    sub: &str,
+    aud: &str,
+    events: serde_json::Value,
+    private_key_pem: &[u8],
+    exp_in: Option<i64>,
+) -> String {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs() as i64;
-    let claims = json!({
+    let mut claims = json!({
         "iss": "https://accounts.firefox.com/",
         "sub": sub,
         "aud": aud,
@@ -89,6 +217,12 @@ pub fn make_set(sub: &str, aud: &str, events: serde_json::Value, private_key_pem
         "jti": "wibble",
         "events": events,
     });
+    if let Some(exp_in) = exp_in {
+        claims["exp"] = json!(now + exp_in);
+    }
     let key = EncodingKey::from_rsa_pem(private_key_pem).expect("invalid PEM key");
+    // Header::new sets `typ: Some("JWT")`. Real FxA SETs carry no typ at all
+    // (jwtool signSync emits only alg/jku/kid), but nothing here depends on
+    // that, and leaving the default keeps this closer to a generic JWT.
     encode(&Header::new(Algorithm::RS256), &claims, &key).unwrap()
 }

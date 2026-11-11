@@ -5,15 +5,17 @@
 
 Fixture hierarchy
 ─────────────────
-ts_db_conn    — function-scoped SQLAlchemy connection
-ts_app        — function-scoped WebTest TestApp
-ts_service_id — function-scoped service ID (sync-1.5)
-ts_ctx        — function-scoped composite: clears DB, seeds service + node,
-                yields a plain dict consumed by test functions
-fxa_auth      — session-scoped FxA OAuth token for test_e2e.py
-                (session scope justified: FxA account creation is a slow
-                network call to an external staging service; one account
-                suffices for the whole test session)
+ts_db_conn        — function-scoped SQLAlchemy connection
+ts_app            — function-scoped WebTest TestApp
+ts_service_id     — function-scoped service ID (sync-1.5)
+ts_ctx            — function-scoped composite: clears DB, seeds service + node,
+                    yields a plain dict consumed by test functions
+ts_local_node_ctx — as ts_ctx, but seeds LOCAL_NODE_URL instead of the
+                    unroutable default, for endpoints that call out to the node
+fxa_auth          — session-scoped FxA OAuth token for test_e2e.py
+                    (session scope justified: FxA account creation is a slow
+                    network call to an external staging service; one account
+                    suffices for the whole test session)
 
 Helper functions and constants live in helpers.py.
 """
@@ -27,14 +29,11 @@ import pytest
 from sqlalchemy import create_engine
 
 from integration_tests.tokenserver.helpers import (
-    NODE_ID,
+    LOCAL_NODE_URL,
     NODE_URL,
-    add_node,
-    clear_db,
-    get_db_mode,
-    get_expected_node_type,
     get_or_add_service,
     make_app,
+    seeded_ctx,
 )
 
 
@@ -77,16 +76,19 @@ def ts_ctx(ts_db_conn, ts_app, ts_service_id):
             app = ts_ctx["app"]
             ...
     """
-    clear_db(ts_db_conn)
-    add_node(ts_db_conn, ts_service_id, capacity=100, node=NODE_URL, id=NODE_ID)
-    yield {
-        "db_conn": ts_db_conn,
-        "app": ts_app,
-        "service_id": ts_service_id,
-        "db_mode": get_db_mode(),
-        "expected_node_type": get_expected_node_type(),
-    }
-    clear_db(ts_db_conn)
+    yield from seeded_ctx(ts_db_conn, ts_app, ts_service_id, NODE_URL)
+
+
+@pytest.fixture(scope="function")
+def ts_local_node_ctx(ts_db_conn, ts_app, ts_service_id):
+    """Like `ts_ctx`, but seeds LOCAL_NODE_URL as the node.
+
+    `ts_ctx` seeds NODE_URL (https://example.com), which is deliberately
+    unroutable. That is fine for every test that only inspects what
+    Tokenserver returns, but an endpoint that makes an outbound call to the
+    node it looked up would just get a connect failure. Use this one for those.
+    """
+    yield from seeded_ctx(ts_db_conn, ts_app, ts_service_id, LOCAL_NODE_URL)
 
 
 @pytest.fixture(scope="session")
