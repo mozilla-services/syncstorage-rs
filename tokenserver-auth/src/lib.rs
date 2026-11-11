@@ -3,7 +3,10 @@ mod crypto;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_utils;
 
-pub use crypto::{FxaWebhookClaims, JWTVerifyError, SETVerifierImpl};
+pub use crypto::{
+    FxaDeleteAssertionClaims, FxaDeleteAssertionVerifier, FxaWebhookClaims, JWTVerifyError,
+    SETVerifierImpl,
+};
 #[cfg(not(feature = "py"))]
 pub use crypto::{JWTVerifier, JWTVerifierImpl};
 
