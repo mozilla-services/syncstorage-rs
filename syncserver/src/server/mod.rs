@@ -48,6 +48,10 @@ pub const TOKENSERVER_DOCS_URL: &str =
 const MYSQL_UID_REGEX: &str = r"[0-9]{1,10}";
 const SYNC_VERSION_PATH: &str = "1.5";
 
+/// Four segments deliberately. A three segment path such as
+/// `/1.0/users/{fxa_uid}` would be matched by `/1.0/{application}/{version}`
+pub const FXA_DELETE_DATA_PATH: &str = r"/1.0/users/{fxa_uid:[A-Za-z0-9_-]{1,64}}/storage";
+
 #[cfg(test)]
 mod test;
 pub mod user_agent;
@@ -161,6 +165,7 @@ pub fn cfg_path(path: &str) -> String {
         // Tokenserver endpoints
         crate::tokenserver::handlers::get_tokenserver_result,
         crate::tokenserver::handlers::heartbeat,
+        crate::tokenserver::handlers::delete_user_syncstorage_data,
     ),
     components(
         schemas(crate::tokenserver::handlers::TokenserverResult)
@@ -257,6 +262,12 @@ macro_rules! build_app {
                                 .route(web::post().to(tokenserver::handlers::handle_fxa_events)),
                         );
                     }
+
+                    if tokenserver_state.fxa_delete_data_enabled {
+                        cfg.service(web::resource($crate::server::FXA_DELETE_DATA_PATH).route(
+                            web::delete().to(tokenserver::handlers::delete_user_syncstorage_data),
+                        ));
+                    }
                 }
             })
             // Dockerflow
@@ -306,6 +317,7 @@ macro_rules! build_app {
 macro_rules! build_app_without_syncstorage {
     ($state: expr, $secrets: expr, $cors: expr, $metrics: expr) => {{
         let fxa_webhook_enabled = $state.fxa_webhook_enabled;
+        let fxa_delete_data_enabled = $state.fxa_delete_data_enabled;
         App::new()
             .app_data(Data::new($state))
             .app_data(Data::new($secrets))
@@ -338,6 +350,12 @@ macro_rules! build_app_without_syncstorage {
                         web::resource("/1.0/webhooks/fxa/events")
                             .route(web::post().to(tokenserver::handlers::handle_fxa_events)),
                     );
+                }
+
+                if fxa_delete_data_enabled {
+                    cfg.service(web::resource($crate::server::FXA_DELETE_DATA_PATH).route(
+                        web::delete().to(tokenserver::handlers::delete_user_syncstorage_data),
+                    ));
                 }
             })
             // Dockerflow
