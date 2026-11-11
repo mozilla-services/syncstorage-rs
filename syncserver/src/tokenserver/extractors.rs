@@ -3,13 +3,13 @@
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
 
-use core::fmt::Debug;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use actix_web::{
     FromRequest, HttpRequest,
     dev::Payload,
+    http::header::{AUTHORIZATION, HeaderValue},
     web::{Data, Query},
 };
 use base64::{Engine, engine};
@@ -23,7 +23,7 @@ use serde::Deserialize;
 use sha2::Sha256;
 use syncserver_common::Taggable;
 use syncserver_settings::Secrets;
-use tokenserver_auth::{FxaWebhookClaims, JWTVerifyError};
+use tokenserver_auth::{FxaDeleteAssertionClaims, FxaWebhookClaims, JWTVerifyError};
 use tokenserver_common::{ErrorLocation, NodeType, TokenserverError};
 use tokenserver_db::{Db, DbPool, SYNC_SERVICE_NAME, params, results};
 
@@ -348,64 +348,64 @@ impl FromRequest for DbPoolWrapper {
     }
 }
 
-/// An authentication token as parsed from the `Authorization` header.
-/// Signed JWTs can be verified locally or via FxA.
-pub enum Token {
-    JWT(String),
+/// An Bearer token parsed from the `Authorization` header.
+pub struct BearerToken(String);
+
+impl BearerToken {
+    pub fn into_token(self) -> String {
+        self.0
+    }
+
+    fn parse(header: &HeaderValue) -> Result<Self, TokenserverError> {
+        let val = header.to_str().map_err(|e| TokenserverError {
+            description: "Unauthorized".to_owned(),
+            location: ErrorLocation::Body,
+            context: format!(
+                "Authorization header contains invalid ASCII characters: {}",
+                e
+            ),
+            ..Default::default()
+        })?;
+
+        let (scheme, token) = val.split_once(' ').ok_or_else(|| TokenserverError {
+            description: "Unauthorized".to_owned(),
+            location: ErrorLocation::Body,
+            context: "Invalid Authorization header format".to_owned(),
+            ..Default::default()
+        })?;
+
+        // TODO: ideally force case sensitive "Bearer" here, then we
+        // could switch to actix-web-httpauth's extractor
+        if !scheme.eq_ignore_ascii_case("bearer") {
+            return Err(TokenserverError {
+                description: "Unsupported".to_owned(),
+                location: ErrorLocation::Body,
+                context: "Invalid authorization scheme".to_owned(),
+                ..Default::default()
+            });
+        }
+
+        Ok(Self(token.to_owned()))
+    }
 }
 
-impl FromRequest for Token {
+impl FromRequest for BearerToken {
     type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-
         Box::pin(async move {
-            // The request must have a valid Authorization header
-            let authorization_header = req
+            let header = req
                 .headers()
-                .get("Authorization")
+                .get(AUTHORIZATION)
                 .ok_or_else(|| TokenserverError {
                     description: "Unauthorized".to_owned(),
                     location: ErrorLocation::Body,
                     context: "No Authorization header".to_owned(),
                     ..Default::default()
-                })?
-                .to_str()
-                .map_err(|e| TokenserverError {
-                    description: "Unauthorized".to_owned(),
-                    location: ErrorLocation::Body,
-                    context: format!(
-                        "Authorization header contains invalid ASCII characters: {}",
-                        e
-                    ),
-                    ..Default::default()
                 })?;
-
-            if let Some((auth_type, token)) = authorization_header.split_once(' ') {
-                let auth_type = auth_type.to_ascii_lowercase();
-
-                if auth_type == "bearer" {
-                    Ok(Token::JWT(token.to_owned()))
-                } else {
-                    // The request must use a Bearer token
-                    Err(TokenserverError {
-                        description: "Unsupported".to_owned(),
-                        location: ErrorLocation::Body,
-                        context: "Invalid authorization scheme".to_owned(),
-                        ..Default::default()
-                    })
-                }
-            } else {
-                // Headers that are not of the format "[AUTH TYPE] [TOKEN]" are invalid
-                Err(TokenserverError {
-                    description: "Unauthorized".to_owned(),
-                    location: ErrorLocation::Body,
-                    context: "Invalid Authorization header format".to_owned(),
-                    ..Default::default()
-                })
-            }
+            Self::parse(header)
         })
     }
 }
@@ -430,7 +430,7 @@ impl FromRequest for AuthData {
 
         Box::pin(async move {
             let state = get_server_state(&req)?.as_ref();
-            let token = Token::extract(&req).await?;
+            let bearer = BearerToken::extract(&req).await?;
 
             let TokenserverMetrics(mut metrics) = TokenserverMetrics::extract(&req).await?;
             let mut log_items_mutator = LogItemsMutator::from(&req);
@@ -444,34 +444,33 @@ impl FromRequest for AuthData {
                 }
             }
 
-            match token {
-                Token::JWT(token) => {
-                    // Add a tag to the request extensions
-                    req.add_tag("token_type".to_owned(), "OAuth".to_owned());
-                    log_items_mutator.insert("token_type".to_owned(), "OAuth".to_owned());
+            // Add a tag to the request extensions
+            req.add_tag("token_type".to_owned(), "OAuth".to_owned());
+            log_items_mutator.insert("token_type".to_owned(), "OAuth".to_owned());
 
-                    // Start a timer with the same tag
-                    let mut tags = HashMap::default();
-                    tags.insert("token_type".to_owned(), "OAuth".to_owned());
-                    metrics.start_timer("token_verification", Some(tags));
-                    let verify_output = state.oauth_verifier.verify(token, &metrics).await?;
+            // Start a timer with the same tag
+            let mut tags = HashMap::default();
+            tags.insert("token_type".to_owned(), "OAuth".to_owned());
+            metrics.start_timer("token_verification", Some(tags));
+            let verify_output = state
+                .oauth_verifier
+                .verify(bearer.into_token(), &metrics)
+                .await?;
 
-                    // For requests using OAuth, the keys_changed_at and client state are embedded
-                    // in the X-KeyID header.
-                    let key_id = KeyId::extract(&req).await?;
-                    let fxa_uid = verify_output.fxa_uid;
-                    let email = format!("{}@{}", fxa_uid, state.fxa_email_domain);
+            // For requests using OAuth, the keys_changed_at and client state are embedded
+            // in the X-KeyID header.
+            let key_id = KeyId::extract(&req).await?;
+            let fxa_uid = verify_output.fxa_uid;
+            let email = format!("{}@{}", fxa_uid, state.fxa_email_domain);
 
-                    Ok(AuthData {
-                        client_id: verify_output.client_id,
-                        client_state: key_id.client_state,
-                        email,
-                        fxa_uid,
-                        generation: convert_zero_to_none(verify_output.generation),
-                        keys_changed_at: convert_zero_to_none(Some(key_id.keys_changed_at)),
-                    })
-                }
-            }
+            Ok(AuthData {
+                client_id: verify_output.client_id,
+                client_state: key_id.client_state,
+                email,
+                fxa_uid,
+                generation: convert_zero_to_none(verify_output.generation),
+                keys_changed_at: convert_zero_to_none(Some(key_id.keys_changed_at)),
+            })
         })
     }
 }
@@ -642,10 +641,10 @@ impl FromRequest for FxaWebhookToken {
 
         Box::pin(async move {
             let state = get_server_state(&req)?;
-            let Token::JWT(token) = Token::extract(&req).await?;
+            let bearer = BearerToken::extract(&req).await?.into_token();
 
             for verifier in &state.set_verifiers {
-                match verifier.verify::<FxaWebhookClaims>(&token) {
+                match verifier.verify::<FxaWebhookClaims>(&bearer) {
                     Ok(claims) => return Ok(FxaWebhookToken(claims)),
                     Err(JWTVerifyError::InvalidSignature) => continue,
                     Err(e) => {
@@ -661,6 +660,83 @@ impl FromRequest for FxaWebhookToken {
                 context: "SET signature invalid for all available keys".to_owned(),
                 ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
             })
+        })
+    }
+}
+
+/// An FxA-signed assertion authorizing deletion of one user's syncstorage
+/// data.
+///
+/// Note the trust direction matches the other two authenticated routes on this
+/// service — `Authorization: Bearer` carries a token FxA issued, verified
+/// against FxA's public JWKs — but the separation between the three is doing
+/// real work here, because this one authorizes an irreversible operation. See
+/// the verifier table in `tokenserver-auth`'s crypto module.
+///
+/// Carries the verified claims rather than being a bare marker, so a handler
+/// cannot act on a uid other than the authenticated `sub`.
+pub struct DeleteAssertion(pub FxaDeleteAssertionClaims);
+
+impl FromRequest for DeleteAssertion {
+    type Error = TokenserverError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        let req = req.clone();
+
+        Box::pin(async move {
+            let state = get_server_state(&req)?;
+            let token = BearerToken::extract(&req).await?.into_token();
+
+            let unauthorized = |context: &str| TokenserverError {
+                // Deliberately carries no uid: `context` reaches the
+                // structured request log.
+                context: context.to_owned(),
+                tags: Some(vec![("reason", "delete_assertion".to_owned())]),
+                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
+            };
+
+            let mut claims = None;
+            for verifier in &state.delete_assertion_verifiers {
+                match verifier.verify(&token) {
+                    Ok(verified) => {
+                        claims = Some(verified);
+                        break;
+                    }
+                    // Another configured key may be the right one.
+                    Err(JWTVerifyError::InvalidSignature) => continue,
+                    Err(e) => {
+                        return Err(unauthorized(&format!(
+                            "Delete assertion rejected: {}",
+                            e.metric_label()
+                        )));
+                    }
+                }
+            }
+            let claims = claims.ok_or_else(|| {
+                unauthorized("Delete assertion signature invalid for all available keys")
+            })?;
+
+            // Authenticate the subject, then confirm the request is about that
+            // subject. Byte-exact: `sub` is not a secret — it is already in the
+            // URL — so constant time is irrelevant, and case-insensitive
+            // matching would gratuitously widen what the assertion authorizes.
+            //
+            // The route matched, so `fxa_uid` is present.
+            let path_uid = req.match_info().get("fxa_uid").unwrap();
+            if claims.sub != path_uid {
+                return Err(unauthorized(
+                    "Delete assertion sub does not match the path fxa_uid",
+                ));
+            }
+
+            // Required by protocol and recorded for correlation, deliberately
+            // not stored.
+            if let Some(jti) = &claims.jti {
+                LogItemsMutator::from(&req).insert("jti".to_owned(), jti.clone());
+            }
+
+            Ok(DeleteAssertion(claims))
         })
     }
 }
@@ -687,7 +763,7 @@ fn get_secret(req: &HttpRequest) -> Result<String, TokenserverError> {
     })
 }
 
-fn fxa_metrics_hash(fxa_uid: &str, hmac_key: &[u8]) -> String {
+pub(crate) fn fxa_metrics_hash(fxa_uid: &str, hmac_key: &[u8]) -> String {
     let mut mac = Hmac::<Sha256>::new_from_slice(hmac_key).expect("HMAC has no key size limit");
     mac.update(fxa_uid.as_bytes());
 
@@ -695,7 +771,7 @@ fn fxa_metrics_hash(fxa_uid: &str, hmac_key: &[u8]) -> String {
     hex::encode(result)
 }
 
-fn hash_device_id(fxa_uid: &str, hmac_key: &[u8]) -> String {
+pub(crate) fn hash_device_id(fxa_uid: &str, hmac_key: &[u8]) -> String {
     let mut to_hash = String::from(fxa_uid);
     // TODO: This value originally was the deviceID from BrowserID.
     // When support was dropped for BrowserID, the device string
@@ -1401,6 +1477,9 @@ mod tests {
             set_verifiers: Vec::new(),
             fxa_webhook_enabled: false,
             fxa_webhook_metrics_only: false,
+            fxa_delete_data_enabled: false,
+            delete_assertion_verifiers: vec![],
+            storage_client: reqwest::Client::new(),
             allow_new_users: true,
             #[cfg(feature = "last_seen")]
             last_seen: None,
@@ -1427,6 +1506,9 @@ mod tests {
             set_verifiers,
             fxa_webhook_enabled: true,
             fxa_webhook_metrics_only: false,
+            fxa_delete_data_enabled: false,
+            delete_assertion_verifiers: vec![],
+            storage_client: reqwest::Client::new(),
             allow_new_users: true,
             #[cfg(feature = "last_seen")]
             last_seen: None,
