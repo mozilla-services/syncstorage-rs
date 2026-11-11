@@ -1,3 +1,25 @@
+<a name="0.25.0"></a>
+## 0.25.0 (2026-11-11)
+
+
+#### Bug Fixes
+
+* **build:**  set CMAKE_POLICY_VERSION_MINIMUM for CMake 4 (#2740) ([c9fd9573](https://github.com/mozilla-services/syncstorage-rs/commit/c9fd9573d021961604c53c7c714316fca0fb9900))
+* **deps:**  bump actix-web and actix-http for rustsec advisories (#2734) ([646958af](https://github.com/mozilla-services/syncstorage-rs/commit/646958afe0c436e8f4b405bc1791de019ec2eb3a))
+* **syncserver:**  reject extended offsets under the spanner backend (#2731) ([5b6e3b19](https://github.com/mozilla-services/syncstorage-rs/commit/5b6e3b192e393fe3853fcdf9815b83b98aeec885))
+* **syncstorage-mysql:**  update the sortindex of a re-appended batch BSO (#2730) ([44297e64](https://github.com/mozilla-services/syncstorage-rs/commit/44297e64655a6fdde7e371fe6046efd0eeafc2f9))
+* **tokenserver:**  return 503 when fxa sends a malformed response (#2733) ([1bb2aceb](https://github.com/mozilla-services/syncstorage-rs/commit/1bb2aceb5760f924c6c283863e093ccd66dbdc2f))
+
+#### Refactor
+
+*   cleanup bearer token extraction ([f4698543](https://github.com/mozilla-services/syncstorage-rs/commit/f4698543c62b1d5e52a6c184d6a6eb8df5019da6))
+
+#### Features
+
+*   add a new endpoint for deleting user data via fxa ([401a21b8](https://github.com/mozilla-services/syncstorage-rs/commit/401a21b89ca221cb9ee96bf027c74194f374d36e))
+
+
+
 <a name="0.24.1"></a>
 ## 0.24.1 (2026-11-04)
 
