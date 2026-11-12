@@ -11,7 +11,7 @@ async-trait.workspace = true
 chrono.workspace = true
 deadpool.workspace = true
 diesel.workspace = true
-diesel-async.workspace = true
+diesel-async = { workspace = true, features = ["mysql"] }
 diesel_migrations.workspace = true
 http.workspace = true
 slog-scope.workspace = true
