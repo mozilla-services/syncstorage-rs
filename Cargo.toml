@@ -38,7 +38,7 @@ docopt = "1.1"
 base64 = "0.23"
 
 diesel = "2.3"
-diesel-async = { version = "0.9", features = ["mysql", "deadpool", "migrations", "async-connection-wrapper"] }
+diesel-async = { version = "0.9", features = ["deadpool", "migrations", "async-connection-wrapper"] }
 diesel_migrations = "2.3"
 
 cadence = "1.8"
