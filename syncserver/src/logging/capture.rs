@@ -32,18 +32,25 @@ impl<'a> MakeWriter<'a> for Capture {
     }
 }
 
+/// A subscriber that writes events at `level` and above as `message key=value` lines.
+pub fn line_subscriber<W>(writer: W, level: Level) -> impl Subscriber + Send + Sync
+where
+    W: for<'w> MakeWriter<'w> + Send + Sync + 'static,
+{
+    tracing_subscriber::fmt()
+        .fmt_fields(HumanFields)
+        .without_time()
+        .with_level(false)
+        .with_target(false)
+        .with_ansi(false)
+        .with_max_level(level)
+        .with_writer(writer)
+        .finish()
+}
+
 impl Capture {
-    /// A subscriber that writes events at `level` and above as `message key=value` lines.
     pub fn subscriber(&self, level: Level) -> impl Subscriber + Send + Sync + use<> {
-        tracing_subscriber::fmt()
-            .fmt_fields(HumanFields)
-            .without_time()
-            .with_level(false)
-            .with_target(false)
-            .with_ansi(false)
-            .with_max_level(level)
-            .with_writer(self.clone())
-            .finish()
+        line_subscriber(self.clone(), level)
     }
 
     pub fn lines(&self) -> Vec<String> {

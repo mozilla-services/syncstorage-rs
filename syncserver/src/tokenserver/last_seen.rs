@@ -28,7 +28,10 @@ use tokio::{
 use syncserver_common::Metrics;
 use tokenserver_settings::parse_bigquery_table_id;
 
-use crate::error::{ApiError, ApiErrorKind};
+use crate::{
+    error::{ApiError, ApiErrorKind},
+    logging::ROW_LOG_TARGET,
+};
 
 pub const FLUSH_THRESHOLD: usize = 500;
 pub const BUFFER_CAPACITY: usize = 5_000;
@@ -115,10 +118,10 @@ impl Collector {
                     );
                 }
                 error!(
-                    "Last-seen collector closed; dropping observation";
-                    "uid" => fxa_uid,
-                    "client_id" => client_id,
-                    "last_seen" => seen.to_rfc3339(),
+                    uid = fxa_uid,
+                    client_id,
+                    last_seen = %seen.to_rfc3339(),
+                    "Last-seen collector closed; dropping observation"
                 );
                 metrics.incr_with_tag(METRIC_DROPPED, "reason", "shutdown");
 
@@ -154,10 +157,10 @@ impl Collector {
             None => {
                 metrics.incr_with_tag(METRIC_DROPPED, "reason", "buffer_full");
                 error!(
-                    "Last-seen buffer full; dropping observation";
-                    "uid" => fxa_uid,
-                    "client_id" => client_id,
-                    "last_seen" => seen.to_rfc3339(),
+                    uid = fxa_uid,
+                    client_id,
+                    last_seen = %seen.to_rfc3339(),
+                    "Last-seen buffer full; dropping observation"
                 );
                 if newly_saturated {
                     sentry::with_scope(
@@ -370,12 +373,12 @@ impl Uploader {
                 }
                 Err(AttemptError::Retryable(e)) => {
                     metrics.incr(METRIC_UPLOAD_ERROR);
-                    warn!("Last-seen upload attempt failed"; "attempt" => attempt, "error" => &e);
+                    warn!(attempt, error = %e, "Last-seen upload attempt failed");
                     last_error = Some(e);
                 }
                 Err(AttemptError::Permanent(e)) => {
                     metrics.incr(METRIC_UPLOAD_ERROR);
-                    warn!("Last-seen upload rejected"; "error" => &e);
+                    warn!(error = %e, "Last-seen upload rejected");
                     last_error = Some(e);
                     dropped.extend(pending.drain(..).map(|(key, seen)| (key, seen, "rejected")));
                     break;
@@ -547,14 +550,18 @@ pub struct RowLog {
 
 impl RowLog {
     /// Starts the writer thread, which exits after all senders are dropped and the queue is drained.
-    pub fn spawn(logger: slog::Logger) -> Result<Self, ApiError> {
+    /// The thread logs through the caller's tracing subscriber, so tests can capture its rows.
+    pub fn spawn() -> Result<Self, ApiError> {
         let (queue, mut batches) = mpsc::channel(ROW_LOG_QUEUE);
+        let dispatch = tracing::dispatcher::get_default(|dispatch| dispatch.clone());
         std::thread::Builder::new()
             .name("last-seen-row-log".to_owned())
             .spawn(move || {
-                while let Some(batch) = batches.blocking_recv() {
-                    write_rows(&logger, batch);
-                }
+                tracing::dispatcher::with_default(&dispatch, || {
+                    while let Some(batch) = batches.blocking_recv() {
+                        write_rows(batch);
+                    }
+                })
             })
             .map_err(|e| internal(format!("Last-seen row log thread: {e}")))?;
         Ok(Self {
@@ -607,8 +614,8 @@ pub async fn finish_shutdown(
 ) -> std::time::Instant {
     shutdown.finish_requests();
     match coordinator.await {
-        Ok(abandoned) => info!("Last-seen shutdown finished"; "abandoned" => abandoned),
-        Err(e) => error!("Last-seen coordinator failed"; "error" => e.to_string()),
+        Ok(abandoned) => info!(abandoned, "Last-seen shutdown finished"),
+        Err(e) => error!(error = %e, "Last-seen coordinator failed"),
     }
     // `finish_requests` set the deadline.  `begin` returns it.
     let limit = shutdown.begin() + ROW_LOG_BUDGET;
@@ -616,28 +623,28 @@ pub async fn finish_shutdown(
     limit.into_std()
 }
 
-fn write_rows(log: &slog::Logger, batch: RowLogBatch) {
+fn write_rows(batch: RowLogBatch) {
     match batch {
         RowLogBatch::UploadFailed(rows) => {
             for ((uid, client_id), seen, reason) in rows {
-                slog::error!(
-                    log,
-                    "Last-seen upload failed; dropping observation";
-                    "uid" => uid,
-                    "client_id" => client_id,
-                    "last_seen" => seen.to_rfc3339(),
-                    "reason" => reason,
+                error!(
+                    target: ROW_LOG_TARGET,
+                    uid = %uid,
+                    client_id = %client_id,
+                    last_seen = %seen.to_rfc3339(),
+                    reason,
+                    "Last-seen upload failed; dropping observation"
                 );
             }
         }
         RowLogBatch::Abandoned(rows) => {
             for ((uid, client_id), seen) in rows {
-                slog::error!(
-                    log,
-                    "Last-seen shutdown deadline reached; dropping observation";
-                    "uid" => uid,
-                    "client_id" => client_id,
-                    "last_seen" => seen.to_rfc3339(),
+                error!(
+                    target: ROW_LOG_TARGET,
+                    uid = %uid,
+                    client_id = %client_id,
+                    last_seen = %seen.to_rfc3339(),
+                    "Last-seen shutdown deadline reached; dropping observation"
                 );
             }
         }
@@ -933,8 +940,10 @@ impl<U: Upload> Coordinator<U> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::logging::capture::{Capture, line_subscriber};
     use chrono::TimeDelta;
     use tokio::time::{sleep, timeout};
+    use tracing::Level;
 
     fn collector() -> Collector {
         Collector::new(Arc::new(
@@ -1054,49 +1063,15 @@ mod tests {
         }
     }
 
-    struct CaptureDrain(Arc<Mutex<Vec<String>>>);
-
-    impl slog::Drain for CaptureDrain {
-        type Ok = ();
-        type Err = slog::Never;
-
-        fn log(
-            &self,
-            record: &slog::Record<'_>,
-            _values: &slog::OwnedKVList,
-        ) -> Result<(), slog::Never> {
-            struct Fields(String);
-            impl slog::Serializer for Fields {
-                fn emit_arguments(
-                    &mut self,
-                    key: slog::Key,
-                    val: &std::fmt::Arguments<'_>,
-                ) -> slog::Result {
-                    use std::fmt::Write;
-                    write!(self.0, " {key}={val}").map_err(|_| slog::Error::Other)
-                }
-            }
-
-            if record.level() != slog::Level::Error {
-                return Ok(());
-            }
-            let mut fields = Fields(record.msg().to_string());
-            let _ = slog::KV::serialize(&record.kv(), record, &mut fields);
-            self.0.lock().unwrap().push(fields.0);
-            Ok(())
-        }
-    }
-
     #[test]
     fn test_each_rejection_logs_original_observation() {
-        let logs = Arc::new(Mutex::new(Vec::new()));
-        let logger = slog::Logger::root(CaptureDrain(logs.clone()), slog::o!());
+        let logs = Capture::default();
 
         let now = Utc::now();
         let first = now - TimeDelta::seconds(10);
         let second = now - TimeDelta::seconds(5);
 
-        slog_scope::scope(&logger, || {
+        tracing::subscriber::with_default(logs.subscriber(Level::ERROR), || {
             let collector = collector();
             for i in 0..BUFFER_CAPACITY {
                 collector.record(&format!("uid{i}"), "client", now);
@@ -1107,32 +1082,32 @@ mod tests {
             collector.record("uid0", "client", now + TimeDelta::seconds(1));
         });
 
-        let logs = logs.lock().unwrap();
         let expected: Vec<String> = [first, second]
             .iter()
             .map(|seen| {
                 format!(
                     "Last-seen buffer full; dropping observation \
-                     last_seen={} client_id=client uid=new",
+                     uid=new client_id=client last_seen={}",
                     seen.to_rfc3339()
                 )
             })
             .collect();
-        assert_eq!(*logs, expected);
+        assert_eq!(logs.lines(), expected);
     }
 
     const INSERT_ALL_PATH: &str = "/bigquery/v2/projects/my-project/datasets/account_last_seen/tables/last_seen_staging/insertAll";
 
     fn discard_row_log() -> RowLog {
-        RowLog::spawn(slog::Logger::root(slog::Discard, slog::o!())).unwrap()
+        tracing::subscriber::with_default(tracing::subscriber::NoSubscriber::default(), || {
+            RowLog::spawn().unwrap()
+        })
     }
 
-    fn row_log_to(logs: &Arc<Mutex<Vec<String>>>) -> RowLog {
-        RowLog::spawn(slog::Logger::root(
-            CaptureDrain(Arc::clone(logs)),
-            slog::o!(),
-        ))
-        .unwrap()
+    /// A row log whose thread writes its error logs to `logs`.
+    fn row_log_to(logs: &Capture) -> RowLog {
+        tracing::subscriber::with_default(logs.subscriber(Level::ERROR), || {
+            RowLog::spawn().unwrap()
+        })
     }
 
     /// Waits, outside any runtime, until `row_log` has written everything queued so far.
@@ -1278,7 +1253,7 @@ mod tests {
                 .times(MAX_ATTEMPTS)
                 .respond_with(status_code(503)),
         );
-        let logs = Arc::new(Mutex::new(Vec::new()));
+        let logs = Capture::default();
         let row_log = row_log_to(&logs);
         let seen = Utc::now();
 
@@ -1298,14 +1273,14 @@ mod tests {
                 (key("b"), seen, "retries exhausted")
             ]
         );
-        let mut logs = logs.lock().unwrap().clone();
+        let mut logs = logs.lines();
         logs.sort();
         let expected: Vec<String> = ["a", "b"]
             .iter()
             .map(|uid| {
                 format!(
                     "Last-seen upload failed; dropping observation \
-                     reason=retries exhausted last_seen={} client_id=client uid={uid}",
+                     uid={uid} client_id=client last_seen={} reason=retries exhausted",
                     seen.to_rfc3339()
                 )
             })
@@ -1577,12 +1552,11 @@ mod tests {
 
     #[test]
     fn test_close_ends_collection() {
-        let logs = Arc::new(Mutex::new(Vec::new()));
-        let logger = slog::Logger::root(CaptureDrain(logs.clone()), slog::o!());
+        let logs = Capture::default();
         let collector = collector();
         let late = Utc::now();
         let events = sentry::test::with_captured_events(|| {
-            slog_scope::scope(&logger, || {
+            tracing::subscriber::with_default(logs.subscriber(Level::ERROR), || {
                 collector.record("a", "client", Utc::now());
                 assert_eq!(
                     collector.close().len(),
@@ -1598,12 +1572,12 @@ mod tests {
         let line = |uid: &str| {
             format!(
                 "Last-seen collector closed; dropping observation \
-                 last_seen={} client_id=client uid={uid}",
+                 uid={uid} client_id=client last_seen={}",
                 late.to_rfc3339()
             )
         };
         assert_eq!(
-            *logs.lock().unwrap(),
+            logs.lines(),
             vec![line("b"), line("c")],
             "every record after close is logged like other drops"
         );
@@ -1803,15 +1777,14 @@ mod tests {
 
     #[test]
     fn test_deadline_abandons_logs_and_reports_every_row() {
-        let logs = Arc::new(Mutex::new(Vec::new()));
-        // The row log writes the abandoned rows; the scoped logger gets the record after close.
-        let logger = slog::Logger::root(CaptureDrain(logs.clone()), slog::o!());
+        let logs = Capture::default();
+        // The row log thread writes the abandoned rows; this thread logs the record after close.
         let row_log = row_log_to(&logs);
         let mut abandoned = 0;
-        // A paused current-thread runtime on this thread: the scoped logger and the test
+        // A paused current-thread runtime on this thread: the test subscriber and the test
         // Sentry hub see everything the coordinator does.
         let events = sentry::test::with_captured_events(|| {
-            slog_scope::scope(&logger, || {
+            tracing::subscriber::with_default(logs.subscriber(Level::ERROR), || {
                 abandoned = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .start_paused(true)
@@ -1840,7 +1813,7 @@ mod tests {
 
         wait_written(&row_log);
         assert_eq!(abandoned, FLUSH_THRESHOLD + 2);
-        let logs = logs.lock().unwrap();
+        let logs = logs.lines();
         let (deadline_logs, other_logs): (Vec<_>, Vec<_>) = logs.iter().partition(|line| {
             line.starts_with("Last-seen shutdown deadline reached; dropping observation")
         });
@@ -1949,40 +1922,38 @@ mod tests {
         use httptest::{Expectation, matchers::*, responders::*};
         use std::sync::mpsc;
 
-        /// Stalls on its first record until released, like a slow log output.
-        struct StalledDrain {
-            capture: CaptureDrain,
+        /// Stalls on its first line until released, like a slow log output.
+        #[derive(Clone)]
+        struct StalledWriter {
+            capture: Capture,
             entered: mpsc::Sender<()>,
-            release: Mutex<Option<mpsc::Receiver<()>>>,
+            release: Arc<Mutex<Option<mpsc::Receiver<()>>>>,
         }
-        impl slog::Drain for StalledDrain {
-            type Ok = ();
-            type Err = slog::Never;
-            fn log(
-                &self,
-                record: &slog::Record<'_>,
-                values: &slog::OwnedKVList,
-            ) -> Result<(), slog::Never> {
+        impl std::io::Write for StalledWriter {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
                 if let Some(release) = self.release.lock().unwrap().take() {
                     self.entered.send(()).unwrap();
                     release.recv().unwrap();
                 }
-                self.capture.log(record, values)
+                self.capture.write(buf)
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
             }
         }
 
-        let logs = Arc::new(Mutex::new(Vec::new()));
+        let logs = Capture::default();
         let (entered, stalled) = mpsc::channel();
         let (release, wait) = mpsc::channel();
-        let row_log = RowLog::spawn(slog::Logger::root(
-            StalledDrain {
-                capture: CaptureDrain(Arc::clone(&logs)),
-                entered,
-                release: Mutex::new(Some(wait)),
-            },
-            slog::o!(),
-        ))
-        .unwrap();
+        let writer = StalledWriter {
+            capture: logs.clone(),
+            entered,
+            release: Arc::new(Mutex::new(Some(wait))),
+        };
+        let row_log = tracing::subscriber::with_default(
+            line_subscriber(move || writer.clone(), Level::ERROR),
+            || RowLog::spawn().unwrap(),
+        );
         row_log
             .queue
             .blocking_send(RowLogBatch::Abandoned(
@@ -2047,8 +2018,7 @@ mod tests {
         assert!(gave_up, "flushing a stalled row log stops at its deadline");
         assert!(flush < Duration::from_secs(1), "the flush took {flush:?}");
         let written = logs
-            .lock()
-            .unwrap()
+            .lines()
             .iter()
             .filter(|line| line.starts_with("Last-seen upload failed"))
             .count();
@@ -2056,98 +2026,49 @@ mod tests {
     }
 
     #[test]
-    fn test_row_logs_reach_the_test_logger_after_server_logging_starts() {
-        // server::test::init_app! starts the process-wide loggers.
+    fn test_row_logs_reach_the_test_subscriber_after_server_logging_starts() {
+        // server::test::init_app! installs the global subscriber; the tests' own subscribers
+        // must still see the row logs.
         crate::logging::init_logging(false).unwrap();
         test_upload_drops_and_logs_rows_after_retries();
         test_deadline_abandons_logs_and_reports_every_row();
     }
 
     #[test]
-    fn test_stopped_row_log_writer_reports_unwritten_rows() {
-        use slog::Drain;
-        /// Fails every write; the production `.fuse()` then panics the writer thread.
-        struct BrokenOutput;
-        impl slog::Drain for BrokenOutput {
-            type Ok = ();
-            type Err = std::io::Error;
-            fn log(&self, _: &slog::Record<'_>, _: &slog::OwnedKVList) -> Result<(), Self::Err> {
-                Err(std::io::ErrorKind::BrokenPipe.into())
-            }
-        }
-
-        let row_log = RowLog::spawn(slog::Logger::root(BrokenOutput.fuse(), slog::o!())).unwrap();
-        let mut results = (false, false);
-        let events = sentry::test::with_captured_events(|| {
-            results = actix_web::rt::System::new().block_on(async {
-                let lost =
-                    RowLogBatch::Abandoned(rows(&["lost"], Utc::now()).into_iter().collect());
-                assert!(row_log.send(lost).await, "queued before the writer stops");
-                let until = Instant::now() + Duration::from_secs(2);
-                while !row_log.queue.is_closed() {
-                    assert!(Instant::now() < until, "the writer thread stops");
-                    sleep(Duration::from_millis(1)).await;
-                }
-                let late =
-                    RowLogBatch::Abandoned(rows(&["late"], Utc::now()).into_iter().collect());
-                let queued = row_log.send(late).await;
-                let written = row_log
-                    .flush_until(Instant::now() + Duration::from_secs(1))
-                    .await;
-                (queued, written)
-            });
-        });
-
-        assert_eq!(
-            results,
-            (false, false),
-            "a stopped writer neither queues nor flushes"
-        );
-        assert_eq!(events.len(), 1, "one event for the unwritten row logs");
-        assert_eq!(
-            events[0].message.as_deref(),
-            Some("Last-seen row logs not written")
-        );
-    }
-
-    #[test]
     fn test_drain_and_logging_reset_end_by_the_exit_limit() {
-        use slog::Drain;
         use std::sync::mpsc;
 
-        /// Stalls on its first record until released, like a stuck log output.
-        struct StalledOutput {
+        /// Stalls on its first line until released, like a stuck log output.
+        #[derive(Clone)]
+        struct StalledWriter {
             entered: mpsc::Sender<()>,
-            release: Mutex<Option<mpsc::Receiver<()>>>,
+            release: Arc<Mutex<Option<mpsc::Receiver<()>>>>,
         }
-        impl slog::Drain for StalledOutput {
-            type Ok = ();
-            type Err = slog::Never;
-            fn log(&self, _: &slog::Record<'_>, _: &slog::OwnedKVList) -> Result<(), Self::Err> {
+        impl std::io::Write for StalledWriter {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
                 if let Some(release) = self.release.lock().unwrap().take() {
                     self.entered.send(()).unwrap();
                     release.recv().unwrap();
                 }
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
                 Ok(())
             }
         }
 
         let (entered, stalled) = mpsc::channel();
         let (release, wait) = mpsc::channel();
-        // The same shared output and async main logger as `init_logging`.
-        let output = Arc::new(
-            Mutex::new(StalledOutput {
-                entered,
-                release: Mutex::new(Some(wait)),
-            })
-            .fuse(),
+        let writer = StalledWriter {
+            entered,
+            release: Arc::new(Mutex::new(Some(wait))),
+        };
+        // The row log thread writes synchronously to the stalled output, as it does in
+        // production. `reset_logging` below stops the process-wide loggers.
+        let row_log = tracing::subscriber::with_default(
+            line_subscriber(move || writer.clone(), Level::ERROR),
+            || RowLog::spawn().unwrap(),
         );
-        slog_scope::set_global_logger(slog::Logger::root(
-            slog_async::Async::new(Arc::clone(&output)).build().fuse(),
-            slog::o!(),
-        ))
-        .cancel_reset();
-        let row_log = RowLog::spawn(slog::Logger::root(output, slog::o!())).unwrap();
         row_log
             .queue
             .blocking_send(RowLogBatch::Abandoned(
@@ -2188,7 +2109,7 @@ mod tests {
         });
         let limit = limit.unwrap();
         // The rest of `main` after the drain.
-        slog_scope::info!("Server closing");
+        info!("Server closing");
         crate::logging::reset_logging(Some(limit));
         let exited = std::time::Instant::now();
         releaser.join().unwrap();

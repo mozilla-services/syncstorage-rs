@@ -657,7 +657,6 @@ fn start_last_seen(
     settings: &tokenserver_settings::Settings,
     state: &mut tokenserver::ServerState,
 ) -> Result<Option<LastSeenDrain>, ApiError> {
-    use crate::logging::row_logger;
     use tokenserver::last_seen::{
         Collector, Coordinator, RowLog, Shutdown, Uploader, finish_shutdown,
     };
@@ -673,7 +672,7 @@ fn start_last_seen(
         .unwrap_or_default();
     let metrics = Arc::clone(&state.metrics);
     let collector = Arc::new(Collector::new(Arc::clone(&metrics)));
-    let row_log = RowLog::spawn(row_logger()?)?;
+    let row_log = RowLog::spawn()?;
     let uploader = Arc::new(Uploader::new(
         staging_table,
         row_log.clone(),

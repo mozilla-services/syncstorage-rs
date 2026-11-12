@@ -115,7 +115,11 @@ impl TokenserverRequest {
             .contains(&self.auth_data.client_state)
         {
             let error_message = "Unacceptable client-state value stale value".to_owned();
-            warn!("Client attempted stale value"; "uid"=> self.user.uid, "client_state"=> self.user.client_state.clone());
+            warn!(
+                uid = self.user.uid,
+                client_state = %self.user.client_state,
+                "Client attempted stale value"
+            );
             return Err(TokenserverError::invalid_client_state(
                 error_message,
                 Some(vec![("is_stale", "true".to_owned())]),
