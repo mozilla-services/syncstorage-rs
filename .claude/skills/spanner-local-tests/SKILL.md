@@ -41,8 +41,8 @@ That script brings up the emulator, provisions the database/schema, and runs the
 ### 1. Prerequisites
 
 - **Docker Desktop running.** The emulator runs as a container.
-- **Rust toolchain** matching `rust-toolchain.toml` (or close).
-- For e2e only: enough Docker memory (≥ 8 GB recommended) — the `app:build` image compiles grpcio-sys from source and OOMs on small allocations.
+- **Rust toolchain** matching `rust-version` in the root `Cargo.toml` (or close).
+- For e2e only: enough Docker memory (>= 8 GB recommended) — the `app:build` image compiles grpcio-sys from source and OOMs on small allocations.
 
 ### 2. Start the emulator
 
@@ -75,7 +75,7 @@ curl -fsS -X POST "http://localhost:9020/v1/projects/test-project/instances/test
 
 ### 4. Apply the schema
 
-⚠️ **Do not run `scripts/prepare-spanner.sh` directly on macOS.** Its `sed` invocation uses GNU `\+` syntax that BSD `sed` doesn't accept. The script is designed to run inside the Linux container (where GNU sed lives). When you run it from a macOS host, the DDL parsing silently returns an empty array, the database gets created with no tables, and tests fail with cryptic *"Table not found: collections"* errors.
+Warning: **Do not run `scripts/prepare-spanner.sh` directly on macOS.** Its `sed` invocation uses GNU `\+` syntax that BSD `sed` doesn't accept. The script is designed to run inside the Linux container (where GNU sed lives). When you run it from a macOS host, the DDL parsing silently returns an empty array, the database gets created with no tables, and tests fail with cryptic *"Table not found: collections"* errors.
 
 Use this macOS-safe inline equivalent:
 
@@ -115,7 +115,7 @@ Two non-obvious env vars:
 - `SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST` — the gRPC endpoint. **This is what tells the client to skip OAuth.** If you leave it unset, every test fails with *"Error occurred when fetching oauth2 token"* because the client tries to authenticate against the real Google API.
 - `RUST_TEST_THREADS=1` — required. Many tests share the same database and assert on counts/timestamps; parallel runs race.
 
-Expected output: `test result: ok. 39 passed; 0 failed; …`.
+Expected output: `test result: ok. 39 passed; 0 failed; ...`.
 
 ### 6. Run a single test
 
@@ -149,7 +149,7 @@ That only stops + removes the `sync-db` container. The emulator keeps no data in
 |---|---|---|
 | `Error occurred when fetching oauth2 token` | Forgot `SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST`. Client is trying real Google OAuth. | Export the var. |
 | `Table not found: collections [at 2:25]` | DDL didn't apply. Most often because `prepare-spanner.sh` was run on macOS and produced an empty statement list. | Use the inline DDL block in step 4. |
-| `INVALID_ARGUMENT: …` on `INSERT OR UPDATE` | Emulator version too old (< 1.5.x). | Update `docker/docker-compose.spanner.yaml`'s image tag. |
+| `INVALID_ARGUMENT: ...` on `INSERT OR UPDATE` | Emulator version too old (< 1.5.x). | Update `docker/docker-compose.spanner.yaml`'s image tag. |
 | 39 tests "pass" in 0.2s | Tests didn't actually connect — they're failing the OAuth check and treating it as a fresh start. Check the first test's error. | Same as the OAuth row above. |
 | Tests intermittently fail with timestamp/count mismatches | `RUST_TEST_THREADS=1` not set. | Set it. |
 | `cargo test` error: *the package 'syncstorage-db' does not contain this feature: py_verifier* | `py_verifier` is on the `syncserver` crate. | Drop `--features=py_verifier` when running tests on `syncstorage-db` alone. |
@@ -178,9 +178,9 @@ Both hit **real FxA stage** (`api-accounts.stage.mozaws.net`, `oauth.stage.mozaw
 
 Notes:
 
-- The image build compiles grpcio-sys from C++ source. On Docker Desktop for Mac, allocate **≥ 8 GB** memory.
+- The image build compiles grpcio-sys from C++ source. On Docker Desktop for Mac, allocate **>= 8 GB** memory.
 - The build takes 10-20 minutes from cold. Subsequent rebuilds reuse cache layers and are much faster *unless* `Cargo.lock` or the Rust toolchain changed.
-- Results land in `workspace/test-results/` as JUnit XML.
+- Results land in `workflow/test-results/` as JUnit XML (`TEST_RESULTS_DIR` in the Makefile).
 - The make target tears the stack down on completion.
 
 ### `ar: unable to copy file 'libgrpc.a'; reason: Success`
@@ -189,7 +189,7 @@ Misleading message — the linker wasn't killed, the BuildKit cache mount got in
 
 Fix:
 
-> ⚠️ `docker builder prune -f` clears BuildKit cache mounts for **every** Docker project on the host, not just this repo. Unrelated projects' next builds will go from cached to cold. Run it only when the link error reproduces and you've ruled out a real OOM.
+> Warning: `docker builder prune -f` clears BuildKit cache mounts for **every** Docker project on the host, not just this repo. Unrelated projects' next builds will go from cached to cold. Run it only when the link error reproduces and you've ruled out a real OOM.
 
 ```bash
 docker builder prune -f
