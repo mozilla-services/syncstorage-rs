@@ -44,7 +44,7 @@ pub fn init_logging(json: bool) -> ApiResult<()> {
             .into_string()
             .expect("Couldn't get hostname");
 
-        let drain = MozLogJson::new(io::stdout())
+        let drain = MozLogJson::new(WholeLines::new(io::stdout()))
             .logger_name(format!(
                 "{}-{}",
                 env!("CARGO_PKG_NAME"),
@@ -81,6 +81,44 @@ pub fn init_logging(json: bool) -> ApiResult<()> {
     slog_scope::set_global_logger(logger).cancel_reset();
     slog_stdlog::init().ok();
     Ok(())
+}
+
+/// Writes each complete line to `inner` in one `write_all`, so lines from another writer on the
+/// same stream (`io::Stdout` locks per call) never land in the middle of one. MozLogJson writes a
+/// record and its newline in two calls.
+struct WholeLines<W: io::Write> {
+    inner: W,
+    buf: Vec<u8>,
+}
+
+impl<W: io::Write> WholeLines<W> {
+    fn new(inner: W) -> Self {
+        Self {
+            inner,
+            buf: Vec::new(),
+        }
+    }
+}
+
+impl<W: io::Write> io::Write for WholeLines<W> {
+    fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+        self.buf.extend_from_slice(data);
+        if self.buf.ends_with(b"\n") {
+            let written = self.inner.write_all(&self.buf);
+            self.buf.clear();
+            written?;
+        }
+        Ok(data.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        if !self.buf.is_empty() {
+            let written = self.inner.write_all(&self.buf);
+            self.buf.clear();
+            written?;
+        }
+        self.inner.flush()
+    }
 }
 
 /// Returns the per-row logger, or an error if `init_logging` has not been called.
@@ -170,6 +208,61 @@ mod tests {
             drop(release);
         });
         logger
+    }
+
+    /// Records each call to `write`.
+    #[derive(Default)]
+    struct Calls(Vec<Vec<u8>>);
+
+    impl io::Write for Calls {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.0.push(buf.to_vec());
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_whole_lines_writes_each_record_at_once() {
+        use std::io::Write;
+
+        let mut out = WholeLines::new(Calls::default());
+        out.write_all(br#"{"a":1}"#).unwrap();
+        assert!(
+            out.inner.0.is_empty(),
+            "a partial line waits for its newline"
+        );
+        out.write_all(b"\n").unwrap();
+        out.write_all(br#"{"b":2}"#).unwrap();
+        out.write_all(b"\n").unwrap();
+        assert_eq!(
+            out.inner.0,
+            [b"{\"a\":1}\n".to_vec(), b"{\"b\":2}\n".to_vec()]
+        );
+    }
+
+    #[test]
+    fn test_whole_lines_returns_write_errors() {
+        use std::io::Write;
+
+        struct Broken;
+        impl io::Write for Broken {
+            fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+                Err(io::ErrorKind::BrokenPipe.into())
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let mut out = WholeLines::new(Broken);
+        out.write_all(b"record").unwrap();
+        let err = out.write_all(b"\n").unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
+        assert!(out.buf.is_empty(), "a failed line is not written again");
     }
 
     #[test]
