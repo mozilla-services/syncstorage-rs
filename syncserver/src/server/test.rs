@@ -114,6 +114,17 @@ async fn invalid_dsn_for_spanner_feature() {
     check_database_url(&settings);
 }
 
+#[cfg(feature = "postgres")]
+#[actix_rt::test]
+async fn postgres_feature_builds_postgres_tokenserver_pool() {
+    let settings = tokenserver_settings::Settings {
+        database_url: "postgres://sync:test@localhost/tokenserver".to_owned(),
+        ..Default::default()
+    };
+    tokenserver_db::pool_from_settings(&settings, &syncserver_common::Metrics::noop(), false)
+        .expect("postgres build must include the postgres tokenserver backend");
+}
+
 async fn get_test_state(settings: &Settings) -> ServerState {
     let metrics = Arc::new(Metrics::sink());
     let blocking_threadpool = Arc::new(BlockingThreadpool::new(
