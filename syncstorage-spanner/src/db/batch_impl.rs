@@ -312,7 +312,11 @@ pub async fn do_append(
             if db.quota.enforced {
                 return Err(db.quota_error(collection));
             } else {
-                warn!("Quota at limit for user ({} bytes)", projected_total; "collection"=>collection);
+                warn!(
+                    collection = %collection,
+                    "Quota at limit for user ({} bytes)",
+                    projected_total
+                );
             }
         }
     }

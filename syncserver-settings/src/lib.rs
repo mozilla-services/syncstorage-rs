@@ -1,5 +1,5 @@
 #[macro_use]
-extern crate slog_scope;
+extern crate tracing;
 
 use config::{Config, ConfigError, Environment, File};
 use regex::Regex;

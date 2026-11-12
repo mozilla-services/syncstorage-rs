@@ -12,7 +12,7 @@ deadpool.workspace = true
 diesel.workspace = true
 diesel-async = { workspace = true, features = ["mysql"] }
 diesel_migrations.workspace = true
-slog-scope.workspace = true
+tracing.workspace = true
 
 tokio = { workspace = true, features = ["macros", "sync"] }
 url = "2.5"

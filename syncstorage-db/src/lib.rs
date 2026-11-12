@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 #[macro_use]
-extern crate slog_scope;
+extern crate tracing;
 
 pub mod mock;
 #[cfg(test)]

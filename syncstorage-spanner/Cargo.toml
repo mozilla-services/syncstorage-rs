@@ -13,7 +13,7 @@ chrono.workspace = true
 deadpool.workspace = true
 futures.workspace = true
 http.workspace = true
-slog-scope.workspace = true
+tracing.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 
@@ -32,4 +32,3 @@ tokio = { workspace = true, features = [
   "macros",
   "sync",
 ] }
-

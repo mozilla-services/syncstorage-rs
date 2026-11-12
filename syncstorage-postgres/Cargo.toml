@@ -14,7 +14,7 @@ diesel = { workspace = true, features = ["chrono", "postgres", "uuid"] }
 diesel-async = { workspace = true, features = ["postgres"] }
 diesel_migrations.workspace = true
 futures.workspace = true
-slog-scope.workspace = true
+tracing.workspace = true
 uuid.workspace = true
 
 syncserver-common = { path = "../syncserver-common" }
