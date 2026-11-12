@@ -1,10 +1,18 @@
-use syncserver::logging::init_logging;
+//! Runs in its own process, so no tracing subscriber is installed until the test does it.
+#![cfg(feature = "last_seen")]
 
-/// Tests call `init_logging` repeatedly: only the first call installs the global subscriber, and
-/// later calls still succeed.
+use syncserver::{
+    logging::{init_logging, row_write_failures},
+    tokenserver::last_seen::RowLog,
+};
+
 #[test]
-fn init_logging_can_run_more_than_once() {
+fn row_log_requires_init_logging() {
+    let err = RowLog::spawn(row_write_failures(), None)
+        .err()
+        .expect("an error");
+    assert_eq!(err.to_string(), "Row logger requires init_logging");
+
     init_logging(false).unwrap();
-    init_logging(true).unwrap();
-    tracing::error!("logged after init_logging");
+    assert!(RowLog::spawn(row_write_failures(), None).is_ok());
 }

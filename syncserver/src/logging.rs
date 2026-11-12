@@ -24,8 +24,14 @@ use tracing_subscriber::{
 #[cfg(test)]
 pub(crate) mod capture;
 mod mozlog;
+#[cfg(any(feature = "last_seen", test))]
+mod rows;
 
 use mozlog::{HumanFields, MozLogFormatter};
+#[cfg(test)]
+pub(crate) use rows::row_layer;
+#[cfg(any(feature = "last_seen", test))]
+pub use rows::row_write_failures;
 
 /// The target of last-seen upload failures and shutdown drops, which the dedicated row-log
 /// thread writes.
@@ -145,16 +151,21 @@ pub fn dropped_lines() -> u64 {
 fn init_tracing(json: bool) {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
-        let (output, writer) = if json {
-            let (writer, guard) = non_blocking(io::stdout());
-            let dropped = writer.error_counter();
-            (
-                json_layer(hostname(), writer).boxed(),
-                Some((guard, dropped)),
-            )
-        } else {
-            journal_or_stderr()
+        let hostname = json.then(hostname);
+        let (output, writer) = match &hostname {
+            Some(hostname) => {
+                let (writer, guard) = non_blocking(io::stdout());
+                let dropped = writer.error_counter();
+                (
+                    json_layer(hostname.clone(), writer).boxed(),
+                    Some((guard, dropped)),
+                )
+            }
+            None => journal_or_stderr(),
         };
+        // Only journald has no writer thread.
+        #[cfg(any(feature = "last_seen", test))]
+        let output = rows::with_row_layer(output, hostname, writer.is_none());
         let subscriber = tracing_subscriber::registry()
             .with(env_filter())
             .with(output);

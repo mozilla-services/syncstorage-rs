@@ -535,8 +535,9 @@ fn internal(message: String) -> ApiError {
 enum RowLogBatch {
     UploadFailed(Vec<Dropped>),
     Abandoned(Vec<(Key, DateTime<Utc>)>),
-    /// Acknowledged after all earlier batches have been written.
-    Flush(oneshot::Sender<()>),
+    /// Acknowledged after all earlier batches have been written, with `false` if a row write
+    /// failed since the last flush.
+    Flush(oneshot::Sender<bool>),
 }
 
 /// Writes per-row error logs on a dedicated thread. Senders wait asynchronously for queue
@@ -550,23 +551,49 @@ pub struct RowLog {
 
 impl RowLog {
     /// Starts the writer thread, which exits after all senders are dropped and the queue is drained.
-    /// The thread logs through the caller's tracing subscriber, so tests can capture its rows.
-    pub fn spawn() -> Result<Self, ApiError> {
+    /// The thread logs through `dispatch` (tests pass one to capture the rows), or the global
+    /// subscriber when it is `None`: setting a scoped dispatcher anywhere turns off tracing's
+    /// global-only fast path for the whole process. It reports to the caller's Sentry hub. When
+    /// the row layer sets `write_failed`, the rows are reported unwritten once, like a stopped
+    /// writer.
+    pub fn spawn(
+        write_failed: Arc<AtomicBool>,
+        dispatch: Option<tracing::Dispatch>,
+    ) -> Result<Self, ApiError> {
+        // Without a subscriber the rows would be lost silently.
+        if dispatch.is_none() && !tracing::dispatcher::has_been_set() {
+            return Err(ApiError::internal("Row logger requires init_logging"));
+        }
         let (queue, mut batches) = mpsc::channel(ROW_LOG_QUEUE);
-        let dispatch = tracing::dispatcher::get_default(|dispatch| dispatch.clone());
+        let hub = sentry::Hub::current();
+        let unwritten_reported = Arc::<AtomicBool>::default();
+        let reported = Arc::clone(&unwritten_reported);
         std::thread::Builder::new()
             .name("last-seen-row-log".to_owned())
             .spawn(move || {
-                tracing::dispatcher::with_default(&dispatch, || {
-                    while let Some(batch) = batches.blocking_recv() {
-                        write_rows(batch);
+                sentry::Hub::run(hub, || {
+                    let mut write_batches = || {
+                        let mut failed = false;
+                        while let Some(batch) = batches.blocking_recv() {
+                            write_rows(batch, &mut failed);
+                            if write_failed.swap(false, Ordering::Relaxed) {
+                                failed = true;
+                                report_unwritten(&reported);
+                            }
+                        }
+                    };
+                    match dispatch {
+                        Some(dispatch) => {
+                            tracing::dispatcher::with_default(&dispatch, write_batches)
+                        }
+                        None => write_batches(),
                     }
                 })
             })
             .map_err(|e| internal(format!("Last-seen row log thread: {e}")))?;
         Ok(Self {
             queue,
-            unwritten_reported: Arc::default(),
+            unwritten_reported,
         })
     }
 
@@ -575,32 +602,33 @@ impl RowLog {
     async fn send(&self, batch: RowLogBatch) -> bool {
         let queued = self.queue.send(batch).await.is_ok();
         if !queued {
-            self.report_unwritten();
+            report_unwritten(&self.unwritten_reported);
         }
         queued
     }
 
     /// Waits until every batch queued so far is written, or until `deadline`. Returns `false`
-    /// and reports unwritten logs if the deadline passes or the writer stops.
+    /// and reports unwritten logs if the deadline passes, the writer stops, or a row write failed
+    /// since the last flush.
     pub async fn flush_until(&self, deadline: Instant) -> bool {
         let written = timeout_at(deadline, async {
             let (done, flushed) = oneshot::channel();
             // A stopped writer drops `done` with the queue, so `flushed` fails.
-            self.send(RowLogBatch::Flush(done)).await && flushed.await.is_ok()
+            self.send(RowLogBatch::Flush(done)).await && flushed.await.unwrap_or(false)
         })
         .await
         .unwrap_or(false);
         if !written {
-            self.report_unwritten();
+            report_unwritten(&self.unwritten_reported);
         }
         written
     }
+}
 
-    /// Reports unwritten row logs to Sentry once.
-    fn report_unwritten(&self) {
-        if !self.unwritten_reported.swap(true, Ordering::Relaxed) {
-            sentry::capture_message("Last-seen row logs not written", sentry::Level::Error);
-        }
+/// Reports unwritten row logs to Sentry once per `RowLog`.
+fn report_unwritten(reported: &AtomicBool) {
+    if !reported.swap(true, Ordering::Relaxed) {
+        sentry::capture_message("Last-seen row logs not written", sentry::Level::Error);
     }
 }
 
@@ -623,7 +651,8 @@ pub async fn finish_shutdown(
     limit.into_std()
 }
 
-fn write_rows(batch: RowLogBatch) {
+/// Writes `batch`. `failed` is set when a row write failed; a flush reports and clears it.
+fn write_rows(batch: RowLogBatch, failed: &mut bool) {
     match batch {
         RowLogBatch::UploadFailed(rows) => {
             for ((uid, client_id), seen, reason) in rows {
@@ -649,7 +678,7 @@ fn write_rows(batch: RowLogBatch) {
             }
         }
         RowLogBatch::Flush(done) => {
-            let _ = done.send(());
+            let _ = done.send(!std::mem::take(failed));
         }
     }
 }
@@ -1097,27 +1126,32 @@ mod tests {
 
     const INSERT_ALL_PATH: &str = "/bigquery/v2/projects/my-project/datasets/account_last_seen/tables/last_seen_staging/insertAll";
 
+    /// A row log whose thread logs through `subscriber`.
+    fn row_log_with(subscriber: impl tracing::Subscriber + Send + Sync + 'static) -> RowLog {
+        RowLog::spawn(Arc::default(), Some(tracing::Dispatch::new(subscriber))).unwrap()
+    }
+
     fn discard_row_log() -> RowLog {
-        tracing::subscriber::with_default(tracing::subscriber::NoSubscriber::default(), || {
-            RowLog::spawn().unwrap()
-        })
+        row_log_with(tracing_subscriber::registry())
     }
 
     /// A row log whose thread writes its error logs to `logs`.
     fn row_log_to(logs: &Capture) -> RowLog {
-        tracing::subscriber::with_default(logs.subscriber(Level::ERROR), || {
-            RowLog::spawn().unwrap()
-        })
+        row_log_with(logs.subscriber(Level::ERROR))
+    }
+
+    /// Flushes `row_log` outside any runtime, returning whether everything queued was written.
+    fn flush(row_log: &RowLog) -> bool {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(row_log.flush_until(Instant::now() + Duration::from_secs(5)))
     }
 
     /// Waits, outside any runtime, until `row_log` has written everything queued so far.
     fn wait_written(row_log: &RowLog) {
-        let written = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(row_log.flush_until(Instant::now() + Duration::from_secs(5)));
-        assert!(written, "the row logs are written");
+        assert!(flush(row_log), "the row logs are written");
     }
 
     fn uploader(server: &httptest::Server) -> Uploader {
@@ -1950,10 +1984,7 @@ mod tests {
             entered,
             release: Arc::new(Mutex::new(Some(wait))),
         };
-        let row_log = tracing::subscriber::with_default(
-            line_subscriber(move || writer.clone(), Level::ERROR),
-            || RowLog::spawn().unwrap(),
-        );
+        let row_log = row_log_with(line_subscriber(move || writer.clone(), Level::ERROR));
         row_log
             .queue
             .blocking_send(RowLogBatch::Abandoned(
@@ -2035,6 +2066,44 @@ mod tests {
     }
 
     #[test]
+    fn test_failed_row_log_write_reports_unwritten_rows() {
+        use tracing_subscriber::layer::SubscriberExt;
+
+        /// Fails every write, like a closed stdout.
+        struct Broken;
+        impl std::io::Write for Broken {
+            fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::ErrorKind::BrokenPipe.into())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let (layer, failed) = crate::logging::row_layer(None, || Broken);
+        let subscriber = tracing_subscriber::registry().with(layer);
+        let events = sentry::test::with_captured_events(|| {
+            let row_log = RowLog::spawn(failed, Some(tracing::Dispatch::new(subscriber))).unwrap();
+            for uid in ["lost", "also lost"] {
+                row_log
+                    .queue
+                    .blocking_send(RowLogBatch::Abandoned(
+                        rows(&[uid], Utc::now()).into_iter().collect(),
+                    ))
+                    .unwrap();
+            }
+            // The writer keeps running after a failed write, and the flush reports it.
+            assert!(!flush(&row_log), "a failed row write fails the flush");
+        });
+
+        assert_eq!(events.len(), 1, "one event for the unwritten row logs");
+        assert_eq!(
+            events[0].message.as_deref(),
+            Some("Last-seen row logs not written")
+        );
+    }
+
+    #[test]
     fn test_drain_and_logging_reset_end_by_the_exit_limit() {
         use std::sync::mpsc;
 
@@ -2065,10 +2134,7 @@ mod tests {
         };
         // The row log thread writes synchronously to the stalled output, as it does in
         // production. `reset_logging` below stops the process-wide loggers.
-        let row_log = tracing::subscriber::with_default(
-            line_subscriber(move || writer.clone(), Level::ERROR),
-            || RowLog::spawn().unwrap(),
-        );
+        let row_log = row_log_with(line_subscriber(move || writer.clone(), Level::ERROR));
         row_log
             .queue
             .blocking_send(RowLogBatch::Abandoned(
