@@ -4728,8 +4728,7 @@ dependencies = [
  "sentry-backtrace",
  "serde_json",
  "sha2 0.11.1",
- "slog",
- "slog-scope",
+ "tracing",
 ]
 
 [[package]]

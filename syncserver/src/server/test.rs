@@ -1346,42 +1346,21 @@ async fn lbheartbeat_ttl_check() {
 
 #[actix_rt::test]
 async fn error_endpoint_logging_check() {
-    use slog::Drain as _;
-    use std::io::Write;
-    use std::sync::{Arc, Mutex};
-
     temp_env::async_with_vars(
         [("SENTRY_DSN", None::<&str>), ("RUST_BACKTRACE", Some("1"))],
         async {
             let app = init_app!().await;
 
-            struct CaptureDrain(Arc<Mutex<Vec<u8>>>);
-            impl slog::Drain for CaptureDrain {
-                type Ok = ();
-                type Err = std::io::Error;
-
-                fn log(
-                    &self,
-                    record: &slog::Record<'_>,
-                    _values: &slog::OwnedKVList,
-                ) -> Result<Self::Ok, Self::Err> {
-                    let mut buf = self.0.lock().unwrap();
-                    writeln!(buf, "{}", record.msg())?;
-                    Ok(())
-                }
-            }
-
-            let buffer = Arc::new(Mutex::new(Vec::new()));
-            let drain = CaptureDrain(buffer.clone()).fuse();
-            let logger = slog::Logger::root(drain, slog::o!());
-            let _guard = slog_scope::set_global_logger(logger);
+            let capture = crate::logging::capture::Capture::default();
+            let _guard =
+                tracing::subscriber::set_default(capture.subscriber(tracing::Level::ERROR));
 
             let req = test::TestRequest::get().uri("/__error__").to_request();
             let resp = test::call_service(&app, req).await;
 
             assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
 
-            let log_msg = String::from_utf8(buffer.lock().unwrap().clone()).unwrap();
+            let log_msg = capture.lines().join("\n");
 
             assert!(
                 log_msg.contains("Oh Noes!"),

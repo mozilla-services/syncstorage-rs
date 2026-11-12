@@ -365,18 +365,26 @@ fn log_event<E>(
         String::new()
     };
 
+    let url = event
+        .request
+        .as_ref()
+        .and_then(|r| r.url.as_ref())
+        .map(|u| u.to_string())
+        .unwrap_or_default();
+    let method = event
+        .request
+        .as_ref()
+        .and_then(|r| r.method.as_deref())
+        .unwrap_or("");
     error!(
-        "{}{}", error_value, backtrace;
-        "error_type" => error_type,
-        "tags" => ?event.tags,
-        "extra" => ?event.extra,
-        "url" => event.request.as_ref()
-            .and_then(|r| r.url.as_ref())
-            .map(|u| u.to_string())
-            .unwrap_or_default(),
-        "method" => event.request.as_ref()
-            .and_then(|r| r.method.as_deref())
-            .unwrap_or(""),
+        error_type,
+        tags = ?event.tags,
+        extra = ?event.extra,
+        url = %url,
+        method = %method,
+        "{}{}",
+        error_value,
+        backtrace
     );
 }
 

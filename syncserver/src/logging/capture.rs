@@ -5,7 +5,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use tracing::{Level, Subscriber};
 use tracing_subscriber::fmt::MakeWriter;
+
+use super::mozlog::HumanFields;
 
 #[derive(Clone, Default)]
 pub struct Capture(Arc<Mutex<Vec<u8>>>);
@@ -30,6 +33,19 @@ impl<'a> MakeWriter<'a> for Capture {
 }
 
 impl Capture {
+    /// A subscriber that writes events at `level` and above as `message key=value` lines.
+    pub fn subscriber(&self, level: Level) -> impl Subscriber + Send + Sync + use<> {
+        tracing_subscriber::fmt()
+            .fmt_fields(HumanFields)
+            .without_time()
+            .with_level(false)
+            .with_target(false)
+            .with_ansi(false)
+            .with_max_level(level)
+            .with_writer(self.clone())
+            .finish()
+    }
+
     pub fn lines(&self) -> Vec<String> {
         String::from_utf8(self.0.lock().unwrap().clone())
             .unwrap()
