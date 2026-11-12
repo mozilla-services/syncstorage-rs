@@ -375,15 +375,16 @@ impl Db for MysqlDb {
                 prev_ts,
                 &modified_timestamps,
             ))
+        } else if limit == 0 {
+            // An explicit "limit=0" returns the request's offset, to resume at the same place
+            Some(encode_next_offset(
+                params.sort,
+                numeric_offset as u64,
+                prev_ts,
+                &[],
+            ))
         } else {
-            // if an explicit "limit=0" is sent, return the offset of "0"
-            // Otherwise, this would break at least the db::tests::db::get_bsos_limit_offset
-            // unit test.
-            if limit == 0 {
-                Some(0.to_string())
-            } else {
-                None
-            }
+            None
         };
 
         Ok(results::GetBsos {
@@ -396,12 +397,21 @@ impl Db for MysqlDb {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self._get_collection_id(&params.collection).await?;
         let mut query = bso::table
-            .select(bso::id)
+            .select((bso::id, bso::modified))
             .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(collection_id))
             .filter(bso::expiry.gt(self.session.timestamp.as_i64()))
             .into_boxed();
 
+        if let Some(ts) = params.offset.as_ref().and_then(|o| o.timestamp) {
+            match params.sort {
+                Sorting::Oldest => query = query.filter(bso::modified.ge(ts.as_i64())),
+                Sorting::Newest | Sorting::None => {
+                    query = query.filter(bso::modified.le(ts.as_i64()))
+                }
+                Sorting::Index => {}
+            }
+        }
         if let Some(older) = params.older {
             query = query.filter(bso::modified.lt(older.as_i64()));
         }
@@ -415,9 +425,8 @@ impl Db for MysqlDb {
 
         query = match params.sort {
             Sorting::Index => query.order(bso::sortindex.desc()),
-            Sorting::Newest => query.order((bso::modified.desc(), bso::id.desc())),
+            Sorting::Newest | Sorting::None => query.order((bso::modified.desc(), bso::id.desc())),
             Sorting::Oldest => query.order((bso::modified.asc(), bso::id.asc())),
-            _ => query,
         };
 
         // negative limits are no longer allowed by mysql.
@@ -429,28 +438,40 @@ impl Db for MysqlDb {
         // fetch an extra row to detect if there are more rows that
         // match the query conditions. Negative limits will cause an error.
         query = query.limit(if limit == 0 { limit } else { limit + 1 });
+        let prev_ts = params
+            .offset
+            .as_ref()
+            .and_then(|o| o.timestamp)
+            .map(|t| t.as_i64());
         let numeric_offset = params.offset.map_or(0, |offset| offset.offset as i64);
         if numeric_offset != 0 {
             // XXX: copy over this optimization:
             // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
             query = query.offset(numeric_offset);
         }
-        let mut ids = query.load::<String>(&mut self.conn).await?;
+        let mut rows = query.load::<(String, i64)>(&mut self.conn).await?;
 
         // XXX: an additional get_collection_timestamp is done here in
         // python to trigger potential CollectionNotFoundErrors
         //if bsos.len() == 0 {
         //}
 
-        let next_offset = if limit >= 0 && ids.len() > limit as usize {
-            ids.pop();
-            Some((limit + numeric_offset).to_string())
+        let next_offset = if limit >= 0 && rows.len() > limit as usize {
+            rows.pop();
+            let modified_timestamps: Vec<i64> =
+                rows.iter().map(|(_, modified)| *modified).collect();
+            Some(encode_next_offset(
+                params.sort,
+                numeric_offset as u64,
+                prev_ts,
+                &modified_timestamps,
+            ))
         } else {
             None
         };
 
         Ok(results::GetBsoIds {
-            items: ids,
+            items: rows.into_iter().map(|(id, _)| id).collect(),
             offset: next_offset,
         })
     }

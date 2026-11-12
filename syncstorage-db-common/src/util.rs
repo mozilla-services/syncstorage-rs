@@ -226,8 +226,13 @@ pub fn encode_next_offset(
     if let Sorting::Index = sort {
         return (prev_offset + modified_timestamps.len() as u64).to_string();
     }
+    // An empty page (limit=0) resumes where the request started
     if modified_timestamps.is_empty() {
-        return prev_offset.to_string();
+        return params::Offset {
+            timestamp: prev_timestamp.map(|t| SyncTimestamp::from_milliseconds(t as u64)),
+            offset: prev_offset,
+        }
+        .to_string();
     }
 
     let bound = *modified_timestamps.last().unwrap();
@@ -311,6 +316,12 @@ mod tests {
         fn empty_modified_timestamps_returns_prev_offset() {
             let result = encode_next_offset(Sorting::Newest, 42, None, &[]);
             assert_eq!(result, "42");
+        }
+
+        #[test]
+        fn empty_modified_timestamps_keeps_prev_timestamp() {
+            let result = encode_next_offset(Sorting::Newest, 2, Some(9000), &[]);
+            assert_eq!(result, "9000:2");
         }
 
         #[test]

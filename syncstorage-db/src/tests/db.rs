@@ -229,6 +229,78 @@ async fn get_bsos_limit_offset() -> Result<(), DbError> {
     .await
 }
 
+// Spanner issues plain offsets for every sort
+#[cfg(not(feature = "spanner"))]
+#[tokio::test]
+async fn get_bso_ids_newest_offset_token() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+        for i in 0..3 {
+            let bso = pbso(uid, coll, &format!("b{i}"), Some("x"), None, None);
+            with_delta!(db, i * 10, { db.put_bso(bso).await })?;
+        }
+
+        let mut ids = vec![];
+        let mut offset = "0".to_owned();
+        loop {
+            let page = db
+                .get_bso_ids(gbsos(
+                    uid,
+                    coll,
+                    &[],
+                    MAX_TIMESTAMP,
+                    0,
+                    Sorting::Newest,
+                    1,
+                    &offset,
+                ))
+                .await?;
+            ids.extend(page.items);
+            match page.offset {
+                Some(next) => {
+                    assert!(next.contains(':'), "{next} is not a timestamp token");
+                    offset = next;
+                }
+                None => break,
+            }
+        }
+        assert_eq!(ids, vec!["b2", "b1", "b0"]);
+        Ok(())
+    })
+    .await
+}
+
+#[cfg(not(feature = "spanner"))]
+#[tokio::test]
+async fn get_bsos_limit_zero_keeps_offset() -> Result<(), DbError> {
+    with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
+        let uid = *UID;
+        let coll = "clients";
+        for i in 0..3 {
+            let bso = pbso(uid, coll, &format!("b{i}"), Some("x"), Some(i), None);
+            with_delta!(db, i64::from(i) * 10, { db.put_bso(bso).await })?;
+        }
+        let get = |sort, limit, offset: &str| {
+            gbsos(uid, coll, &[], MAX_TIMESTAMP, 0, sort, limit, offset)
+        };
+
+        let token = db
+            .get_bsos(get(Sorting::Newest, 1, "0"))
+            .await?
+            .offset
+            .unwrap();
+        let page = db.get_bsos(get(Sorting::Newest, 0, &token)).await?;
+        assert!(page.items.is_empty());
+        assert_eq!(page.offset, Some(token));
+
+        let page = db.get_bsos(get(Sorting::Index, 0, "1")).await?;
+        assert_eq!(page.offset, Some("1".to_owned()));
+        Ok(())
+    })
+    .await
+}
+
 #[tokio::test]
 async fn get_bsos_newer() -> Result<(), DbError> {
     with_test_transaction(None, async |db: &mut dyn Db<Error = DbError>| {
