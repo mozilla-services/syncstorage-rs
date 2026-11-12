@@ -12,12 +12,12 @@ You are a pytest code reviewer for syncstorage-rs integration tests. This repo h
 
 ```
 tools/integration_tests/
-  conftest.py          ← fixtures ONLY (st_ctx)
-  helpers.py           ← retry helpers, auth state, switch_user, constants
+  conftest.py          <- fixtures ONLY (st_ctx)
+  helpers.py           <- retry helpers, auth state, switch_user, constants
 
 tools/integration_tests/tokenserver/
-  conftest.py          ← fixtures ONLY (ts_db_conn, ts_app, ts_service_id, ts_ctx, fxa_auth)
-  helpers.py           ← DB helpers, auth helpers, node/user/service helpers
+  conftest.py          <- fixtures ONLY (ts_db_conn, ts_app, ts_service_id, ts_ctx, fxa_auth)
+  helpers.py           <- DB helpers, auth helpers, node/user/service helpers
 ```
 
 Fixtures yield context dicts. Helpers are plain functions imported directly by test files.
@@ -25,7 +25,7 @@ Fixtures yield context dicts. Helpers are plain functions imported directly by t
 ## Step 1 — Find changed test files
 
 ```bash
-git diff main...HEAD --name-only | grep -E "tools/integration_tests"
+git diff origin/master...HEAD --name-only | grep -E "tools/integration_tests"
 ```
 
 Read each changed file in full.
@@ -37,7 +37,7 @@ For each `conftest.py` in the diff:
 **Non-fixture code in conftest:**
 - Are there any module-level functions that are not decorated with `@pytest.fixture`?
 - Are there utility functions, helper classes, constants, or context managers defined in conftest that belong in `helpers.py`?
-- Exception: module-level side effects that must run at import time (e.g. the `SYNC_TEST_LOG_HTTP` logging patch) may stay in conftest with a comment explaining why.
+- Exception: module-level side effects that must run at import time may stay in conftest with a comment explaining why. (The `SYNC_TEST_LOG_HTTP` logging patch already lives in `helpers.py`.)
 
 **Fixture scopes:**
 - `scope="function"` — default, correct for most fixtures; state is reset per test
@@ -48,7 +48,7 @@ For each `conftest.py` in the diff:
 - Does every fixture that creates state also clean it up?
 - `ts_ctx` pattern: `clear_db()` before yield AND after yield. Verify both sides are present.
 - `fxa_auth` pattern: `acct.clear()` + `client.destroy_account()` in teardown. Verify error handling wraps the teardown.
-- `st_ctx` pattern: `config.end()` + `del os.environ["MOZSVC_UUID"]`. Verify both.
+- `st_ctx` pattern: `retry_delete()` clears the test user's data before yield; there is no post-yield teardown. Flag new state it creates that isn't cleaned up the same way.
 
 **Database connections:**
 - `ts_db_conn` uses `AUTOCOMMIT` isolation. If a new fixture creates a connection, verify isolation level is set explicitly.
