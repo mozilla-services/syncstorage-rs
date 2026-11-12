@@ -5,7 +5,7 @@ use std::{
     io::{self, IsTerminal},
     sync::{Arc, Mutex, Once, OnceLock, PoisonError, mpsc},
     thread,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 #[cfg(target_os = "linux")]
@@ -34,6 +34,9 @@ static ROW_LOGGER: Mutex<Option<slog::Logger>> = Mutex::new(None);
 
 /// Keeps the tracing writer thread running until `reset_logging` drops it.
 static TRACING_GUARD: Mutex<Option<WorkerGuard>> = Mutex::new(None);
+
+/// How long `reset_logging` waits for log cleanup when the caller gives no deadline.
+const RESET_BUDGET: Duration = Duration::from_secs(2);
 
 /// Lines the tracing writer dropped because its queue was full.
 static DROPPED_LINES: OnceLock<ErrorCounter> = OnceLock::new();
@@ -256,32 +259,42 @@ pub fn row_logger() -> ApiResult<slog::Logger> {
         .ok_or_else(|| ApiError::internal("Row logger requires init_logging"))
 }
 
-/// Replaces the global logger with one that discards records. Dropping the old logger flushes
-/// its queue and joins its thread. With `limit`, cleanup runs on a separate thread and the caller
-/// waits only until the deadline, so stalled log output cannot block shutdown indefinitely.
+/// Replaces the global logger with one that discards records, and stops the tracing writer.
+/// Dropping the old logger flushes its queue and joins its thread; dropping the tracing guard
+/// flushes its queue for up to about a second. Cleanup runs on a separate thread and the caller
+/// waits only until `limit` (or `RESET_BUDGET`), so stalled log output cannot block shutdown.
+/// Later tracing events are dropped without blocking: the writer is lossy.
 pub fn reset_logging(limit: Option<Instant>) {
+    let dropped = dropped_lines();
+    if dropped > 0 {
+        tracing::error!(dropped, "Log output was full; lines were dropped");
+    }
     let old = slog_scope::logger();
     let logger = slog::Logger::root(slog::Discard, slog::o!());
     slog_scope::set_global_logger(logger).cancel_reset();
-    if let Some(limit) = limit {
-        drop_until(old, limit, |cleanup| {
-            thread::Builder::new()
-                .name("log-reset".to_owned())
-                .spawn(cleanup)
-                .map(drop)
-        });
-    }
+    let guard = TRACING_GUARD
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take();
+    let limit = limit.unwrap_or_else(|| Instant::now() + RESET_BUDGET);
+    // If its queue is still full, tracing-appender prints a notice to stdout while dropping.
+    drop_until((old, guard), limit, |cleanup| {
+        thread::Builder::new()
+            .name("log-reset".to_owned())
+            .spawn(cleanup)
+            .map(drop)
+    });
 }
 
-/// Drops `old` on a separate thread, waiting at most until `limit`. Transfer the logger only
+/// Drops `old` on a separate thread, waiting at most until `limit`. Transfer the loggers only
 /// after `spawn` succeeds: on failure, Rust drops the closure on the calling thread. If spawning
-/// fails, keep the logger alive until process exit to avoid blocking cleanup.
-fn drop_until(
-    old: slog::Logger,
+/// fails, keep the loggers alive until process exit to avoid blocking cleanup.
+fn drop_until<T: Send + 'static>(
+    old: T,
     limit: Instant,
     spawn: impl FnOnce(Box<dyn FnOnce() + Send>) -> io::Result<()>,
 ) {
-    let (hand_over, take) = mpsc::channel::<slog::Logger>();
+    let (hand_over, take) = mpsc::channel::<T>();
     let (dropped, wait) = mpsc::channel();
     let started = spawn(Box::new(move || {
         drop(take.recv());
@@ -335,6 +348,75 @@ mod tests {
             drop(release);
         });
         logger
+    }
+
+    /// Stalls its first write until released, like a stuck log output.
+    struct StalledWriter {
+        entered: mpsc::Sender<()>,
+        release: Option<mpsc::Receiver<()>>,
+    }
+
+    impl io::Write for StalledWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            if let Some(release) = self.release.take() {
+                let _ = self.entered.send(());
+                let _ = release.recv();
+            }
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// A tracing writer with a 4-line queue whose thread is stalled for 2 s, so dropping its
+    /// guard blocks for about a second (tracing-appender's own shutdown timeouts).
+    fn stalled_writer() -> (NonBlocking, WorkerGuard) {
+        use std::io::Write;
+
+        let (entered, stalled) = mpsc::channel();
+        let (release, wait) = mpsc::channel();
+        let (mut writer, guard) = NonBlockingBuilder::default()
+            .lossy(true)
+            .buffered_lines_limit(4)
+            .finish(StalledWriter {
+                entered,
+                release: Some(wait),
+            });
+        writer.write_all(b"stall the output\n").unwrap();
+        stalled.recv_timeout(Duration::from_secs(5)).unwrap();
+        thread::spawn(move || {
+            thread::sleep(Duration::from_secs(2));
+            drop(release);
+        });
+        (writer, guard)
+    }
+
+    #[test]
+    fn test_drop_until_ends_by_the_limit_for_a_stalled_tracing_writer() {
+        use std::io::Write;
+
+        let (mut writer, guard) = stalled_writer();
+        let limit = Instant::now() + Duration::from_millis(100);
+        drop_until((stalled_logger(), guard), limit, |cleanup| {
+            thread::Builder::new().spawn(cleanup).map(drop)
+        });
+        let late = Instant::now().saturating_duration_since(limit);
+        assert!(
+            late < Duration::from_millis(250),
+            "ended {late:?} after the limit"
+        );
+        // More lines than the queue holds: the extra ones are dropped and counted.
+        let began = Instant::now();
+        for _ in 0..100 {
+            writer.write_all(b"after reset\n").unwrap();
+        }
+        assert!(
+            began.elapsed() < Duration::from_millis(500),
+            "writes do not block"
+        );
+        assert!(writer.error_counter().dropped_lines() > 90);
     }
 
     /// Records each call to `write`.
