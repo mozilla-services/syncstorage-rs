@@ -50,7 +50,7 @@ Table: Key (linked) | Summary | Updated | By
 
 ## Mode: `me`
 
-Work assigned to the person running this skill. Ask: "What is your Jira email or display name?" — use their response to filter.
+Work assigned to the person running this skill. Use the runtime `userEmail` context (or `mcp__atlassian__atlassianUserInfo`); only ask if neither is available.
 
 ```jql
 project = STOR AND assignee = "<user>" AND statusCategory != Done ORDER BY updated DESC
@@ -93,11 +93,11 @@ Steps:
 **Status:** {status} | **Assignee:** {assignee or Unassigned} | **Priority:** {priority}
 
 **Description:**
-{epic description, condensed to key intent — 2–4 sentences max}
+{epic description, condensed to key intent — 2 to 4 sentences max}
 
 ### Child Issues
 Table: Key (linked) | Summary | Status | Assignee | Priority | Issue Type
-Group: In Progress → To Do → Done (collapsed count for Done if > 5)
+Group: In Progress -> To Do -> Done (collapsed count for Done if > 5)
 
 ### Epic Progress
 - Total issues: N
@@ -146,7 +146,7 @@ project = STOR AND sprint in openSprints() ORDER BY statusCategory ASC, priority
 **Output:**
 
 ### Sprint: {Sprint Name}
-Dates: {start} → {end} | Days remaining: N
+Dates: {start} -> {end} | Days remaining: N
 
 **In Progress** (N issues)
 Table: Key (linked) | Summary | Assignee | Days In Progress
@@ -155,7 +155,7 @@ Table: Key (linked) | Summary | Assignee | Days In Progress
 Table: Key (linked) | Summary | Assignee | Priority
 
 **Done** (N issues)
-Count only unless ≤ 5 — then list.
+Count only unless <= 5 — then list.
 
 **Blockers in sprint:**
 List any issue linked as "blocks" another sprint issue, or with priority Blocker.
@@ -180,10 +180,10 @@ Generate a structured summary suitable for a status update, PR description, or s
 **Output format — always structured as:**
 
 ### Impact
-What this work changes for users or the system. Lead with the most significant outcome. Use concrete language: "reduces", "enables", "removes", "fixes". If there are multiple issues, consolidate into the top 2–3 outcomes. Link relevant issues inline: e.g. "Adds PostgreSQL support for tokenserver ([STOR-42](link))."
+What this work changes for users or the system. Lead with the most significant outcome. Use concrete language: "reduces", "enables", "removes", "fixes". If there are multiple issues, consolidate into the top 2 to 3 outcomes. Link relevant issues inline: e.g. "Adds PostgreSQL support for tokenserver ([STOR-42](link))."
 
 ### Context
-Why this work was needed. Background the reader should have to understand the impact. Reference the driving requirement, bug, or design decision. Keep to 3–5 sentences. Link to the primary issue or epic.
+Why this work was needed. Background the reader should have to understand the impact. Reference the driving requirement, bug, or design decision. Keep to 3 to 5 sentences. Link to the primary issue or epic.
 
 ### Highlights
 Notable implementation decisions, technical wins, or interesting constraints resolved. Bullet points. Each item links to the relevant issue. Focus on what would surprise or interest a fellow engineer — not just a list of what was done.
@@ -197,17 +197,16 @@ Create a new Jira issue in STOR from natural language.
 **Steps:**
 
 1. Parse the description to infer:
-   - **Summary** — one clear sentence (≤ 100 chars)
+   - **Summary** — one clear sentence (<= 100 chars)
    - **Issue type** — Bug / Task / Story / Spike (infer from language; ask if ambiguous)
-   - **Priority** — infer from language ("critical", "blocking" → Critical; "nice to have" → Minor; default → Major). Valid STOR priorities: `Blocker`, `Critical`, `Major`, `Minor`. `Trivial` is rejected by the project — do not use it.
+   - **Priority** — STOR uses `P0` to `P4`. Infer from language ("blocking", "outage" -> P0; "critical", "this week" -> P1; default -> P2; "nice to have" -> P3; "someday" -> P4). Don't use the legacy names (`Major`, `Critical`, `Trivial`); they aren't valid in STOR.
    - **Work category** — `Feature Engineering` / `Engineering Excellence` / `Operational Excellence`. See [Work categories](#work-categories) below for definitions and inference rules. Always classify; if unsure between EE and OpEx, the planned/reactive distinction decides it.
    - **Assignee** — if this `create` invocation is part of the same workflow that opens a GitHub PR for the work, set the assignee to the current user. Look up their accountId via `mcp__atlassian__lookupJiraAccountId` using the email from the runtime `userEmail` context. Otherwise leave unassigned unless the user named a specific person.
+   - **Labels** — ask whether it needs `no-sync`. STOR issues mirror to the public syncstorage-rs GitHub repo unless labeled `no-sync`, and the label only works if set at create time. Default to `no-sync` for anything touching infra, security, secrets, internal docs or internal links.
    - **Parent** — if the description references an epic (e.g. "under STOR-506", "in STOR-506", "linked to <epic>"), set `parent` to that key when calling `createJiraIssue`.
-   - **Description body** — expand the user's language into a structured description, leading with the category:
-     - **Category:** {one of the three categories} — *one-sentence rationale*
-     - **Background:** why this is needed
-     - **Acceptance Criteria:** observable, testable outcomes
-     - **Notes:** any constraints or references mentioned
+   - **Description body** — use the one template in `/syncserver-jira-description` Step 3. Keep tickets light: category, background, acceptance criteria and links are usually enough. Fill only the sections the user's language supports.
+
+   Before showing the draft, check it is plain ASCII with no secrets. If it links webservices-infra, global-platform-admin, cloudops-infra, Confluence, SREIN or `*.mozgcp.net`, add `no-sync` or take the links out.
 
 2. Show the draft to the user before creating:
    ```
@@ -216,6 +215,7 @@ Create a new Jira issue in STOR from natural language.
    Project:  STOR
    Parent:   {parent key or none}
    Priority: {priority}
+   Labels:   {labels or none}
    Category: {category}
    Assignee: {display name or "unassigned"}
    Summary:  {summary}
@@ -230,7 +230,7 @@ Create a new Jira issue in STOR from natural language.
    - `issueTypeName: {type}`
    - `summary: {summary}`
    - `description: {description}` with `contentFormat: markdown`
-   - `additional_fields: { "priority": { "name": "{priority}" } }`
+   - `additional_fields: { "priority": { "name": "{priority}" }, "labels": [{labels}] }`. After creating, read the issue back and confirm the labels took; a malformed field is dropped silently and the issue syncs to GitHub.
    - `assignee_account_id: {accountId}` — only when auto-assignment applies or the user named an assignee
    - `parent: {epic_key}` — only when a parent epic was identified
 
@@ -247,22 +247,24 @@ Modify an existing issue. Changes can be natural language.
 1. Fetch the current issue with `mcp__atlassian__getJiraIssue`.
 
 2. Parse the `<changes>` to determine what to modify:
-   - Field updates (summary, description, priority, assignee) → use `mcp__atlassian__editJiraIssue`
-   - Status transition ("mark as done", "move to in progress") → use `mcp__atlassian__getTransitionsForJiraIssue` then `mcp__atlassian__transitionJiraIssue`
-   - Comment ("add a comment: ...") → use `mcp__atlassian__addCommentToJiraIssue`
+   - Field updates (summary, description, priority, assignee) -> use `mcp__atlassian__editJiraIssue`
+   - Status transition ("mark as done", "move to in progress") -> use `mcp__atlassian__getTransitionsForJiraIssue` then `mcp__atlassian__transitionJiraIssue`
+   - Comment ("add a comment: ...") -> use `mcp__atlassian__addCommentToJiraIssue`
 
-3. Show the proposed changes before applying:
+3. Check any new description or comment text against the issue's current labels. Comments on a synced issue mirror to GitHub too, and adding `no-sync` later does not pull them back. If the text links webservices-infra, global-platform-admin, cloudops-infra, Confluence, SREIN or `*.mozgcp.net` and the issue isn't `no-sync`, take the links and internal detail out rather than posting them.
+
+4. Show the proposed changes before applying:
    ```
    Updating STOR-####: {current summary}
    Changes:
-   - {field}: "{old value}" → "{new value}"
+   - {field}: "{old value}" -> "{new value}"
    - {transition}: {new status}
    - Comment: "{comment text}"
 
    Apply? (yes / edit / cancel)
    ```
 
-4. Apply on confirmation. Return confirmation with the issue link.
+5. Apply on confirmation. Return confirmation with the issue link.
 
 ---
 
@@ -274,7 +276,7 @@ Modify an existing issue. Changes can be natural language.
 - **Ask once for missing identity**: if the user's Jira name is needed and not known, ask once; do not repeat the question across modes in the same session
 - **Confirm before write operations**: always show a draft before calling `createJiraIssue`, `editJiraIssue`, `transitionJiraIssue`, or `addCommentToJiraIssue`
 - **Permissions**: create/edit/transition operations require the user's Jira account to have project contributor access to STOR; if a call fails with 403, report it clearly and do not retry
-- **Issue type inference**: "bug" → Bug; "task"/"chore" → Task; "feature"/"story"/"as a user" → Story; "investigate"/"explore"/"spike" → Spike
+- **Issue type inference**: "bug" -> Bug; "task"/"chore" -> Task; "feature"/"story"/"as a user" -> Story; "investigate"/"explore"/"spike" -> Spike
 - **Classify every ticket**: when creating or summarizing, identify the [work category](#work-categories) (Feature Engineering / Engineering Excellence / Operational Excellence). Include it as the leading line of the description body for created tickets.
 - **Auto-assign when PR-bundled**: if a `create` invocation is part of the same workflow that opens a GitHub PR for the same work, set the assignee to the current user (look up their accountId with `mcp__atlassian__lookupJiraAccountId`). Setting an assignee may transition the issue to In Progress via Jira workflow rules — that's expected.
 
@@ -282,7 +284,7 @@ Modify an existing issue. Changes can be natural language.
 
 ## Work categories
 
-Per [Feature Engineering, Engineering Excellence, and Operational Excellence](https://mozilla-hub.atlassian.net/wiki/spaces/IP/pages/1397817345). Classify every STOR ticket into one of three categories. Target distribution per quarter: ≤ 50% Feature Engineering, ≤ 30% Engineering Excellence, ≤ 20% Operational Excellence.
+Per [Feature Engineering, Engineering Excellence, and Operational Excellence](https://mozilla-hub.atlassian.net/wiki/spaces/IP/pages/1397817345). Classify every STOR ticket into one of three categories. Target distribution per quarter: <= 50% Feature Engineering, <= 30% Engineering Excellence, <= 20% Operational Excellence.
 
 ### Feature Engineering — *build & deliver new things*
 
@@ -306,6 +308,6 @@ Examples: security patches and CVE remediations, manual scaling under load, inci
 
 - **Planned vs. unplanned** decides EE vs. OpEx: if it was on a roadmap/sprint plan, it's EE; if it interrupted planned work to keep prod healthy, it's OpEx.
 - **Customer-visible change** decides FE vs. EE: if the customer sees something new (beyond speed/reliability/bugfix), it's FE.
-- **Dependency upgrades, CI/CD tooling, refactors, test improvements** → Engineering Excellence (unless the upgrade is a CVE remediation, then OpEx).
-- **Security patches and CVEs** → Operational Excellence.
-- **Bug fixes**: pre-launch → FE; against released features, planned → EE; via hotfix → OpEx.
+- **Dependency upgrades, CI/CD tooling, refactors, test improvements** -> Engineering Excellence (unless the upgrade is a CVE remediation, then OpEx).
+- **Security patches and CVEs** -> Operational Excellence.
+- **Bug fixes**: pre-launch -> FE; against released features, planned -> EE; via hotfix -> OpEx.

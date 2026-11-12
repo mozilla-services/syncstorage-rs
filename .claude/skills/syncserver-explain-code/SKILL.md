@@ -15,7 +15,7 @@ This repo owns two services:
 
 **Firefox Accounts (FxA) is an external upstream service.** This repo does not own FxA. When explaining code:
 - References to `fxa_uid`, `fxa_kid`, `client_state`, FxA OAuth tokens, JWK keys, the FxA OAuth server URL — these are **inputs from FxA that this service validates and consumes**, not code this repo owns.
-- The `mock-fxa-server` in `scripts/` is a test stub only — it is not a real FxA implementation.
+- The mock FxA server (`tools/integration_tests/tokenserver/mock_fxa_server.py`, started by `scripts/start_mock_fxa_server.sh`) is a test stub only — it is not a real FxA implementation.
 - `tokenserver-auth/src/oauth/` and `tokenserver-auth/src/crypto.rs` are **this repo's FxA token verification logic**, not FxA's own code.
 
 Make this boundary explicit whenever the code touches the FxA/tokenserver interface.
@@ -27,7 +27,7 @@ If `$ARGUMENTS` is provided, read that file or directory.
 Otherwise, run:
 
 ```bash
-git diff main...HEAD
+git diff origin/master...HEAD
 ```
 
 and read the full diff. Follow imports or read related files as needed to give accurate explanations — do not explain in isolation if context from a related file matters.
@@ -48,19 +48,19 @@ Useful reference shapes for this codebase:
 
 ```
 Firefox client
-    → Tokenserver (validates FxA OAuth token, assigns node)
-        → FxA OAuth server [external — validates token, not our code]
-        → tokenserver-db (MySQL/Postgres — users, nodes, services tables)
-    → Syncstorage node (stores/retrieves BSOs)
-        → syncstorage-db (MySQL / Postgres / Spanner)
+    -> Tokenserver (validates FxA OAuth token, assigns node)
+        -> FxA OAuth server [external — validates token, not our code]
+        -> tokenserver-db (MySQL/Postgres — users, nodes, services tables)
+    -> Syncstorage node (stores/retrieves BSOs)
+        -> syncstorage-db (MySQL / Postgres / Spanner)
 ```
 
 ```
-Request → Actix-web (syncserver/)
-    → Extractors (hawk_identifier, fxa_uid, token validation)
-    → Handler
-    → db trait (syncstorage-db or tokenserver-db)
-        → backend impl (mysql / postgres / spanner)
+Request -> Actix-web (syncserver/)
+    -> Extractors (hawk_identifier, fxa_uid, token validation)
+    -> Handler
+    -> db trait (syncstorage-db or tokenserver-db)
+        -> backend impl (mysql / postgres / spanner)
 ```
 
 ### 3. Annotated walkthrough
