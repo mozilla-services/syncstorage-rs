@@ -32,9 +32,9 @@ SYNC_TOKENSERVER__DATABASE_URL=postgres://test:test@127.0.0.1/tokenserver make r
 ```
 
 CI runs these after the Rust unit tests in the MySQL and PostgreSQL jobs.
-The PostgreSQL job applies every migration in filename order, stopping on the first
-failure, to initialize the schema for the Python tests because
-the Rust tests roll back their schema changes with their test transactions.
-Reports go to
+The PostgreSQL job uses `diesel migration run` to apply Tokenserver migrations.
+This initializes the schema for the Python tests because the Rust tests roll
+back their schema changes with their test transactions. Migration failures stop
+the job before Python tests. Reports go to
 `workflow/test-results/*unit__tokenserver-{mysql,postgres}-results.xml` and use
 the existing unit report uploads.

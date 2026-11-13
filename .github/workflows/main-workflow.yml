@@ -331,9 +331,9 @@ jobs:
       # cargo-llvm-cov installs below. dpkg, cargo, and curl use independent
       # locks, so there is no contention. A `wait-all` barrier (added before the
       # DB is created) guarantees the client is present before it is used.
-      - name: Install PostgreSQL client
+      - name: Install PostgreSQL client and development headers
         background: true
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client libpq-dev
 
       - name: Create version.json
         run: |
@@ -413,12 +413,14 @@ jobs:
       - name: Install Tokenserver test dependencies
         run: poetry -C tools/tokenserver install --only main --no-interaction --no-ansi
 
+      - name: Install Diesel CLI
+        run: cargo install diesel_cli --locked --no-default-features --features postgres
+
       # Rust test transactions roll back PostgreSQL schema changes.
       - name: Initialize Tokenserver schema for Python tests
-        run: |
-          for migration in tokenserver-postgres/migrations/*/up.sql; do
-            psql "$SYNC_TOKENSERVER__DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration" || exit $?
-          done
+        run: >-
+          diesel migration run --database-url="$SYNC_TOKENSERVER__DATABASE_URL"
+          --migration-dir=tokenserver-postgres/migrations
 
       - name: Run Tokenserver unit tests
         run: make run_tokenserver_unit_tests TOKENSERVER_TEST_BACKEND=postgres
