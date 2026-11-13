@@ -65,7 +65,7 @@ poetry run python make_hawk_token.py \
 ```
 
 Output:
-```
+```text
 Authorization: Hawk id="...", ts="...", nonce="...", mac="..."
 ```
 
