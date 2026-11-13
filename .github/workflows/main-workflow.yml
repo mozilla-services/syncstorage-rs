@@ -378,19 +378,26 @@ jobs:
         run: |
           PGPASSWORD=test psql -U test -h 127.0.0.1 -d syncstorage -c 'CREATE DATABASE tokenserver;'
 
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
       - name: Install Poetry
         run: pip3 install poetry
 
       - name: Install Python dependencies
-        run: |
-          poetry install --no-interaction --no-ansi
-          echo "PYTHONPATH=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" >> "$GITHUB_ENV"
+        run: poetry install --no-interaction --no-ansi
 
       - name: Run unit tests with coverage
-        run: make postgres_test_with_coverage
+        run: |
+          export PYTHONPATH="$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+          make postgres_test_with_coverage
 
       - name: Run unit tests with coverage (quota enforced)
-        run: make postgres_test_with_coverage
+        run: |
+          export PYTHONPATH="$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+          make postgres_test_with_coverage
         env:
           SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
@@ -691,19 +698,26 @@ jobs:
         if: steps.cache-cargo-llvm-cov-mysql.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-llvm-cov
 
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
       - name: Install Poetry
         run: pip3 install poetry
 
       - name: Install Python dependencies
-        run: |
-          poetry install --no-interaction --no-ansi
-          echo "PYTHONPATH=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" >> "$GITHUB_ENV"
+        run: poetry install --no-interaction --no-ansi
 
       - name: Run unit tests with coverage
-        run: make test_with_coverage
+        run: |
+          export PYTHONPATH="$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+          make test_with_coverage
 
       - name: Run unit tests with coverage (quota enforced)
-        run: make test_with_coverage
+        run: |
+          export PYTHONPATH="$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+          make test_with_coverage
         env:
           SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
