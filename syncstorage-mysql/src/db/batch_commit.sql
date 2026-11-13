@@ -12,7 +12,8 @@ SELECT
  WHERE batch = ?
    AND userid = ?
     ON DUPLICATE KEY UPDATE
-       modified = ?,
+       modified = IF(batch_upload_items.payload IS NOT NULL
+                     OR batch_upload_items.sortindex IS NOT NULL, ?, bso.modified),
        sortindex = COALESCE(batch_upload_items.sortindex, bso.sortindex),
        ttl = COALESCE((batch_upload_items.ttl_offset * 1000) + ?, bso.ttl),
        payload = COALESCE(batch_upload_items.payload, bso.payload),
