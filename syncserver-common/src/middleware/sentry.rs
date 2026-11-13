@@ -329,7 +329,7 @@ pub fn event_from_error(
 /// Based moreso on sentry_failure's `exception_from_single_fail`. Includes a
 /// stacktrace if available.
 pub fn exception_from_reportable_error(err: &dyn ReportableError) -> sentry::protocol::Exception {
-    let dbg = format!("{:?}", &err);
+    let dbg = format!("{err:?}");
     sentry::protocol::Exception {
         ty: sentry::parse_type_from_debug(&dbg).to_owned(),
         value: Some(err.to_string()),

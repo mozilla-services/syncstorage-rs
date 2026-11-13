@@ -18,12 +18,14 @@ import hawkauthlib
 import logging
 import optparse
 import random
+import re
 import requests
 import time
 import tokenlib
+from google.cloud import bigquery
 
 import util
-from database import Database
+from database import MAX_GENERATION, Database
 from util import format_key_id
 
 
@@ -33,6 +35,50 @@ from util import format_key_id
 LOGGER = "tokenserver.scripts.purge_old_records"
 
 PATTERN = "{node}/1.5/{uid}"
+
+TABLE_ID = re.compile(r"^[a-z0-9][a-z0-9-]*[a-z0-9]\.\w+\.[\w-]+$")
+
+
+class LastSeenDeleteError(Exception):
+    """A retired user's BigQuery last-seen deletion failed or timed out."""
+
+
+class LastSeen:
+    """Delete retired accounts' rows from the BigQuery last-seen tables."""
+
+    def __init__(self, staging_table, final_table, client=None, timeout=60):
+        """Validate table IDs and create a BigQuery client if none is provided."""
+        for table in (staging_table, final_table):
+            if not TABLE_ID.match(table):
+                raise ValueError(f"Invalid BigQuery table id: {table!r}")
+
+        self.client = client or bigquery.Client(project=staging_table.split(".")[0])
+        self.timeout = timeout
+
+        self.sql = (
+            "BEGIN TRANSACTION;\n"  # nosec B608
+            f"DELETE FROM `{staging_table}` WHERE uid IN UNNEST(@uids);\n"
+            f"DELETE FROM `{final_table}` WHERE uid IN UNNEST(@uids);\n"
+            "COMMIT TRANSACTION;"
+        )
+
+    def delete(self, fxa_uids):
+        """Delete rows for the given FxA UIDs; raise if the job fails or times out."""
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ArrayQueryParameter("uids", "STRING", fxa_uids)]
+        )
+        self.client.query(self.sql, job_config=job_config).result(timeout=self.timeout)
+
+
+def last_seen_from_options(staging_table, final_table, timeout):
+    """Create a LastSeen client for both table IDs, or return None if neither is set."""
+    if not (staging_table or final_table):
+        return None
+    if not (staging_table and final_table):
+        raise ValueError(
+            "--last-seen-staging-table and --last-seen-table must be provided together"
+        )
+    return LastSeen(staging_table, final_table, timeout=timeout)
 
 
 def purge_old_records(
@@ -47,6 +93,7 @@ def purge_old_records(
     override_node=None,
     uid_range=None,
     metrics=None,
+    last_seen=None,
 ):
     """Purge old records from the database.
 
@@ -59,6 +106,9 @@ def purge_old_records(
     records. With multiple tasks running concurrently, this will provide each
     a (likely) different set of records to work on. A cheap, imperfect
     randomization.
+
+    When `last_seen` is provided, delete each deleted FxA account's last-seen
+    rows in BigQuery just before deleting its Tokenserver record.
     """
     logger = logging.getLogger(LOGGER)
     logger.info("Purging old user records")
@@ -100,6 +150,16 @@ def purge_old_records(
             counter = 0
             for row in rows:
                 try:
+                    # Delete a FxA deleted account's BigQuery last-seen rows
+                    # before this run deletes its record; a failure keeps the
+                    # record so a later run retries.
+                    if (
+                        last_seen
+                        and not dryrun
+                        and row.generation == MAX_GENERATION
+                        and (row.node is None or not row.downed or force)
+                    ):
+                        delete_last_seen(last_seen, row, metrics)
                     # Don't attempt to purge data from downed nodes.
                     # Instead wait for them to either come back up or to be
                     # completely removed from service.
@@ -211,6 +271,16 @@ def purge_old_records(
             metrics.incr("purge.run.success" if success else "purge.run.failure")
 
 
+def delete_last_seen(last_seen, row, metrics=None):
+    """Delete a retired user's BigQuery last-seen rows, or raise LastSeenDeleteError."""
+    try:
+        last_seen.delete([row.email.partition("@")[0]])
+    except Exception as e:
+        raise LastSeenDeleteError("BigQuery last-seen deletion failed") from e
+    if metrics:
+        metrics.incr("purge.last_seen.deleted")
+
+
 def delete_service_data(
     user, secret, timeout=60, dryrun=False, override_node=None, metrics=None
 ):
@@ -276,6 +346,8 @@ def _classify_failure(exc):
         return "timeout"
     if isinstance(exc, requests.ConnectionError):
         return "connect"
+    if isinstance(exc, LastSeenDeleteError):
+        return "bigquery_delete"
     return "unknown"
 
 
@@ -342,12 +414,13 @@ def main(args=None):
         default=3600,
         help="Interval in seconds to sleep between purging runs",
     )
+    # 24 hours access token expiry plus BQ upload delay for last-seen
     parser.add_option(
         "",
         "--grace-period",
         type="int",
-        default=86400,
-        help="Number of seconds grace to allow on replacement",
+        default=86700,
+        help="Grace period in seconds before deleting replaced or retired records",
     )
     parser.add_option(
         "",
@@ -409,6 +482,18 @@ def main(args=None):
     parser.add_option(
         "", "--human_logs", action="store_true", help="Human readable logs"
     )
+    parser.add_option(
+        "",
+        "--last-seen-staging-table",
+        help="BigQuery last-seen staging table (PROJECT.DATASET.TABLE)"
+        "requires --last-seen-table",
+    )
+    parser.add_option(
+        "",
+        "--last-seen-table",
+        help="BigQuery last-seen final table (PROJECT.DATASET.TABLE)"
+        "requires --last-seen-staging-table",
+    )
     util.add_metric_options(parser)
 
     opts, args = parser.parse_args(args)
@@ -424,6 +509,13 @@ def main(args=None):
         return 1
 
     secret = args[-1]
+
+    try:
+        last_seen = last_seen_from_options(
+            opts.last_seen_staging_table, opts.last_seen_table, opts.request_timeout
+        )
+    except ValueError as e:
+        parser.error(str(e))
 
     uid_range = None
     if opts.range_start or opts.range_end:
@@ -442,6 +534,7 @@ def main(args=None):
         override_node=opts.override_node,
         uid_range=uid_range,
         metrics=metrics,
+        last_seen=last_seen,
     )
     if not opts.oneshot:
         while True:
@@ -463,6 +556,7 @@ def main(args=None):
                 override_node=opts.override_node,
                 uid_range=uid_range,
                 metrics=metrics,
+                last_seen=last_seen,
             )
     return 0
 

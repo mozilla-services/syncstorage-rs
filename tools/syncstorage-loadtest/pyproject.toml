@@ -18,7 +18,7 @@ dependencies = [
     "tokenlib>=2.0.0",
     "aiodogstatsd>=0.16.0,<0.17.0",
     "PyFxA>=0.8.2",
-    "PyJWT>=2.13.0",
+    "PyJWT>=2.15.0",
     "cryptography>=50.0.2",
 ]
 
@@ -27,7 +27,7 @@ dev = [
     "mypy>=1.16.0",
     "pydocstyle>=6.3.0",
     "ruff>=0.15.6",
-    "black>=26.3.0",
+    "black>=26.10.1",
     "bandit>=1.9.4",
     "isort>=8.0.1",
 ]

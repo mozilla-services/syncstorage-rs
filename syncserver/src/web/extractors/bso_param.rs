@@ -37,7 +37,8 @@ impl BsoParam {
                 RequestErrorLocation::Path,
                 Some("bso".to_owned()),
                 Some("request.process.invalid_bso"),
-            ))?;
+            )
+            .into());
         }
         if let Some(v) = elements.get(5) {
             let sv = urldecode(&String::from_str(v).map_err(|e| {

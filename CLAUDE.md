@@ -128,7 +128,7 @@ cargo build
 cargo build --no-default-features --features=syncstorage-db/postgres --features=tokenserver-db/postgres --features=py_verifier
 
 # Spanner
-cargo build --no-default-features --features=syncstorage-db/spanner --features=py_verifier
+cargo build --no-default-features --features=syncserver/spanner --features=py_verifier
 ```
 
 ## Rust tests
@@ -296,11 +296,12 @@ Use the skills below to query them. Do not call MCP tools ad-hoc without reading
 | Skill | Invocation | Purpose |
 |---|---|---|
 | Jira status | `/jira-status [me\|epic KEY\|epics\|sprint\|summary ...\|create ...\|update STOR-#### ...]` | Task landscape, epics, personal view, summaries, create/edit tickets |
-| Sentry health | `/sentry-health [new\|regressions\|volume\|full]` | Production error trends, regressions, new issues |
+| Sentry health | `/sentry-health [new\|regressions\|volume\|full\|triage <issue>]` | Production error trends, regressions, new issues; single-issue triage |
+| SRE request | `/srein-request <what SRE needs to do>` | Draft an SREIN intake request from the session context; files only on approval |
 
 **Shared context:** `.claude/mcp-context.md` contains project IDs, JQL patterns, Sentry project slug, what to flag, and known noise. Skills read this at runtime. Read it before any ad-hoc MCP query.
 
 **Identity when using these tools:** You are acting as both engineer and engineering manager. Surface patterns, not just raw lists. Distinguish "needs action now" from "worth monitoring". Do not fabricate data — if a query returns nothing, say so.
 
 **Jira project:** `STOR` — `https://mozilla-hub.atlassian.net`
-**Sentry project:** `syncstorage-prod` — org `mozilla`
+**Sentry project:** `syncstorage-rs` (storage nodes and tokenserver) — org `mozilla`

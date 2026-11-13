@@ -1,6 +1,8 @@
 //! Main application server
 
-use std::{convert::Infallible, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{
+    convert::Infallible, future::Future, num::NonZeroUsize, pin::Pin, sync::Arc, time::Duration,
+};
 
 use actix_cors::Cors;
 use actix_web::{
@@ -8,7 +10,7 @@ use actix_web::{
     dev::{self, Payload},
     http::StatusCode,
     http::{Method, header::LOCATION},
-    middleware::ErrorHandlers,
+    middleware::{ErrorHandlers, from_fn},
     web::{self, Data},
 };
 use cadence::{Gauged, StatsdClient};
@@ -21,7 +23,7 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use syncserver_common::{
     BlockingThreadpool, BlockingThreadpoolMetrics, Metrics, Taggable,
-    middleware::sentry::SentryWrapper,
+    middleware::{request_metrics::request_metrics, sentry::SentryWrapper},
 };
 use syncserver_db_common::GetPoolStatus;
 use syncserver_settings::Settings;
@@ -46,6 +48,10 @@ pub const TOKENSERVER_DOCS_URL: &str =
 const MYSQL_UID_REGEX: &str = r"[0-9]{1,10}";
 const SYNC_VERSION_PATH: &str = "1.5";
 
+/// Four segments deliberately. A three segment path such as
+/// `/1.0/users/{fxa_uid}` would be matched by `/1.0/{application}/{version}`
+pub const FXA_DELETE_DATA_PATH: &str = r"/1.0/users/{fxa_uid:[A-Za-z0-9_-]{1,64}}/storage";
+
 #[cfg(test)]
 mod test;
 pub mod user_agent;
@@ -67,6 +73,8 @@ pub struct ServerState {
     pub port: u16,
 
     pub quota_enabled: bool,
+
+    pub require_collection_delete_confirmation: bool,
 
     pub deadman: Arc<RwLock<Deadman>>,
 
@@ -157,6 +165,7 @@ pub fn cfg_path(path: &str) -> String {
         // Tokenserver endpoints
         crate::tokenserver::handlers::get_tokenserver_result,
         crate::tokenserver::handlers::heartbeat,
+        crate::tokenserver::handlers::delete_user_syncstorage_data,
     ),
     components(
         schemas(crate::tokenserver::handlers::TokenserverResult)
@@ -192,6 +201,10 @@ macro_rules! build_app {
             .wrap_fn(tokenserver::logging::handle_request_log_line)
             .wrap_fn(middleware::rejectua::reject_user_agent)
             .wrap($cors)
+            // Outermost, so every request is timed end to end regardless of
+            // which middleware or handler answers it. Tagged with the matched
+            // route pattern, method and status.
+            .wrap(from_fn(request_metrics($metrics.clone())))
             .service(
                 web::resource(&cfg_path("/info/collections"))
                     .route(web::get().to(handlers::get_collections)),
@@ -249,6 +262,12 @@ macro_rules! build_app {
                                 .route(web::post().to(tokenserver::handlers::handle_fxa_events)),
                         );
                     }
+
+                    if tokenserver_state.fxa_delete_data_enabled {
+                        cfg.service(web::resource($crate::server::FXA_DELETE_DATA_PATH).route(
+                            web::delete().to(tokenserver::handlers::delete_user_syncstorage_data),
+                        ));
+                    }
                 }
             })
             // Dockerflow
@@ -298,6 +317,7 @@ macro_rules! build_app {
 macro_rules! build_app_without_syncstorage {
     ($state: expr, $secrets: expr, $cors: expr, $metrics: expr) => {{
         let fxa_webhook_enabled = $state.fxa_webhook_enabled;
+        let fxa_delete_data_enabled = $state.fxa_delete_data_enabled;
         App::new()
             .app_data(Data::new($state))
             .app_data(Data::new($secrets))
@@ -316,6 +336,10 @@ macro_rules! build_app_without_syncstorage {
             // For now, let's be permissive and use NGINX (the wrapping server)
             // for finer grained specification.
             .wrap($cors)
+            // Outermost, so every request is timed end to end regardless of
+            // which middleware or handler answers it. Tagged with the matched
+            // route pattern, method and status.
+            .wrap(from_fn(request_metrics($metrics.clone())))
             .service(
                 web::resource("/1.0/{application}/{version}")
                     .route(web::get().to(tokenserver::handlers::get_tokenserver_result)),
@@ -326,6 +350,12 @@ macro_rules! build_app_without_syncstorage {
                         web::resource("/1.0/webhooks/fxa/events")
                             .route(web::post().to(tokenserver::handlers::handle_fxa_events)),
                     );
+                }
+
+                if fxa_delete_data_enabled {
+                    cfg.service(web::resource($crate::server::FXA_DELETE_DATA_PATH).route(
+                        web::delete().to(tokenserver::handlers::delete_user_syncstorage_data),
+                    ));
                 }
             })
             // Dockerflow
@@ -375,7 +405,9 @@ macro_rules! build_app_without_syncstorage {
 }
 
 impl Server {
-    pub async fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
+    pub async fn with_settings(
+        settings: Settings,
+    ) -> Result<(dev::Server, Option<LastSeenDrain>), ApiError> {
         let settings_copy = settings.clone();
         let metrics = syncserver_common::metrics_from_opts(
             &settings.syncstorage.statsd_label,
@@ -401,6 +433,8 @@ impl Server {
                 .database_pool_sweeper_task_interval
                 .into(),
         ));
+        let require_collection_delete_confirmation =
+            settings.syncstorage.require_collection_delete_confirmation;
         let glean_logger = Arc::new(GleanEventsLogger {
             // app_id corresponds to probe-scraper entry.
             // https://github.com/mozilla/probe-scraper/blob/main/repositories.yaml
@@ -437,7 +471,7 @@ impl Server {
         let secrets = Arc::new(settings.master_secret);
         let quota_enabled = settings.syncstorage.enable_quota;
         let actix_keep_alive = settings.actix_keep_alive;
-        let tokenserver_state = if settings.tokenserver.enabled {
+        let (tokenserver_state, last_seen_drain) = if settings.tokenserver.enabled {
             let mut state = tokenserver::ServerState::from_settings(
                 &settings.tokenserver,
                 syncserver_common::metrics_from_opts(
@@ -448,8 +482,9 @@ impl Server {
                 blocking_threadpool,
             )?;
             state.init().await;
+            let last_seen_drain = start_last_seen(&settings.tokenserver, &mut state)?;
 
-            Some(state)
+            (Some(state), last_seen_drain)
         } else {
             // Only spawn a metric-reporting task if tokenserver is not running; if tokenserver is
             // running, we are running syncstorange and tokenserver as a single service, which
@@ -462,7 +497,7 @@ impl Server {
                 settings.include_hostname_tag,
             )?;
 
-            None
+            (None, None)
         };
 
         let mut server = HttpServer::new(move || {
@@ -473,6 +508,7 @@ impl Server {
                 metrics: metrics.clone(),
                 port,
                 quota_enabled,
+                require_collection_delete_confirmation,
                 deadman: Arc::clone(&deadman),
                 glean_logger: Arc::clone(&glean_logger),
                 glean_enabled,
@@ -502,12 +538,12 @@ impl Server {
             .bind(format!("{}:{}", host, port))
             .expect("Could not get Server in Server::with_settings")
             .run();
-        Ok(server)
+        Ok((server, last_seen_drain))
     }
 
     pub async fn tokenserver_only_with_settings(
         settings: Settings,
-    ) -> Result<dev::Server, ApiError> {
+    ) -> Result<(dev::Server, Option<LastSeenDrain>), ApiError> {
         let settings_copy = settings.clone();
 
         let host = settings.host.clone();
@@ -531,6 +567,7 @@ impl Server {
             blocking_threadpool.clone(),
         )?;
         tokenserver_state.init().await;
+        let last_seen_drain = start_last_seen(&settings.tokenserver, &mut tokenserver_state)?;
 
         spawn_metric_periodic_reporter(
             Duration::from_secs(10),
@@ -554,8 +591,82 @@ impl Server {
             .bind(format!("{}:{}", host, port))
             .expect("Could not get Server in Server::with_settings")
             .run();
-        Ok(server)
+        Ok((server, last_seen_drain))
     }
+}
+
+/// Drains last-seen uploads and logs after the server stops. Returns the deadline for
+/// final logger cleanup in `main`.
+pub type LastSeenDrain = Pin<Box<dyn Future<Output = std::time::Instant> + Send>>;
+
+/// Starts last-seen collection and the upload coordinator when enabled. A SIGTERM/SIGINT
+/// listener starts the shutdown budget, which includes actix's 30-second request drain.
+#[cfg(feature = "last_seen")]
+fn start_last_seen(
+    settings: &tokenserver_settings::Settings,
+    state: &mut tokenserver::ServerState,
+) -> Result<Option<LastSeenDrain>, ApiError> {
+    use crate::logging::row_logger;
+    use tokenserver::last_seen::{
+        Collector, Coordinator, RowLog, Shutdown, Uploader, finish_shutdown,
+    };
+    use tokio::signal::unix::{SignalKind, signal};
+
+    if !settings.last_seen_enabled {
+        return Ok(None);
+    }
+    // Validated at startup by `syncserver_settings::Settings::validate`.
+    let staging_table = settings
+        .last_seen_staging_table
+        .as_deref()
+        .unwrap_or_default();
+    let metrics = Arc::clone(&state.metrics);
+    let collector = Arc::new(Collector::new(Arc::clone(&metrics)));
+    let row_log = RowLog::spawn(row_logger()?)?;
+    let uploader = Arc::new(Uploader::new(
+        staging_table,
+        row_log.clone(),
+        Arc::clone(&metrics),
+    )?);
+    let shutdown = Arc::new(Shutdown::default());
+    let coordinator = Coordinator::new(
+        Arc::clone(&collector),
+        uploader,
+        row_log.clone(),
+        settings.last_seen_max_concurrent_flushes,
+        Arc::clone(&shutdown),
+        metrics,
+    );
+
+    // Created here so that a failure stops startup instead of disabling shutdown handling.
+    let signal_error = |e: std::io::Error| {
+        crate::error::ApiErrorKind::Internal(format!("Last-seen signal handler: {e}"))
+    };
+    let mut terminate = signal(SignalKind::terminate()).map_err(signal_error)?;
+    let mut interrupt = signal(SignalKind::interrupt()).map_err(signal_error)?;
+    let signaled = Arc::clone(&shutdown);
+    tokio::spawn(async move {
+        tokio::select! {
+            _ = terminate.recv() => {}
+            _ = interrupt.recv() => {}
+        }
+        signaled.begin();
+    });
+    let coordinator = tokio::spawn(coordinator.run());
+
+    state.last_seen = Some(collector);
+    Ok(Some(Box::pin(async move {
+        finish_shutdown(&shutdown, coordinator, &row_log).await
+    })))
+}
+
+/// Builds without the `last_seen` Cargo feature do not start collection.
+#[cfg(not(feature = "last_seen"))]
+fn start_last_seen(
+    _settings: &tokenserver_settings::Settings,
+    _state: &mut tokenserver::ServerState,
+) -> Result<Option<LastSeenDrain>, ApiError> {
+    Ok(None)
 }
 
 fn calculate_worker_max_blocking_threads(count: usize) -> usize {

@@ -10,6 +10,7 @@ use actix_web::{
     web::Bytes,
 };
 use base64::{Engine, engine};
+use cadence::SpyMetricSink;
 use chrono::offset::Utc;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hmac::{Hmac, KeyInit, Mac};
@@ -69,22 +70,59 @@ fn get_test_settings() -> Settings {
             .as_str(),
     )
     .expect("Could not get pool_size in get_test_settings");
-    if cfg!(feature = "mysql") && settings.syncstorage.uses_spanner() {
-        panic!(
-            "Spanner database_url specified for MySQL feature, please correct.\n\t{}",
-            &settings.syncstorage.database_url
-        )
-    }
-    if cfg!(feature = "spanner") && !&settings.syncstorage.uses_spanner() {
-        panic!(
-            "MySQL database_url specified for Spanner feature, please correct.\n\t{}",
-            &settings.syncstorage.database_url
-        )
-    }
+    check_database_url(&settings);
     settings.port = port;
     settings.host = host;
     settings.syncstorage.database_pool_max_size = pool_size + 1;
     settings
+}
+
+fn check_database_url(settings: &Settings) {
+    if cfg!(feature = "mysql") && settings.syncstorage.uses_spanner() {
+        panic!(
+            "Invalid DSN specified for mysql feature, please correct: {}",
+            settings.syncstorage.database_url
+        )
+    }
+    if cfg!(feature = "spanner") && !&settings.syncstorage.uses_spanner() {
+        panic!(
+            "Invalid DSN specified for spanner feature, please correct: {}",
+            settings.syncstorage.database_url
+        )
+    }
+}
+
+#[cfg(feature = "mysql")]
+#[actix_rt::test]
+#[should_panic(
+    expected = "Invalid DSN specified for mysql feature, please correct: spanner://projects/p/instances/i/databases/d"
+)]
+async fn invalid_dsn_for_mysql_feature() {
+    let mut settings = Settings::default();
+    settings.syncstorage.database_url = "spanner://projects/p/instances/i/databases/d".to_owned();
+    check_database_url(&settings);
+}
+
+#[cfg(feature = "spanner")]
+#[actix_rt::test]
+#[should_panic(
+    expected = "Invalid DSN specified for spanner feature, please correct: mysql://sync:test@localhost/syncstorage"
+)]
+async fn invalid_dsn_for_spanner_feature() {
+    let mut settings = Settings::default();
+    settings.syncstorage.database_url = "mysql://sync:test@localhost/syncstorage".to_owned();
+    check_database_url(&settings);
+}
+
+#[cfg(feature = "postgres")]
+#[actix_rt::test]
+async fn postgres_feature_builds_postgres_tokenserver_pool() {
+    let settings = tokenserver_settings::Settings {
+        database_url: "postgres://sync:test@localhost/tokenserver".to_owned(),
+        ..Default::default()
+    };
+    tokenserver_db::pool_from_settings(&settings, &syncserver_common::Metrics::noop(), false)
+        .expect("postgres build must include the postgres tokenserver backend");
 }
 
 async fn get_test_state(settings: &Settings) -> ServerState {
@@ -120,6 +158,9 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         metrics,
         port: settings.port,
         quota_enabled: settings.syncstorage.enable_quota,
+        require_collection_delete_confirmation: settings
+            .syncstorage
+            .require_collection_delete_confirmation,
         deadman: Arc::new(RwLock::new(Deadman::from(&settings.syncstorage))),
         glean_logger,
         glean_enabled: settings.syncstorage.glean_enabled,
@@ -159,6 +200,12 @@ macro_rules! init_app {
         async {
             crate::logging::init_logging(false).unwrap();
             let state = get_test_state(&$settings).await;
+            init_app!($settings, state).await
+        }
+    };
+    ($settings:expr, $state:expr) => {
+        async {
+            let state = $state;
             let metrics = state.metrics.clone();
             test::init_service(build_app!(
                 state,
@@ -220,6 +267,11 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
         hashed_device_id: "xxx_test".to_owned(),
         tokenserver_origin: Default::default(),
     };
+    sign_hawk_payload(method, port, path, payload)
+}
+
+fn sign_hawk_payload(method: &str, port: u16, path: &str, payload: HawkPayload) -> String {
+    let host = TEST_HOST;
     let payload =
         serde_json::to_string(&payload).expect("Could not get payload in create_hawk_header");
     let mut signature = Hmac::<Sha256>::new_from_slice(&SECRETS.signing_secret)
@@ -443,6 +495,406 @@ async fn delete_collection() {
         },
     )
     .await;
+}
+
+mod collection_deletion_confirmation {
+    use std::fmt::Debug;
+
+    use actix_web::{body::MessageBody, dev::ServiceResponse, http::header::HeaderMap};
+
+    use super::*;
+
+    struct Reply {
+        body: Value,
+        headers: HeaderMap,
+    }
+
+    impl Reply {
+        fn modified(&self) -> SyncTimestamp {
+            SyncTimestamp::from_header(self.headers.get(X_LAST_MODIFIED).unwrap().to_str().unwrap())
+                .unwrap()
+        }
+    }
+
+    async fn send<S, B>(app: &S, request: test::TestRequest, expected: StatusCode) -> Reply
+    where
+        S: Service<actix_http::Request, Response = ServiceResponse<B>>,
+        S::Error: Debug,
+        B: MessageBody,
+        B::Error: Debug,
+    {
+        let response = app.call(request.to_request()).await.unwrap();
+        let status = response.status();
+        let headers = response.headers().clone();
+        let bytes = test::read_body(response).await;
+        assert_eq!(status, expected, "{}", String::from_utf8_lossy(&bytes));
+        Reply {
+            body: if bytes.is_empty() {
+                Value::Null
+            } else {
+                serde_json::from_slice(&bytes).unwrap()
+            },
+            headers,
+        }
+    }
+
+    fn settings(require_confirmation: bool) -> Settings {
+        let mut settings = get_test_settings();
+        settings.syncstorage.database_use_test_transactions = false;
+        settings.syncstorage.require_collection_delete_confirmation = require_confirmation;
+        settings
+    }
+
+    fn collection() -> String {
+        format!("delete_test_{:016x}", rand::random::<u64>())
+    }
+
+    fn user_request(
+        user_id: u64,
+        method: http::Method,
+        path: &str,
+        body: Option<Value>,
+    ) -> test::TestRequest {
+        let settings = get_test_settings();
+        let identity = format!("delete_test_{user_id}");
+        let payload = HawkPayload {
+            expires: (Utc::now().timestamp() + 5) as f64,
+            node: format!("http://{TEST_HOST}:{}", settings.port),
+            salt: "wibble".to_owned(),
+            user_id,
+            fxa_uid: identity.clone(),
+            fxa_kid: identity.clone(),
+            hashed_fxa_uid: identity,
+            hashed_device_id: "delete_test".to_owned(),
+            tokenserver_origin: Default::default(),
+        };
+        let authorization = sign_hawk_payload(method.as_str(), settings.port, path, payload);
+        create_request(method, path, None, body).insert_header(("Authorization", authorization))
+    }
+
+    #[actix_rt::test]
+    async fn ignored_collection_deletion_preserves_data() {
+        let user = rand::random_range(100_000_000..1_000_000_000_u64);
+        let root = format!("/1.5/{user}");
+        let info_path = format!("{root}/info/collections");
+        let app = init_app!(settings(true)).await;
+        let name = collection();
+        let path = format!("{root}/storage/{name}");
+        let full_path = format!("{path}?full=1&sort=index");
+        let other_path = format!("{root}/storage/{}", collection());
+        send(
+            &app,
+            user_request(
+                user,
+                http::Method::POST,
+                &path,
+                Some(json!([
+                    {"id": "first", "payload": "keep first", "sortindex": 2},
+                    {"id": "second", "payload": "keep second", "sortindex": 1},
+                ])),
+            ),
+            StatusCode::OK,
+        )
+        .await;
+        // 10 ms between writes so their timestamps differ
+        actix_rt::time::sleep(Duration::from_millis(10)).await;
+        let batch = send(
+            &app,
+            user_request(
+                user,
+                http::Method::POST,
+                &format!("{path}?batch=true"),
+                Some(json!([{"id": "queued", "payload": "keep pending batch"}])),
+            ),
+            StatusCode::ACCEPTED,
+        )
+        .await;
+        assert_eq!(batch.body["success"], json!(["queued"]));
+        assert_eq!(batch.body["failed"], json!({}));
+
+        // Modify another collection so storage and target collection timestamps differ.
+        actix_rt::time::sleep(Duration::from_millis(10)).await;
+        send(
+            &app,
+            user_request(
+                user,
+                http::Method::PUT,
+                &format!("{other_path}/other"),
+                Some(json!({"payload": "other collection"})),
+            ),
+            StatusCode::OK,
+        )
+        .await;
+        let records = send(
+            &app,
+            user_request(user, http::Method::GET, &full_path, None),
+            StatusCode::OK,
+        )
+        .await;
+        let collections = send(
+            &app,
+            user_request(user, http::Method::GET, &info_path, None),
+            StatusCode::OK,
+        )
+        .await;
+        assert_eq!(records.body.as_array().unwrap().len(), 2);
+        assert_eq!(records.body[0]["payload"], "keep first");
+        assert_eq!(records.body[1]["payload"], "keep second");
+        assert!(collections.body.get(&name).is_some());
+        assert!(collections.modified() > records.modified());
+
+        let assert_preserved = async || {
+            for (route, before) in [
+                (full_path.as_str(), &records),
+                (info_path.as_str(), &collections),
+            ] {
+                let after = send(
+                    &app,
+                    user_request(user, http::Method::GET, route, None),
+                    StatusCode::OK,
+                )
+                .await;
+                assert_eq!(after.body, before.body);
+                assert_eq!(after.modified(), before.modified());
+            }
+        };
+
+        for confirmation in [
+            vec![],
+            vec![""],
+            vec!["0"],
+            vec!["true"],
+            vec!["0", "1"],
+            vec!["1,1"],
+            vec!["1, 1"],
+        ] {
+            let mut request = user_request(user, http::Method::DELETE, &path, None);
+            for value in confirmation {
+                request = request.append_header(("X-Confirm-Delete", value));
+            }
+            let ignored = send(&app, request, StatusCode::OK).await;
+            assert_eq!(ignored.body, json!(collections.modified()));
+            assert_eq!(ignored.modified(), records.modified());
+            assert!(ignored.headers.contains_key("X-Weave-Timestamp"));
+            assert_preserved().await;
+        }
+
+        let modified = records.modified().as_header();
+        for (header, value, expected) in [
+            (
+                "X-If-Modified-Since",
+                modified.as_str(),
+                StatusCode::NOT_MODIFIED,
+            ),
+            (
+                "X-If-Unmodified-Since",
+                "0",
+                StatusCode::PRECONDITION_FAILED,
+            ),
+            ("X-If-Modified-Since", "0", StatusCode::OK),
+            ("X-If-Unmodified-Since", modified.as_str(), StatusCode::OK),
+        ] {
+            let response = send(
+                &app,
+                user_request(user, http::Method::DELETE, &path, None)
+                    .insert_header((header, value)),
+                expected,
+            )
+            .await;
+            assert_eq!(response.modified(), records.modified());
+            if expected == StatusCode::OK {
+                assert_eq!(response.body, json!(collections.modified()));
+            } else {
+                assert!(response.body.is_null());
+            }
+            assert_preserved().await;
+        }
+    }
+
+    #[actix_rt::test]
+    async fn collection_deletion_metrics() {
+        crate::logging::init_logging(false).unwrap();
+        for require_confirmation in [false, true] {
+            let mut settings = get_test_settings();
+            settings.syncstorage.require_collection_delete_confirmation = require_confirmation;
+            let mut state = get_test_state(&settings).await;
+            let (recorded, sink) = SpyMetricSink::new();
+            state.metrics = Arc::new(StatsdClient::builder("syncstorage", sink).build());
+            let app = init_app!(settings, state).await;
+
+            for (query, confirmation, whole, ignored_when_enabled) in [
+                ("", None, 1, true),
+                ("", Some("1"), 1, false),
+                ("", Some("invalid"), 1, true),
+                ("?ids=record", None, 0, false),
+            ] {
+                let user = rand::random_range(100_000_000..1_000_000_000_u64);
+                let path = format!("/1.5/{user}/storage/bookmarks{query}");
+                let mut request = user_request(user, http::Method::DELETE, &path, None);
+                if let Some(value) = confirmation {
+                    request = request.insert_header(("X-Confirm-Delete", value));
+                }
+                send(&app, request, StatusCode::OK).await;
+                let lines: Vec<_> = recorded
+                    .try_iter()
+                    .map(|line| String::from_utf8(line).unwrap())
+                    .collect();
+                let count = |name| {
+                    lines
+                        .iter()
+                        .filter(|line| line.starts_with(&format!("syncstorage.{name}:1|c")))
+                        .count()
+                };
+                assert_eq!(count("request.delete_collection"), whole, "{lines:?}");
+                assert_eq!(
+                    count("request.delete_collection_ignored"),
+                    usize::from(require_confirmation && ignored_when_enabled),
+                    "{lines:?}"
+                );
+                assert_eq!(count("request.delete_bsos"), 1 - whole, "{lines:?}");
+            }
+        }
+    }
+
+    #[actix_rt::test]
+    async fn legacy_and_confirmed_collection_deletion() {
+        let user = rand::random_range(100_000_000..1_000_000_000_u64);
+        let root = format!("/1.5/{user}");
+        let info_path = format!("{root}/info/collections");
+        for require_confirmation in [false, true] {
+            let app = init_app!(settings(require_confirmation)).await;
+            for (confirmation, confirmed) in [
+                (vec![], false),
+                (vec!["invalid"], false),
+                (vec!["1"], true),
+                (vec!["1", "1"], true),
+                (vec!["1", "0"], true),
+            ] {
+                if require_confirmation && !confirmed {
+                    continue;
+                }
+                let name = collection();
+                let path = format!("{root}/storage/{name}");
+                send(
+                    &app,
+                    user_request(
+                        user,
+                        http::Method::PUT,
+                        &format!("{path}/record"),
+                        Some(json!({"payload": "delete me"})),
+                    ),
+                    StatusCode::OK,
+                )
+                .await;
+                let before = send(
+                    &app,
+                    user_request(user, http::Method::GET, &format!("{path}/record"), None),
+                    StatusCode::OK,
+                )
+                .await;
+                assert_eq!(before.body["payload"], "delete me");
+                let mut request = user_request(user, http::Method::DELETE, &path, None);
+                for value in confirmation {
+                    request = request.append_header(("x-CoNfIrM-dElEtE", value));
+                }
+                actix_rt::time::sleep(Duration::from_millis(10)).await;
+                let deleted = send(&app, request, StatusCode::OK).await;
+                assert!(deleted.body.is_number());
+                send(
+                    &app,
+                    user_request(user, http::Method::GET, &format!("{path}/record"), None),
+                    StatusCode::NOT_FOUND,
+                )
+                .await;
+                let collections = send(
+                    &app,
+                    user_request(user, http::Method::GET, &info_path, None),
+                    StatusCode::OK,
+                )
+                .await;
+                assert!(collections.body.get(&name).is_none());
+            }
+        }
+    }
+
+    #[actix_rt::test]
+    async fn selected_and_single_record_deletion() {
+        let user = rand::random_range(100_000_000..1_000_000_000_u64);
+        let root = format!("/1.5/{user}");
+        let app = init_app!(settings(true)).await;
+        let path = format!("{root}/storage/{}", collection());
+        send(
+            &app,
+            user_request(
+                user,
+                http::Method::POST,
+                &path,
+                Some(json!([
+                    {"id": "selected", "payload": "selected"},
+                    {"id": "single", "payload": "single"},
+                    {"id": "keep", "payload": "keep"},
+                ])),
+            ),
+            StatusCode::OK,
+        )
+        .await;
+        let single = send(
+            &app,
+            user_request(user, http::Method::GET, &format!("{path}/single"), None),
+            StatusCode::OK,
+        )
+        .await;
+        actix_rt::time::sleep(Duration::from_millis(10)).await;
+        let selected = send(
+            &app,
+            user_request(
+                user,
+                http::Method::DELETE,
+                &format!("{path}?ids=,selected,,"),
+                None,
+            ),
+            StatusCode::OK,
+        )
+        .await;
+        assert_eq!(selected.body, json!(selected.modified()));
+        send(
+            &app,
+            user_request(user, http::Method::GET, &format!("{path}/selected"), None),
+            StatusCode::NOT_FOUND,
+        )
+        .await;
+        actix_rt::time::sleep(Duration::from_millis(10)).await;
+        let deleted = send(
+            &app,
+            user_request(user, http::Method::DELETE, &format!("{path}/single"), None),
+            StatusCode::OK,
+        )
+        .await;
+        assert!(deleted.body["modified"].is_number());
+        assert_eq!(deleted.modified(), single.modified());
+        send(
+            &app,
+            user_request(user, http::Method::GET, &format!("{path}/single"), None),
+            StatusCode::NOT_FOUND,
+        )
+        .await;
+        let remaining = send(
+            &app,
+            user_request(user, http::Method::GET, &format!("{path}?full=1"), None),
+            StatusCode::OK,
+        )
+        .await;
+        assert_eq!(remaining.body.as_array().unwrap().len(), 1);
+        assert_eq!(remaining.body[0]["payload"], "keep");
+        actix_rt::time::sleep(Duration::from_millis(10)).await;
+        send(
+            &app,
+            user_request(user, http::Method::DELETE, &path, None)
+                .insert_header(("X-Confirm-Delete", "1")),
+            StatusCode::OK,
+        )
+        .await;
+    }
 }
 
 #[actix_rt::test]
@@ -1092,4 +1544,106 @@ fn limits_json_omits_collections_when_none_overridden() {
     let json: Value = serde_json::from_str(&build_limits_json(&ServerLimits::default())).unwrap();
     assert!(json.get("collections").is_none());
     assert!(json.get("max_record_payload_bytes").is_some());
+}
+
+#[actix_rt::test]
+async fn request_duration_is_emitted_for_requests_rejected_before_routing() {
+    crate::logging::init_logging(false).unwrap();
+    let settings = get_test_settings();
+    let mut state = get_test_state(&settings).await;
+    let (recorded, sink) = SpyMetricSink::new();
+    state.metrics = Arc::new(StatsdClient::builder("syncstorage", sink).build());
+    let app = init_app!(settings, state).await;
+
+    // The reject-UA middleware answers this before any handler runs. A timing
+    // is still emitted, which is only true if `request_metrics` wraps the
+    // whole chain in `build_app!` rather than just the handlers.
+    let mut headers = HashMap::new();
+    headers.insert(
+        "User-Agent",
+        "Firefox-iOS-Sync/18.0b1 (iPhone; iPhone OS 13.2.2) (Fennec (synctesting))".to_owned(),
+    );
+    let req = create_request(
+        http::Method::GET,
+        "/1.5/42/info/collections",
+        Some(headers),
+        None,
+    )
+    .to_request();
+    let response = app.call(req).await.unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+    let lines: Vec<String> = recorded
+        .try_iter()
+        .map(|line| String::from_utf8(line).expect("statsd line was not utf-8"))
+        .collect();
+    let timing = lines
+        .iter()
+        .find(|line| line.starts_with("syncstorage.request.duration:"))
+        .unwrap_or_else(|| panic!("no request.duration emitted; got {lines:?}"));
+    for tag in [
+        "route:/1.5/{uid}/info/collections",
+        "method:GET",
+        "status:503",
+    ] {
+        assert!(timing.contains(tag), "missing tag {tag}: {timing}");
+    }
+}
+
+/// Sign a request the way `delete_user_syncstorage_data` does in production:
+/// mint via `Tokenlib`, then sign with hawk's client.
+///
+/// Deliberately does not reuse `create_hawk_header`, which hand-rolls the token
+/// so it can control the payload. The point here is to exercise the real mint
+/// path end to end against a real node.
+fn create_minted_hawk_header(method: &str, port: u16, path: &str, uid: i64) -> String {
+    let shared_secret =
+        String::from_utf8(SECRETS.master_secret.clone()).expect("Could not read the master secret");
+    let plaintext = tokenserver_auth::MakeTokenPlaintext {
+        node: format!("http://{}:{}", TEST_HOST, port),
+        fxa_kid: format!("xxx_test_kid_{}", *RAND_UID),
+        fxa_uid: format!("xxx_test_uid_{}", *RAND_UID),
+        hashed_device_id: "xxx_test".to_owned(),
+        hashed_fxa_uid: format!("xxx_test_hashed_fxa_uid_{}", *RAND_UID),
+        expires: (Utc::now().timestamp() + 300) as u64,
+        uid,
+        tokenserver_origin: Default::default(),
+    };
+    let (token, derived_secret) =
+        tokenserver_auth::Tokenlib::get_token_and_derived_secret(plaintext, &shared_secret)
+            .expect("Could not mint the token");
+
+    let credentials = Credentials {
+        id: token,
+        key: Key::new(derived_secret.as_bytes(), hawk::DigestAlgorithm::Sha256)
+            .expect("Could not build the hawk key"),
+    };
+    let header = RequestBuilder::new(method, TEST_HOST, port, path)
+        .request()
+        .make_header(&credentials)
+        .expect("Could not sign the hawk request");
+    format!("Hawk {}", header)
+}
+
+#[actix_rt::test]
+async fn delete_all_accepts_a_tokenserver_minted_token() {
+    let settings = get_test_settings();
+    let app = init_app!(settings.clone()).await;
+
+    let path = "/1.5/42/storage";
+    let req = test::TestRequest::with_uri(path)
+        .method(http::Method::DELETE)
+        .insert_header((
+            "Authorization",
+            create_minted_hawk_header("DELETE", settings.port, path, 42),
+        ))
+        .insert_header(("Accept", "application/json"))
+        .to_request();
+
+    let sresp = app.call(req).await.expect("Could not get sresp");
+    assert_eq!(
+        sresp.response().status(),
+        StatusCode::OK,
+        "a token minted the way the deletion endpoint mints it must be accepted"
+    );
 }

@@ -94,17 +94,17 @@ impl Settings {
 
         let mut s: Settings = settings.try_deserialize::<Self>().map_err(|e| match e {
             ConfigError::Message(v) => {
-                println!("Bad configuration: {:?}", &v);
+                println!("Bad configuration: {v:?}");
                 println!("Please set in config file or use environment variable.");
                 println!(
                     "For example to set `database_url` use env var `{}_DATABASE_URL`\n",
                     PREFIX.to_uppercase()
                 );
-                error!("Configuration error: Value undefined {:?}", &v);
+                error!("Configuration error: Value undefined {v:?}");
                 ConfigError::NotFound(v)
             }
             e => {
-                error!("Configuration error: Other: {:?}", &e);
+                error!("Configuration error: Other: {e:?}");
                 e
             }
         })?;
@@ -178,6 +178,69 @@ impl Settings {
             ));
         }
 
+        if self.tokenserver.enabled && self.tokenserver.fxa_delete_data_enabled {
+            let ts = &self.tokenserver;
+            let required = |name: &str, value: &Option<String>| {
+                value
+                    .as_deref()
+                    .filter(|v| !v.trim().is_empty())
+                    .map(str::to_owned)
+                    .ok_or_else(|| {
+                        ConfigError::Message(format!(
+                            "{name} must be set when \
+                             SYNC_TOKENSERVER__FXA_DELETE_DATA_ENABLED is true"
+                        ))
+                    })
+            };
+            let audience = required(
+                "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE",
+                &ts.fxa_delete_data_audience,
+            )?;
+            let issuer = required(
+                "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER",
+                &ts.fxa_delete_data_issuer,
+            )?;
+
+            // Rejects a value that is not a URL at all. It does NOT catch a
+            // trailing-slash mismatch: `iss` is compared byte-for-byte against
+            // the token's claim.
+            if Url::parse(&issuer).is_err() {
+                return Err(ConfigError::Message(
+                    "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER must be an absolute URL".to_owned(),
+                ));
+            }
+
+            // Delete assertions are only ever verified against locally
+            // configured JWKs; there is no remote-JWKS fallback on this path.
+            if ts.fxa_oauth_primary_jwk.is_none() && ts.fxa_oauth_secondary_jwk.is_none() {
+                return Err(ConfigError::Message(
+                    "SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK or _SECONDARY_JWK must be set when \
+                     SYNC_TOKENSERVER__FXA_DELETE_DATA_ENABLED is true"
+                        .to_owned(),
+                ));
+            }
+
+            // The audience is what keeps a delete assertion from being
+            // interchangeable with the other FxA-signed credentials on the
+            // same JWKS. Enforce that separation at boot rather than trusting
+            // it to stay true.
+            if ts.fxa_webhook_set_client_id.as_deref() == Some(audience.as_str()) {
+                return Err(ConfigError::Message(
+                    "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE must differ from \
+                     SYNC_TOKENSERVER__FXA_WEBHOOK_SET_CLIENT_ID: a shared audience would make \
+                     webhook SETs and delete assertions interchangeable"
+                        .to_owned(),
+                ));
+            }
+            if ts.fxa_oauth_server_url == audience {
+                return Err(ConfigError::Message(
+                    "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE must differ from \
+                     SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"
+                        .to_owned(),
+                ));
+            }
+        }
+
         // overriding limits must be > 0 and validate names while we're at it
         let coll_regex = Regex::new(&format!("^{}$", COLLECTION_ID_REGEX)).unwrap();
         for (name, overrides) in &self.syncstorage.limits.collections {
@@ -227,6 +290,27 @@ impl Settings {
             return Err(ConfigError::Message(
                 "SYNC_SYNCSTORAGE__GCS_PAYLOAD_PREFIX must not be empty".to_owned(),
             ));
+        }
+
+        if self.tokenserver.enabled && self.tokenserver.last_seen_enabled {
+            let staging_table = self
+                .tokenserver
+                .last_seen_staging_table
+                .as_deref()
+                .unwrap_or_default();
+            if tokenserver_settings::parse_bigquery_table_id(staging_table).is_none() {
+                return Err(ConfigError::Message(
+                    "SYNC_TOKENSERVER__LAST_SEEN_STAGING_TABLE must be set as \
+                     PROJECT_ID.DATASET_ID.TABLE_ID when last-seen is enabled"
+                        .to_owned(),
+                ));
+            }
+            if self.tokenserver.last_seen_max_concurrent_flushes == 0 {
+                return Err(ConfigError::Message(
+                    "SYNC_TOKENSERVER__LAST_SEEN_MAX_CONCURRENT_FLUSHES must be greater than 0"
+                        .to_owned(),
+                ));
+            }
         }
 
         if let Some(init_node_url) = &self.tokenserver.init_node_url {
@@ -309,6 +393,7 @@ impl Default for Settings {
                 [
                     "Authorization",
                     "Content-Type",
+                    "X-Confirm-Delete",
                     "User-Agent",
                     X_LAST_MODIFIED,
                     X_WEAVE_TIMESTAMP,
@@ -431,6 +516,53 @@ mod test {
                 assert!(!settings.tokenserver.enabled);
             },
         );
+    }
+
+    fn jwk_env_vars(jwk: &str, kid: &'static str) -> Vec<(String, Option<&'static str>)> {
+        [
+            ("KTY", "RSA"),
+            ("ALG", "RS256"),
+            ("USE", "sig"),
+            ("KID", kid),
+            ("N", "2_xtUxR3TPmvkwbVwHQYoEI3TjzLaJcCpYYyxFxzX7k"),
+            ("E", "AQAB"),
+        ]
+        .into_iter()
+        .map(|(field, value)| {
+            (
+                format!("SYNC_TOKENSERVER__FXA_OAUTH_{jwk}_JWK__{field}"),
+                Some(value),
+            )
+        })
+        .collect()
+    }
+
+    fn settings_with_jwks(primary_kid: &'static str, secondary_kid: &'static str) -> Settings {
+        let mut vars = jwk_env_vars("PRIMARY", primary_kid);
+        vars.extend(jwk_env_vars("SECONDARY", secondary_kid));
+        vars.push((
+            "SYNC_SYNCSTORAGE__DATABASE_URL".to_owned(),
+            Some(TEST_SYNCSTORAGE_DATABASE_URL),
+        ));
+        temp_env::with_vars(vars, || Settings::with_env_and_config_file(None).unwrap())
+    }
+
+    #[test]
+    fn test_jwk_env_vars_with_integer_like_kid() {
+        let settings = settings_with_jwks("20251204", "20251205");
+        let primary = settings.tokenserver.fxa_oauth_primary_jwk.unwrap();
+        let secondary = settings.tokenserver.fxa_oauth_secondary_jwk.unwrap();
+        assert_eq!(primary.common.key_id.as_deref(), Some("20251204"));
+        assert_eq!(secondary.common.key_id.as_deref(), Some("20251205"));
+    }
+
+    #[test]
+    fn test_jwk_env_vars_with_string_kid() {
+        let settings = settings_with_jwks("dev-20251204", "dev-20251205");
+        let primary = settings.tokenserver.fxa_oauth_primary_jwk.unwrap();
+        let secondary = settings.tokenserver.fxa_oauth_secondary_jwk.unwrap();
+        assert_eq!(primary.common.key_id.as_deref(), Some("dev-20251204"));
+        assert_eq!(secondary.common.key_id.as_deref(), Some("dev-20251205"));
     }
 
     #[test]
@@ -660,6 +792,107 @@ mod test {
         );
     }
 
+    /// Minimum env needed for a Tokenserver-only boot with deletes enabled.
+    fn delete_data_env() -> Vec<(&'static str, Option<&'static str>)> {
+        vec![
+            ("SYNC_SYNCSTORAGE__ENABLED", Some("false")),
+            ("SYNC_TOKENSERVER__ENABLED", Some("true")),
+            (
+                "SYNC_TOKENSERVER__DATABASE_URL",
+                Some("mysql://test:test@localhost/tokenserver"),
+            ),
+            ("SYNC_TOKENSERVER__FXA_DELETE_DATA_ENABLED", Some("true")),
+            (
+                "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE",
+                Some("urn:mozilla:fxa:tokenserver:sync-data-delete"),
+            ),
+            (
+                "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER",
+                Some("https://accounts.firefox.com"),
+            ),
+            ("SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KTY", Some("RSA")),
+            (
+                "SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__ALG",
+                Some("RS256"),
+            ),
+            ("SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__N", Some("abc")),
+            ("SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__E", Some("AQAB")),
+        ]
+    }
+
+    #[test]
+    fn test_delete_data_requires_its_config() {
+        // Each of these omissions must stop the server starting, rather than
+        // leaving an endpoint that destroys user data misconfigured.
+        for missing in [
+            "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE",
+            "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER",
+        ] {
+            let vars: Vec<_> = delete_data_env()
+                .into_iter()
+                .map(|(k, v)| if k == missing { (k, None) } else { (k, v) })
+                .collect();
+            temp_env::with_vars(vars, || {
+                assert!(
+                    Settings::with_env_and_config_file(None).is_err(),
+                    "must not boot without {missing}"
+                );
+            });
+        }
+
+        // An empty value is as bad as an absent one.
+        let mut blank = delete_data_env();
+        blank.retain(|(k, _)| *k != "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE");
+        blank.push(("SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE", Some("   ")));
+        temp_env::with_vars(blank, || {
+            assert!(Settings::with_env_and_config_file(None).is_err());
+        });
+
+        // Only outright garbage is caught at boot; a trailing-slash mismatch
+        // is not, and cannot be — see the comment on the check itself.
+        let mut bad_iss = delete_data_env();
+        bad_iss.retain(|(k, _)| *k != "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER");
+        bad_iss.push((
+            "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER",
+            Some("not a url"),
+        ));
+        temp_env::with_vars(bad_iss, || {
+            assert!(Settings::with_env_and_config_file(None).is_err());
+        });
+    }
+
+    /// The boot-time half of non-interchangeability: a shared audience would
+    /// make webhook SETs and delete assertions substitutable, so the process
+    /// refuses to start rather than relying on anyone noticing.
+    #[test]
+    fn test_delete_data_audience_must_not_collide() {
+        let aud = "urn:mozilla:fxa:tokenserver:sync-data-delete";
+
+        let mut webhook = delete_data_env();
+        webhook.push(("SYNC_TOKENSERVER__FXA_WEBHOOK_SET_CLIENT_ID", Some(aud)));
+        temp_env::with_vars(webhook, || {
+            let err = Settings::with_env_and_config_file(None)
+                .expect_err("audience must differ from the webhook client id")
+                .to_string();
+            assert!(
+                err.contains("FXA_WEBHOOK_SET_CLIENT_ID"),
+                "rejected for the wrong reason: {err}"
+            );
+        });
+
+        let mut oauth = delete_data_env();
+        oauth.push(("SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL", Some(aud)));
+        temp_env::with_vars(oauth, || {
+            let err = Settings::with_env_and_config_file(None)
+                .expect_err("audience must differ from the oauth server url")
+                .to_string();
+            assert!(
+                err.contains("FXA_OAUTH_SERVER_URL"),
+                "rejected for the wrong reason: {err}"
+            );
+        });
+    }
+
     #[test]
     fn test_disabled_tokenserver_does_not_require_database_url() {
         // A disabled Tokenserver should not require a DATABASE_URL.
@@ -679,5 +912,113 @@ mod test {
                 assert!(settings.tokenserver.database_url.is_empty());
             },
         );
+    }
+
+    #[test]
+    fn test_collection_deletion_confirmation_setting_values() {
+        assert!(
+            !Settings::default()
+                .syncstorage
+                .require_collection_delete_confirmation
+        );
+        assert!(
+            Settings::default()
+                .cors_allowed_headers
+                .unwrap()
+                .contains(&"X-Confirm-Delete".to_owned())
+        );
+        for (value, expected) in [
+            (None, Some(false)),
+            (Some("false"), Some(false)),
+            (Some("true"), Some(true)),
+            (Some("invalid"), None),
+        ] {
+            temp_env::with_vars(
+                [
+                    (
+                        "SYNC_SYNCSTORAGE__DATABASE_URL",
+                        Some(TEST_SYNCSTORAGE_DATABASE_URL),
+                    ),
+                    ("SYNC_SYNCSTORAGE__ENABLED", Some("true")),
+                    ("SYNC_TOKENSERVER__ENABLED", Some("false")),
+                    ("SYNC_SYNCSTORAGE__GCS_PAYLOAD_BUCKET", None),
+                    ("SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS", None),
+                    ("SYNC_SYNCSTORAGE__GCS_PAYLOAD_PREFIX", None),
+                    (
+                        "SYNC_SYNCSTORAGE__REQUIRE_COLLECTION_DELETE_CONFIRMATION",
+                        value,
+                    ),
+                ],
+                || {
+                    let result = Settings::with_env_and_config_file(None);
+                    match expected {
+                        Some(expected) => assert_eq!(
+                            result
+                                .unwrap()
+                                .syncstorage
+                                .require_collection_delete_confirmation,
+                            expected
+                        ),
+                        None => assert!(result.is_err(), "invalid Boolean must fail startup"),
+                    }
+                },
+            );
+        }
+    }
+
+    fn with_last_seen_vars(
+        staging_table: Option<&str>,
+        max_concurrent_flushes: Option<&str>,
+        f: impl FnOnce(),
+    ) {
+        temp_env::with_vars(
+            [
+                (
+                    "SYNC_SYNCSTORAGE__DATABASE_URL",
+                    Some(TEST_SYNCSTORAGE_DATABASE_URL),
+                ),
+                (
+                    "SYNC_TOKENSERVER__DATABASE_URL",
+                    Some(TEST_TOKENSERVER_DATABASE_URL),
+                ),
+                ("SYNC_TOKENSERVER__ENABLED", Some("true")),
+                ("SYNC_TOKENSERVER__LAST_SEEN_ENABLED", Some("true")),
+                ("SYNC_TOKENSERVER__LAST_SEEN_STAGING_TABLE", staging_table),
+                (
+                    "SYNC_TOKENSERVER__LAST_SEEN_MAX_CONCURRENT_FLUSHES",
+                    max_concurrent_flushes,
+                ),
+            ],
+            f,
+        );
+    }
+
+    #[test]
+    fn test_last_seen_settings_validate() {
+        with_last_seen_vars(Some("project.dataset.table"), None, || {
+            let settings = Settings::with_env_and_config_file(None)
+                .expect("a qualified staging table should validate");
+            assert_eq!(
+                settings.tokenserver.last_seen_staging_table.as_deref(),
+                Some("project.dataset.table")
+            );
+            assert_eq!(settings.tokenserver.last_seen_max_concurrent_flushes, 4);
+        });
+    }
+
+    #[test]
+    fn test_last_seen_invalid_settings_fail() {
+        for staging_table in [None, Some("dataset.table")] {
+            with_last_seen_vars(staging_table, None, || {
+                let err = Settings::with_env_and_config_file(None)
+                    .expect_err("a missing or unqualified staging table should fail");
+                assert!(err.to_string().contains("LAST_SEEN_STAGING_TABLE"));
+            });
+        }
+        with_last_seen_vars(Some("project.dataset.table"), Some("0"), || {
+            let err = Settings::with_env_and_config_file(None)
+                .expect_err("zero concurrent flushes should fail");
+            assert!(err.to_string().contains("LAST_SEEN_MAX_CONCURRENT_FLUSHES"));
+        });
     }
 }

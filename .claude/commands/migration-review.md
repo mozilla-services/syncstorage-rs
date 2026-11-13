@@ -18,32 +18,27 @@ Each migration directory is named `YYYY-MM-DD-hhmmss_description/` and contains 
 ## Step 1 — Find changed migration files
 
 ```bash
-git diff main...HEAD --name-only | grep -E "migrations/|schema\.ddl|\.sql"
+git diff origin/master...HEAD --name-status -- '*/migrations/*' '*.sql' '*.ddl'
 ```
+
+`A` is a new file, `M`/`D`/`R` touch a file that already exists on `origin/master`.
 
 ## Step 2 — Classify each changed file
 
-For each changed SQL file:
-
-- **New migration directory** (path did not exist on main) → allowed, proceed to Step 3
-- **Existing migration file modified** (path existed on main and content changed) → **VIOLATION** — flag as a blocker
-- **schema.ddl modified** → **VIOLATION** — flag as a blocker
-- **Inline .sql query file modified** (non-migration) → review for intent, flag if it changes schema
-
-Check whether a file existed on main:
-```bash
-git show main:<path>
-```
+- New migration directory (path did not exist on origin/master): allowed, go to Step 3
+- Existing migration file modified, deleted or renamed: VIOLATION, flag as a blocker
+- `schema.ddl` modified: VIOLATION, flag as a blocker
+- Non-migration `.sql` file modified (e.g. `syncstorage-spanner/src/*.sql`): review for intent, flag if it changes schema
 
 ## Step 3 — Validate new migrations
 
 For each new migration directory:
 
-1. Confirm both `up.sql` and `down.sql` exist
-2. Confirm `down.sql` is a genuine rollback of `up.sql` (not empty, not a no-op)
-3. Check that the timestamp prefix is newer than all existing migrations in that crate
-4. Check for destructive operations in `up.sql` (`DROP TABLE`, `DROP COLUMN`, `TRUNCATE`) — flag these for explicit review
-5. Check that column types and constraints are consistent with existing schema in the same crate
+1. Both `up.sql` and `down.sql` exist and have real statements, not just comments
+2. `down.sql` actually reverses `up.sql`
+3. The timestamp prefix sorts after every existing migration in that crate (`ls <crate>/migrations | sort | tail -3`)
+4. Destructive operations in `up.sql` (`DROP TABLE`, `DROP COLUMN`, `DROP INDEX`, `TRUNCATE`, `DELETE FROM`) are flagged for explicit review
+5. Column types and constraints match the existing schema in the same crate
 
 ## Step 4 — Cross-backend consistency
 

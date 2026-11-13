@@ -53,7 +53,7 @@ The following configuration options are available.
 
 | Env Var | Default Value | Description |
 | --- | --- | --- |
-| <span id="SYNC_SYNCSTORAGE__DATABASE_URL"></span>SYNC_SYNCSTORAGE__DATABASE_URL | mysql://root@127.0.0.1/syncstorage | Database connection URL |
+| <span id="SYNC_SYNCSTORAGE__DATABASE_URL"></span>SYNC_SYNCSTORAGE__DATABASE_URL | mysql://root@127.0.0.1/syncstorage | Database connection URL. For a Unix socket, see [MySQL and MariaDB Unix Socket](#mysql-and-mariadb-unix-socket) |
 | <span id="SYNC_SYNCSTORAGE__DATABASE_POOL_MAX_SIZE"></span>SYNC_SYNCSTORAGE__DATABASE_POOL_MAX_SIZE | 10 | Max database connections |
 | <span id="SYNC_SYNCSTORAGE__DATABASE_POOL_CONNECTION_TIMEOUT"></span>SYNC_SYNCSTORAGE__DATABASE_POOL_CONNECTION_TIMEOUT | 30 | Pool timeout in seconds |
 | <span id="SYNC_SYNCSTORAGE__DATABASE_POOL_CONNECTION_LIFESPAN"></span>SYNC_SYNCSTORAGE__DATABASE_POOL_CONNECTION_LIFESPAN | None | Max connection age in seconds |
@@ -82,6 +82,7 @@ The following configuration options are available.
 | <span id="SYNC_SYNCSTORAGE__ENABLED"></span>SYNC_SYNCSTORAGE__ENABLED | true | Enable syncstorage service |
 | <span id="SYNC_SYNCSTORAGE__ENABLE_QUOTA"></span>SYNC_SYNCSTORAGE__ENABLE_QUOTA | false | Enable quota tracking (Spanner only) |
 | <span id="SYNC_SYNCSTORAGE__ENFORCE_QUOTA"></span>SYNC_SYNCSTORAGE__ENFORCE_QUOTA | false | Enforce quota limits (Spanner only) |
+| <span id="SYNC_SYNCSTORAGE__REQUIRE_COLLECTION_DELETE_CONFIRMATION"></span>SYNC_SYNCSTORAGE__REQUIRE_COLLECTION_DELETE_CONFIRMATION | false | Require `X-Confirm-Delete: 1` header for collection deletion. Without the header, an HTTP 200 is returned without deletion. |
 | <span id="SYNC_SYNCSTORAGE__GLEAN_ENABLED"></span>SYNC_SYNCSTORAGE__GLEAN_ENABLED | true | Enable Glean telemetry |
 | <span id="SYNC_SYNCSTORAGE__LBHEARTBEAT_TTL"></span>SYNC_SYNCSTORAGE__LBHEARTBEAT_TTL | None | Load balancer heartbeat period in seconds |
 | <span id="SYNC_SYNCSTORAGE__LBHEARTBEAT_TTL_JITTER"></span>SYNC_SYNCSTORAGE__LBHEARTBEAT_TTL_JITTER | 25 | Jitter percentage for the load balancer heartbeat period |
@@ -109,11 +110,40 @@ would silently drop the payload.
 
 | Env Var | Default Value | Description |
 | --- | --- | --- |
-| <span id="SYNC_TOKENSERVER__DATABASE_URL"></span>SYNC_TOKENSERVER__DATABASE_URL | mysql://root@127.0.0.1/tokenserver | Tokenserver database URL |
+| <span id="SYNC_TOKENSERVER__DATABASE_URL"></span>SYNC_TOKENSERVER__DATABASE_URL | mysql://root@127.0.0.1/tokenserver | Tokenserver database URL. For a Unix socket, see [MySQL and MariaDB Unix Socket](#mysql-and-mariadb-unix-socket) |
 | <span id="SYNC_TOKENSERVER__DATABASE_POOL_MAX_SIZE"></span>SYNC_TOKENSERVER__DATABASE_POOL_MAX_SIZE | 10 | Max tokenserver DB connections |
 | <span id="SYNC_TOKENSERVER__DATABASE_POOL_CONNECTION_TIMEOUT"></span>SYNC_TOKENSERVER__DATABASE_POOL_CONNECTION_TIMEOUT | 30 | Pool timeout in seconds |
 
+### MySQL and MariaDB Unix Socket
+
+The server connects to MySQL and MariaDB over TCP, also for a `localhost` host
+(port 3306). It does not use the Unix socket. If your database listens only on
+a Unix socket, the server fails with `Connection refused (os error 111)`.
+
+To use the socket, add the `socket` parameter with the socket path to
+`syncstorage.database_url` and to `tokenserver.database_url`:
+
+```toml
+[syncstorage]
+database_url = "mysql://user:password@localhost/syncstorage_rs?socket=/run/mysqld/mysqld.sock"
+
+[tokenserver]
+database_url = "mysql://user:password@localhost/tokenserver_rs?socket=/run/mysqld/mysqld.sock"
+```
+
+The same `?socket=` parameter applies to `SYNC_SYNCSTORAGE__DATABASE_URL` and
+`SYNC_TOKENSERVER__DATABASE_URL`.
+
+The server does not recognize the `?unix_socket=` parameter. With it, the
+server does not start, and it logs
+``Unknown connection URL parameter `unix_socket'``.
+
 ### Tokenserver Features
+
+Last-seen reporting requires the `last_seen` Cargo feature, independently of the
+storage backend. Build it with `cargo build -p syncserver --features last_seen`.
+Docker images include this feature only when built with
+`SYNCSTORAGE_DATABASE_BACKEND=spanner`. Reporting still defaults to off at runtime.
 
 | Env Var | Default Value | Description |
 | --- | --- | --- |
@@ -128,7 +158,14 @@ would silently drop the payload.
 | <span id="SYNC_TOKENSERVER__FXA_WEBHOOK_METRICS_ONLY"></span>SYNC_TOKENSERVER__FXA_WEBHOOK_METRICS_ONLY | false | Run the FxA webhook handler in metrics-only mode. Received events are counted but not processed. Only used if `FXA_WEBHOOK_ENABLED` is true. |
 | <span id="SYNC_TOKENSERVER__FXA_WEBHOOK_SET_CLIENT_ID"></span>SYNC_TOKENSERVER__FXA_WEBHOOK_SET_CLIENT_ID | None | Expected `aud` of FxA Security Event Tokens. Required for account event webhooks. |
 | <span id="SYNC_TOKENSERVER__FXA_WEBHOOK_SET_ISSUER"></span>SYNC_TOKENSERVER__FXA_WEBHOOK_SET_ISSUER | None | Expected `iss` of FxA Security Event Tokens. Required for account event webhooks. |
+| <span id="SYNC_TOKENSERVER__FXA_DELETE_DATA_ENABLED"></span>SYNC_TOKENSERVER__FXA_DELETE_DATA_ENABLED | false | Enable `DELETE /1.0/users/{fxa_uid}/storage`, the FxA-triggered syncstorage data deletion endpoint. When disabled, the route is not registered. |
+| <span id="SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE"></span>SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE | None | The `aud` required on delete assertions. Must differ from `FXA_WEBHOOK_SET_CLIENT_ID` and `FXA_OAUTH_SERVER_URL` — it is what keeps the three FxA-signed credential types non-interchangeable — and the server refuses to start if it does not. Required when `FXA_DELETE_DATA_ENABLED` is true. |
+| <span id="SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER"></span>SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER | None | The `iss` required on delete assertions; normally the same value as `FXA_WEBHOOK_SET_ISSUER`. Matched byte-for-byte against the token's `iss`, so it must be exactly what FxA emits. Required when `FXA_DELETE_DATA_ENABLED` is true. |
+| <span id="SYNC_TOKENSERVER__FXA_DELETE_DATA_REQUEST_TIMEOUT"></span>SYNC_TOKENSERVER__FXA_DELETE_DATA_REQUEST_TIMEOUT | 30 | Timeout in seconds for the request asking a storage node to delete the user's data. |
 | <span id="SYNC_TOKENSERVER__ALLOW_NEW_USERS"></span>SYNC_TOKENSERVER__ALLOW_NEW_USERS | true | Whether new users may be created. When disabled, only previously registered users can use the tokenserver service. |
+| <span id="SYNC_TOKENSERVER__LAST_SEEN_ENABLED"></span>SYNC_TOKENSERVER__LAST_SEEN_ENABLED | false | Record the FxA UID, OAuth client ID, and timestamp of successful token exchanges, and upload them to a BigQuery staging table. Collection stays disabled in builds without the `last_seen` Cargo feature. Token responses do not wait for uploads. Rows that cannot be uploaded are logged and dropped. |
+| <span id="SYNC_TOKENSERVER__LAST_SEEN_STAGING_TABLE"></span>SYNC_TOKENSERVER__LAST_SEEN_STAGING_TABLE | None | BigQuery staging table name in `PROJECT_ID.DATASET_ID.TABLE_ID` format, for example `my-project.account_last_seen.last_seen_staging`. Required when last-seen reporting is enabled. |
+| <span id="SYNC_TOKENSERVER__LAST_SEEN_MAX_CONCURRENT_FLUSHES"></span>SYNC_TOKENSERVER__LAST_SEEN_MAX_CONCURRENT_FLUSHES | 4 | Maximum number of concurrent last-seen uploads per server instance. Must be at least 1. |
 
 ### Tokenserver+FxA Integration
 

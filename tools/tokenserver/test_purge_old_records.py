@@ -13,6 +13,7 @@ from wsgiref.simple_server import make_server
 
 from database import Database
 from purge_old_records import purge_old_records
+from util import get_timestamp
 
 
 class _RecordingMetrics:
@@ -391,11 +392,19 @@ def test_failed_service_delete_does_not_abort_batch(purge_db, mock_service_serve
     # Two old user records share one batch. Assertions below are independent
     # of processing order — the failing row must be bumped and the healthy
     # row purged regardless of which is seen first.
+    # Backdate created_at: update_user only marks rows with
+    # created_at < now as replaced, so allocating and updating in the
+    # same millisecond would leave the old row unreplaced.
+    created_at = get_timestamp() - 1000
     healthy_email = "healthy@mozilla.com"
-    healthy = database.allocate_user(healthy_email, client_state="aa", generation=1)
+    healthy = database.allocate_user(
+        healthy_email, client_state="aa", generation=1, timestamp=created_at
+    )
     database.update_user(healthy, client_state="bb", generation=2)
     broken_email = "broken@mozilla.com"
-    broken = database.allocate_user(broken_email, client_state="aa", generation=1)
+    broken = database.allocate_user(
+        broken_email, client_state="aa", generation=1, timestamp=created_at
+    )
     database.update_user(broken, client_state="bb", generation=2)
 
     broken_old = next(
@@ -429,10 +438,13 @@ def test_run_level_metrics_are_emitted(purge_db, mock_service_server):
     database = purge_db
     node_secret = "SECRET"
 
-    # Seed two old records so backlog.size > 0 and batch.fetched > 0.
+    # Backdate replacements so both rows are eligible when the purge starts.
+    replaced_at = get_timestamp() - 1000
     for email in ("a@mozilla.com", "b@mozilla.com"):
-        user = database.allocate_user(email, client_state="aa", generation=1)
-        database.update_user(user, client_state="bb", generation=2)
+        user = database.allocate_user(
+            email, client_state="aa", generation=1, timestamp=replaced_at - 1000
+        )
+        database.replace_user_record(user["uid"], timestamp=replaced_at)
 
     metrics = _RecordingMetrics()
     assert purge_old_records(node_secret, grace_period=0, metrics=metrics) is True
@@ -513,3 +525,105 @@ def test_purging_override_null_keys_changed_at(
     assert len(user_records) == 1
     assert user_records[0].node == spanner_node
     assert len(service_requests) == 0
+
+
+class _FakeLastSeen:
+    def __init__(self, fail=False):
+        self.calls = []
+        self.fail = fail
+
+    def delete(self, fxa_uids):
+        self.calls.append(fxa_uids)
+        if self.fail:
+            raise RuntimeError("simulated BigQuery failure")
+
+
+def _retired_user(database, email, node=None):
+    user = database.allocate_user(email, client_state="aa", node=node)
+    database.retire_user(email)
+    database.replace_user_record(user["uid"], timestamp=get_timestamp() - 1000)
+    return user
+
+
+def _replaced_user(database, email):
+    user = database.allocate_user(
+        email, client_state="aa", generation=1, timestamp=get_timestamp() - 1000
+    )
+    database.update_user(user, client_state="bb", generation=2)
+    return user
+
+
+def test_last_seen_deleted_for_retired_users_only(purge_db, mock_service_server):
+    database = purge_db
+    _retired_user(database, "deleted@mozilla.com")
+    _replaced_user(database, "live@mozilla.com")
+    last_seen = _FakeLastSeen()
+    metrics = _RecordingMetrics()
+
+    assert purge_old_records(
+        "SECRET", grace_period=0, last_seen=last_seen, metrics=metrics
+    )
+
+    assert last_seen.calls == [["deleted"]]
+    assert list(database.get_user_records("deleted@mozilla.com")) == []
+    assert len(list(database.get_user_records("live@mozilla.com"))) == 1
+    deleted = [i for i in metrics.incrs if i[0] == "purge.last_seen.deleted"]
+    assert deleted == [("purge.last_seen.deleted", 1, None)]
+
+
+def test_last_seen_failure_keeps_retired_record(purge_db, mock_service_server):
+    database = purge_db
+    retired = _retired_user(database, "deleted@mozilla.com")
+    _replaced_user(database, "live@mozilla.com")
+    original = next(iter(database.get_user_records("deleted@mozilla.com")))
+    metrics = _RecordingMetrics()
+
+    assert purge_old_records(
+        "SECRET",
+        grace_period=0,
+        last_seen=_FakeLastSeen(fail=True),
+        metrics=metrics,
+    )
+
+    # Retain the retired record and its storage data, and advance replaced_at
+    # to defer the retry.
+    records = list(database.get_user_records("deleted@mozilla.com"))
+    assert [r.uid for r in records] == [retired["uid"]]
+    assert records[0].replaced_at > original.replaced_at
+    paths = [e["PATH_INFO"] for e in mock_service_server["requests"]]
+    assert f"/1.5/{retired['uid']}" not in paths
+    assert len(list(database.get_user_records("live@mozilla.com"))) == 1
+    failures = [c for c in metrics.incrs if c[0] == "row_failure"]
+    assert failures == [("row_failure", 1, {"reason": "bigquery_delete"})]
+
+
+def test_last_seen_follows_record_deletion(purge_db, mock_service_server):
+    database = purge_db
+    service_node = mock_service_server["node"]
+    _retired_user(database, "deleted@mozilla.com")
+    last_seen = _FakeLastSeen()
+
+    # Dry run without --force delete nothing
+    assert purge_old_records("SECRET", grace_period=0, dryrun=True, last_seen=last_seen)
+    database.update_node(service_node, downed=1)
+    assert purge_old_records("SECRET", grace_period=0, last_seen=last_seen)
+    assert last_seen.calls == []
+    assert len(list(database.get_user_records("deleted@mozilla.com"))) == 1
+
+    # --force BigQuery cleanup and record deletion
+    assert purge_old_records("SECRET", grace_period=0, force=True, last_seen=last_seen)
+    assert last_seen.calls == [["deleted"]]
+    assert list(database.get_user_records("deleted@mozilla.com")) == []
+
+
+def test_last_seen_nodeless_retired_record(purge_db, mock_service_server):
+    database = purge_db
+    _retired_user(database, "deleted@mozilla.com")
+    database.remove_node(mock_service_server["node"], timestamp=get_timestamp() - 1000)
+    last_seen = _FakeLastSeen()
+
+    assert purge_old_records("SECRET", grace_period=0, last_seen=last_seen)
+
+    assert last_seen.calls == [["deleted"]]
+    assert list(database.get_user_records("deleted@mozilla.com")) == []
+    assert mock_service_server["requests"] == []

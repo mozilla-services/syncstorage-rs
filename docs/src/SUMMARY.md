@@ -24,6 +24,7 @@
 - [Payload Offload](payload-offload/overview.md)
     - [Reconciliation Pipeline](tools/payload_link_reconciler.md)
     - [GCP Infrastructure](tools/payload-offload-infrastructure.md)
+    - [Load Testing](tools/payload-offload-load-testing.md)
 - [Tokenserver](tokenserver/tokenserver.md)
     - [Goals of Tokenserver](tokenserver/tokenserver-goals.md)
     - [Tokenserver API](tokenserver/tokenserver-api.md)

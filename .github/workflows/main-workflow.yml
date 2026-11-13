@@ -17,11 +17,11 @@ on:
       rust-version:
         description: "Rust version to use"
         required: false
-        default: "1.91" # RUST_VER
+        default: "1.98.1" # RUST_VER
 
 env:
   PYTHON_VERSION: ${{ inputs.python-version || '3.13' }} # PY_VER
-  RUST_VERSION: ${{ inputs.rust-version || '1.91' }} # RUST_VER
+  RUST_VERSION: ${{ inputs.rust-version || '1.98.1' }} # RUST_VER
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
@@ -41,7 +41,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -103,7 +103,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -378,6 +378,14 @@ jobs:
         run: |
           PGPASSWORD=test psql -U test -h 127.0.0.1 -d syncstorage -c 'CREATE DATABASE tokenserver;'
 
+      - name: Install Poetry
+        run: pip3 install poetry
+
+      - name: Install Python dependencies
+        run: |
+          poetry install --no-interaction --no-ansi
+          echo "PYTHONPATH=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" >> "$GITHUB_ENV"
+
       - name: Run unit tests with coverage
         run: make postgres_test_with_coverage
 
@@ -385,9 +393,6 @@ jobs:
         run: make postgres_test_with_coverage
         env:
           SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
-
-      - name: Install Poetry
-        run: pip3 install poetry
 
       - name: Run Postgres utils tests
         working-directory: tools/postgres
@@ -399,7 +404,7 @@ jobs:
           SYNC_SYNCSTORAGE__DATABASE_URL: postgresql://test:test@127.0.0.1/syncstorage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
+        uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
         if: always()
         with:
           name: Postgres Unit Tests
@@ -409,7 +414,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: postgres-test-results
           path: workflow/test-results/
@@ -491,7 +496,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: postgres-docker-image
           path: /tmp/postgres-image.tar
@@ -510,7 +515,7 @@ jobs:
           persist-credentials: false
 
       - name: Download Docker image
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: postgres-docker-image
           path: /tmp
@@ -528,7 +533,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
+        uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
         if: always()
         with:
           name: Postgres E2E Tests
@@ -538,7 +543,7 @@ jobs:
 
       - name: Upload e2e test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: postgres-e2e-test-results
           path: workflow/test-results/
@@ -673,6 +678,14 @@ jobs:
         if: steps.cache-cargo-llvm-cov-mysql.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-llvm-cov
 
+      - name: Install Poetry
+        run: pip3 install poetry
+
+      - name: Install Python dependencies
+        run: |
+          poetry install --no-interaction --no-ansi
+          echo "PYTHONPATH=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" >> "$GITHUB_ENV"
+
       - name: Run unit tests with coverage
         run: make test_with_coverage
 
@@ -682,7 +695,7 @@ jobs:
           SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
+        uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
         if: always()
         with:
           name: MySQL Unit Tests
@@ -692,7 +705,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mysql-test-results
           path: workflow/test-results/
@@ -775,7 +788,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mysql-docker-image
           path: /tmp/mysql-image.tar
@@ -794,7 +807,7 @@ jobs:
           persist-credentials: false
 
       - name: Download Docker image
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: mysql-docker-image
           path: /tmp
@@ -812,7 +825,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
+        uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
         if: always()
         with:
           name: MySQL E2E Tests
@@ -822,7 +835,7 @@ jobs:
 
       - name: Upload e2e test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mysql-e2e-test-results
           path: workflow/test-results/
@@ -957,8 +970,8 @@ jobs:
 
       - name: Build workspace (spanner feature)
         run: |
-          # Build with the spanner feature so any compile-time issues surface early
-          cargo build --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier
+          # Build with Spanner and Last Seen so any compile-time issues surface early
+          cargo build --workspace --no-default-features --features=syncserver/spanner --features=syncserver/last_seen --features=py_verifier
 
       - name: Wait for Spanner Emulator to be ready
         run: |
@@ -991,6 +1004,13 @@ jobs:
           mysql -u root -ppassword -h 127.0.0.1 -e 'CREATE DATABASE tokenserver;'
           mysql -u root -ppassword -h 127.0.0.1 -e "GRANT ALL ON tokenserver.* to 'test'@'%';"
 
+      - name: Install Python tokenlib
+        # The last_seen handler test needs py_verifier to work
+        run: |
+          pip3 install poetry
+          poetry install --only main --no-interaction --no-ansi
+          echo "PYTHONPATH=$(poetry run python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')" >> "$GITHUB_ENV"
+
       - name: Run Spanner unit tests with coverage
         env:
           SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
@@ -1001,7 +1021,7 @@ jobs:
         run: make spanner_test_with_coverage
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
+        uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
         if: always()
         with:
           name: Spanner Unit Tests
@@ -1011,7 +1031,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: spanner-test-results
           path: workflow/test-results/
@@ -1093,7 +1113,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: spanner-docker-image
           path: /tmp/spanner-image.tar
@@ -1113,7 +1133,7 @@ jobs:
           persist-credentials: false
 
       - name: Download Docker image
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: spanner-docker-image
           path: /tmp
@@ -1131,7 +1151,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
+        uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
         if: always()
         with:
           name: Spanner E2E Tests
@@ -1141,7 +1161,7 @@ jobs:
 
       - name: Upload e2e test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: spanner-e2e-test-results
           path: workflow/test-results/
@@ -1182,7 +1202,7 @@ jobs:
           persist-credentials: false
 
       - name: Download Docker image
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: spanner-docker-image
           path: /tmp
@@ -1200,7 +1220,7 @@ jobs:
           CI_WAF_TOKEN: ${{ secrets.CI_WAF_TOKEN }}
 
       - name: Publish E2E Test Report
-        uses: dorny/test-reporter@e432d9eb1656cd7e1b3800a1e9c5d2fb8182f5ee
+        uses: dorny/test-reporter@b94dfe179d7ff66342276f4bd6b82c3c0f659f52
         if: always()
         with:
           name: Reconciliation E2E Tests
@@ -1210,7 +1230,7 @@ jobs:
 
       - name: Upload e2e test results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: reconciliation-e2e-test-results
           path: workflow/test-results/

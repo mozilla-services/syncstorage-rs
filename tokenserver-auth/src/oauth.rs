@@ -16,5 +16,6 @@ pub type Verifier<J> = native::Verifier<J>;
 pub struct VerifyOutput {
     #[serde(rename = "user")]
     pub fxa_uid: String,
+    pub client_id: String,
     pub generation: Option<i64>,
 }

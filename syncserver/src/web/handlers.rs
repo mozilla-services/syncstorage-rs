@@ -223,14 +223,15 @@ pub async fn delete_all(
     path = "/1.5/{uid}/storage/{collection}",
     tag = "syncstorage",
     summary = "Delete a collection or BSO(s) within collection",
-    description = "Deletes an entire collection or specific BSOs within a collection if IDs are specified.",
+    description = "Deletes an entire collection or specific BSOs within a collection if IDs are specified. When confirmation is enabled, deleting an entire collection requires the X-Confirm-Delete: 1 header. If required confirmation is missing, the server leaves the collection unchanged and returns HTTP 200 with the existing storage timestamp.",
     params(
         ("uid" = String, Path, description = "User ID"),
         ("collection" = String, Path, description = "Collection name"),
         ("ids" = String, Query, description = "BSO ID(s). A comma-separated list of ids to delete (max 100)"),
+        ("X-Confirm-Delete" = Option<String>, Header, description = "Send this header once with the value 1 to confirm deletion of an entire collection when confirmation is enabled."),
     ),
     responses(
-        (status = 200, description = "Collection or BSOs deleted successfully", content_type = "application/json"),
+        (status = 200, description = "Deletion completed or ignored; returns a numeric storage timestamp", content_type = "application/json"),
         (status = 401, description = "Unauthorized"),
     )
 )]
@@ -238,16 +239,35 @@ pub async fn delete_collection(
     coll: CollectionRequest,
     db_pool: DbTransactionPool,
     request: HttpRequest,
+    state: Data<ServerState>,
 ) -> Result<HttpResponse, ApiError> {
+    let confirmed = request
+        .headers()
+        .get("x-confirm-delete")
+        .is_some_and(|value| value.as_bytes() == b"1");
+    let ignore_delete =
+        state.require_collection_delete_confirmation && coll.query.ids.is_none() && !confirmed;
+    let db_pool = if ignore_delete {
+        db_pool.with_read_only_transaction()
+    } else {
+        db_pool
+    };
+
     db_pool
         .transaction_http(&request, async |db| {
-            let delete_bsos = !coll.query.ids.is_empty();
-            let timestamp = if delete_bsos {
+            if ignore_delete {
+                coll.emit_api_metric("request.delete_collection");
+                coll.emit_api_metric("request.delete_collection_ignored");
+                return Ok(HttpResponse::Ok().json(db.get_storage_timestamp(coll.user_id).await?));
+            }
+
+            let delete_bsos = coll.query.ids.is_some();
+            let timestamp = if let Some(ids) = &coll.query.ids {
                 coll.emit_api_metric("request.delete_bsos");
                 db.delete_bsos(params::DeleteBsos {
                     user_id: coll.user_id.clone(),
                     collection: coll.collection.clone(),
-                    ids: coll.query.ids.clone(),
+                    ids: ids.clone(),
                 })
                 .await
             } else {
@@ -315,7 +335,7 @@ pub async fn get_collection(
         sort: coll.query.sort,
         limit: coll.query.limit,
         offset: coll.query.offset,
-        ids: coll.query.ids.clone(),
+        ids: coll.query.ids.clone().unwrap_or_default(),
         full: coll.query.full,
         collection: coll.collection.clone(),
     };

@@ -1286,6 +1286,20 @@ def test_that_batch_deletes_are_limited_to_max_number_of_ids(st_ctx):
     retry_delete(app, root + "/storage/xxx_col2?ids=" + ids, status=400)
 
 
+def test_that_delete_with_empty_ids_rejected(st_ctx):
+    """Test that an empty "ids" value is a 400."""
+    app = st_ctx["app"]
+    root = st_ctx["root"]
+    bso = {"id": "01", "payload": "testing"}
+    retry_put_json(app, root + "/storage/xxx_col2/01", bso)
+
+    for query in ("ids=", "ids=%20", "ids=,"):
+        retry_delete(app, root + "/storage/xxx_col2?" + query, status=400)
+
+    res = app.get(root + "/storage/xxx_col2")
+    assert len(res.json) == 1
+
+
 def test_that_expired_items_can_be_overwritten_via_PUT(st_ctx):
     """Test that expired items can be overwritten via PUT."""
     app = st_ctx["app"]
@@ -1338,6 +1352,28 @@ def test_if_modified_since_on_info_views(st_ctx):
     headers = {"X-If-Modified-Since": str(ts2)}
     for view in INFO_VIEWS:
         app.get(root + view, headers=headers, status=304)
+
+
+def test_delete_collection_updates_info_collections(st_ctx):
+    """Test that deleting a collection moves the info/collections timestamp."""
+    app = st_ctx["app"]
+    root = st_ctx["root"]
+    bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(3)]
+    retry_post_json(app, root + "/storage/xxx_col1", bsos)
+    retry_post_json(app, root + "/storage/xxx_col2", bsos)
+    r = app.get(root + "/info/collections")
+    ts1 = float(r.headers["X-Last-Modified"])
+    # Timestamps have 10ms resolution, so make sure the delete lands later.
+    time.sleep(0.02)
+    # Delete the collection that was written last.
+    retry_delete(app, root + "/storage/xxx_col2")
+    # The previous timestamp must now read the updated list, not a 304.
+    headers = {"X-If-Modified-Since": str(ts1)}
+    r = app.get(root + "/info/collections", headers=headers, status=200)
+    assert sorted(r.json) == ["xxx_col1"]
+    assert float(r.headers["X-Last-Modified"]) > ts1
+    headers = {"X-If-Unmodified-Since": str(ts1)}
+    app.get(root + "/info/collections", headers=headers, status=412)
 
 
 def test_that_x_last_modified_is_sent_for_all_get_requests(st_ctx):

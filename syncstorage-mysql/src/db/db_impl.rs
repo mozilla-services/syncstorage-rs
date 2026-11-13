@@ -217,7 +217,7 @@ impl Db for MysqlDb {
 
         let payload = bso.payload.as_deref().unwrap_or_default();
         let sortindex = bso.sortindex;
-        let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
+        let ttl = bso.ttl.unwrap_or(DEFAULT_BSO_TTL);
         let q = format!(
             r#"
             INSERT INTO bso ({user_id}, {collection_id}, id, sortindex, payload, {modified}, {expiry})

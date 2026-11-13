@@ -5,13 +5,13 @@ You are a senior engineer doing a history-aware code review. Your job is to look
 ## Step 1 — Get the current diff
 
 ```bash
-git diff main...HEAD
+git diff origin/master...HEAD
 ```
 
 ## Step 2 — Get the list of changed files
 
 ```bash
-git diff main...HEAD --name-only
+git diff origin/master...HEAD --name-only
 ```
 
 ## Step 3 — For each changed file, examine recent commit history
@@ -69,7 +69,7 @@ For each changed file, work through the following. Report findings with:
 
 ### 6. Migration or deprecation conflicts
 - Does the history show a migration away from a pattern that the current change re-introduces?
-- Examples: callback → async, legacy auth → FxA OAuth, MySQL-only → multi-backend.
+- Examples: callback -> async, legacy auth -> FxA OAuth, MySQL-only -> multi-backend.
 
 ### 7. Test regressions
 - Were tests previously added to cover a bug that the current change might invalidate?

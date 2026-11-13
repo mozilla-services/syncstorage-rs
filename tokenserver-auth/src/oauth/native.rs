@@ -16,6 +16,7 @@ const SYNC_SCOPE: &str = "https://identity.mozilla.com/apps/oldsync";
 struct TokenClaims {
     #[serde(rename = "sub")]
     user: String,
+    client_id: String,
     scope: String,
     #[serde(rename = "fxa-generation")]
     generation: Option<i64>,
@@ -36,6 +37,7 @@ impl From<TokenClaims> for VerifyOutput {
     fn from(value: TokenClaims) -> Self {
         Self {
             fxa_uid: value.user,
+            client_id: value.client_id,
             generation: value.generation,
         }
     }
@@ -86,6 +88,7 @@ where
         #[derive(Serialize, Deserialize)]
         struct VerifyResponse {
             user: String,
+            client_id: String,
             scope: Vec<String>,
             generation: Option<i64>,
         }
@@ -94,6 +97,7 @@ where
             fn from(value: VerifyResponse) -> Self {
                 Self {
                     user: value.user,
+                    client_id: value.client_id,
                     scope: value.scope.join(","),
                     generation: value.generation,
                 }
@@ -280,11 +284,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_keys_in_verifier_fallsback_to_fxa() -> Result<(), TokenserverError> {
-        let mut server = mockito::Server::new();
-        let mock_jwks = server.mock("GET", "/v1/jwks").with_status(500).create();
+        let mut server = mockito::Server::new_async().await;
+        let mock_jwks = server
+            .mock("GET", "/v1/jwks")
+            .with_status(500)
+            .expect(1)
+            .create_async()
+            .await;
 
         let body = json!({
             "user": "fxa_id",
+            "client_id": "client_id",
             "scope": [SYNC_SCOPE],
             "generation": 123
         });
@@ -293,7 +303,9 @@ mod tests {
             .with_header("content-type", "application/json")
             .with_status(200)
             .with_body(body.to_string())
-            .create();
+            .expect(1)
+            .create_async()
+            .await;
 
         let settings = Settings {
             fxa_oauth_server_url: server.url(),
@@ -303,17 +315,22 @@ mod tests {
         let res = verifer
             .verify("a token fxa will validate".to_string(), &Default::default())
             .await?;
-        mock_jwks.expect(1);
-        mock_verify.expect(1);
+        mock_jwks.assert_async().await;
+        mock_verify.assert_async().await;
         assert_eq!(res.generation.unwrap(), 123);
         assert_eq!(res.fxa_uid, "fxa_id");
+        assert_eq!(res.client_id, "client_id");
         Ok(())
     }
 
     #[tokio::test]
     async fn test_expired_signature_fails() -> Result<(), TokenserverError> {
-        let mut server = mockito::Server::new();
-        let mock = server.mock("POST", "/v1/verify").create();
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/v1/verify")
+            .expect(0)
+            .create_async()
+            .await;
         mock_jwk_verifier!(Err(JWTVerifyError::InvalidSignature));
 
         let jwk_verifiers = vec![MockJWTVerifier {}];
@@ -329,7 +346,7 @@ mod tests {
             .await
             .unwrap_err();
         // We also make sure we didn't try to hit the server
-        mock.expect(0);
+        mock.assert_async().await;
         assert_eq!(err.status, "invalid-credentials");
         assert_eq!(err.http_status, 401);
         assert_eq!(err.description, "Unauthorized");
@@ -340,8 +357,12 @@ mod tests {
     #[tokio::test]
     async fn test_verifier_attempts_all_keys_if_invalid_signature() -> Result<(), TokenserverError>
     {
-        let mut server = mockito::Server::new();
-        let mock = server.mock("POST", "/v1/verify").create();
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/v1/verify")
+            .expect(0)
+            .create_async()
+            .await;
         #[derive(Debug, Clone)]
         struct MockJWTVerifier {
             id: u8,
@@ -377,6 +398,7 @@ mod tests {
 
         let token_claims = TokenClaims {
             user: "fxa_id".to_string(),
+            client_id: "client_id".to_string(),
             scope: SYNC_SCOPE.to_string(),
             generation: Some(124),
         };
@@ -388,15 +410,20 @@ mod tests {
             )
             .await?;
         assert_eq!(res.fxa_uid, "fxa_id");
+        assert_eq!(res.client_id, "client_id");
         assert_eq!(res.generation.unwrap(), 124);
-        mock.expect(0); // We shouldn't have hit the server
+        mock.assert_async().await; // We shouldn't have hit the server
         Ok(())
     }
 
     #[tokio::test]
     async fn test_verifier_all_signature_failures_fails() -> Result<(), TokenserverError> {
-        let mut server = mockito::Server::new();
-        let mock_verify = server.mock("POST", "/v1/verify").create();
+        let mut server = mockito::Server::new_async().await;
+        let mock_verify = server
+            .mock("POST", "/v1/verify")
+            .expect(0)
+            .create_async()
+            .await;
         mock_jwk_verifier!(Err(JWTVerifyError::InvalidSignature));
 
         let jwk_verifiers = vec![MockJWTVerifier {}, MockJWTVerifier {}];
@@ -416,15 +443,16 @@ mod tests {
         assert_eq!(err.http_status, 401);
         assert_eq!(err.description, "Unauthorized");
 
-        mock_verify.expect(0);
+        mock_verify.assert_async().await;
         Ok(())
     }
 
     #[tokio::test]
     async fn test_verifier_fallsback_if_decode_error() -> Result<(), TokenserverError> {
-        let mut server = mockito::Server::new();
+        let mut server = mockito::Server::new_async().await;
         let body = json!({
             "user": "fxa_id",
+            "client_id": "client_id",
             "scope": [SYNC_SCOPE],
             "generation": 123
         });
@@ -433,7 +461,9 @@ mod tests {
             .with_header("content-type", "application/json")
             .with_status(200)
             .with_body(body.to_string())
-            .create();
+            .expect(1)
+            .create_async()
+            .await;
 
         mock_jwk_verifier!(Err(JWTVerifyError::DecodingError));
 
@@ -451,16 +481,18 @@ mod tests {
             )
             .await?;
         assert_eq!(res.fxa_uid, "fxa_id");
+        assert_eq!(res.client_id, "client_id");
         assert_eq!(res.generation.unwrap(), 123);
-        mock_verify.expect(1); // We would have have hit the server
+        mock_verify.assert_async().await; // We would have have hit the server
         Ok(())
     }
 
     #[tokio::test]
     async fn test_no_sync_scope_fails() -> Result<(), TokenserverError> {
-        let server = mockito::Server::new();
+        let server = mockito::Server::new_async().await;
         let token_claims = TokenClaims {
             user: "fxa_id".to_string(),
+            client_id: "client_id".to_string(),
             scope: "some other scope".to_string(),
             generation: Some(124),
         };
@@ -487,9 +519,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_fxa_rejects_token_no_matter_the_body() -> Result<(), TokenserverError> {
-        let mut server = mockito::Server::new();
+        let mut server = mockito::Server::new_async().await;
         let body = json!({
             "user": "fxa_id",
+            "client_id": "client_id",
             "scope": [SYNC_SCOPE],
             "generation": 123
         });
@@ -500,7 +533,9 @@ mod tests {
             // Even though the body is fine, if FxA returns a none-200, we automatically
             // return a credential error
             .with_body(body.to_string())
-            .create();
+            .expect(1)
+            .create_async()
+            .await;
         let settings = Settings {
             fxa_oauth_server_url: server.url(),
             ..Settings::default()
@@ -521,14 +556,14 @@ mod tests {
         assert_eq!(err.status, "invalid-credentials");
         assert_eq!(err.http_status, 401);
         assert_eq!(err.description, "Unauthorized");
-        mock_verify.expect(1);
+        mock_verify.assert_async().await;
 
         Ok(())
     }
 
     #[tokio::test]
     async fn test_fxa_accepts_token_but_bad_body() -> Result<(), TokenserverError> {
-        let mut server = mockito::Server::new();
+        let mut server = mockito::Server::new_async().await;
         let body = json!({
             "bad_key": "foo",
             "scope": [SYNC_SCOPE],
@@ -541,7 +576,9 @@ mod tests {
             // Even though the body is valid json, it doesn't match our expectation so we'll error
             // out
             .with_body(body.to_string())
-            .create();
+            .expect(1)
+            .create_async()
+            .await;
         let settings = Settings {
             fxa_oauth_server_url: server.url(),
             ..Settings::default()
@@ -562,7 +599,47 @@ mod tests {
         assert_eq!(err.status, "invalid-credentials");
         assert_eq!(err.http_status, 401);
         assert_eq!(err.description, "Unauthorized");
-        mock_verify.expect(1);
+        mock_verify.assert_async().await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fxa_accepts_token_but_no_client_id() -> Result<(), TokenserverError> {
+        let mut server = mockito::Server::new_async().await;
+        let body = json!({
+            "user": "fxa_id",
+            "scope": [SYNC_SCOPE],
+            "generation": 123
+        });
+        let mock_verify = server
+            .mock("POST", "/v1/verify")
+            .with_header("content-type", "application/json")
+            .with_status(200)
+            .with_body(body.to_string())
+            .expect(1)
+            .create_async()
+            .await;
+        let settings = Settings {
+            fxa_oauth_server_url: server.url(),
+            ..Settings::default()
+        };
+
+        mock_jwk_verifier!(Err(JWTVerifyError::DecodingError));
+        let verifier: Verifier<MockJWTVerifier> =
+            Verifier::new(&settings, vec![MockJWTVerifier {}]).unwrap();
+
+        let err = verifier
+            .verify(
+                "A token that we will ask FxA about".to_string(),
+                &Default::default(),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(err.status, "invalid-credentials");
+        assert_eq!(err.http_status, 401);
+        assert_eq!(err.description, "Unauthorized");
+        mock_verify.assert_async().await;
 
         Ok(())
     }

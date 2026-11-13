@@ -8,7 +8,7 @@ use diesel::{
 use diesel_async::RunQueryDsl;
 use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_settings::Settings as SyncserverSettings;
-use syncstorage_db_common::{Db, DbPool};
+use syncstorage_db_common::{Db, DbPool, FIRST_CUSTOM_COLLECTION_ID};
 use syncstorage_settings::Settings as SyncstorageSettings;
 use url::Url;
 
@@ -56,14 +56,14 @@ async fn static_collection_id() -> DbResult<()> {
         (12, "addresses"),
         (13, "creditcards"),
     ];
-    // The integration tests can create collections that start
-    // with `xxx%`. We should not include those in our counts for local
-    // unit tests.
+    let cid = db.get_or_create_collection_id("col1").await?;
+    assert!(cid >= FIRST_CUSTOM_COLLECTION_ID);
+
+    // Custom collections from other tests must not affect the predefined mappings.
     let results: HashMap<i32, String> = collections::table
         .select((collections::id, collections::name))
         .filter(collections::name.ne(""))
-        .filter(collections::name.ne("xxx_col2")) // from server::test
-        .filter(collections::name.ne("col2")) // from older intergration tests
+        .filter(collections::id.lt(FIRST_CUSTOM_COLLECTION_ID))
         .load(&mut db.conn)
         .await?
         .into_iter()
@@ -78,7 +78,5 @@ async fn static_collection_id() -> DbResult<()> {
         assert_eq!(result, *id);
     }
 
-    let cid = db.get_or_create_collection_id("col1").await?;
-    assert!(cid >= 100);
     Ok(())
 }

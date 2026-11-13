@@ -1,6 +1,13 @@
 use jsonwebtoken::jwk::Jwk;
-use serde::Deserialize;
+use regex::Regex;
+use serde::{Deserialize, Deserializer};
+use serde_json::Value;
+
 use tokenserver_common::NodeType;
+
+const PROJECT_ID_REGEX: &str = r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$";
+const DATASET_ID_REGEX: &str = r"^[A-Za-z0-9_]{1,1024}$";
+const TABLE_ID_REGEX: &str = r"^[A-Za-z0-9_-]{1,1024}$";
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default)]
@@ -36,9 +43,11 @@ pub struct Settings {
     /// prevents it from making an external API call to FxA to get the JWK, yielding substantial
     /// performance benefits. This value should match that on the `/v1/jwks` endpoint on the FxA
     /// Auth Server.
+    #[serde(deserialize_with = "deserialize_jwk")]
     pub fxa_oauth_primary_jwk: Option<Jwk>,
     /// A secondary JWK to be used to verify OAuth tokens. This is intended to be used to enable
     /// seamless key rotations on FxA.
+    #[serde(deserialize_with = "deserialize_jwk")]
     pub fxa_oauth_secondary_jwk: Option<Jwk>,
     /// The rate at which capacity should be released from nodes that are at capacity.
     pub node_capacity_release_rate: Option<f32>,
@@ -77,9 +86,72 @@ pub struct Settings {
     pub fxa_webhook_set_client_id: Option<String>,
     /// The `iss` of Security Event Tokens received on the account events webhook endpoint.
     pub fxa_webhook_set_issuer: Option<String>,
+    /// Whether to enable the FxA-triggered syncstorage data deletion endpoint.
+    /// Defaults to false: the route is not registered at all when disabled.
+    pub fxa_delete_data_enabled: bool,
+    /// The `aud` of delete assertions accepted on the data deletion endpoint.
+    ///
+    /// This is the main thing keeping a delete assertion distinguishable from
+    /// the other FxA-signed credentials tokenserver accepts, so it must not
+    /// equal `fxa_webhook_set_client_id` or `fxa_oauth_server_url`; startup
+    /// refuses if it does.
+    pub fxa_delete_data_audience: Option<String>,
+    /// The `iss` of delete assertions.
+    ///
+    /// Normally the same value as `fxa_webhook_set_issuer`, but declared
+    /// separately: that one is `None` whenever the webhook is disabled, and
+    /// coupling two independently-flagged features produces a confusing boot
+    /// failure. Note `iss` separates nothing on its own — all three FxA
+    /// credential types share it.
+    pub fxa_delete_data_issuer: Option<String>,
+    /// The timeout to be used when asking a storage node to delete user data.
+    pub fxa_delete_data_request_timeout: u64,
     /// Whether new users may register to the Tokenserver.
     /// Defaults to true.
     pub allow_new_users: bool,
+    /// Whether to record account last-seen times in BigQuery. Requires syncserver's `last_seen`
+    /// feature.
+    /// Defaults to false.
+    pub last_seen_enabled: bool,
+    /// The fully qualified BigQuery staging table for last-seen rows, as
+    /// `PROJECT_ID.DATASET_ID.TABLE_ID`. Required when `last_seen_enabled` is true.
+    pub last_seen_staging_table: Option<String>,
+    /// The maximum number of concurrent last-seen uploads.
+    /// Defaults to 4.
+    pub last_seen_max_concurrent_flushes: usize,
+}
+
+/// Env vars are read with `try_parsing`, which turns a value such as a `kid` of `20251204`
+/// into a number. Every scalar JWK field is a string, so turn such values back into strings.
+/// The parse is lossy: `0123` comes back as `"123"`, and `TRUE` as `"true"`.
+fn deserialize_jwk<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Jwk>, D::Error> {
+    let Some(fields) = Option::<serde_json::Map<String, Value>>::deserialize(deserializer)? else {
+        return Ok(None);
+    };
+    let fields = fields
+        .into_iter()
+        .map(|(key, value)| match value {
+            Value::Number(n) => (key, Value::String(n.to_string())),
+            Value::Bool(b) => (key, Value::String(b.to_string())),
+            value => (key, value),
+        })
+        .collect();
+    serde_json::from_value(Value::Object(fields))
+        .map(Some)
+        .map_err(serde::de::Error::custom)
+}
+
+/// Splits a fully qualified BigQuery table ID into `(project, dataset, table)`.
+pub fn parse_bigquery_table_id(table_id: &str) -> Option<(&str, &str, &str)> {
+    let parts: Vec<&str> = table_id.split('.').collect();
+    let [project, dataset, table] = parts[..] else {
+        return None;
+    };
+    let matches = |regex: &str, id: &str| Regex::new(regex).unwrap().is_match(id);
+    let valid = matches(PROJECT_ID_REGEX, project)
+        && matches(DATASET_ID_REGEX, dataset)
+        && matches(TABLE_ID_REGEX, table);
+    valid.then_some((project, dataset, table))
 }
 
 impl Default for Settings {
@@ -111,7 +183,53 @@ impl Default for Settings {
             fxa_webhook_metrics_only: false,
             fxa_webhook_set_client_id: None,
             fxa_webhook_set_issuer: None,
+            fxa_delete_data_enabled: false,
+            fxa_delete_data_audience: None,
+            fxa_delete_data_issuer: None,
+            fxa_delete_data_request_timeout: 30,
             allow_new_users: true,
+            last_seen_enabled: false,
+            last_seen_staging_table: None,
+            last_seen_max_concurrent_flushes: 4,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_bigquery_table_id;
+
+    #[test]
+    fn test_parse_bigquery_table_id() {
+        assert_eq!(
+            parse_bigquery_table_id("moz-fx-sync-prod.account_last_seen.last_seen_staging"),
+            Some(("moz-fx-sync-prod", "account_last_seen", "last_seen_staging"))
+        );
+        assert_eq!(
+            parse_bigquery_table_id("my-project.Data_1.last-seen_staging"),
+            Some(("my-project", "Data_1", "last-seen_staging"))
+        );
+        let long_table = format!("project.dataset.{}", "x".repeat(1025));
+        for invalid in [
+            "",
+            "table",
+            "dataset.table",
+            ".dataset.table",
+            "project..table",
+            "project.dataset.",
+            "project.dataset.table.columnmaybe",
+            "project:dataset.table",
+            "My-project.dataset.table",
+            "proj.dataset.table",
+            "a-project-id-that-is-over-thirty.dataset.table",
+            "1project.dataset.table",
+            "project-.dataset.table",
+            "project.data-set.table",
+            "project.dataset.ta/ble",
+            "project.dataset.last seen",
+            &long_table,
+        ] {
+            assert_eq!(parse_bigquery_table_id(invalid), None, "{invalid:?}");
         }
     }
 }

@@ -4,7 +4,7 @@
 
 Mozilla's Sync provides a secure method for users to synchronize their data across Mozilla applications (like Firefox) using a Mozilla account. This project encapsulates the backend of the Sync service. It can be run using either a Postgres, Spanner, or MySQL database backend.
 
-Sync operates by storing a combined version of your data on a remote server, which then synchronizes with the local Firefox copy across all your signed-in instances (referred to as connected devices, linked through a Mozilla account). 
+Sync operates by storing a combined version of your data on a remote server, which then synchronizes with the local Firefox copy across all your signed-in instances (referred to as connected devices, linked through a Mozilla account).
 
 ## Get up and Running
 
@@ -160,7 +160,7 @@ diesel migration redo --database-url="postgres://<DB URL>"
 
 **Note:** The diesel.toml configuration file in the `tokenserver-postgres` directory specifies the migrations directory path and schema generation settings.
 
-**Note:** We have automated support for this in Tokenserver, however the manual query that must run for Tokenserver is as follows: 
+**Note:** We have automated support for this in Tokenserver, however the manual query that must run for Tokenserver is as follows:
 
 After migrations run, insert a node entry:
 ```sql
@@ -461,7 +461,7 @@ This will walk you through the steps to connect this project to your local copy 
 ## Logging
 
 ### Sentry:
-1. If you want to connect to the existing [Sentry project](https://sentry.prod.mozaws.net/operations/syncstorage-local/) for local development, login to Sentry, and go to the page with [api keys](https://sentry.prod.mozaws.net/settings/operations/syncstorage-local/keys/). Copy the `DSN` value.
+1. Sentry is optional locally and off unless `SENTRY_DSN` is set. To try it, grab a DSN from a test project on [sentry.io](https://sentry.io) (Project Settings, Client Keys). Don't point local runs at the production `syncstorage-rs` project.
 2. Comment out the `human_logs` line in your `config/local.toml` file.
 3. You can force an error to appear in Sentry by adding a `panic!` into main.rs, just before the final `Ok(())`.
 4. Now, `SENTRY_DSN={INSERT_DSN_FROM_STEP_1_HERE} make run`.
@@ -482,7 +482,7 @@ If you see a problem related to `libssl` you may need to specify the `cargo` opt
 
 ### Sentry
 
-- If you're having trouble working with Sentry to create releases, try authenticating using their self hosted server option that's outlined [here](https://docs.sentry.io/product/cli/configuration/) Ie, `sentry-cli --url https://selfhosted.url.com/ login`. It's also recommended to create a `.sentryclirc` config file. See [this example](https://github.com/mozilla-services/syncstorage-rs/blob/master/.sentryclirc.example) for the config values you'll need.
+- To create releases with `sentry-cli`, authenticate with `sentry-cli login` (see the [CLI configuration docs](https://docs.sentry.io/product/cli/configuration/)). It's also recommended to create a `.sentryclirc` config file. See [this example](https://github.com/mozilla-services/syncstorage-rs/blob/master/.sentryclirc.example) for the config values you'll need. Releases go to the `syncstorage-rs` project in the `mozilla` org.
 
 
 - [System Requirements](#system-requirements)

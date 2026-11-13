@@ -3,7 +3,10 @@ mod crypto;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_utils;
 
-pub use crypto::{FxaWebhookClaims, JWTVerifyError, SETVerifierImpl};
+pub use crypto::{
+    FxaDeleteAssertionClaims, FxaDeleteAssertionVerifier, FxaWebhookClaims, JWTVerifyError,
+    SETVerifierImpl,
+};
 #[cfg(not(feature = "py"))]
 pub use crypto::{JWTVerifier, JWTVerifierImpl};
 
@@ -24,9 +27,10 @@ use tokenserver_common::TokenserverError;
 #[derive(Clone, Copy, Default, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TokenserverOrigin {
-    /// The Python Tokenserver.
+    /// Tokens without an origin, now only minted by the Tokenserver purge script.
     #[default]
-    Python,
+    #[serde(rename = "purge_script", alias = "python")]
+    PurgeScript,
     /// The Rust Tokenserver.
     Rust,
 }
@@ -34,7 +38,7 @@ pub enum TokenserverOrigin {
 impl fmt::Display for TokenserverOrigin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TokenserverOrigin::Python => write!(f, "python"),
+            TokenserverOrigin::PurgeScript => write!(f, "purge_script"),
             TokenserverOrigin::Rust => write!(f, "rust"),
         }
     }
@@ -84,5 +88,27 @@ impl<T: Clone + Send + Sync> VerifyToken for MockVerifier<T> {
         self.valid
             .then(|| self.verify_output.clone())
             .ok_or_else(|| TokenserverError::invalid_credentials("Unauthorized".to_owned()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TokenserverOrigin;
+
+    #[test]
+    fn test_tokenserver_origin_purge_script() {
+        let parse = |json| serde_json::from_str::<TokenserverOrigin>(json).unwrap();
+        // Tokens from the purge script have no origin field, so they get the default
+        assert_eq!(TokenserverOrigin::default(), TokenserverOrigin::PurgeScript);
+        // Tokens minted before the rename still say "python"
+        assert_eq!(parse(r#""python""#), TokenserverOrigin::PurgeScript);
+        assert_eq!(parse(r#""purge_script""#), TokenserverOrigin::PurgeScript);
+        assert_eq!(parse(r#""rust""#), TokenserverOrigin::Rust);
+        assert_eq!(
+            serde_json::to_string(&TokenserverOrigin::PurgeScript).unwrap(),
+            r#""purge_script""#
+        );
+        assert_eq!(TokenserverOrigin::PurgeScript.to_string(), "purge_script");
+        assert_eq!(TokenserverOrigin::Rust.to_string(), "rust");
     }
 }

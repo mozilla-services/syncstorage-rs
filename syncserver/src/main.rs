@@ -58,7 +58,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Setup and run the server
     let banner = settings.banner();
-    let server = if !settings.syncstorage.enabled {
+    let (server, last_seen_drain) = if !settings.syncstorage.enabled {
         server::Server::tokenserver_only_with_settings(settings)
             .await
             .unwrap()
@@ -67,8 +67,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     info!("Server running on {}", banner);
     server.await?;
+    // server stopped; drain last-seen uploads.
+    let exit_limit = match last_seen_drain {
+        Some(drain) => Some(drain.await),
+        None => None,
+    };
     info!("Server closing");
-    logging::reset_logging();
+    logging::reset_logging(exit_limit);
 
     Ok(())
 }

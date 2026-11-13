@@ -336,7 +336,9 @@ Potential HTTP error responses include:
 
 ### `DELETE https://<endpoint-url>/storage/<collection>`
 
-Deletes an entire collection.
+Deletes an entire collection. Confirmation is optional by default. When
+`syncstorage.require_collection_delete_confirmation` is enabled, send an
+`X-Confirm-Delete` header with the value `1` to delete the collection.
 
 After executing this request, the collection will not appear in `GET /info/collections`
 and calls to `GET /storage/<collection>` will return an empty list.
@@ -365,6 +367,12 @@ Potential HTTP error responses include:
 Deletes the BSO at the given location.
 
 ## Request Headers
+
+### `X-Confirm-Delete`
+
+Send `X-Confirm-Delete: 1` to confirm deletion of an entire collection.
+The `syncstorage.require_collection_delete_confirmation` setting controls whether
+confirmation is required and defaults to `false`.
 
 ### `X-If-Modified-Since`
 
@@ -707,7 +715,7 @@ along with a justification for each change:
 | The BSO fields `parentid` and `predecessorid` have been removed along with related query parameters. | Deprecated in 1.1 and not in active use in current Firefox. |
 | The `application/whoisi` output format has been removed. | Not used in current Firefox. |
 | The previously-undocumented `X-Weave-Quota-Remaining` header has been documented. | It is used, so it should be documented. |
-| The `X-Confirm-Delete` header has been removed. | Sent unconditionally by existing client code and therefore useless; safely ignored by the server. |
+| The requirement to send `X-Confirm-Delete` when deleting all user storage was removed. | Clients sent it unconditionally. Deleting all user storage still ignores it; collection deletion now supports [optional confirmation](#delete-httpsendpoint-urlstoragecollection). |
 | The `X-Weave-Alert` header has grown additional semantics related to service end-of-life announcements. | Already implemented in Firefox; should be documented. |
 | `GET /storage/<collection>` no longer accepts `index_above` or `index_below`. | Not used in current Firefox; adds server requirements limiting operational flexibility. |
 | `DELETE /storage/<collection>` no longer accepts query parameters other than `ids`. | Not used in current Firefox; not all implemented correctly; adds server requirements limiting flexibility. |

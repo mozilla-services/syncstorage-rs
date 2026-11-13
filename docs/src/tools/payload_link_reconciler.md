@@ -266,8 +266,7 @@ modes* below.
 deploy as a K8s Deployment without `RUN_BUDGET_SECONDS` to run
 long-running. The cronjob template is
 `sync/k8s/sync/templates/payload-reconciler-cronjob.yaml` in
-webservices-infra, gated on `payloadReconciler.enabled`. Note it lives in
-the `sync` chart rather than `sync-jobs`.
+webservices-infra, gated on `payloadReconciler.enabled`.
 
 Four settings in that manifest are load bearing, and changing any of them
 breaks an assumption the script relies on:

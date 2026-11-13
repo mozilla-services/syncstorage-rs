@@ -109,6 +109,9 @@ pub struct Settings {
     /// Default: false.
     pub enforce_quota: bool,
 
+    /// Require `X-Confirm-Delete: 1` to delete an entire collection. Default: false.
+    pub require_collection_delete_confirmation: bool,
+
     /// Whether Glean telemetry metric emission is enabled.
     pub glean_enabled: bool,
 
@@ -171,6 +174,7 @@ impl Default for Settings {
             statsd_label: "syncstorage".to_string(),
             enable_quota: false,
             enforce_quota: false,
+            require_collection_delete_confirmation: false,
             glean_enabled: true,
             spanner_emulator_host: None,
             enabled: true,
