@@ -764,12 +764,7 @@ fn spawn_metric_periodic_reporter<T: GetPoolStatus + Send + 'static>(
     blocking_threadpool: Arc<BlockingThreadpool>,
     include_hostname_tag: bool,
 ) -> Result<(), DbError> {
-    let hostname = include_hostname_tag.then(|| {
-        hostname::get()
-            .expect("Couldn't get hostname")
-            .into_string()
-            .expect("Couldn't get hostname")
-    });
+    let hostname = include_hostname_tag.then(crate::logging::hostname);
 
     tokio::spawn(async move {
         let send_gauge_with_maybe_hostname = |key, value| {
@@ -802,6 +797,10 @@ fn spawn_metric_periodic_reporter<T: GetPoolStatus + Send + 'static>(
             send_gauge_with_maybe_hostname("blocking_threadpool.queued", queued_tasks);
             send_gauge_with_maybe_hostname("blocking_threadpool.active", active_threads);
             send_gauge_with_maybe_hostname("blocking_threadpool.max_idle", max_idle_threads);
+            send_gauge_with_maybe_hostname(
+                "logging.dropped_lines",
+                crate::logging::dropped_lines(),
+            );
 
             time::sleep(interval).await;
         }
