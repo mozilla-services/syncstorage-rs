@@ -53,7 +53,7 @@ The following configuration options are available.
 
 | Env Var | Default Value | Description |
 | --- | --- | --- |
-| <span id="SYNC_SYNCSTORAGE__DATABASE_URL"></span>SYNC_SYNCSTORAGE__DATABASE_URL | mysql://root@127.0.0.1/syncstorage | Database connection URL |
+| <span id="SYNC_SYNCSTORAGE__DATABASE_URL"></span>SYNC_SYNCSTORAGE__DATABASE_URL | mysql://root@127.0.0.1/syncstorage | Database connection URL. For a Unix socket, see [MySQL and MariaDB Unix Socket](#mysql-and-mariadb-unix-socket) |
 | <span id="SYNC_SYNCSTORAGE__DATABASE_POOL_MAX_SIZE"></span>SYNC_SYNCSTORAGE__DATABASE_POOL_MAX_SIZE | 10 | Max database connections |
 | <span id="SYNC_SYNCSTORAGE__DATABASE_POOL_CONNECTION_TIMEOUT"></span>SYNC_SYNCSTORAGE__DATABASE_POOL_CONNECTION_TIMEOUT | 30 | Pool timeout in seconds |
 | <span id="SYNC_SYNCSTORAGE__DATABASE_POOL_CONNECTION_LIFESPAN"></span>SYNC_SYNCSTORAGE__DATABASE_POOL_CONNECTION_LIFESPAN | None | Max connection age in seconds |
@@ -113,9 +113,33 @@ For configuration changes and deployment order, see
 
 | Env Var | Default Value | Description |
 | --- | --- | --- |
-| <span id="SYNC_TOKENSERVER__DATABASE_URL"></span>SYNC_TOKENSERVER__DATABASE_URL | mysql://root@127.0.0.1/tokenserver | Tokenserver database URL |
+| <span id="SYNC_TOKENSERVER__DATABASE_URL"></span>SYNC_TOKENSERVER__DATABASE_URL | mysql://root@127.0.0.1/tokenserver | Tokenserver database URL. For a Unix socket, see [MySQL and MariaDB Unix Socket](#mysql-and-mariadb-unix-socket) |
 | <span id="SYNC_TOKENSERVER__DATABASE_POOL_MAX_SIZE"></span>SYNC_TOKENSERVER__DATABASE_POOL_MAX_SIZE | 10 | Max tokenserver DB connections |
 | <span id="SYNC_TOKENSERVER__DATABASE_POOL_CONNECTION_TIMEOUT"></span>SYNC_TOKENSERVER__DATABASE_POOL_CONNECTION_TIMEOUT | 30 | Pool timeout in seconds |
+
+### MySQL and MariaDB Unix Socket
+
+The server connects to MySQL and MariaDB over TCP, also for a `localhost` host
+(port 3306). It does not use the Unix socket. If your database listens only on
+a Unix socket, the server fails with `Connection refused (os error 111)`.
+
+To use the socket, add the `socket` parameter with the socket path to
+`syncstorage.database_url` and to `tokenserver.database_url`:
+
+```toml
+[syncstorage]
+database_url = "mysql://user:password@localhost/syncstorage_rs?socket=/run/mysqld/mysqld.sock"
+
+[tokenserver]
+database_url = "mysql://user:password@localhost/tokenserver_rs?socket=/run/mysqld/mysqld.sock"
+```
+
+The same `?socket=` parameter applies to `SYNC_SYNCSTORAGE__DATABASE_URL` and
+`SYNC_TOKENSERVER__DATABASE_URL`.
+
+The server does not recognize the `?unix_socket=` parameter. With it, the
+server does not start, and it logs
+``Unknown connection URL parameter `unix_socket'``.
 
 ### Tokenserver Features
 
