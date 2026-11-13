@@ -356,12 +356,12 @@ impl Db for PgDb {
                 .as_ref()
                 .and_then(|o| o.timestamp)
                 .map(|t| t.as_i64());
-            Some(encode_next_offset(
+            encode_next_offset(
                 params.sort,
                 numeric_offset as u64,
                 prev_ts,
                 &modified_timestamps,
-            ))
+            )
         } else {
             None
         };
@@ -382,12 +382,12 @@ impl Db for PgDb {
                 .as_ref()
                 .and_then(|o| o.timestamp)
                 .map(|t| t.as_i64());
-            Some(encode_next_offset(
+            encode_next_offset(
                 params.sort,
                 numeric_offset as u64,
                 prev_ts,
                 &modified_timestamps,
-            ))
+            )
         } else {
             None
         };

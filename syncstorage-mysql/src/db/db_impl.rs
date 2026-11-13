@@ -369,21 +369,17 @@ impl Db for MysqlDb {
         let next_offset = if limit >= 0 && bsos.len() > limit as usize {
             bsos.pop();
             let modified_timestamps: Vec<i64> = bsos.iter().map(|b| b.modified.as_i64()).collect();
-            Some(encode_next_offset(
+            encode_next_offset(
                 params.sort,
                 numeric_offset as u64,
                 prev_ts,
                 &modified_timestamps,
-            ))
+            )
+        } else if limit == 0 {
+            // an explicit "limit=0" resumes at the offset it was sent
+            encode_next_offset(params.sort, numeric_offset as u64, prev_ts, &[])
         } else {
-            // if an explicit "limit=0" is sent, return the offset of "0"
-            // Otherwise, this would break at least the db::tests::db::get_bsos_limit_offset
-            // unit test.
-            if limit == 0 {
-                Some(0.to_string())
-            } else {
-                None
-            }
+            None
         };
 
         Ok(results::GetBsos {
@@ -459,12 +455,12 @@ impl Db for MysqlDb {
             rows.pop();
             let modified_timestamps: Vec<i64> =
                 rows.iter().map(|(_, modified)| *modified).collect();
-            Some(encode_next_offset(
+            encode_next_offset(
                 params.sort,
                 numeric_offset as u64,
                 prev_ts,
                 &modified_timestamps,
-            ))
+            )
         } else {
             None
         };

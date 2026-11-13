@@ -242,6 +242,7 @@ async fn get_bso_ids_newest_offset_token() -> Result<(), DbError> {
         }
 
         let mut ids = vec![];
+        let mut tokens = vec![];
         let mut offset = "0".to_owned();
         loop {
             let page = db
@@ -260,12 +261,30 @@ async fn get_bso_ids_newest_offset_token() -> Result<(), DbError> {
             match page.offset {
                 Some(next) => {
                     assert!(next.contains(':'), "{next} is not a timestamp token");
+                    tokens.push(next.clone());
                     offset = next;
                 }
                 None => break,
             }
         }
         assert_eq!(ids, vec!["b2", "b1", "b0"]);
+
+        // limit=0 hands back the token it was sent, and no plain offset without one
+        for (offset, expected) in [(tokens[0].as_str(), Some(tokens[0].clone())), ("0", None)] {
+            let page = db
+                .get_bsos(gbsos(
+                    uid,
+                    coll,
+                    &[],
+                    MAX_TIMESTAMP,
+                    0,
+                    Sorting::Newest,
+                    0,
+                    offset,
+                ))
+                .await?;
+            assert_eq!(page.offset, expected, "limit=0 with offset {offset}");
+        }
         Ok(())
     })
     .await
