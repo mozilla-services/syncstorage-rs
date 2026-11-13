@@ -356,12 +356,12 @@ impl Db for PgDb {
                 .as_ref()
                 .and_then(|o| o.timestamp)
                 .map(|t| t.as_i64());
-            Some(encode_next_offset(
+            encode_next_offset(
                 params.sort,
                 numeric_offset as u64,
                 prev_ts,
                 &modified_timestamps,
-            ))
+            )
         } else {
             None
         };
@@ -369,13 +369,32 @@ impl Db for PgDb {
     }
 
     async fn get_bso_ids(&mut self, params: params::GetBsoIds) -> DbResult<results::GetBsoIds> {
-        let (items, did_overflow, limit, numeric_offset) = bsos_query!(self, params, bsos::bso_id);
+        let (rows, did_overflow, _limit, numeric_offset) =
+            bsos_query!(self, params, (bsos::bso_id, bsos::modified));
+        let rows: Vec<(String, DateTime<Utc>)> = rows;
         let offset = if did_overflow {
-            Some((limit + numeric_offset).to_string())
+            let modified_timestamps = rows
+                .iter()
+                .map(|(_, modified)| Ok(SyncTimestamp::from_datetime(*modified)?.as_i64()))
+                .collect::<DbResult<Vec<i64>>>()?;
+            let prev_ts = params
+                .offset
+                .as_ref()
+                .and_then(|o| o.timestamp)
+                .map(|t| t.as_i64());
+            encode_next_offset(
+                params.sort,
+                numeric_offset as u64,
+                prev_ts,
+                &modified_timestamps,
+            )
         } else {
             None
         };
-        Ok(results::GetBsoIds { items, offset })
+        Ok(results::GetBsoIds {
+            items: rows.into_iter().map(|(id, _)| id).collect(),
+            offset,
+        })
     }
 
     async fn delete_bso(&mut self, params: params::DeleteBso) -> DbResult<results::DeleteBso> {

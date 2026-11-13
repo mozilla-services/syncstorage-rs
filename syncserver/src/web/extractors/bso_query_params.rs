@@ -169,6 +169,22 @@ impl FromRequest for BsoQueryParams {
                 .into());
             }
 
+            // As Python syncstorage: index sort takes a plain offset, other sorts a timestamp token
+            if !cfg!(feature = "spanner")
+                && params
+                    .offset
+                    .as_ref()
+                    .is_some_and(|o| o.timestamp.is_some() == (params.sort == Sorting::Index))
+            {
+                return Err(ValidationErrorKind::FromDetails(
+                    "Invalid Offset".to_owned(),
+                    RequestErrorLocation::QueryString,
+                    Some("offset".to_owned()),
+                    None,
+                )
+                .into());
+            }
+
             if params.sort != Sorting::Index
                 && let Some(timestamp) = params.offset.as_ref().and_then(|offset| offset.timestamp)
             {
@@ -305,16 +321,54 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    // Spanner rejects extended offsets
     #[cfg(not(feature = "spanner"))]
     #[test]
-    fn test_bound_validation_skipped_for_index_sort() {
-        let state = make_state();
-        let req = TestRequest::with_uri("/?sort=index&newer=2.22&offset=1111:1")
-            .data(state)
+    fn test_extended_offset_rejected_for_index_sort() {
+        let req = TestRequest::with_uri("/?sort=index&offset=1111:1")
+            .data(make_state())
             .to_http_request();
         let result = block_on(BsoQueryParams::extract(&req));
-        assert!(result.is_ok());
+        let resp: HttpResponse = result.err().unwrap().into();
+        assert_eq!(resp.status(), 400);
+    }
+
+    #[cfg(not(feature = "spanner"))]
+    #[test]
+    fn test_plain_offset_rejected_for_non_index_sort() {
+        for uri in &[
+            "/?sort=newest&offset=5",
+            "/?sort=oldest&offset=5",
+            "/?offset=5",
+        ] {
+            let req = TestRequest::with_uri(uri)
+                .data(make_state())
+                .to_http_request();
+            let result = block_on(BsoQueryParams::extract(&req));
+            assert!(result.is_err(), "{uri} should be rejected");
+            let resp: HttpResponse = result.err().unwrap().into();
+            assert_eq!(resp.status(), 400, "{uri} should be a 400");
+        }
+    }
+
+    #[test]
+    fn test_plain_offset_accepted_for_index_sort() {
+        let req = TestRequest::with_uri("/?sort=index&offset=5")
+            .data(make_state())
+            .to_http_request();
+        let result = block_on(BsoQueryParams::extract(&req)).unwrap();
+        assert_eq!(result.offset.unwrap().offset, 5);
+    }
+
+    #[cfg(not(feature = "spanner"))]
+    #[test]
+    fn test_extended_offset_accepted_for_newest_sort() {
+        let req = TestRequest::with_uri("/?sort=newest&offset=1111:1")
+            .data(make_state())
+            .to_http_request();
+        let result = block_on(BsoQueryParams::extract(&req)).unwrap();
+        let offset = result.offset.unwrap();
+        assert_eq!(offset.offset, 1);
+        assert!(offset.timestamp.is_some());
     }
 
     #[cfg(feature = "spanner")]
