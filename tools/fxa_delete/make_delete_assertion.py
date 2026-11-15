@@ -18,12 +18,18 @@ import uuid
 
 import jwt
 
-#: Must match DELETE_ASSERTION_TYP in tokenserver-auth's crypto module, modulo
+#: Must match ADMIN_ASSERTION_TYP in tokenserver-auth's crypto module, modulo
 #: the implicit `application/` prefix the server applies (RFC 7515 4.1.9).
 #: Signed unprefixed, the way FxA emits it.
-TYP = "fxa-sync-delete+jwt"
+#:
+#: Marks the credential family, not the operation -- every tokenserver-admin
+#: assertion carries this. The operation is in `scope`.
+TYP = "tokenserver-admin+jwt"
 
-DEFAULT_AUDIENCE = "urn:mozilla:fxa:tokenserver:sync-data-delete"
+#: The operation this assertion authorizes. Space-delimited if more than one.
+SCOPE = "sync-data-delete"
+
+DEFAULT_AUDIENCE = "urn:mozilla:fxa:tokenserver"
 DEFAULT_ISSUER = "https://accounts.firefox.com"
 
 #: The server caps how far ahead `exp` may sit, so this has to stay well under
@@ -39,6 +45,7 @@ def make_delete_assertion(
     ttl: int = DEFAULT_TTL_SECONDS,
     typ: str = TYP,
     jti: str | None = None,
+    scope: str | None = SCOPE,
 ) -> str:
     """Return the `Authorization: Bearer` value authorizing deletion for `fxa_uid`."""
     now = int(time.time())
@@ -53,6 +60,10 @@ def make_delete_assertion(
     # deduplicated; see ADR-0052. `exp` is what bounds replay.
     if jti is not None:
         claims["jti"] = jti
+    # Which tokenserver-admin operation this authorizes. `typ` alone would let
+    # an assertion minted for a different admin endpoint delete sync data.
+    if scope is not None:
+        claims["scope"] = scope
     # PyJWT defaults the header to `typ: JWT`, which the server rejects.
     return jwt.encode(claims, private_key_pem, algorithm="RS256", headers={"typ": typ})
 

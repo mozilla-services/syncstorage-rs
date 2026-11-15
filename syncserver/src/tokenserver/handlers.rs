@@ -761,7 +761,7 @@ mod tests {
         DeleteAssertionBuilder, OTHER_PRIVATE_KEY_PEM, TEST_PRIVATE_KEY_PEM, make_set,
         other_test_jwk, test_jwk,
     };
-    use tokenserver_auth::{FxaDeleteAssertionVerifier, MockVerifier, SETVerifierImpl, oauth};
+    use tokenserver_auth::{FxaAdminAssertionVerifier, MockVerifier, SETVerifierImpl, oauth};
     use tokenserver_db::MAX_GENERATION;
     use tokenserver_db::mock::MockDbPool;
     use tokenserver_db::results::GetRawUser;
@@ -863,7 +863,7 @@ mod tests {
             fxa_webhook_enabled: true,
             fxa_webhook_metrics_only: false,
             fxa_delete_data_enabled: false,
-            delete_assertion_verifiers: vec![],
+            admin_assertion_verifiers: vec![],
             storage_client: reqwest::Client::new(),
             allow_new_users: true,
             #[cfg(feature = "last_seen")]
@@ -1068,7 +1068,7 @@ mod tests {
 
     // ---- FxA-triggered syncstorage data deletion ----
 
-    const TEST_DELETE_AUD: &str = "urn:mozilla:fxa:tokenserver:sync-data-delete";
+    const TEST_DELETE_AUD: &str = "urn:mozilla:fxa:tokenserver";
     const TEST_DELETE_ISS: &str = "https://accounts.firefox.com";
     const TEST_FXA_UID: &str = "testuid";
 
@@ -1106,8 +1106,8 @@ mod tests {
         let (pool, call_log) = tokenserver_db::mock::MockDbPool::with_users(users);
         let mut state = make_state_with_db_pool(vec![], Box::new(pool));
         state.fxa_delete_data_enabled = true;
-        state.delete_assertion_verifiers = vec![
-            FxaDeleteAssertionVerifier::new(&test_jwk(), TEST_DELETE_AUD, TEST_DELETE_ISS).unwrap(),
+        state.admin_assertion_verifiers = vec![
+            FxaAdminAssertionVerifier::new(&test_jwk(), TEST_DELETE_AUD, TEST_DELETE_ISS).unwrap(),
         ];
         (make_app_from_state(state).await, call_log)
     }
@@ -1398,10 +1398,10 @@ mod tests {
             )]);
             let mut state = make_state_with_db_pool(vec![], Box::new(pool));
             state.fxa_delete_data_enabled = true;
-            state.delete_assertion_verifiers = jwks
+            state.admin_assertion_verifiers = jwks
                 .iter()
                 .map(|jwk| {
-                    FxaDeleteAssertionVerifier::new(jwk, TEST_DELETE_AUD, TEST_DELETE_ISS).unwrap()
+                    FxaAdminAssertionVerifier::new(jwk, TEST_DELETE_AUD, TEST_DELETE_ISS).unwrap()
                 })
                 .collect();
             let app = make_app_from_state(state).await;

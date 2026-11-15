@@ -142,14 +142,32 @@ Authorization: Bearer <RS256 JWT>
 
 | | |
 | --- | --- |
-| `typ` (header) | `fxa-sync-delete+jwt` |
-| `iss` | the FxA OIDC issuer, per `SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER` |
-| `aud` | per `SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE`; single-valued |
+| `typ` (header) | `tokenserver-admin+jwt` — the credential *family*, shared by every tokenserver-admin assertion |
+| `scope` | `sync-data-delete` — the *operation* |
+| `iss` | the FxA OIDC issuer, per `SYNC_TOKENSERVER__FXA_ADMIN_ISSUER` |
+| `aud` | per `SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE`; single-valued |
 | `sub` | the FxA uid whose data to delete |
 | `exp` | required, and capped server-side at ~2 minutes ahead |
 | `jti` | required |
 
-Three details that are easy to get wrong:
+`typ` and `scope` do different jobs, and both are checked. `typ` separates
+these assertions from the other FxA-signed credentials tokenserver accepts —
+oldsync access tokens (`at+JWT`) and event-broker SETs (no `typ` at all).
+`scope` separates tokenserver-admin operations from each other, so an
+assertion minted for a different admin endpoint cannot authorize a deletion.
+
+"Admin" names a **credential family, not a privilege level.** The
+account-events webhook (`POST /1.0/webhooks/fxa/events`) is administrative too
+— it retires accounts — but it is deliberately *not* part of this family. It
+accepts event-broker Security Event Tokens, which state that something
+happened, rather than auth-server assertions, which command an action now. A
+`tokenserver-admin+jwt` is never valid there, and a SET is never valid here.
+
+Adding a new admin operation may entail adding a `scope` to this family. It
+does not mean extending the webhook, and the webhook should not grow a second
+credential type.
+
+Four details that are easy to get wrong:
 
 - **`sub` is authoritative, not the path.** The server acts on `sub` and
   rejects the request if the uid in the path differs. The path uid is for
@@ -157,8 +175,10 @@ Three details that are easy to get wrong:
 - **`aud` must be single-valued.** A JSON array is rejected, because audience
   matching is by intersection and an array could satisfy more than one of
   Tokenserver's verifiers at once. For the same reason, startup refuses if
-  `fxa_delete_data_audience` equals `fxa_webhook_set_client_id` or
+  `fxa_admin_audience` equals `fxa_webhook_set_client_id` or
   `fxa_oauth_server_url`.
+- **`scope` must contain the operation.** A well-formed assertion for another
+  tokenserver-admin operation will be rejected here, by design.
 - **`typ` must be exactly this value.** It is what keeps these assertions from
   being interchangeable with oldsync access tokens (`at+JWT`) and webhook SETs
   (which carry no `typ`). The server applies RFC 7515 §4.1.9's implicit

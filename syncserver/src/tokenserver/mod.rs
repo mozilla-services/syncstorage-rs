@@ -15,7 +15,7 @@ use serde::{
 use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(not(feature = "py_verifier"))]
 use tokenserver_auth::JWTVerifierImpl;
-use tokenserver_auth::{FxaDeleteAssertionVerifier, SETVerifierImpl, VerifyToken, oauth};
+use tokenserver_auth::{FxaAdminAssertionVerifier, SETVerifierImpl, VerifyToken, oauth};
 use tokenserver_common::NodeType;
 use tokenserver_db::{DbPool, pool_from_settings};
 use tokenserver_settings::Settings;
@@ -41,10 +41,14 @@ pub struct ServerState {
     pub fxa_webhook_enabled: bool,
     pub fxa_webhook_metrics_only: bool,
     pub fxa_delete_data_enabled: bool,
-    /// Verifiers for the FxA-signed assertion authorizing a data deletion, one
-    /// per configured JWK. Mirrors `set_verifiers`: `jsonwebtoken` does not
-    /// match `kid`, so every key is tried.
-    pub delete_assertion_verifiers: Vec<FxaDeleteAssertionVerifier>,
+    /// Verifiers for FxA-signed tokenserver-admin assertions, one per
+    /// configured JWK. Mirrors `set_verifiers`: `jsonwebtoken` does not match
+    /// `kid`, so every key is tried.
+    ///
+    /// Family-level — they validate `typ`, `aud`, `iss`, `exp` and `jti`.
+    /// Which operation an assertion authorizes is its `scope`, checked by the
+    /// endpoint's extractor.
+    pub admin_assertion_verifiers: Vec<FxaAdminAssertionVerifier>,
     /// Client used to ask a storage node to delete a user's data. Built once so
     /// all workers share one connection pool: `reqwest::Client` is internally
     /// `Arc`, so the derived `Clone` does not duplicate it.
@@ -125,12 +129,11 @@ impl ServerState {
             .build()
             .map_err(|e| ApiErrorKind::Internal(format!("failed to build storage client: {e}")))?;
 
-        let delete_assertion_verifiers = {
+        let admin_assertion_verifiers = {
             let mut verifiers = Vec::with_capacity(2);
-            if let (Some(audience), Some(issuer)) = (
-                &settings.fxa_delete_data_audience,
-                &settings.fxa_delete_data_issuer,
-            ) {
+            if let (Some(audience), Some(issuer)) =
+                (&settings.fxa_admin_audience, &settings.fxa_admin_issuer)
+            {
                 for jwk in [
                     &settings.fxa_oauth_primary_jwk,
                     &settings.fxa_oauth_secondary_jwk,
@@ -139,8 +142,8 @@ impl ServerState {
                 .flatten()
                 {
                     verifiers.push(
-                        FxaDeleteAssertionVerifier::new(jwk, audience, issuer)
-                            .expect("Invalid JWK for delete assertion verification"),
+                        FxaAdminAssertionVerifier::new(jwk, audience, issuer)
+                            .expect("Invalid JWK for admin assertion verification"),
                     );
                 }
             }
@@ -164,7 +167,7 @@ impl ServerState {
             fxa_webhook_enabled: settings.fxa_webhook_enabled,
             fxa_webhook_metrics_only: settings.fxa_webhook_metrics_only,
             fxa_delete_data_enabled: settings.fxa_delete_data_enabled,
-            delete_assertion_verifiers,
+            admin_assertion_verifiers,
             storage_client,
             allow_new_users: settings.allow_new_users,
             #[cfg(feature = "last_seen")]
