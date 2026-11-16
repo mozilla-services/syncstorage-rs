@@ -722,14 +722,15 @@ mod collection_deletion_confirmation {
             state.metrics = Arc::new(StatsdClient::builder("syncstorage", sink).build());
             let app = init_app!(settings, state).await;
 
-            for (query, confirmation, whole, ignored_when_enabled) in [
-                ("", None, 1, true),
-                ("", Some("1"), 1, false),
-                ("", Some("invalid"), 1, true),
-                ("?ids=record", None, 0, false),
+            for (name, query, confirmation, whole, ignored_when_enabled) in [
+                ("bookmarks", "", None, 1, true),
+                ("bookmarks", "", Some("1"), 1, false),
+                ("bookmarks", "", Some("invalid"), 1, true),
+                ("bookmarks", "?ids=record", None, 0, false),
+                ("tabs", "", None, 1, false),
             ] {
                 let user = rand::random_range(100_000_000..1_000_000_000_u64);
-                let path = format!("/1.5/{user}/storage/bookmarks{query}");
+                let path = format!("/1.5/{user}/storage/{name}{query}");
                 let mut request = user_request(user, http::Method::DELETE, &path, None);
                 if let Some(value) = confirmation {
                     request = request.insert_header(("X-Confirm-Delete", value));
@@ -815,6 +816,37 @@ mod collection_deletion_confirmation {
                 assert!(collections.body.get(&name).is_none());
             }
         }
+    }
+
+    #[actix_rt::test]
+    async fn tabs_deletion_needs_no_confirmation() {
+        let user = rand::random_range(100_000_000..1_000_000_000_u64);
+        let path = format!("/1.5/{user}/storage/tabs");
+        let app = init_app!(settings(true)).await;
+        send(
+            &app,
+            user_request(
+                user,
+                http::Method::PUT,
+                &format!("{path}/record"),
+                Some(json!({"payload": "delete me"})),
+            ),
+            StatusCode::OK,
+        )
+        .await;
+        actix_rt::time::sleep(Duration::from_millis(10)).await;
+        send(
+            &app,
+            user_request(user, http::Method::DELETE, &path, None),
+            StatusCode::OK,
+        )
+        .await;
+        send(
+            &app,
+            user_request(user, http::Method::GET, &format!("{path}/record"), None),
+            StatusCode::NOT_FOUND,
+        )
+        .await;
     }
 
     #[actix_rt::test]
