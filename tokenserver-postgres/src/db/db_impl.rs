@@ -148,7 +148,7 @@ impl Db for TokenserverPgDb {
                AND capacity > current_load
                AND downed = 0
                AND backoff = 0
-             ORDER BY CASE WHEN current_load = 0 THEN -1 ELSE LN(current_load) / LN(capacity) END
+             ORDER BY CASE WHEN current_load = 0 THEN -1 ELSE LN(current_load) / LN(capacity) END, id
              LIMIT 1
             "#;
         const RELEASE_CAPACITY_QUERY: &str = r#"

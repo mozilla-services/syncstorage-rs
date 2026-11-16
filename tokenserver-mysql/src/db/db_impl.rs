@@ -218,7 +218,7 @@ impl Db for TokenserverDb {
                  AND capacity > current_load
                  AND downed = 0
                  AND backoff = 0
-            ORDER BY LOG(current_load) / LOG(capacity)
+            ORDER BY LOG(current_load) / LOG(capacity), id
                LIMIT 1
         "#;
         const RELEASE_CAPACITY_QUERY: &str = r#"
