@@ -98,6 +98,9 @@ column. Supported on the Spanner backend only: setting
 backend fails startup, since those backends have no `payload_link` column and
 would silently drop the payload.
 
+For configuration changes and deployment order, see
+[Onboarding an Offloaded Collection](payload-offload/onboarding.md).
+
 | Env Var | Default Value | Description |
 | --- | --- | --- |
 | <span id="SYNC_SYNCSTORAGE__GCS_PAYLOAD_BUCKET"></span>SYNC_SYNCSTORAGE__GCS_PAYLOAD_BUCKET | unset | GCS bucket for off-loaded payloads. Unset disables off-load. |
