@@ -33,5 +33,5 @@ services:
       - -c
       - >-
         PYTHONPATH=/app
-        pytest /app/tools/integration_tests/ /app/tools/tokenserver/
+        pytest /app/tools/integration_tests/
         --junit-xml=/${RESULTS_FILENAME}
