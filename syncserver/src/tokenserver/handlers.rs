@@ -328,6 +328,24 @@ pub struct DeleteUserDataResult {
     deleted: bool,
 }
 
+#[utoipa::path(
+    post,
+    path = "/1.0/webhooks/fxa/events",
+    tag = "tokenserver-admin",
+    summary = "Receive FxA account event notifications",
+    description = "Consumes Security Event Tokens (SETs) from the FxA Event Broker and \
+                   applies them to the Tokenserver user records: `delete-user` retires \
+                   the user, `password-change` bumps their generation. Unrecognized \
+                   event types are dropped. The SET is a JWT carried in the \
+                   `Authorization: Bearer` header and verified against FxA's public \
+                   JWKs; there is no request body. Not an end-user endpoint, and only \
+                   routed when `fxa_webhook_enabled` is set.",
+    responses(
+        (status = 200, description = "Events accepted (including when every event was dropped as unhandled)"),
+        (status = 401, description = "Unauthorized - the SET is missing, malformed, or not signed by a known FxA key"),
+        (status = 500, description = "Internal Server Error"),
+    )
+)]
 pub async fn handle_fxa_events(
     FxaWebhookToken(claims): FxaWebhookToken,
     DbWrapper(mut db): DbWrapper,
@@ -392,7 +410,7 @@ pub async fn handle_fxa_events(
 #[utoipa::path(
     delete,
     path = "/1.0/users/{fxa_uid}/storage",
-    tag = "tokenserver",
+    tag = "tokenserver-admin",
     summary = "Delete a user's syncstorage data",
     description = "Deletes all syncstorage data for the user's current node assignment, \
                    leaving the Tokenserver user record intact so the account can keep \
@@ -751,7 +769,7 @@ mod tests {
 
     use crate::build_app_without_syncstorage;
     use crate::error::ApiError;
-    use crate::server::{ApiDoc, TOKENSERVER_DOCS_URL};
+    use crate::server::{AdminApiDoc, ApiDoc, TOKENSERVER_DOCS_URL};
     use crate::tokenserver::handlers::node_fxa_kid;
     use crate::tokenserver::{self, ServerState};
     use crate::web::middleware;

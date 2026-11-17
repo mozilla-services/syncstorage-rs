@@ -165,7 +165,6 @@ pub fn cfg_path(path: &str) -> String {
         // Tokenserver endpoints
         crate::tokenserver::handlers::get_tokenserver_result,
         crate::tokenserver::handlers::heartbeat,
-        crate::tokenserver::handlers::delete_user_syncstorage_data,
     ),
     components(
         schemas(crate::tokenserver::handlers::TokenserverResult)
@@ -177,6 +176,36 @@ pub fn cfg_path(path: &str) -> String {
     )
 )]
 pub struct ApiDoc;
+
+/// The administrative API, documented separately from [`ApiDoc`].
+///
+/// These routes are not part of the client-facing Sync protocol: they are
+/// called by FxA on a user's behalf.
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "Syncstorage-rs Administrative API",
+        version = env!("CARGO_PKG_VERSION"),
+        description = "OpenAPI documentation for the administrative Tokenserver endpoints \
+                       called by the FxA Service. These are not end-user endpoints."
+    ),
+    servers(
+        (url = "https://stage-tokenserver.sync.nonprod.webservices.mozgcp.net", description = "Tokenserver Stage"),
+        (url = "https://prod-tokenserver.sync.prod.webservices.mozgcp.net", description = "Tokenserver Production"),
+    ),
+    paths(
+        crate::tokenserver::handlers::handle_fxa_events,
+        crate::tokenserver::handlers::delete_user_syncstorage_data,
+    ),
+    components(
+        schemas(crate::tokenserver::handlers::DeleteUserDataResult)
+    ),
+    tags(
+        (name = "tokenserver-admin", description = "Administrative Tokenserver endpoints called by FxA Server")
+    )
+)]
+pub struct AdminApiDoc;
+
 pub struct Server;
 
 #[macro_export]
@@ -310,6 +339,17 @@ macro_rules! build_app {
                 SwaggerUi::new("/swagger-ui/{_:.*}")
                     .url("/api-doc/openapi.json", ApiDoc::openapi()),
             )
+            // The administrative API is documented separately so the main doc
+            // only describes routes a Sync client may call.
+            .service(
+                web::resource("/api-doc/admin-openapi.json").route(
+                    web::get().to(|| async { HttpResponse::Ok().json(AdminApiDoc::openapi()) }),
+                ),
+            )
+            .service(
+                SwaggerUi::new("/admin/swagger-ui/{_:.*}")
+                    .url("/api-doc/admin-openapi.json", AdminApiDoc::openapi()),
+            )
     };
 }
 
@@ -400,6 +440,17 @@ macro_rules! build_app_without_syncstorage {
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}")
                     .url("/api-doc/openapi.json", ApiDoc::openapi()),
+            )
+            // The administrative API is documented separately so the main doc
+            // only describes routes a Sync client may call.
+            .service(
+                web::resource("/api-doc/admin-openapi.json").route(
+                    web::get().to(|| async { HttpResponse::Ok().json(AdminApiDoc::openapi()) }),
+                ),
+            )
+            .service(
+                SwaggerUi::new("/admin/swagger-ui/{_:.*}")
+                    .url("/api-doc/admin-openapi.json", AdminApiDoc::openapi()),
             )
     }};
 }
