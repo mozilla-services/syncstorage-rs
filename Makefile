@@ -542,39 +542,51 @@ doc-prev:  ##  Generate live preview of docs and open in browser.
 
 SWAGGER_IMG := swaggerapi/swagger-ui
 SWAGGER_NAME := swagger-ui-preview
+SWAGGER_ADMIN_NAME := swagger-ui-admin-preview
 OPENAPI_FILE := openapi.json
+OPENAPI_ADMIN_FILE := openapi-admin.json
 
-.PHONY: api-prev
-api-prev: ## Generate live preview of OpenAPI Swagger Docs and open in browser (port 8080).
+# $(1) cargo example to generate the spec, $(2) output file,
+# $(3) container name, $(4) host port.
+define swagger_preview
 	@set -e; \
 	echo "Generating OpenAPI spec..."; \
-	cargo run --example generate_openapi_spec > $(OPENAPI_FILE); \
+	cargo run --example $(1) > $(2); \
 	echo "Starting Swagger UI..."; \
-	cid="$$(docker ps -q -f name=^/$(SWAGGER_NAME)$$)"; \
+	cid="$$(docker ps -q -f name=^/$(3)$$)"; \
 	if [ -n "$$cid" ]; then \
 	  echo "Restarting existing container $$cid"; \
 	  docker restart "$$cid" >/dev/null; \
 	else \
-	  old="$$(docker ps -aq -f name=^/$(SWAGGER_NAME)$$)"; \
+	  old="$$(docker ps -aq -f name=^/$(3)$$)"; \
 	  if [ -n "$$old" ]; then \
 	    echo "Removing stale container $$old"; \
 	    docker rm -f "$$old" >/dev/null || true; \
 	  fi; \
 	  cid="$$(docker run -d --rm \
-	    --name $(SWAGGER_NAME) \
-	    -p 8080:8080 \
+	    --name $(3) \
+	    -p $(4):8080 \
 	    -e SWAGGER_JSON=/openapi.json \
-	    -v $$(pwd)/$(OPENAPI_FILE):/openapi.json:ro \
+	    -v $$(pwd)/$(2):/openapi.json:ro \
 	    $(SWAGGER_IMG))"; \
 	  echo "Started container $$cid"; \
 	fi; \
 	if command -v open >/dev/null 2>&1; then \
-	  open http://localhost:8080; \
+	  open http://localhost:$(4); \
 	elif command -v xdg-open >/dev/null 2>&1; then \
-	  xdg-open http://localhost:8080; \
+	  xdg-open http://localhost:$(4); \
 	else \
-	  echo "Open http://localhost:8080 manually"; \
+	  echo "Open http://localhost:$(4) manually"; \
 	fi; \
 	trap 'echo ""; echo "Stopping Swagger UI..."; docker stop "$$cid" >/dev/null || true' INT TERM EXIT; \
 	echo "Swagger UI running (Ctrl-C to stop)"; \
 	wait
+endef
+
+.PHONY: api-prev
+api-prev: ## Generate live preview of OpenAPI Swagger Docs and open in browser (port 8080).
+	$(call swagger_preview,generate_openapi_spec,$(OPENAPI_FILE),$(SWAGGER_NAME),8080)
+
+.PHONY: api-prev-admin
+api-prev-admin: ## Generate live preview of the administrative OpenAPI Swagger Docs and open in browser (port 8081).
+	$(call swagger_preview,generate_admin_openapi_spec,$(OPENAPI_ADMIN_FILE),$(SWAGGER_ADMIN_NAME),8081)

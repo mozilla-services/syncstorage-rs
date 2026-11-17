@@ -71,7 +71,7 @@ pub fn test_jwk() -> Jwk {
 /// `make_delete_assertion(sub, aud, iss, typ, exp, jti, key)` call site is
 /// unreadable at the point where it matters most.
 ///
-/// Defaults produce a token `FxaDeleteAssertionVerifier` accepts.
+/// Defaults produce a token `FxaAdminAssertionVerifier` accepts.
 pub struct DeleteAssertionBuilder {
     sub: String,
     aud: Option<String>,
@@ -82,6 +82,8 @@ pub struct DeleteAssertionBuilder {
     exp_in: i64,
     jti: Option<String>,
     iat: Option<i64>,
+    /// Space-delimited, as the verifier expects.
+    scope: Option<String>,
     key: Vec<u8>,
 }
 
@@ -91,10 +93,11 @@ impl DeleteAssertionBuilder {
             sub: sub.to_owned(),
             aud: Some(aud.to_owned()),
             iss: Some(iss.to_owned()),
-            typ: Some("fxa-sync-delete+jwt".to_owned()),
+            typ: Some("tokenserver-admin+jwt".to_owned()),
             exp_in: 30,
             jti: Some("test-jti".to_owned()),
             iat: None,
+            scope: Some("sync_data:delete".to_owned()),
             key: TEST_PRIVATE_KEY_PEM.to_vec(),
         }
     }
@@ -116,6 +119,16 @@ impl DeleteAssertionBuilder {
     }
     pub fn without_typ(mut self) -> Self {
         self.typ = None;
+        self
+    }
+    pub fn without_scope(mut self) -> Self {
+        self.scope = None;
+        self
+    }
+
+    /// Set the scope outright; pass a space-delimited string for several.
+    pub fn scope(mut self, scope: &str) -> Self {
+        self.scope = Some(scope.to_owned());
         self
     }
 
@@ -170,6 +183,9 @@ impl DeleteAssertionBuilder {
         }
         if let Some(jti) = self.jti {
             claims.insert("jti".to_owned(), json!(jti));
+        }
+        if let Some(scope) = self.scope {
+            claims.insert("scope".to_owned(), json!(scope));
         }
 
         let mut header = Header::new(Algorithm::RS256);

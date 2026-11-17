@@ -29,6 +29,7 @@
 - [Tokenserver](tokenserver/tokenserver.md)
     - [Goals of Tokenserver](tokenserver/tokenserver-goals.md)
     - [Tokenserver API](tokenserver/tokenserver-api.md)
+    - [Tokenserver Administrative API](tokenserver/tokenserver-admin-api.md)
     - [Tokenserver DB - Postgres](tokenserver/tokenserver-db-postgres.md)
     - [User Flow](tokenserver/user-flow.md)
     - [Purge Old Records](tools/purge_old_records_tokenserver.md)
