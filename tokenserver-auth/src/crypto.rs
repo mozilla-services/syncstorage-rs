@@ -94,6 +94,8 @@ pub enum JWTVerifyError {
     ExcessiveLifetime,
     #[error("The token has no jti")]
     MissingJti,
+    #[error("The token does not carry the required scope")]
+    InsufficientScope,
 }
 
 impl JWTVerifyError {
@@ -107,6 +109,7 @@ impl JWTVerifyError {
             Self::InvalidTokenType => "jwt.error.invalid_typ",
             Self::ExcessiveLifetime => "jwt.error.excessive_lifetime",
             Self::MissingJti => "jwt.error.missing_jti",
+            Self::InsufficientScope => "jwt.error.insufficient_scope",
         }
     }
 
@@ -198,6 +201,14 @@ pub struct FxaWebhookClaims {
 
 /// An implementation of the JWT verifier for Security Event Tokens
 /// <https://datatracker.ietf.org/doc/html/rfc8417>
+///
+/// The webhook is an administrative endpoint — `handle_fxa_events` retires
+/// accounts — but instead of accepting `tokenserver-admin+jwt` assertions it
+/// accepts SETs instead. SETs state that an event occurred, whereas an admin
+/// assertion commands an action now.
+///
+/// `verify` enforces that, rejecting the other families' `typ` values
+/// outright.
 #[derive(Clone)]
 pub struct SETVerifierImpl {
     key: DecodingKey,
@@ -218,8 +229,20 @@ impl SETVerifierImpl {
         })
     }
 
-    pub fn verify<T: DeserializeOwned>(&self, token: &str) -> Result<T, JWTVerifyError> {
-        let token_data = jsonwebtoken::decode::<T>(token, &self.key, &self.validation)?;
+    pub fn verify(&self, token: &str) -> Result<FxaWebhookClaims, JWTVerifyError> {
+        // Sanity check: reject other `typ`s used in tokenserver here. SETs
+        // from event broker currently don't include any `typ`. Deserialization
+        // would have rejected them anyway (as they lack the `events` field)
+        let header = jsonwebtoken::decode_header(token)?;
+        if matches!(
+            normalized_typ(&header).as_deref(),
+            Some(ADMIN_ASSERTION_TYP) | Some("application/at+jwt")
+        ) {
+            return Err(JWTVerifyError::InvalidTokenType);
+        }
+
+        let token_data =
+            jsonwebtoken::decode::<FxaWebhookClaims>(token, &self.key, &self.validation)?;
         Ok(token_data.claims)
     }
 }
@@ -235,29 +258,51 @@ impl SETVerifierImpl {
 // |-----------------------------------|--------------|----------------------|------------------------|-------------------------|
 // | oldsync token (`JWTVerifierImpl`) | not checked  | **off**, see below   | `application/at+jwt`   | required                |
 // | webhook SET (`SETVerifierImpl`)   | if present   | **if present**       | none — FxA sends none  | checked if present      |
-// | delete assertion (this)           | required     | required, single     | required, exact        | required + capped       |
+// | admin assertion (this)            | required     | required, single     | required, exact        | required + capped       |
 //
-// The delete assertion is the strict one deliberately: it authorizes an
-// irreversible operation, and it is the only one of the three with no legacy
-// traffic constraining what it may demand.
+// The admin assertion is the strict one deliberately: it authorizes
+// irreversible operations, and it is the only one of the three with no legacy
+// traffic constraining what it may demand. Note the family is pinned by `typ`
+// and `aud`; which operation an assertion authorizes is carried separately in
+// `scope`, checked by the endpoint rather than by the verifier's shape.
+//
+// "Admin" here names a *credential family*, not a privilege level. The
+// account-events webhook is administrative too — it retires accounts — but it
+// deliberately accepts the second row, not the third: event-broker SETs
+// stating that something happened, rather than auth-server assertions
+// commanding an action. The two are not interchangeable in either direction,
+// and "the webhook is an admin endpoint, so it should take the admin
+// credential" is the specific wrong turn to avoid.
 
-/// `typ` the FxA Auth Server signs delete assertions with, in normalized form.
-///
-/// FxA emits the bare `fxa-sync-delete+jwt`; [`normalized_typ`] applies the
+/// FxA emits the bare `tokenserver-admin+jwt`; [`normalized_typ`] applies the
 /// implicit `application/` prefix, exactly as it does for `at+JWT`. Writing
 /// this constant unprefixed would therefore never match.
 ///
 /// A constant rather than a setting on purpose: `typ` is a protocol value, and
 /// making it configurable creates a way to widen acceptance to another token
 /// type without review.
-const DELETE_ASSERTION_TYP: &str = "application/fxa-sync-delete+jwt";
+const ADMIN_ASSERTION_TYP: &str = "application/tokenserver-admin+jwt";
 
-/// Furthest ahead a delete assertion's `exp` may sit.
+/// Scope required to delete a user's syncstorage data.
+///
+/// `typ` marks the credential family; this picks the operation within it, so
+/// an assertion minted for some other tokenserver-admin endpoint cannot be
+/// replayed against deletion. Keeping the two on separate claims is what lets
+/// `typ` stay a single constant as the family grows.
+///
+/// Deliberately a bare token, not an `https://identity.mozilla.com/...` URL.
+/// That namespace is where FxA's user-grantable OAuth scopes live, and a
+/// capability shaped like one invites someone requesting it in an
+/// authorization flow. This is internal: the auth server asserts it on its
+/// own authority and it is never granted to a user or a client.
+const DELETE_ASSERTION_SCOPE: &str = "sync_data:delete";
+
+/// Furthest ahead a tokenserver-admin assertion's `exp` may sit.
 ///
 /// `jsonwebtoken` checks that `exp` is in the future but not how far; without
 /// this an issuer could mint a years-long standing capability to destroy a
 /// user's data.
-const DELETE_ASSERTION_MAX_LIFETIME_SECS: i64 = 120;
+const ADMIN_ASSERTION_MAX_LIFETIME_SECS: i64 = 120;
 
 /// Clock skew allowance.
 ///
@@ -265,13 +310,13 @@ const DELETE_ASSERTION_MAX_LIFETIME_SECS: i64 = 120;
 /// seconds before use, so a 60s leeway would *be* the window rather than
 /// bounding it. Worst-case acceptance is
 /// `MAX_LIFETIME + 2 × leeway` — 150s here, against 240s at the default.
-const DELETE_ASSERTION_LEEWAY_SECS: u64 = 15;
+const ADMIN_ASSERTION_LEEWAY_SECS: u64 = 15;
 
-/// Claims of an FxA delete assertion.
+/// Claims of an FxA tokenserver-admin assertion.
 #[derive(Debug, serde::Deserialize)]
-pub struct FxaDeleteAssertionClaims {
-    /// The FxA uid whose data may be deleted. Authoritative: the caller does
-    /// not get to name a different target in the path.
+pub struct FxaAdminAssertionClaims {
+    /// The FxA uid the assertion is about. Authoritative: the caller does not
+    /// get to name a different target in the path.
     pub sub: String,
     pub iss: String,
     /// Deliberately `String` and not `Vec<String>`. `jsonwebtoken` matches
@@ -285,17 +330,22 @@ pub struct FxaDeleteAssertionClaims {
     /// are what bound replay.
     pub jti: Option<String>,
     pub iat: Option<i64>,
+    /// Which tokenserver-admin operation this assertion authorizes.
+    ///
+    /// `Option` plus an explicit check rather than a required serde field, so
+    /// a missing scope reports as such instead of an opaque decode error.
+    pub scope: Option<String>,
 }
 
 /// Verifies the FxA-signed assertion authorizing deletion of one user's
 /// syncstorage data.
 #[derive(Clone)]
-pub struct FxaDeleteAssertionVerifier {
+pub struct FxaAdminAssertionVerifier {
     key: DecodingKey,
     validation: Validation,
 }
 
-impl FxaDeleteAssertionVerifier {
+impl FxaAdminAssertionVerifier {
     pub fn new(jwk: &Jwk, audience: &str, issuer: &str) -> Result<Self, JWTVerifyError> {
         let key = DecodingKey::from_jwk(jwk).map_err(|_| JWTVerifyError::InvalidKey)?;
         let mut validation = Validation::new(Algorithm::RS256);
@@ -305,16 +355,16 @@ impl FxaDeleteAssertionVerifier {
         // present*; a token omitting the claim entirely passes otherwise.
         // Note this replaces the required set, so `exp` has to be relisted.
         validation.set_required_spec_claims(&["exp", "aud", "iss", "sub"]);
-        validation.leeway = DELETE_ASSERTION_LEEWAY_SECS;
+        validation.leeway = ADMIN_ASSERTION_LEEWAY_SECS;
         // `validate_aud` stays at its `true` default.
         Ok(Self { key, validation })
     }
 
-    pub fn verify(&self, token: &str) -> Result<FxaDeleteAssertionClaims, JWTVerifyError> {
+    pub fn verify(&self, token: &str) -> Result<FxaAdminAssertionClaims, JWTVerifyError> {
         let token_data =
-            jsonwebtoken::decode::<FxaDeleteAssertionClaims>(token, &self.key, &self.validation)?;
+            jsonwebtoken::decode::<FxaAdminAssertionClaims>(token, &self.key, &self.validation)?;
 
-        if normalized_typ(&token_data.header).as_deref() != Some(DELETE_ASSERTION_TYP) {
+        if normalized_typ(&token_data.header).as_deref() != Some(ADMIN_ASSERTION_TYP) {
             return Err(JWTVerifyError::InvalidTokenType);
         }
 
@@ -327,14 +377,25 @@ impl FxaDeleteAssertionVerifier {
             .duration_since(UNIX_EPOCH)
             .map_err(|_| JWTVerifyError::DecodingError)?
             .as_secs() as i64;
-        if claims.exp - now
-            > DELETE_ASSERTION_MAX_LIFETIME_SECS + DELETE_ASSERTION_LEEWAY_SECS as i64
+        if claims.exp - now > ADMIN_ASSERTION_MAX_LIFETIME_SECS + ADMIN_ASSERTION_LEEWAY_SECS as i64
         {
             return Err(JWTVerifyError::ExcessiveLifetime);
         }
 
         if claims.jti.is_none() {
             return Err(JWTVerifyError::MissingJti);
+        }
+
+        // Space-delimited per RFC 6749, so one assertion can in principle
+        // carry several admin scopes. Note `TokenClaims` (oauth/native.rs)
+        // splits the oldsync scope on commas instead; that is a pre-existing
+        // deviation, not a convention to copy.
+        let authorized = claims
+            .scope
+            .as_deref()
+            .is_some_and(|scope| scope.split(' ').any(|s| s == DELETE_ASSERTION_SCOPE));
+        if !authorized {
+            return Err(JWTVerifyError::InsufficientScope);
         }
 
         Ok(claims)
@@ -350,12 +411,12 @@ mod tests {
     };
     use serde_json::json;
 
-    const DEL_AUD: &str = "urn:mozilla:fxa:tokenserver:sync-data-delete";
+    const DEL_AUD: &str = "urn:mozilla:fxa:tokenserver";
     const DEL_ISS: &str = "https://accounts.firefox.com";
     const DEL_SUB: &str = "deadbeef00004be4ae957006c0ceb620";
 
-    fn delete_verifier() -> FxaDeleteAssertionVerifier {
-        FxaDeleteAssertionVerifier::new(&test_jwk(), DEL_AUD, DEL_ISS).unwrap()
+    fn delete_verifier() -> FxaAdminAssertionVerifier {
+        FxaAdminAssertionVerifier::new(&test_jwk(), DEL_AUD, DEL_ISS).unwrap()
     }
 
     fn assertion() -> DeleteAssertionBuilder {
@@ -382,7 +443,7 @@ mod tests {
         let verifier =
             SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
         let token = make_set("quux", "wrong-client-id", json!({}), TEST_PRIVATE_KEY_PEM);
-        assert!(verifier.verify::<FxaWebhookClaims>(&token).is_err());
+        assert!(verifier.verify(&token).is_err());
     }
 
     #[test]
@@ -391,7 +452,7 @@ mod tests {
             SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.stage.mozaws.net")
                 .unwrap();
         let token = make_set("quux", "testo", json!({}), TEST_PRIVATE_KEY_PEM);
-        assert!(verifier.verify::<FxaWebhookClaims>(&token).is_err());
+        assert!(verifier.verify(&token).is_err());
     }
 
     #[test]
@@ -399,11 +460,11 @@ mod tests {
         let verifier =
             SETVerifierImpl::new(&test_jwk(), "testo", "https://accounts.firefox.com/").unwrap();
         let token = make_set("quux", "testo", json!({}), OTHER_PRIVATE_KEY_PEM);
-        let err = verifier.verify::<FxaWebhookClaims>(&token).unwrap_err();
+        let err = verifier.verify(&token).unwrap_err();
         assert!(matches!(err, JWTVerifyError::InvalidSignature));
     }
 
-    // ---- delete assertion verifier ----
+    // ---- admin assertion verifier ----
 
     #[test]
     fn test_delete_assertion_happy_path() {
@@ -419,9 +480,9 @@ mod tests {
     #[test]
     fn test_delete_assertion_typ_is_normalized() {
         for typ in [
-            "fxa-sync-delete+jwt",
-            "FXA-Sync-Delete+JWT",
-            "application/fxa-sync-delete+jwt",
+            "tokenserver-admin+jwt",
+            "Tokenserver-Admin+JWT",
+            "application/tokenserver-admin+jwt",
         ] {
             assert!(
                 delete_verifier()
@@ -470,13 +531,17 @@ mod tests {
         let cases = [
             (
                 "wrong aud",
-                assertion().aud("urn:mozilla:fxa:something-else").build(),
+                assertion()
+                    .aud("urn:mozilla:fxa:some-other-service")
+                    .build(),
             ),
             ("wrong iss", assertion().iss("https://evil.example").build()),
             ("wrong key", assertion().key(OTHER_PRIVATE_KEY_PEM).build()),
             ("no typ", assertion().without_typ().build()),
             ("generic JWT typ", assertion().typ("JWT").build()),
             ("access token typ", assertion().typ("at+jwt").build()),
+            ("no scope", assertion().without_scope().build()),
+            ("wrong scope", assertion().scope("other:read").build()),
             ("no jti", assertion().without_jti().build()),
             // Bounds how long a leaked assertion stays useful; jsonwebtoken
             // itself places no ceiling on exp.
@@ -496,6 +561,38 @@ mod tests {
                 .verify(&assertion().exp_in(30).build())
                 .is_ok()
         );
+    }
+
+    /// The point of splitting family (`typ`) from operation (`scope`): a
+    /// credential minted for some other tokenserver-admin endpoint shares the
+    /// `typ` and the `aud`, so `scope` is the only thing stopping it
+    /// authorizing a deletion.
+    ///
+    /// This matters because admin operations will not all sit behind the same
+    /// user-verification bar on the FxA side — deletion requires an
+    /// accountDestroy-level check that a read would not.
+    #[test]
+    fn test_delete_assertion_rejects_another_admin_operations_scope() {
+        let sibling = assertion().scope("node_assignment:read").build();
+        assert_eq!(
+            delete_verifier()
+                .verify(&sibling)
+                .unwrap_err()
+                .metric_label(),
+            "jwt.error.insufficient_scope"
+        );
+    }
+
+    /// One assertion may carry several admin scopes; membership is what counts.
+    #[test]
+    fn test_delete_assertion_accepts_a_multi_scope_assertion() {
+        let multi = assertion()
+            .scope(
+                "node_assignment:read \
+                 sync_data:delete",
+            )
+            .build();
+        assert!(delete_verifier().verify(&multi).is_ok());
     }
 
     // ---- non-interchangeability with the other two FxA credentials ----
@@ -522,7 +619,7 @@ mod tests {
         // exact string match, and that slash is a classic way to think a check
         // is doing work when it is really the mismatch doing it.
         let verifier =
-            FxaDeleteAssertionVerifier::new(&test_jwk(), DEL_AUD, "https://accounts.firefox.com/")
+            FxaAdminAssertionVerifier::new(&test_jwk(), DEL_AUD, "https://accounts.firefox.com/")
                 .unwrap();
         let set = make_set_with_exp(DEL_SUB, DEL_AUD, json!({}), TEST_PRIVATE_KEY_PEM, Some(30));
         assert_eq!(
@@ -542,6 +639,47 @@ mod tests {
         );
     }
 
+    /// The `typ` guard must reject the other families outright, rather than
+    /// relying on `FxaWebhookClaims` happening to require `events`.
+    #[test]
+    fn test_set_verifier_rejects_other_families_by_typ() {
+        let verifier = SETVerifierImpl::new(&test_jwk(), "fxa-webhook-client-id", DEL_ISS).unwrap();
+
+        for typ in ["tokenserver-admin+jwt", "at+JWT"] {
+            // Give it everything a SET needs, so only `typ` can be doing the
+            // rejecting: right audience, right issuer, and an events claim.
+            let token = DeleteAssertionBuilder::new(DEL_SUB, "fxa-webhook-client-id", DEL_ISS)
+                .typ(typ)
+                .build();
+            assert_eq!(
+                verifier.verify(&token).unwrap_err().metric_label(),
+                "jwt.error.invalid_typ",
+                "typ {typ:?} must be rejected by the guard"
+            );
+        }
+    }
+
+    /// The guard must not break live traffic: real SETs carry no `typ` at
+    /// all, which is why it is a denylist rather than a positive check.
+    #[test]
+    fn test_set_verifier_still_accepts_a_typless_set() {
+        // make_set issues from the trailing-slash form, and `iss` is an exact
+        // match, so the verifier has to be configured to agree.
+        let verifier = SETVerifierImpl::new(
+            &test_jwk(),
+            "fxa-webhook-client-id",
+            "https://accounts.firefox.com/",
+        )
+        .unwrap();
+        let set = make_set(
+            DEL_SUB,
+            "fxa-webhook-client-id",
+            json!({"https://schemas.accounts.firefox.com/event/delete-user": {}}),
+            TEST_PRIVATE_KEY_PEM,
+        );
+        assert!(verifier.verify(&set).is_ok());
+    }
+
     /// The reverse direction. Today this is blocked by `aud` and by
     /// `FxaWebhookClaims` requiring `events` — the latter an accident of a
     /// serde field list rather than a check. If this test ever starts failing,
@@ -550,6 +688,6 @@ mod tests {
     fn test_set_verifier_rejects_a_delete_assertion() {
         let verifier = SETVerifierImpl::new(&test_jwk(), "fxa-webhook-client-id", DEL_ISS).unwrap();
         let token = assertion().build();
-        assert!(verifier.verify::<FxaWebhookClaims>(&token).is_err());
+        assert!(verifier.verify(&token).is_err());
     }
 }

@@ -4,7 +4,7 @@ mod crypto;
 pub mod test_utils;
 
 pub use crypto::{
-    FxaDeleteAssertionClaims, FxaDeleteAssertionVerifier, FxaWebhookClaims, JWTVerifyError,
+    FxaAdminAssertionClaims, FxaAdminAssertionVerifier, FxaWebhookClaims, JWTVerifyError,
     SETVerifierImpl,
 };
 #[cfg(not(feature = "py"))]

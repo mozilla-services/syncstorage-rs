@@ -23,7 +23,7 @@ use serde::Deserialize;
 use sha2::Sha256;
 use syncserver_common::Taggable;
 use syncserver_settings::Secrets;
-use tokenserver_auth::{FxaDeleteAssertionClaims, FxaWebhookClaims, JWTVerifyError};
+use tokenserver_auth::{FxaAdminAssertionClaims, FxaWebhookClaims, JWTVerifyError};
 use tokenserver_common::{ErrorLocation, NodeType, TokenserverError};
 use tokenserver_db::{Db, DbPool, SYNC_SERVICE_NAME, params, results};
 
@@ -629,6 +629,12 @@ impl FromRequest for TokenserverMetrics {
     }
 }
 
+/// The account-events webhook's credential: an event-broker SET.
+///
+/// Deliberately not a `tokenserver-admin+jwt`. The webhook is administrative
+/// — it retires accounts — but it consumes event notifications rather than
+/// commands, and must never accept the admin API's assertions. See
+/// `SETVerifierImpl` in tokenserver-auth for the separation and its limits.
 #[derive(Debug)]
 pub struct FxaWebhookToken(pub FxaWebhookClaims);
 
@@ -644,7 +650,7 @@ impl FromRequest for FxaWebhookToken {
             let bearer = BearerToken::extract(&req).await?.into_token();
 
             for verifier in &state.set_verifiers {
-                match verifier.verify::<FxaWebhookClaims>(&bearer) {
+                match verifier.verify(&bearer) {
                     Ok(claims) => return Ok(FxaWebhookToken(claims)),
                     Err(JWTVerifyError::InvalidSignature) => continue,
                     Err(e) => {
@@ -675,7 +681,7 @@ impl FromRequest for FxaWebhookToken {
 ///
 /// Carries the verified claims rather than being a bare marker, so a handler
 /// cannot act on a uid other than the authenticated `sub`.
-pub struct DeleteAssertion(pub FxaDeleteAssertionClaims);
+pub struct DeleteAssertion(pub FxaAdminAssertionClaims);
 
 impl FromRequest for DeleteAssertion {
     type Error = TokenserverError;
@@ -697,7 +703,7 @@ impl FromRequest for DeleteAssertion {
             };
 
             let mut claims = None;
-            for verifier in &state.delete_assertion_verifiers {
+            for verifier in &state.admin_assertion_verifiers {
                 match verifier.verify(&token) {
                     Ok(verified) => {
                         claims = Some(verified);
@@ -1478,7 +1484,7 @@ mod tests {
             fxa_webhook_enabled: false,
             fxa_webhook_metrics_only: false,
             fxa_delete_data_enabled: false,
-            delete_assertion_verifiers: vec![],
+            admin_assertion_verifiers: vec![],
             storage_client: reqwest::Client::new(),
             allow_new_users: true,
             #[cfg(feature = "last_seen")]
@@ -1507,7 +1513,7 @@ mod tests {
             fxa_webhook_enabled: true,
             fxa_webhook_metrics_only: false,
             fxa_delete_data_enabled: false,
-            delete_assertion_verifiers: vec![],
+            admin_assertion_verifiers: vec![],
             storage_client: reqwest::Client::new(),
             allow_new_users: true,
             #[cfg(feature = "last_seen")]

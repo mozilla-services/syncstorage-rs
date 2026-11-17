@@ -136,7 +136,7 @@ def test_delete_data_rejects_bad_credentials(ts_local_node_ctx):
     assert missing.status_code == 401
 
     bad = {
-        "wrong audience": {"audience": "urn:mozilla:fxa:something-else"},
+        "wrong audience": {"audience": "urn:mozilla:fxa:some-other-service"},
         "wrong issuer": {"issuer": "https://evil.example"},
         # at+jwt is an oldsync access token; it must not authorize a delete.
         "access token typ": {"typ": "at+jwt"},
