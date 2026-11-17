@@ -73,6 +73,9 @@ const DOWNLOAD_METRIC: &str = "storage.gcs.payload.download";
 /// Payload bytes read back from GCS. See [`UPLOAD_BYTES_METRIC`].
 const DOWNLOAD_BYTES_METRIC: &str = "storage.gcs.payload.download.bytes";
 
+/// Downloaded object commit status.
+const DOWNLOAD_COMMITTED_METRIC: &str = "storage.gcs.payload.download.committed";
+
 /// Timing for the compensating delete, so all three GCS operations report
 /// latency rather than just upload and download. [`CLEANUP_METRIC`] already
 /// counts the outcomes; this says how long they took. It runs while a write
@@ -233,10 +236,11 @@ pub async fn download_payload(
     // `read_object` is where a large payload actually spends its time, so
     // stopping at `send()` would measure almost nothing.
     let started = Instant::now();
-    let bytes = read_object(client, bucket, object).await;
-    record_op(metrics, DOWNLOAD_METRIC, started.elapsed(), bytes.is_ok());
+    let result = read_object(client, bucket, object).await;
+    record_op(metrics, DOWNLOAD_METRIC, started.elapsed(), result.is_ok());
 
-    let bytes = bytes?;
+    let (bytes, committed) = result?;
+    metrics.incr_with_tag(DOWNLOAD_COMMITTED_METRIC, COMMITTED_METADATA_KEY, committed);
     metrics.count(DOWNLOAD_BYTES_METRIC, bytes.len() as i64);
     record_size(metrics, OP_DOWNLOAD, bytes.len());
 
@@ -244,8 +248,12 @@ pub async fn download_payload(
         .map_err(|e| ApiErrorKind::Internal(format!("invalid utf-8 in GCS payload: {e}")).into())
 }
 
-/// Read an object's bytes, draining the response stream.
-async fn read_object(client: &Storage, bucket: &str, object: &str) -> Result<Vec<u8>, ApiError> {
+/// Read an object's bytes and commit status.
+async fn read_object(
+    client: &Storage,
+    bucket: &str,
+    object: &str,
+) -> Result<(Vec<u8>, &'static str), ApiError> {
     let mut response = client
         .read_object(bucket_path(bucket), object.to_string())
         .send()
@@ -255,7 +263,17 @@ async fn read_object(client: &Storage, bucket: &str, object: &str) -> Result<Vec
     while let Some(chunk) = response.next().await.transpose()? {
         bytes.extend_from_slice(&chunk);
     }
-    Ok(bytes)
+    let object = response.object();
+    let committed = match object
+        .metadata
+        .get(COMMITTED_METADATA_KEY)
+        .map(String::as_str)
+    {
+        Some("true") => "true",
+        Some("false") => "false",
+        _ => "unknown",
+    };
+    Ok((bytes, committed))
 }
 
 pub async fn build_control_client(endpoint: Option<&str>) -> Result<StorageControl, ApiError> {
@@ -412,6 +430,7 @@ mod tests {
         response::Response,
     };
     use google_cloud_storage::{Result as GcsResult, client::StorageControl, model};
+    use httptest::{Expectation, Server, matchers::request, responders::status_code};
 
     use super::*;
 
@@ -437,6 +456,65 @@ mod tests {
             .map(|line| String::from_utf8(line).expect("statsd line was not utf-8"))
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    #[actix_rt::test]
+    async fn download_counts_committed_status_per_completed_object() {
+        let mut server = Server::run();
+        let client = build_client(Some(&format!("http://{}", server.addr())))
+            .await
+            .unwrap();
+        let (metrics, recorded) = recording_metrics();
+        let url = "gs://test-bucket/object";
+
+        for (header, expected) in [
+            (Some("true"), "true"),
+            (Some("false"), "false"),
+            (None, "unknown"),
+            (Some("unexpected"), "unknown"),
+        ] {
+            let mut response = status_code(200).append_header("x-goog-generation", "1");
+            if let Some(value) = header {
+                response = response.append_header("x-goog-meta-committed", value);
+            }
+            server.expect(
+                Expectation::matching(request::method_path(
+                    "GET",
+                    "/storage/v1/b/test-bucket/o/object",
+                ))
+                .respond_with(response.body("payload")),
+            );
+            assert_eq!(
+                download_payload(&client, url, &metrics).await.unwrap(),
+                "payload"
+            );
+            let emitted = emitted(&recorded);
+            let counters: Vec<_> = emitted
+                .lines()
+                .filter(|line| line.starts_with(DOWNLOAD_COMMITTED_METRIC))
+                .collect();
+            assert_eq!(
+                counters,
+                [format!(
+                    "{DOWNLOAD_COMMITTED_METRIC}:1|c|#committed:{expected}"
+                )]
+            );
+            server.verify_and_clear();
+        }
+
+        for response in [
+            status_code(404).body("missing"),
+            status_code(200)
+                .append_header("x-goog-generation", "1")
+                .append_header("x-goog-meta-committed", "true")
+                .append_header("x-goog-hash", "crc32c=AAAAAA==")
+                .body("bad checksum"),
+        ] {
+            server.expect(Expectation::matching(request::method("GET")).respond_with(response));
+            assert!(download_payload(&client, url, &metrics).await.is_err());
+            assert!(!emitted(&recorded).contains(DOWNLOAD_COMMITTED_METRIC));
+            server.verify_and_clear();
+        }
     }
 
     /// Stub to record delete_object
