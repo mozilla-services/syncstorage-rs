@@ -295,7 +295,7 @@ const ADMIN_ASSERTION_TYP: &str = "application/tokenserver-admin+jwt";
 /// capability shaped like one invites someone requesting it in an
 /// authorization flow. This is internal: the auth server asserts it on its
 /// own authority and it is never granted to a user or a client.
-const DELETE_ASSERTION_SCOPE: &str = "sync-data-delete";
+const DELETE_ASSERTION_SCOPE: &str = "sync_data:delete";
 
 /// Furthest ahead a tokenserver-admin assertion's `exp` may sit.
 ///
@@ -531,7 +531,9 @@ mod tests {
         let cases = [
             (
                 "wrong aud",
-                assertion().aud("urn:mozilla:fxa:something-else").build(),
+                assertion()
+                    .aud("urn:mozilla:fxa:some-other-service")
+                    .build(),
             ),
             ("wrong iss", assertion().iss("https://evil.example").build()),
             ("wrong key", assertion().key(OTHER_PRIVATE_KEY_PEM).build()),
@@ -539,7 +541,7 @@ mod tests {
             ("generic JWT typ", assertion().typ("JWT").build()),
             ("access token typ", assertion().typ("at+jwt").build()),
             ("no scope", assertion().without_scope().build()),
-            ("wrong scope", assertion().scope("something-else").build()),
+            ("wrong scope", assertion().scope("other:read").build()),
             ("no jti", assertion().without_jti().build()),
             // Bounds how long a leaked assertion stays useful; jsonwebtoken
             // itself places no ceiling on exp.
@@ -571,7 +573,7 @@ mod tests {
     /// accountDestroy-level check that a read would not.
     #[test]
     fn test_delete_assertion_rejects_another_admin_operations_scope() {
-        let sibling = assertion().scope("read-node-assignment").build();
+        let sibling = assertion().scope("node_assignment:read").build();
         assert_eq!(
             delete_verifier()
                 .verify(&sibling)
@@ -586,8 +588,8 @@ mod tests {
     fn test_delete_assertion_accepts_a_multi_scope_assertion() {
         let multi = assertion()
             .scope(
-                "read-node-assignment \
-                 sync-data-delete",
+                "node_assignment:read \
+                 sync_data:delete",
             )
             .build();
         assert!(delete_verifier().verify(&multi).is_ok());

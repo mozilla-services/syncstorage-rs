@@ -27,7 +27,7 @@ import jwt
 TYP = "tokenserver-admin+jwt"
 
 #: The operation this assertion authorizes. Space-delimited if more than one.
-SCOPE = "sync-data-delete"
+SCOPE = "sync_data:delete"
 
 DEFAULT_AUDIENCE = "urn:mozilla:fxa:tokenserver"
 DEFAULT_ISSUER = "https://accounts.firefox.com"

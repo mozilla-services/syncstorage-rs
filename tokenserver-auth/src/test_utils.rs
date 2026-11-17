@@ -97,7 +97,7 @@ impl DeleteAssertionBuilder {
             exp_in: 30,
             jti: Some("test-jti".to_owned()),
             iat: None,
-            scope: Some("sync-data-delete".to_owned()),
+            scope: Some("sync_data:delete".to_owned()),
             key: TEST_PRIVATE_KEY_PEM.to_vec(),
         }
     }

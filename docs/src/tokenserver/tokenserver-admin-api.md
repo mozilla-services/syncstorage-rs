@@ -143,7 +143,7 @@ Authorization: Bearer <RS256 JWT>
 | | |
 | --- | --- |
 | `typ` (header) | `tokenserver-admin+jwt` — the credential *family*, shared by every tokenserver-admin assertion |
-| `scope` | `sync-data-delete` — the *operation* |
+| `scope` | `sync_data:delete` — the *operation* |
 | `iss` | the FxA OIDC issuer, per `SYNC_TOKENSERVER__FXA_ADMIN_ISSUER` |
 | `aud` | per `SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE`; single-valued |
 | `sub` | the FxA uid whose data to delete |
