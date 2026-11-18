@@ -95,7 +95,9 @@ pub struct Settings {
     /// distinguishable from the other FxA-signed credentials tokenserver
     /// accepts, so it must not equal `fxa_webhook_set_client_id` or
     /// `fxa_oauth_server_url`; startup refuses if it does.
-    pub fxa_admin_audience: Option<String>,
+    ///
+    /// Defaults to "urn:mozilla:fxa:tokenserver".
+    pub fxa_admin_audience: String,
     /// The `iss` required on tokenserver-admin assertions.
     ///
     /// Normally the same value as `fxa_webhook_set_issuer`, but declared
@@ -184,7 +186,7 @@ impl Default for Settings {
             fxa_webhook_set_client_id: None,
             fxa_webhook_set_issuer: None,
             fxa_delete_data_enabled: false,
-            fxa_admin_audience: None,
+            fxa_admin_audience: "urn:mozilla:fxa:tokenserver".to_owned(),
             fxa_admin_issuer: None,
             fxa_delete_data_request_timeout: 30,
             allow_new_users: true,

@@ -196,10 +196,12 @@ impl Settings {
                         ))
                     })
             };
-            let audience = required(
-                "SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE",
-                &ts.fxa_admin_audience,
-            )?;
+            let audience = ts.fxa_admin_audience.trim();
+            if audience.is_empty() {
+                return Err(ConfigError::Message(
+                    "SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE must not be empty".to_owned(),
+                ));
+            }
             let issuer = required("SYNC_TOKENSERVER__FXA_ADMIN_ISSUER", &ts.fxa_admin_issuer)?;
 
             // Rejects a value that is not a URL at all. It does NOT catch a
@@ -225,7 +227,7 @@ impl Settings {
             // being interchangeable with the other FxA-signed credentials on
             // the same JWKS. Enforce that separation at boot rather than
             // trusting it to stay true.
-            if ts.fxa_webhook_set_client_id.as_deref() == Some(audience.as_str()) {
+            if ts.fxa_webhook_set_client_id.as_deref() == Some(audience) {
                 return Err(ConfigError::Message(
                     "SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE must differ from \
                      SYNC_TOKENSERVER__FXA_WEBHOOK_SET_CLIENT_ID: a shared audience would make \
@@ -823,25 +825,34 @@ mod test {
 
     #[test]
     fn test_delete_data_requires_its_config() {
-        // Each of these omissions must stop the server starting, rather than
-        // leaving an endpoint that destroys user data misconfigured.
-        for missing in [
-            "SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE",
-            "SYNC_TOKENSERVER__FXA_ADMIN_ISSUER",
-        ] {
-            let vars: Vec<_> = delete_data_env()
-                .into_iter()
-                .map(|(k, v)| if k == missing { (k, None) } else { (k, v) })
-                .collect();
-            temp_env::with_vars(vars, || {
-                assert!(
-                    Settings::with_env_and_config_file(None).is_err(),
-                    "must not boot without {missing}"
-                );
-            });
-        }
+        // The issuer varies by environment, so omitting it must stop the
+        // server starting rather than leave a destructive endpoint
+        // misconfigured.
+        let missing = "SYNC_TOKENSERVER__FXA_ADMIN_ISSUER";
+        let vars: Vec<_> = delete_data_env()
+            .into_iter()
+            .map(|(k, v)| if k == missing { (k, None) } else { (k, v) })
+            .collect();
+        temp_env::with_vars(vars, || {
+            assert!(
+                Settings::with_env_and_config_file(None).is_err(),
+                "must not boot without {missing}"
+            );
+        });
 
-        // An empty value is as bad as an absent one.
+        let mut no_aud = delete_data_env();
+        no_aud.retain(|(k, _)| *k != "SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE");
+        temp_env::with_vars(no_aud, || {
+            let settings = Settings::with_env_and_config_file(None)
+                .expect("the audience is defaulted, not required");
+            assert_eq!(
+                settings.tokenserver.fxa_admin_audience,
+                "urn:mozilla:fxa:tokenserver"
+            );
+        });
+
+        // An explicit empty override would disable the audience check, so it
+        // is still refused.
         let mut blank = delete_data_env();
         blank.retain(|(k, _)| *k != "SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE");
         blank.push(("SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE", Some("   ")));

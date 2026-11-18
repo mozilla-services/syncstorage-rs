@@ -131,9 +131,7 @@ impl ServerState {
 
         let admin_assertion_verifiers = {
             let mut verifiers = Vec::with_capacity(2);
-            if let (Some(audience), Some(issuer)) =
-                (&settings.fxa_admin_audience, &settings.fxa_admin_issuer)
-            {
+            if let Some(issuer) = &settings.fxa_admin_issuer {
                 for jwk in [
                     &settings.fxa_oauth_primary_jwk,
                     &settings.fxa_oauth_secondary_jwk,
@@ -142,7 +140,7 @@ impl ServerState {
                 .flatten()
                 {
                     verifiers.push(
-                        FxaAdminAssertionVerifier::new(jwk, audience, issuer)
+                        FxaAdminAssertionVerifier::new(jwk, &settings.fxa_admin_audience, issuer)
                             .expect("Invalid JWK for admin assertion verification"),
                     );
                 }
