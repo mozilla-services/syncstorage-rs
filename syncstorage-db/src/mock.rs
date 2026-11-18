@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use syncserver_db_common::GetPoolStatus;
 #[cfg(debug_assertions)]
 use syncstorage_db_common::util::SyncTimestamp;
-use syncstorage_db_common::{BatchDb, Db, DbPool, params, results};
+use syncstorage_db_common::{BatchDb, Db, DbPool, STD_COLLS, params, results};
 
 use crate::DbError;
 
@@ -33,6 +33,17 @@ impl DbPool for MockDbPool {
         Ok(Box::new(MockDb {
             fail_begin: self.fail_begin,
         }))
+    }
+
+    async fn resolve_collection_id(&self, name: &str) -> Result<i32, Self::Error> {
+        if let Some(n) = STD_COLLS
+            .iter()
+            .find_map(|&(n, s)| (s == name).then_some(n))
+        {
+            Ok(n)
+        } else {
+            Err(DbError::collection_not_found())
+        }
     }
 
     fn validate_batch_id(&self, _: params::ValidateBatchId) -> Result<(), DbError> {

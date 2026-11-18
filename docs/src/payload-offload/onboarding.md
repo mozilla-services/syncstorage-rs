@@ -8,6 +8,8 @@ limits.
 ## Prerequisites
 
 - Apply the payload-offload DDL in `syncstorage-spanner/src/schema.ddl`.
+- Before enabling offload for a collection, confirm its name has a row in the
+  `collections` table.  If the row is missing, an HTTP 404 is returned.
 - Provision the payload bucket, lifecycle policy, IAM, Dataflow job, Pub/Sub
   subscription and reconciler for the target environment. See
   [GCP Infrastructure](../tools/payload-offload-infrastructure.md) and

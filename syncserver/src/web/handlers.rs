@@ -487,7 +487,6 @@ pub async fn post_collection(
     let metrics = coll.metrics.clone();
     let mut offload_urls: Vec<String> = Vec::new();
     if let Some(bucket) = offload_bucket(&state, &coll.collection) {
-        let client = state.gcs_client()?;
         // Take the payloads for concurrent uploads, with index to bind the payload url back to the
         // bso. The upload step needs the bso id so it can write it to the gcs object metadata.
         let pending: Vec<(usize, String, String)> = coll
@@ -501,47 +500,61 @@ pub async fn post_collection(
             })
             .collect();
 
-        let user_id = &coll.user_id;
-        let prefix = state.gcs_payload_prefix.as_str();
-        // fail-fast on first failure uploads; successful, orphaned uploads rely on GCS lifecyle
-        // policy for clean-up.
-        // The payload's byte length is recorded alongside its URL: once the
-        // payload lives in GCS the row's own payload column is NULL, so its
-        // size is only knowable here.
-        let started = Instant::now();
-        let uploaded = stream::iter(pending)
-            .map(|(i, bso_id, payload)| {
-                let client = client.clone();
-                let metrics = metrics.clone();
-                let payload_size = payload.len() as i64;
-                async move {
-                    upload_payload(&client, bucket, prefix, user_id, &bso_id, payload, &metrics)
+        if !pending.is_empty() {
+            let client = state.gcs_client()?;
+            let user_id = &coll.user_id;
+            let collection_id = state
+                .db_pool
+                .resolve_collection_id(&coll.collection)
+                .await?;
+            // fail-fast on first failure uploads; successful, orphaned uploads rely on GCS lifecyle
+            // policy for clean-up.
+            // The payload's byte length is recorded alongside its URL: once the
+            // payload lives in GCS the row's own payload column is NULL, so its
+            // size is only knowable here.
+            let started = Instant::now();
+            let uploaded = stream::iter(pending)
+                .map(|(i, bso_id, payload)| {
+                    let client = client.clone();
+                    let metrics = metrics.clone();
+                    let payload_size = payload.len() as i64;
+                    async move {
+                        upload_payload(
+                            &client,
+                            bucket,
+                            user_id,
+                            collection_id,
+                            &bso_id,
+                            payload,
+                            &metrics,
+                        )
                         .await
                         .map(|url| (i, (url, payload_size)))
-                }
-            })
-            .buffer_unordered(state.gcs_payload_max_concurrency.get())
-            .try_collect::<Vec<_>>()
-            .await;
-        // Recorded before the `?`, so a fail-fast batch still reports the time
-        // it spent before giving up.
-        record_batch(
-            &metrics,
-            OP_UPLOAD,
-            "post_collection",
-            started.elapsed(),
-            uploaded.is_ok(),
-        );
-        let uploads = uploaded?;
+                    }
+                })
+                .buffer_unordered(state.gcs_payload_max_concurrency.get())
+                .try_collect::<Vec<_>>()
+                .await;
+            // Recorded before the `?`, so a fail-fast batch still reports the time
+            // it spent before giving up.
+            record_batch(
+                &metrics,
+                OP_UPLOAD,
+                "post_collection",
+                started.elapsed(),
+                uploaded.is_ok(),
+            );
+            let uploads = uploaded?;
 
-        // Track uploaded URLs so they can be cleaned up from GCS if the DB
-        // transaction below fails.
-        offload_urls.extend(uploads.iter().map(|(_, (url, _))| url.clone()));
+            // Track uploaded URLs so they can be cleaned up from GCS if the DB
+            // transaction below fails.
+            offload_urls.extend(uploads.iter().map(|(_, (url, _))| url.clone()));
 
-        reattach_by_index(&mut coll.bsos.valid, uploads, |bso, (url, payload_size)| {
-            bso.payload_link = Some(url);
-            bso.payload_size = Some(payload_size);
-        });
+            reattach_by_index(&mut coll.bsos.valid, uploads, |bso, (url, payload_size)| {
+                bso.payload_link = Some(url);
+                bso.payload_size = Some(payload_size);
+            });
+        }
     }
 
     // Tag the transaction as a batch commit so Spanner records it on the change
@@ -910,11 +923,15 @@ pub async fn put_bso(
         // Recorded before the upload consumes the payload: the row's payload
         // column is NULL once offloaded, so its size is only knowable here.
         payload_size = Some(payload.len() as i64);
+        let collection_id = state
+            .db_pool
+            .resolve_collection_id(&bso_req.collection)
+            .await?;
         let url = upload_payload(
             state.gcs_client()?,
             bucket,
-            &state.gcs_payload_prefix,
             &bso_req.user_id,
+            collection_id,
             &bso_req.bso,
             payload,
             &metrics,

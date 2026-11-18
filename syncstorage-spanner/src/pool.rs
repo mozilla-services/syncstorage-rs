@@ -126,6 +126,15 @@ impl DbPool for SpannerDbPool {
             .map(|db| Box::new(db) as Box<dyn Db<Error = Self::Error>>)
     }
 
+    async fn resolve_collection_id(&self, name: &str) -> DbResult<i32> {
+        if let Some(id) = self.coll_cache.get_id(name).await {
+            return Ok(id);
+        }
+
+        let mut db = self.get_spanner_db().await?;
+        db._get_collection_id(name).await
+    }
+
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
         super::db::validate_batch_id(&id)
     }
