@@ -17,6 +17,7 @@ import uuid
 import urllib.parse as urlparse
 from base64 import urlsafe_b64encode as b64encode
 
+from fxa_delete.make_delete_assertion import SCOPE as DELETE_ASSERTION_SCOPE
 from fxa_delete.make_delete_assertion import TYP as DELETE_ASSERTION_TYP
 from fxa_delete.make_delete_assertion import make_delete_assertion
 from integration_tests.helpers import make_test_app
@@ -44,11 +45,11 @@ DELETE_SIGNING_KEY_PEM = os.environ.get(
     ),
 )
 DELETE_DATA_AUDIENCE = os.environ.get(
-    "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE",
-    "urn:mozilla:fxa:tokenserver:sync-data-delete",
+    "SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE",
+    "urn:mozilla:fxa:tokenserver",
 )
 DELETE_DATA_ISSUER = os.environ.get(
-    "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER", "https://accounts.firefox.com"
+    "SYNC_TOKENSERVER__FXA_ADMIN_ISSUER", "https://accounts.firefox.com"
 )
 
 #: The syncstorage instance the tests actually talk to. The default node
@@ -403,6 +404,7 @@ def make_delete_token(
     ttl: int = 30,
     typ: str = DELETE_ASSERTION_TYP,
     jti: str | None = "",
+    scope: str | None = DELETE_ASSERTION_SCOPE,
     key_path: str | None = None,
 ) -> str:
     """Mint a delete assertion, with per-claim overrides for the failure cases.
@@ -422,6 +424,7 @@ def make_delete_token(
         ttl=ttl,
         typ=typ,
         jti=str(uuid.uuid4()) if jti == "" else jti,
+        scope=scope,
     )
     return token
 
@@ -434,7 +437,7 @@ def delete_syncstorage_data(app, fxa_uid: str, **kwargs):
     by the minter are passed through to WebTest, so a test can assert on a
     specific status.
     """
-    mint_keys = {"sub", "audience", "issuer", "ttl", "typ", "jti", "key_path"}
+    mint_keys = {"sub", "audience", "issuer", "ttl", "typ", "jti", "scope", "key_path"}
     mint = {k: kwargs.pop(k) for k in list(kwargs) if k in mint_keys}
     token = make_delete_token(fxa_uid, **mint)
     return app.delete(

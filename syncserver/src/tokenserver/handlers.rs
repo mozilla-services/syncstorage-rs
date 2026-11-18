@@ -328,6 +328,24 @@ pub struct DeleteUserDataResult {
     deleted: bool,
 }
 
+#[utoipa::path(
+    post,
+    path = "/1.0/webhooks/fxa/events",
+    tag = "tokenserver-admin",
+    summary = "Receive FxA account event notifications",
+    description = "Consumes Security Event Tokens (SETs) from the FxA Event Broker and \
+                   applies them to the Tokenserver user records: `delete-user` retires \
+                   the user, `password-change` bumps their generation. Unrecognized \
+                   event types are dropped. The SET is a JWT carried in the \
+                   `Authorization: Bearer` header and verified against FxA's public \
+                   JWKs; there is no request body. Not an end-user endpoint, and only \
+                   routed when `fxa_webhook_enabled` is set.",
+    responses(
+        (status = 200, description = "Events accepted (including when every event was dropped as unhandled)"),
+        (status = 401, description = "Unauthorized - the SET is missing, malformed, or not signed by a known FxA key"),
+        (status = 500, description = "Internal Server Error"),
+    )
+)]
 pub async fn handle_fxa_events(
     FxaWebhookToken(claims): FxaWebhookToken,
     DbWrapper(mut db): DbWrapper,
@@ -392,7 +410,7 @@ pub async fn handle_fxa_events(
 #[utoipa::path(
     delete,
     path = "/1.0/users/{fxa_uid}/storage",
-    tag = "tokenserver",
+    tag = "tokenserver-admin",
     summary = "Delete a user's syncstorage data",
     description = "Deletes all syncstorage data for the user's current node assignment, \
                    leaving the Tokenserver user record intact so the account can keep \
@@ -743,7 +761,7 @@ mod tests {
         DeleteAssertionBuilder, OTHER_PRIVATE_KEY_PEM, TEST_PRIVATE_KEY_PEM, make_set,
         other_test_jwk, test_jwk,
     };
-    use tokenserver_auth::{FxaDeleteAssertionVerifier, MockVerifier, SETVerifierImpl, oauth};
+    use tokenserver_auth::{FxaAdminAssertionVerifier, MockVerifier, SETVerifierImpl, oauth};
     use tokenserver_db::MAX_GENERATION;
     use tokenserver_db::mock::MockDbPool;
     use tokenserver_db::results::GetRawUser;
@@ -751,7 +769,7 @@ mod tests {
 
     use crate::build_app_without_syncstorage;
     use crate::error::ApiError;
-    use crate::server::{ApiDoc, TOKENSERVER_DOCS_URL};
+    use crate::server::{AdminApiDoc, ApiDoc, TOKENSERVER_DOCS_URL};
     use crate::tokenserver::handlers::node_fxa_kid;
     use crate::tokenserver::{self, ServerState};
     use crate::web::middleware;
@@ -845,7 +863,7 @@ mod tests {
             fxa_webhook_enabled: true,
             fxa_webhook_metrics_only: false,
             fxa_delete_data_enabled: false,
-            delete_assertion_verifiers: vec![],
+            admin_assertion_verifiers: vec![],
             storage_client: reqwest::Client::new(),
             allow_new_users: true,
             #[cfg(feature = "last_seen")]
@@ -1050,7 +1068,7 @@ mod tests {
 
     // ---- FxA-triggered syncstorage data deletion ----
 
-    const TEST_DELETE_AUD: &str = "urn:mozilla:fxa:tokenserver:sync-data-delete";
+    const TEST_DELETE_AUD: &str = "urn:mozilla:fxa:tokenserver";
     const TEST_DELETE_ISS: &str = "https://accounts.firefox.com";
     const TEST_FXA_UID: &str = "testuid";
 
@@ -1088,8 +1106,8 @@ mod tests {
         let (pool, call_log) = tokenserver_db::mock::MockDbPool::with_users(users);
         let mut state = make_state_with_db_pool(vec![], Box::new(pool));
         state.fxa_delete_data_enabled = true;
-        state.delete_assertion_verifiers = vec![
-            FxaDeleteAssertionVerifier::new(&test_jwk(), TEST_DELETE_AUD, TEST_DELETE_ISS).unwrap(),
+        state.admin_assertion_verifiers = vec![
+            FxaAdminAssertionVerifier::new(&test_jwk(), TEST_DELETE_AUD, TEST_DELETE_ISS).unwrap(),
         ];
         (make_app_from_state(state).await, call_log)
     }
@@ -1380,10 +1398,10 @@ mod tests {
             )]);
             let mut state = make_state_with_db_pool(vec![], Box::new(pool));
             state.fxa_delete_data_enabled = true;
-            state.delete_assertion_verifiers = jwks
+            state.admin_assertion_verifiers = jwks
                 .iter()
                 .map(|jwk| {
-                    FxaDeleteAssertionVerifier::new(jwk, TEST_DELETE_AUD, TEST_DELETE_ISS).unwrap()
+                    FxaAdminAssertionVerifier::new(jwk, TEST_DELETE_AUD, TEST_DELETE_ISS).unwrap()
                 })
                 .collect();
             let app = make_app_from_state(state).await;

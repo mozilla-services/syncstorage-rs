@@ -178,6 +178,10 @@ impl Settings {
             ));
         }
 
+        // The audience and issuer below are family-level: every
+        // tokenserver-admin assertion shares them. The gate is still the one
+        // per-operation flag because deletion is currently the only admin
+        // endpoint; a second one makes this "any admin endpoint enabled".
         if self.tokenserver.enabled && self.tokenserver.fxa_delete_data_enabled {
             let ts = &self.tokenserver;
             let required = |name: &str, value: &Option<String>| {
@@ -192,21 +196,20 @@ impl Settings {
                         ))
                     })
             };
-            let audience = required(
-                "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE",
-                &ts.fxa_delete_data_audience,
-            )?;
-            let issuer = required(
-                "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER",
-                &ts.fxa_delete_data_issuer,
-            )?;
+            let audience = ts.fxa_admin_audience.trim();
+            if audience.is_empty() {
+                return Err(ConfigError::Message(
+                    "SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE must not be empty".to_owned(),
+                ));
+            }
+            let issuer = required("SYNC_TOKENSERVER__FXA_ADMIN_ISSUER", &ts.fxa_admin_issuer)?;
 
             // Rejects a value that is not a URL at all. It does NOT catch a
             // trailing-slash mismatch: `iss` is compared byte-for-byte against
             // the token's claim.
             if Url::parse(&issuer).is_err() {
                 return Err(ConfigError::Message(
-                    "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER must be an absolute URL".to_owned(),
+                    "SYNC_TOKENSERVER__FXA_ADMIN_ISSUER must be an absolute URL".to_owned(),
                 ));
             }
 
@@ -220,21 +223,21 @@ impl Settings {
                 ));
             }
 
-            // The audience is what keeps a delete assertion from being
-            // interchangeable with the other FxA-signed credentials on the
-            // same JWKS. Enforce that separation at boot rather than trusting
-            // it to stay true.
-            if ts.fxa_webhook_set_client_id.as_deref() == Some(audience.as_str()) {
+            // The audience is what keeps tokenserver-admin assertions from
+            // being interchangeable with the other FxA-signed credentials on
+            // the same JWKS. Enforce that separation at boot rather than
+            // trusting it to stay true.
+            if ts.fxa_webhook_set_client_id.as_deref() == Some(audience) {
                 return Err(ConfigError::Message(
-                    "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE must differ from \
+                    "SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE must differ from \
                      SYNC_TOKENSERVER__FXA_WEBHOOK_SET_CLIENT_ID: a shared audience would make \
-                     webhook SETs and delete assertions interchangeable"
+                     webhook SETs and admin assertions interchangeable"
                         .to_owned(),
                 ));
             }
             if ts.fxa_oauth_server_url == audience {
                 return Err(ConfigError::Message(
-                    "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE must differ from \
+                    "SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE must differ from \
                      SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"
                         .to_owned(),
                 ));
@@ -803,11 +806,11 @@ mod test {
             ),
             ("SYNC_TOKENSERVER__FXA_DELETE_DATA_ENABLED", Some("true")),
             (
-                "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE",
-                Some("urn:mozilla:fxa:tokenserver:sync-data-delete"),
+                "SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE",
+                Some("urn:mozilla:fxa:tokenserver"),
             ),
             (
-                "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER",
+                "SYNC_TOKENSERVER__FXA_ADMIN_ISSUER",
                 Some("https://accounts.firefox.com"),
             ),
             ("SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KTY", Some("RSA")),
@@ -822,28 +825,37 @@ mod test {
 
     #[test]
     fn test_delete_data_requires_its_config() {
-        // Each of these omissions must stop the server starting, rather than
-        // leaving an endpoint that destroys user data misconfigured.
-        for missing in [
-            "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE",
-            "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER",
-        ] {
-            let vars: Vec<_> = delete_data_env()
-                .into_iter()
-                .map(|(k, v)| if k == missing { (k, None) } else { (k, v) })
-                .collect();
-            temp_env::with_vars(vars, || {
-                assert!(
-                    Settings::with_env_and_config_file(None).is_err(),
-                    "must not boot without {missing}"
-                );
-            });
-        }
+        // The issuer varies by environment, so omitting it must stop the
+        // server starting rather than leave a destructive endpoint
+        // misconfigured.
+        let missing = "SYNC_TOKENSERVER__FXA_ADMIN_ISSUER";
+        let vars: Vec<_> = delete_data_env()
+            .into_iter()
+            .map(|(k, v)| if k == missing { (k, None) } else { (k, v) })
+            .collect();
+        temp_env::with_vars(vars, || {
+            assert!(
+                Settings::with_env_and_config_file(None).is_err(),
+                "must not boot without {missing}"
+            );
+        });
 
-        // An empty value is as bad as an absent one.
+        let mut no_aud = delete_data_env();
+        no_aud.retain(|(k, _)| *k != "SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE");
+        temp_env::with_vars(no_aud, || {
+            let settings = Settings::with_env_and_config_file(None)
+                .expect("the audience is defaulted, not required");
+            assert_eq!(
+                settings.tokenserver.fxa_admin_audience,
+                "urn:mozilla:fxa:tokenserver"
+            );
+        });
+
+        // An explicit empty override would disable the audience check, so it
+        // is still refused.
         let mut blank = delete_data_env();
-        blank.retain(|(k, _)| *k != "SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE");
-        blank.push(("SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE", Some("   ")));
+        blank.retain(|(k, _)| *k != "SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE");
+        blank.push(("SYNC_TOKENSERVER__FXA_ADMIN_AUDIENCE", Some("   ")));
         temp_env::with_vars(blank, || {
             assert!(Settings::with_env_and_config_file(None).is_err());
         });
@@ -851,22 +863,19 @@ mod test {
         // Only outright garbage is caught at boot; a trailing-slash mismatch
         // is not, and cannot be — see the comment on the check itself.
         let mut bad_iss = delete_data_env();
-        bad_iss.retain(|(k, _)| *k != "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER");
-        bad_iss.push((
-            "SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER",
-            Some("not a url"),
-        ));
+        bad_iss.retain(|(k, _)| *k != "SYNC_TOKENSERVER__FXA_ADMIN_ISSUER");
+        bad_iss.push(("SYNC_TOKENSERVER__FXA_ADMIN_ISSUER", Some("not a url")));
         temp_env::with_vars(bad_iss, || {
             assert!(Settings::with_env_and_config_file(None).is_err());
         });
     }
 
     /// The boot-time half of non-interchangeability: a shared audience would
-    /// make webhook SETs and delete assertions substitutable, so the process
+    /// make webhook SETs and admin assertions substitutable, so the process
     /// refuses to start rather than relying on anyone noticing.
     #[test]
     fn test_delete_data_audience_must_not_collide() {
-        let aud = "urn:mozilla:fxa:tokenserver:sync-data-delete";
+        let aud = "urn:mozilla:fxa:tokenserver";
 
         let mut webhook = delete_data_env();
         webhook.push(("SYNC_TOKENSERVER__FXA_WEBHOOK_SET_CLIENT_ID", Some(aud)));

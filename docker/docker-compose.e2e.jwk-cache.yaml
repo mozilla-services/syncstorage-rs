@@ -14,8 +14,7 @@ services:
       # the per-backend files because it requires a configured JWK, and the
       # no-jwk-cache run layers those without one.
       SYNC_TOKENSERVER__FXA_DELETE_DATA_ENABLED: "true"
-      SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE: "urn:mozilla:fxa:tokenserver:sync-data-delete"
-      SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER: "https://accounts.firefox.com"
+      SYNC_TOKENSERVER__FXA_ADMIN_ISSUER: "https://accounts.firefox.com"
       # The repo test key, as the secondary JWK. The primary above is a real
       # FxA production key whose private half nobody has, so the delete tests
       # could not sign anything the server would accept.
@@ -28,8 +27,7 @@ services:
   e2e-tests:
     environment:
       FXA_DELETE_SIGNING_KEY_PEM: /app/tools/fxa_delete/testing/delete_test_key.pem
-      SYNC_TOKENSERVER__FXA_DELETE_DATA_AUDIENCE: "urn:mozilla:fxa:tokenserver:sync-data-delete"
-      SYNC_TOKENSERVER__FXA_DELETE_DATA_ISSUER: "https://accounts.firefox.com"
+      SYNC_TOKENSERVER__FXA_ADMIN_ISSUER: "https://accounts.firefox.com"
     entrypoint:
       - /bin/sh
       - -c

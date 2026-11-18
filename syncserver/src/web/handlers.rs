@@ -223,7 +223,7 @@ pub async fn delete_all(
     path = "/1.5/{uid}/storage/{collection}",
     tag = "syncstorage",
     summary = "Delete a collection or BSO(s) within collection",
-    description = "Deletes an entire collection or specific BSOs within a collection if IDs are specified. When confirmation is enabled, deleting an entire collection requires the X-Confirm-Delete: 1 header. If required confirmation is missing, the server leaves the collection unchanged and returns HTTP 200 with the existing storage timestamp.",
+    description = "Deletes an entire collection or specific BSOs within a collection if IDs are specified. When confirmation is enabled, deleting an entire collection other than tabs requires the X-Confirm-Delete: 1 header. If required confirmation is missing, the server leaves the collection unchanged and returns HTTP 200 with the existing storage timestamp.",
     params(
         ("uid" = String, Path, description = "User ID"),
         ("collection" = String, Path, description = "Collection name"),
@@ -245,8 +245,11 @@ pub async fn delete_collection(
         .headers()
         .get("x-confirm-delete")
         .is_some_and(|value| value.as_bytes() == b"1");
-    let ignore_delete =
-        state.require_collection_delete_confirmation && coll.query.ids.is_none() && !confirmed;
+    // Tabs are per-device records, so clients may still delete the whole collection.
+    let ignore_delete = state.require_collection_delete_confirmation
+        && coll.query.ids.is_none()
+        && !confirmed
+        && coll.collection != "tabs";
     let db_pool = if ignore_delete {
         db_pool.with_read_only_transaction()
     } else {

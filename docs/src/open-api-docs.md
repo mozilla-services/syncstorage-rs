@@ -32,6 +32,18 @@ Replace `<your-deployment-url>` with:
 - **Production/Stage**: [Add your prod/stage URL here]
 - **Local Development**: `http://localhost:8000` (or your configured port)
 
+#### The administrative API
+
+The administrative routes are called by the FxA Service rather than by a
+Sync client, so they live in a second OpenAPI document (`AdminApiDoc`) served
+alongside the main one:
+
+- **Swagger UI (Interactive)**: `https://<your-deployment-url>/admin/swagger-ui/`
+- **OpenAPI Spec (JSON)**: `https://<your-deployment-url>/api-doc/admin-openapi.json`
+
+See [Tokenserver Administrative API](tokenserver/tokenserver-admin-api.md)
+for prose covering these routes.
+
 ### API Endpoints
 
 The API is organized into three main categories:
@@ -56,6 +68,13 @@ Endpoints for Sync node allocation and authentication:
 - `GET /1.0/{application}/{version}` - Get sync token
 - `GET /__heartbeat__` - Tokenserver health check
 
+#### Administrative Endpoints
+Documented separately in `AdminApiDoc`. These are called by the FxA Service
+with FxA-signed credentials, not by end users, and are only routed when their
+respective settings enable them:
+- `POST /1.0/webhooks/fxa/events` - Receive FxA account event notifications (`fxa_webhook_enabled`)
+- `DELETE /1.0/users/{fxa_uid}/storage` - Delete a user's syncstorage data (`fxa_delete_data_enabled`)
+
 #### Dockerflow Endpoints
 Service health and monitoring endpoints:
 - `GET /__heartbeat__` - Service health check
@@ -73,9 +92,13 @@ To aid in exploring your own Sync API with Swagger, you may want to acquire your
 
 When adding new endpoints:
 1. Add `#[utoipa::path(...)]` annotation to the handler function.
-2. Add the handler path to `ApiDoc` in `syncserver/src/server/mod.rs`
+2. Add the handler path to `ApiDoc` in `syncserver/src/server/mod.rs` — or to
+   `AdminApiDoc` in the same file if it is an administrative route rather than
+   one a Sync client may call.
 3. If using custom types, derive `ToSchema` on request/response structs.
-4. Run `cargo run --example generate_openapi_spec` to verify the spec generates correctly. Follow instructions below.
+4. Run `cargo run --example generate_openapi_spec` (or
+   `generate_admin_openapi_spec`) to verify the spec generates correctly.
+   Follow instructions below.
 
 ### Generating the OpenAPI Spec Locally
 If you don't want to compile the Sync server on your machine to view the API docs, follow these instructions:
@@ -91,7 +114,13 @@ cargo run --example generate_openapi_spec
 
 # Save to a file
 cargo run --example generate_openapi_spec > openapi.json
+
+# The administrative API is a separate document
+cargo run --example generate_admin_openapi_spec > openapi-admin.json
 ```
+
+`make api-prev-admin` does the same for the administrative document, on
+`localhost:8081` so it can run alongside `make api-prev`.
 
 Other options: 
 1. **Use Docker** (simplest - used in `make api-prev`):

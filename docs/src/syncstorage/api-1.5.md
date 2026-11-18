@@ -339,6 +339,7 @@ Potential HTTP error responses include:
 Deletes an entire collection. Confirmation is optional by default. When
 `syncstorage.require_collection_delete_confirmation` is enabled, send an
 `X-Confirm-Delete` header with the value `1` to delete the collection.
+The `tabs` collection does not need the header: the server always deletes it.
 
 After executing this request, the collection will not appear in `GET /info/collections`
 and calls to `GET /storage/<collection>` will return an empty list.
@@ -372,7 +373,8 @@ Deletes the BSO at the given location.
 
 Send `X-Confirm-Delete: 1` to confirm deletion of an entire collection.
 The `syncstorage.require_collection_delete_confirmation` setting controls whether
-confirmation is required and defaults to `false`.
+confirmation is required and defaults to `false`. The `tabs` collection never
+requires it.
 
 ### `X-If-Modified-Since`
 

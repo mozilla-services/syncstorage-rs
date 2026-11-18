@@ -13,7 +13,10 @@
            UPDATE SET
                       sortindex = COALESCE(batch.sortindex, bsos.sortindex),
                       payload = COALESCE(batch.payload, bsos.payload),
-                      modified = $4,
+                      modified = CASE
+                          WHEN batch.payload IS NOT NULL OR batch.sortindex IS NOT NULL THEN $4
+                          ELSE bsos.modified
+                      END,
                       expiry = COALESCE(
                           CASE
                           WHEN batch.ttl IS NOT NULL THEN $4 + (batch.ttl || ' seconds')::INTERVAL
