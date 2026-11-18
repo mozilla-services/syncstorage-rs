@@ -10,7 +10,7 @@
 
 services:
   sync-db:
-    image: docker.io/library/mysql:8.0
+    image: docker.io/library/mysql:8.4
     volumes:
       - sync_db_data:/var/lib/mysql
     restart: always
@@ -31,7 +31,7 @@ services:
       timeout: 3s
 
   tokenserver-db:
-    image: docker.io/library/mysql:8.0
+    image: docker.io/library/mysql:8.4
     volumes:
       - tokenserver_db_data:/var/lib/mysql
     restart: always

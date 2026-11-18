@@ -56,7 +56,7 @@ services:
       SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9020
 
   tokenserver-db:
-    image: docker.io/library/mysql:8.0
+    image: docker.io/library/mysql:8.4
     container_name: syncserver-tokenserver-db
     command: --explicit_defaults_for_timestamp
     environment:
