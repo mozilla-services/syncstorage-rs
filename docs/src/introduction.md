@@ -251,7 +251,7 @@ We include a basic script to create an instance and initialize the schema via Sp
 - pkg-config
 - [Rust stable](https://rustup.rs)
 - python 3.9+
-- MySQL 8.0 (or compatible)
+- MySQL 8.4 (or compatible)
   * libmysqlclient (`brew install mysql` on macOS, `apt install libmysqlclient-dev` on Ubuntu, `apt install libmariadb-dev-compat` on Debian)
 
 Depending on your OS, you may also need to install `libgrpcdev`,
@@ -513,7 +513,7 @@ If you see a problem related to `libssl` you may need to specify the `cargo` opt
 - pkg-config
 - [Rust stable](https://rustup.rs)
 - python 3.9+
-- MySQL 8.0 (or compatible)
+- MySQL 8.4 (or compatible)
   * libmysqlclient (`brew install mysql` on macOS, `apt install libmysqlclient-dev` on Ubuntu, `apt install libmariadb-dev-compat` on Debian)
 
 Depending on your OS, you may also need to install `libgrpcdev`,
