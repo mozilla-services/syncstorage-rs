@@ -73,7 +73,10 @@ const DOWNLOAD_METRIC: &str = "storage.gcs.payload.download";
 /// Payload bytes read back from GCS. See [`UPLOAD_BYTES_METRIC`].
 const DOWNLOAD_BYTES_METRIC: &str = "storage.gcs.payload.download.bytes";
 
-/// Downloaded object commit status.
+/// Counts GCS object reads by the `committed` tag. `true` means the reconciler
+/// finalized the object. `false` means the database row is committed but the
+/// reconciler has yet to finalize the object and may have missed it. `unknown`
+/// means the object's `committed` metadata is missing or unrecognized.
 const DOWNLOAD_COMMITTED_METRIC: &str = "storage.gcs.payload.download.committed";
 
 /// Timing for the compensating delete, so all three GCS operations report
