@@ -1267,6 +1267,59 @@ async fn overquota() {
 }
 
 #[actix_rt::test]
+async fn heartbeat_checks_tokenserver_db_when_enabled() {
+    use tokenserver_db::mock::MockDbPool;
+
+    // (Tokenserver pool, expected HTTP status, expected `tokenserver_database`).
+    // `None` means that the key must be absent, which is different from a null value.
+    for (pool, status, tokenserver_database) in [
+        (None, StatusCode::OK, None),
+        (Some(MockDbPool::new()), StatusCode::OK, Some(json!("Ok"))),
+        (
+            Some(MockDbPool::unavailable()),
+            StatusCode::SERVICE_UNAVAILABLE,
+            Some(json!("Unknown")),
+        ),
+        (
+            Some(MockDbPool::with_failing_check()),
+            StatusCode::SERVICE_UNAVAILABLE,
+            Some(json!("Unknown")),
+        ),
+    ] {
+        let settings = get_test_settings();
+        let state = get_test_state(&settings).await;
+        let metrics = state.metrics.clone();
+        let tokenserver_state = pool.map(|pool| {
+            tokenserver::handlers::tests::make_state_with_db_pool(vec![], Box::new(pool))
+        });
+        let app = test::init_service(build_app!(
+            state,
+            tokenserver_state.clone(),
+            Arc::clone(&SECRETS),
+            build_cors(&settings),
+            metrics
+        ))
+        .await;
+
+        let req = create_request(http::Method::GET, "/__heartbeat__", None, None).to_request();
+        let resp = app.call(req).await.unwrap();
+        assert_eq!(resp.status(), status);
+        let body: Value = test::read_body_json(resp).await;
+        assert_eq!(body["database"], "Ok");
+        assert_eq!(
+            body.get("tokenserver_database"),
+            tokenserver_database.as_ref()
+        );
+        let expected = if status == StatusCode::OK {
+            "Ok"
+        } else {
+            "Err"
+        };
+        assert_eq!(body["status"], expected);
+    }
+}
+
+#[actix_rt::test]
 async fn lbheartbeat_max_pool_size_check() {
     let mut settings = get_test_settings();
     settings.syncstorage.database_pool_max_size = 10;
