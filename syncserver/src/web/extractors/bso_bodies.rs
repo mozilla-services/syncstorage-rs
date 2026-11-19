@@ -122,6 +122,8 @@ impl FromRequest for BsoBodies {
                 return Err(invalid_json());
             };
 
+            drop(body);
+
             // Validate all the BSO's, move invalid to our other list. Assume they'll all make
             // it with our pre-allocation
             let mut valid: Vec<BatchBsoBody> = Vec::with_capacity(bsos.len());
