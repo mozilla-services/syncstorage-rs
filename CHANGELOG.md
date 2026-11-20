@@ -1,3 +1,41 @@
+<a name="0.25.1"></a>
+## 0.25.1 (2026-11-18)
+
+
+#### Doc
+
+*   add separate admin endpoint docs (#2760) ([82e79257](https://github.com/mozilla-services/syncstorage-rs/commit/82e79257e03dd49ea17cb234c6d706cd5c48ff9e))
+* **config:**  document the socket parameter for mysql database urls (#2737) ([7efc25b3](https://github.com/mozilla-services/syncstorage-rs/commit/7efc25b3a540e86c5adbac1c809c7c442ffdc483))
+
+#### Features
+
+*   make the new delete auth more generic (#2766) ([d9f122cf](https://github.com/mozilla-services/syncstorage-rs/commit/d9f122cf519eec6dcef103a51b8a48eb0f40b03a))
+* **syncstorage:**  exempt tabs from collection delete confirmation (#2763) ([1b1fadcd](https://github.com/mozilla-services/syncstorage-rs/commit/1b1fadcd11d4b76a1cc3fd2cba8f7707c00aa4ce))
+
+#### Chore
+
+*   default the fxa_admin_audience setting (#2768) ([531d33f2](https://github.com/mozilla-services/syncstorage-rs/commit/531d33f2ead85d6a95061b3a423468b30d576322))
+*   run tokenserver unit tests separately from integration tests (#2735) ([52422f84](https://github.com/mozilla-services/syncstorage-rs/commit/52422f84145c28338a432ac544f25c9816efc12b))
+*   refresh claude skills (#2718) ([f555773f](https://github.com/mozilla-services/syncstorage-rs/commit/f555773f43cdc05cf8bae85b3c5e094b3b0a867c))
+*   tag 0.25.0 (#2749) ([8603d0ca](https://github.com/mozilla-services/syncstorage-rs/commit/8603d0ca9884bb75f5939339abedc67b17bc2c46))
+* **deps:**
+  *  bump opentelemetry-api in /tools/tokenserver (#2755) ([86f99cc7](https://github.com/mozilla-services/syncstorage-rs/commit/86f99cc7cc54d5603a00b52d9d1c2b539c615923))
+  *  bump opentelemetry-api in /tools/spanner (#2756) ([362b7c15](https://github.com/mozilla-services/syncstorage-rs/commit/362b7c157b5a18ab7e0715149f6e9d8817f2fda4))
+  *  bump opentelemetry-api (#2754) ([f9169ce4](https://github.com/mozilla-services/syncstorage-rs/commit/f9169ce4472da2668f63751b7c74092d6b2f76a1))
+* **deps-dev:**  bump soupsieve from 2.9 to 4.0 (#2752) ([72c511ea](https://github.com/mozilla-services/syncstorage-rs/commit/72c511ea34186d6bd432db8bab968e9893fd0216))
+* **docs:**  add short doc for onboarding offloaded collection (#2751) ([46fa3509](https://github.com/mozilla-services/syncstorage-rs/commit/46fa350987c5dfcc1f88502b9248b6396ea863e0))
+
+#### Bug Fixes
+
+*   break ties by id when choosing the best tokenserver node (#2638) ([a8253ec2](https://github.com/mozilla-services/syncstorage-rs/commit/a8253ec2281ec88c220f1d80c55222448d7d05c8))
+* **deps:**
+  *  bump actix-http and libz-sys for RUSTSEC advisories (#2764) ([d6df8da4](https://github.com/mozilla-services/syncstorage-rs/commit/d6df8da474a3fec1b5f7647289ba2eb162b69b4a))
+  *  bump quinn-proto and quinn-udp for rustsec advisories (#2753) ([60d312e2](https://github.com/mozilla-services/syncstorage-rs/commit/60d312e2c780a75826be1799055c7e0d23b11c06))
+* **syncserver:**  use the postgres tokenserver in postgres builds (#2736) ([a67892cb](https://github.com/mozilla-services/syncstorage-rs/commit/a67892cbee8d23814dba0bbdda419a715d62e86a))
+* **syncstorage:**  keep modified on a TTL-only batch commit update (#2707) ([3eacdac4](https://github.com/mozilla-services/syncstorage-rs/commit/3eacdac4b00c26942e163827b2f827b1ee6a7d84))
+
+
+
 <a name="0.25.0"></a>
 ## 0.25.0 (2026-11-11)
 

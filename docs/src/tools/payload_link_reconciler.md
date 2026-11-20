@@ -421,10 +421,12 @@ operations report latency, each tagged with a `result`.
 | `storage.gcs.payload.size` | histogram | `op` | Distribution of individual payload sizes, in bytes |
 | `storage.gcs.payload.upload.bytes` | counter | none | Bytes written, for throughput |
 | `storage.gcs.payload.download.bytes` | counter | none | Bytes read back |
+| `storage.gcs.payload.download.committed` | counter | `committed` | One per completed GCS object read, tagged `true`, `false`, or `unknown` for missing or unrecognized metadata |
 | `storage.gcs.payload.cleanup` | counter | `handler`, `result`, `reason` | Outcome of the compensating delete |
 
-Statsd timers carry their own count, so there is no separate counter for
-the number of uploads or downloads.
+Statsd timers carry their own count, so there is no separate counter for the
+number of uploads or downloads. The commit status counter uses metadata from
+the same download response.
 
 `storage.gcs.payload.batch` is not the sum of the per-object timings. A
 request works on up to `gcs_payload_max_concurrency` objects at once, so
