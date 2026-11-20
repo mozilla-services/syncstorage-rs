@@ -151,7 +151,7 @@ struct UserUpdates {
 }
 
 /// Optionally apply a timeout when running a future
-async fn apply_timeout<O, E>(
+pub(crate) async fn apply_timeout<O, E>(
     duration: Option<Duration>,
     fut: impl std::future::Future<Output = Result<O, E>>,
 ) -> Result<O, TokenserverError>
@@ -740,7 +740,7 @@ pub async fn test_error() -> Result<HttpResponse, TokenserverError> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::sync::{Arc, Mutex};
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -839,7 +839,7 @@ mod tests {
         make_app_from_state(state).await
     }
 
-    fn make_state_with_db_pool(
+    pub(crate) fn make_state_with_db_pool(
         set_verifiers: Vec<SETVerifierImpl>,
         db_pool: Box<dyn tokenserver_db::DbPool>,
     ) -> ServerState {

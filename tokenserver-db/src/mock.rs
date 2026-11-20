@@ -19,11 +19,30 @@ pub struct CallLog {
 pub struct MockDbPool {
     call_log: CallLog,
     users: Arc<Mutex<results::GetUsers>>,
+    unavailable: bool,
+    fail_check: bool,
 }
 
 impl MockDbPool {
     pub fn new() -> Self {
         MockDbPool::default()
+    }
+
+    /// A pool whose `get` always fails, as when the database is down.
+    pub fn unavailable() -> Self {
+        MockDbPool {
+            unavailable: true,
+            ..MockDbPool::default()
+        }
+    }
+
+    /// A pool whose connections fail `check`, as when a query fails on a
+    /// connection that was checked out successfully.
+    pub fn with_failing_check() -> Self {
+        MockDbPool {
+            fail_check: true,
+            ..MockDbPool::default()
+        }
     }
 
     pub fn with_capture() -> (Self, CallLog) {
@@ -50,9 +69,13 @@ impl DbPool for MockDbPool {
     }
 
     async fn get(&self) -> Result<Box<dyn Db>, DbError> {
+        if self.unavailable {
+            return Err(DbError::internal("mock database unavailable".to_owned()));
+        }
         Ok(Box::new(MockDb {
             call_log: self.call_log.clone(),
             users: self.users.clone(),
+            fail_check: self.fail_check,
         }))
     }
 
@@ -76,6 +99,7 @@ impl GetPoolStatus for MockDbPool {
 pub struct MockDb {
     call_log: CallLog,
     users: Arc<Mutex<results::GetUsers>>,
+    fail_check: bool,
 }
 
 impl MockDb {
@@ -129,6 +153,9 @@ impl Db for MockDb {
     }
 
     async fn check(&mut self) -> Result<results::Check, DbError> {
+        if self.fail_check {
+            return Err(DbError::internal("mock check failure".to_owned()));
+        }
         Ok(true)
     }
 
