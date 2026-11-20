@@ -58,6 +58,8 @@ pub trait DbPool: Sync + Send + Debug + GetPoolStatus {
 
     async fn get(&self) -> Result<Box<dyn Db<Error = Self::Error>>, Self::Error>;
 
+    async fn resolve_collection_id(&self, name: &str) -> Result<i32, Self::Error>;
+
     fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<(), Self::Error>;
 
     fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>>;

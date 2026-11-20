@@ -145,7 +145,7 @@ impl MysqlDb {
         Ok(collection_id)
     }
 
-    async fn _get_collection_id(&mut self, name: &str) -> DbResult<i32> {
+    pub(super) async fn _get_collection_id(&mut self, name: &str) -> DbResult<i32> {
         if let Some(id) = self.coll_cache.get_id(name)? {
             return Ok(id);
         }

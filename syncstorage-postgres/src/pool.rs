@@ -149,6 +149,11 @@ impl DbPool for PgDbPool {
         Ok(Box::new(self.get_pg_db().await?) as Box<dyn Db<Error = Self::Error>>)
     }
 
+    async fn resolve_collection_id(&self, name: &str) -> DbResult<i32> {
+        let mut db = self.get_pg_db().await?;
+        db._get_collection_id(name).await
+    }
+
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
         super::db::validate_batch_id(&id).map(|_| ())
     }

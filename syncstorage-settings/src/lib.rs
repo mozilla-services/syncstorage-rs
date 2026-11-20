@@ -140,8 +140,8 @@ pub struct Settings {
     /// off-load path for all collections.
     pub gcs_payload_offload_collections: Vec<String>,
 
-    /// Prefix off-loaded GCS object names, which are formatted as
-    /// `{gcs_payload_prefix}/{fxa_uid}/{uuid}`.
+    /// Prefix for GCS payload object names, which use the format
+    /// `{gcs_payload_prefix}/{fxa_uid}/{collection_id}/{uuid}`.
     pub gcs_payload_prefix: String,
 
     /// Maximum number of GCS payload uploads/downloads to run concurrently
@@ -197,8 +197,8 @@ impl Settings {
                 min(self.limits.max_total_bytes, MAX_SPANNER_LOAD_SIZE as u32);
         }
 
-        // Object names are joined as `{prefix}/{fxa_uid}/{uuid}`, so a leading
-        // or trailing slash on the configured prefix yields an empty segment.
+        // A leading or trailing slash on the prefix would add an empty segment
+        // to `{prefix}/{fxa_uid}/{collection_id}/{uuid}`.
         self.gcs_payload_prefix = self.gcs_payload_prefix.trim_matches('/').to_owned();
     }
 

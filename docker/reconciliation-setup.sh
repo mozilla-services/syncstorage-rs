@@ -7,6 +7,7 @@
 # One-shot init for the reconciliation e2e compose stack.
 #
 # Creates:
+#   * Spanner rows for custom offload collections used by the tests
 #   * Pub/Sub topic         : payload-link-changes
 #   * Pub/Sub subscription  : payload-link-reconciler-sub
 #   * GCS bucket            : $GCS_PAYLOAD_BUCKET (fake-gcs-server)
@@ -28,6 +29,21 @@ echo "reconciliation-setup: waiting for emulators..."
 
 # Small wait; the depends_on / healthcheck in compose is the real gate.
 sleep 3
+
+# Offloaded writes require an existing collection ID. The standard collections
+# have built-in IDs. These custom IDs belong only to this emulator fixture.
+database="http://sync-db:9020/v1/projects/${PROJECT_ID}/instances/test-instance/databases/test-database"
+echo "reconciliation-setup: registering custom offload collections in Spanner"
+session=$(curl -fsS --retry 15 --retry-all-errors --retry-delay 1 \
+  -X POST "${database}/sessions" -H 'Content-Type: application/json' -d '{}')
+session_path=$(printf '%s' "$session" | jq -er '.name')
+curl -fsS --retry 15 --retry-all-errors --retry-delay 1 \
+  -X POST "http://sync-db:9020/v1/${session_path}:commit" -H 'Content-Type: application/json' \
+  -d '{"singleUseTransaction":{"readWrite":{}},"mutations":[{"insertOrUpdate":{
+    "table":"collections","columns":["collection_id","name"],
+    "values":[["101","apis-1"],["102","xxx_col"],["103","xxx_col1"],["104","xxx_col2"],
+              ["105","xxx_meh"],["106","xxxx"]]
+  }}]}' >/dev/null
 
 echo "reconciliation-setup: creating Pub/Sub topic ${PROJECT_ID}/${TOPIC}"
 curl -sS -X PUT \

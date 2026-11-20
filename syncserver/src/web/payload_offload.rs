@@ -11,7 +11,7 @@
 //! resolved by downloading from GCS after the database transaction commits,
 //! and `payload_link` is cleared before the response is rendered.
 //!
-//! Object names are formatted as `{gcs_payload_prefix}/{fxa_uid}/{uuid}`.
+//! Object names are formatted as `{gcs_payload_prefix}/{fxa_uid}/{collection_id}/{uuid}`.
 //!
 //! Objects are written with the custom metadata `committed=false` and a
 //! `customTime` set to upload time; a later step flips `committed` to `true`
@@ -37,6 +37,7 @@ use crate::{
 const COMMITTED_METADATA_KEY: &str = "committed";
 
 /// Custom metadata keys
+const COLLECTION_ID_METADATA_KEY: &str = "collection_id";
 const BSO_ID_METADATA_KEY: &str = "bso_id";
 const FXA_KID_METADATA_KEY: &str = "fxa_kid";
 /// Byte length of the payload as received
@@ -100,15 +101,23 @@ pub const OP_DOWNLOAD: &str = "download";
 /// spans the whole set, can measure it.
 const BATCH_METRIC: &str = "storage.gcs.payload.batch";
 
-/// Return the GCS bucket name if `collection` is opted into payload off-load
-/// and a bucket is configured. `None` disables off-load for this request.
-pub fn offload_bucket<'a>(state: &'a ServerState, collection: &str) -> Option<&'a str> {
-    let bucket = state.gcs_payload_bucket.as_deref()?;
+#[derive(Clone, Copy)]
+pub struct OffloadBucket<'a> {
+    name: &'a str,
+    prefix: &'a str,
+}
+
+/// Return the configured GCS bucket and prefix for collections opted into payload offload.
+pub fn offload_bucket<'a>(state: &'a ServerState, collection: &str) -> Option<OffloadBucket<'a>> {
+    let name = state.gcs_payload_bucket.as_deref()?;
     state
         .gcs_payload_offload_collections
         .iter()
         .any(|c| c == collection)
-        .then_some(bucket)
+        .then_some(OffloadBucket {
+            name,
+            prefix: state.gcs_payload_prefix.as_str(),
+        })
 }
 
 /// Build a GCS client honoring the `endpoint` override. When the override is
@@ -131,21 +140,28 @@ pub async fn build_client(endpoint: Option<&str>) -> Result<Storage, ApiError> {
         .map_err(|e| ApiErrorKind::Internal(format!("GCS builder error: {e}")).into())
 }
 
-/// Upload `payload` to `bucket` under the key `{prefix}/{fxa_uid}/{uuid}` and
-/// return the resulting `gs://` URL.
+/// Upload `payload` to the bucket under the key `{prefix}/{fxa_uid}/{collection_id}/{uuid}`
+/// and return the resulting `gs://` URL.
 ///
 /// The object is written with a `customTime` of the upload moment and custom metadata:
-/// `committed=false`, plus the fields `bso_id`, `fxa_kid`, `original_size`, and `format_version`.
+/// `committed=false`, plus the fields `collection_id`, `bso_id`, `fxa_kid`, `original_size`, and
+/// `format_version`.
 pub async fn upload_payload(
     client: &Storage,
-    bucket: &str,
-    prefix: &str,
+    bucket: OffloadBucket<'_>,
     user_id: &UserIdentifier,
+    collection_id: i32,
     bso_id: &str,
     payload: String,
     metrics: &Metrics,
 ) -> Result<String, ApiError> {
-    let object_name = format!("{}/{}/{}", prefix, user_id.fxa_uid, Uuid::new_v4().simple());
+    let object_name = format!(
+        "{}/{}/{}/{}",
+        bucket.prefix,
+        user_id.fxa_uid,
+        collection_id,
+        Uuid::new_v4().simple()
+    );
 
     // Capture the length here. The `payload` value moves into the upload call below.
     let original_size = payload.len();
@@ -156,9 +172,13 @@ pub async fn upload_payload(
 
     let started = Instant::now();
     let result = client
-        .write_object(bucket_path(bucket), object_name.clone(), payload)
+        .write_object(bucket_path(bucket.name), object_name.clone(), payload)
         .set_metadata([
             (COMMITTED_METADATA_KEY.to_string(), "false".to_string()),
+            (
+                COLLECTION_ID_METADATA_KEY.to_string(),
+                collection_id.to_string(),
+            ),
             (BSO_ID_METADATA_KEY.to_string(), bso_id.to_owned()),
             (FXA_KID_METADATA_KEY.to_string(), user_id.fxa_kid.clone()),
             (
@@ -181,7 +201,7 @@ pub async fn upload_payload(
     metrics.count(UPLOAD_BYTES_METRIC, original_size as i64);
     record_size(metrics, OP_UPLOAD, original_size);
 
-    Ok(format!("gs://{bucket}/{object_name}"))
+    Ok(format!("gs://{}/{object_name}", bucket.name))
 }
 
 /// Record one payload's size against [`SIZE_METRIC`].
