@@ -7,7 +7,6 @@ use cadence::{
     BufferedUdpMetricSink, Counted, Histogrammed, Metric, MetricBuilder, NopMetricSink,
     QueuingMetricSink, StatsdClient, Timed,
 };
-use slog::{KV, Key, Record};
 
 pub use cadence::MetricError;
 
@@ -27,12 +26,16 @@ pub struct Metrics {
 
 impl Drop for Metrics {
     fn drop(&mut self) {
-        let tags = self.tags.clone();
         if let Some(client) = self.client.as_ref()
             && let Some(timer) = self.timer.as_ref()
         {
             let lapse = (Instant::now() - timer.start).as_millis() as u64;
-            trace!("⌚ Ending timer at nanos: {:?} : {:?}", &timer.label, lapse; &MetricTags(tags));
+            trace!(
+                tags = ?self.tags,
+                "⌚ Ending timer at nanos: {:?} : {:?}",
+                &timer.label,
+                lapse
+            );
             let mut tagged = client.time_with_tags(&timer.label, lapse);
             // Include any "hard coded" tags.
             // tagged = tagged.with_tag("version", env!("CARGO_PKG_VERSION"));
@@ -73,12 +76,11 @@ impl Metrics {
             mtags.extend(t)
         }
 
-        let mtags = MetricTags(mtags);
-        trace!("⌚ Starting timer... {:?}", &label; &mtags);
+        trace!(tags = ?mtags, "⌚ Starting timer... {:?}", &label);
         self.timer = Some(MetricTimer {
             label: label.to_owned(),
             start: Instant::now(),
-            tags: mtags.0,
+            tags: mtags,
         });
     }
 
@@ -136,7 +138,7 @@ impl Metrics {
         match builder.try_send() {
             Err(e) => {
                 // eat the metric, but log the error
-                warn!("⚠️ Metric {} error: {:?} ", label, e; MetricTags(tags.clone()));
+                warn!(tags = ?tags, "⚠️ Metric {} error: {:?} ", label, e);
             }
             Ok(v) => trace!("☑️ {:?}", v.as_metric_str()),
         }
@@ -208,17 +210,5 @@ impl From<&Arc<StatsdClient>> for Metrics {
             tags: HashMap::default(),
             timer: None,
         }
-    }
-}
-
-/// A newtype used solely to allow us to implement KV on HashMap.
-struct MetricTags(HashMap<String, String>);
-
-impl KV for MetricTags {
-    fn serialize(&self, _rec: &Record<'_>, serializer: &mut dyn slog::Serializer) -> slog::Result {
-        for (key, val) in &self.0 {
-            serializer.emit_str(Key::from(key.clone()), val)?;
-        }
-        Ok(())
     }
 }

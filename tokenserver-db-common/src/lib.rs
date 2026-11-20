@@ -1,5 +1,5 @@
 #[macro_use]
-extern crate slog_scope;
+extern crate tracing;
 
 mod error;
 pub mod params;
@@ -129,7 +129,7 @@ pub trait Db {
             // There are no users in the database with the given email and service ID, so
             // allocate a new one if allowed by configuration.
             if !params.allow_new_users {
-                warn!("New users registration is disabled by configuration"; "email" => &params.email);
+                warn!(email = %params.email, "New users registration is disabled by configuration");
                 return Err(DbError::user_not_created());
             }
 
@@ -235,7 +235,7 @@ pub trait Db {
                 // internal service error in this situation).
                 (_, None) => {
                     let uid = raw_user.uid;
-                    warn!("Tokenserver user retired"; "uid" => &uid);
+                    warn!(uid, "Tokenserver user retired");
                     Err(DbError::internal("Tokenserver user retired".to_owned()))
                 }
             }

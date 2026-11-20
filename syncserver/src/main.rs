@@ -1,6 +1,6 @@
 //! Sync Storage Server for Sync 1.5
 #[macro_use]
-extern crate slog_scope;
+extern crate tracing;
 
 use std::error::Error;
 

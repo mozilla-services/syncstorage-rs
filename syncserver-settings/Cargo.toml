@@ -8,7 +8,7 @@ edition.workspace = true
 [dependencies]
 regex.workspace = true
 serde.workspace = true
-slog-scope.workspace = true
+tracing.workspace = true
 
 config = "0.15"
 num_cpus = "1"

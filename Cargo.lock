@@ -4728,8 +4728,7 @@ dependencies = [
  "sentry-backtrace",
  "serde_json",
  "sha2 0.11.1",
- "slog",
- "slog-scope",
+ "tracing",
 ]
 
 [[package]]
@@ -4756,11 +4755,11 @@ dependencies = [
  "num_cpus",
  "regex",
  "serde",
- "slog-scope",
  "syncserver-common",
  "syncstorage-settings",
  "temp-env",
  "tokenserver-settings",
+ "tracing",
  "url",
 ]
 
@@ -4774,7 +4773,6 @@ dependencies = [
  "lazy_static",
  "log",
  "rand 0.10.3",
- "slog-scope",
  "syncserver-common",
  "syncserver-db-common",
  "syncserver-settings",
@@ -4784,6 +4782,7 @@ dependencies = [
  "syncstorage-settings",
  "syncstorage-spanner",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -4816,13 +4815,13 @@ dependencies = [
  "diesel-async",
  "diesel_migrations",
  "env_logger 0.11.11",
- "slog-scope",
  "syncserver-common",
  "syncserver-db-common",
  "syncserver-settings",
  "syncstorage-db-common",
  "syncstorage-settings",
  "tokio",
+ "tracing",
  "url",
 ]
 
@@ -4837,11 +4836,11 @@ dependencies = [
  "diesel-async",
  "diesel_migrations",
  "futures 0.3.32",
- "slog-scope",
  "syncserver-common",
  "syncserver-db-common",
  "syncstorage-db-common",
  "syncstorage-settings",
+ "tracing",
  "uuid",
 ]
 
@@ -4870,13 +4869,13 @@ dependencies = [
  "grpcio",
  "http 1.5.0",
  "protobuf",
- "slog-scope",
  "syncserver-common",
  "syncserver-db-common",
  "syncstorage-db-common",
  "syncstorage-settings",
  "thiserror 2.0.21",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -5085,12 +5084,12 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.1",
- "slog-scope",
  "syncserver-common",
  "thiserror 2.0.21",
  "tokenserver-common",
  "tokenserver-settings",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -5139,11 +5138,11 @@ dependencies = [
  "diesel_migrations",
  "http 1.5.0",
  "serde",
- "slog-scope",
  "syncserver-common",
  "syncserver-db-common",
  "thiserror 2.0.21",
  "tokenserver-common",
+ "tracing",
 ]
 
 [[package]]
@@ -5157,12 +5156,12 @@ dependencies = [
  "diesel-async",
  "diesel_migrations",
  "http 1.5.0",
- "slog-scope",
  "syncserver-common",
  "syncserver-db-common",
  "tokenserver-common",
  "tokenserver-db-common",
  "tokenserver-settings",
+ "tracing",
 ]
 
 [[package]]
@@ -5176,12 +5175,12 @@ dependencies = [
  "diesel-async",
  "diesel_migrations",
  "http 1.5.0",
- "slog-scope",
  "syncserver-common",
  "syncserver-db-common",
  "tokenserver-common",
  "tokenserver-db-common",
  "tokenserver-settings",
+ "tracing",
 ]
 
 [[package]]
