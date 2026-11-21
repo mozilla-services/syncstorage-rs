@@ -14,6 +14,7 @@ use syncstorage_db::{
 use super::extractors::{
     BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt,
 };
+use super::payload_offload;
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::{MetricsWrapper, ServerState};
 
@@ -45,6 +46,9 @@ pub struct DbTransactionPool {
     /// Tag applied to the transaction before it opens, so Spanner records it on
     /// the change stream. Set by the batch-commit handler. See STOR-668.
     transaction_tag: Option<String>,
+    /// Whether this request's write transaction is kept out of Spanner's
+    /// change streams, decided in `from_request`.
+    exclude_from_change_streams: bool,
 }
 
 fn set_extra(req: &HttpRequest, connection_info: ConnectionInfo) {
@@ -100,8 +104,11 @@ impl DbTransactionPool {
         // Get connection from pool
         let mut db = self.pool.get().await?;
 
-        // Tag the transaction before it opens so Spanner records the tag on the
-        // change stream (no-op on other backends). Must happen before begin.
+        // Set the transaction options/request options before begin
+        if self.exclude_from_change_streams {
+            // Exclude from the change stream (not an offloaded collection)
+            db.set_exclude_from_change_streams();
+        }
         if let Some(tag) = self.transaction_tag.clone() {
             db.set_transaction_tag(tag);
         }
@@ -319,6 +326,18 @@ impl FromRequest for DbTransactionPool {
             let bso_opt = bso.map(|b| b.bso);
 
             let is_read = matches!(method, Method::GET | Method::HEAD);
+
+            // A collection that isn't off-loaded never holds a payload_link,
+            // so its writes only add change records the payload-link
+            // reconciler discards. Keep them out of the change stream.
+            //
+            // A None collection spans every collection the user has (DELETE
+            // /storage), off-loaded ones included, so it is never excluded.
+            let exclude_from_change_streams = !is_read
+                && collection
+                    .as_deref()
+                    .is_some_and(|c| !payload_offload::is_offload_collection(state, c));
+
             let precondition = PreConditionHeaderOpt::extrude(req.headers())?;
             let pool = Self {
                 pool: state.db_pool.clone(),
@@ -328,6 +347,7 @@ impl FromRequest for DbTransactionPool {
                 bso_opt,
                 precondition,
                 transaction_tag: None,
+                exclude_from_change_streams,
             };
 
             req.extensions_mut().insert(pool.clone());
@@ -353,6 +373,7 @@ mod tests {
             bso_opt: None,
             precondition: PreConditionHeaderOpt { opt: None },
             transaction_tag: None,
+            exclude_from_change_streams: false,
         }
     }
 

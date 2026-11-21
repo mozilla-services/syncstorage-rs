@@ -88,6 +88,11 @@ struct SpannerDbSession {
     /// the payload-link reconciler can tell a commit handoff from a genuine
     /// delete. See STOR-668.
     transaction_tag: Option<String>,
+    /// Whether to exclude this transaction from Spanner's change streams,
+    /// applied to the TransactionOptions of a write `begin`. Set for writes to
+    /// collections that never hold a `payload_link`, whose change records the
+    /// payload-link reconciler would only discard. See STOR-####.
+    exclude_from_change_streams: bool,
 }
 
 impl SpannerDb {

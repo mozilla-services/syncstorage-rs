@@ -321,6 +321,25 @@ environment fails to come up.
    fails at startup rather than falling back to broader access. Apply the
    role and its grants in the same DDL update as the change stream.
 
+   The block ends by opting the stream into per-transaction exclusion, which
+   is what lets syncserver keep writes to non-offloaded collections out of
+   the stream:
+
+   ```sql
+   ALTER CHANGE STREAM payload_link_changes SET OPTIONS (
+     retention_period = '7d',
+     value_capture_type = 'OLD_AND_NEW_VALUES',
+     allow_txn_exclusion = true
+   );
+   ```
+
+   Apply this before deploying a syncserver that sets the flag. Running
+   ahead of the DDL is harmless -- Spanner ignores the per-transaction
+   option on a stream that has not opted in -- but the reverse ordering
+   keeps the two in step. Setting `allow_txn_exclusion = false` reverts to
+   capturing every transaction immediately, with no syncserver deploy, and
+   is the fastest rollback if the stream turns out to be missing records.
+
 2. Grant the Dataflow service account `roles/spanner.databaseUser` on
    the Spanner database. This targets `-904c`, where the webservices
    Terraform admin account has no `setIamPolicy` rights, so a `-904c`

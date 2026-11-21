@@ -6,7 +6,7 @@ authors = [
     {name = "Taddes",email = "tkorris@mozilla.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.10.0"
+requires-python = ">=3.10.0,<4.0"
 license = "Mozilla Public License Version 2.0"
 
 
@@ -15,6 +15,9 @@ package-mode = false
 
 [tool.poetry.dependencies]
 cryptography = "50.0.2"
+# Lets the reconciliation e2e tests read the payload_link_changes change
+# stream directly, to assert non-offloaded writes stay out of it.
+google-cloud-spanner = ">=3.63.0"
 hawkauthlib = "^2.0.0"
 mysqlclient = "^2.2.7"
 psycopg2-binary = "^2.9.11"

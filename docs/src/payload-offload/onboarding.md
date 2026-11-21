@@ -35,5 +35,35 @@ limits.
 Deploy, and check whether `GET /1.5/1/info/configuration` advertises the
 intended collection overrides, if configured.
 
+## Offboarding a collection
+
+**Do not remove a collection from
+`SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS` until its GCS objects are
+gone.**
+
+`SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS` picks which writes reach
+the `payload_link_changes` change stream: writes to any collection outside the
+list are excluded from it, because such collections hold no `payload_link` and
+their change records would only be discarded by the reconciler.
+
+A collection that was offloaded keeps its `payload_link` rows after the name is
+removed from the list. From the moment it leaves the list, its deletes stop
+producing change records, the reconciler never learns of them, and every one of
+its remaining GCS objects is orphaned permanently -- the reconciler is the only
+thing that deletes them.
+
+To offboard:
+
+1. Stop writes to the collection, or accept that new writes land inline.
+2. Remove the collection's `payload_link` rows (a delete of each BSO, or let
+   the row-deletion-policy TTL expire them) and wait for the reconciler to
+   delete the corresponding objects. Confirm the bucket prefix is empty.
+3. Only then remove the name from
+   `SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS` and deploy.
+
+If a collection has already been removed prematurely, re-add it, drain it as
+above, then remove it again. Objects orphaned in the meantime have to be
+reconciled by hand against the `bsos`/`batch_bsos` rows.
+
 See [Configuration](../config.md#syncstorage-payload-off-load) for all settings.
 

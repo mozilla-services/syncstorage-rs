@@ -166,4 +166,11 @@ services:
       GCS_PAYLOAD_BUCKET: test-payloads
       STORAGE_EMULATOR_HOST: http://fake-gcs:4443
       PUBSUB_EMULATOR_HOST: pubsub-emulator:8085
+      # Lets the tests read payload_link_changes directly, to assert that a
+      # write to a non-offloaded collection never reaches the stream.
+      SPANNER_EMULATOR_HOST: sync-db:9010
+      SPANNER_PROJECT_ID: test-project
+      SPANNER_INSTANCE_ID: test-instance
+      SPANNER_DATABASE_ID: test-database
+      SPANNER_CHANGE_STREAM_NAME: payload_link_changes
       RESULTS_FILENAME: ${RESULTS_FILENAME:-reconciliation_integration_results.xml}

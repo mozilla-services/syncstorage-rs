@@ -1,7 +1,7 @@
 services:
   sync-db:
     # SPANNER_EMULATOR_VER (e2e/integration tests) — keep in sync with .github/workflows/main-workflow.yml
-    image: gcr.io/cloud-spanner-emulator/emulator:1.5.52
+    image: gcr.io/cloud-spanner-emulator/emulator:1.5.59
     ports:
       - "9010:9010"
       - "9020:9020"
