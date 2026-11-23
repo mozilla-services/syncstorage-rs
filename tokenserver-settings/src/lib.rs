@@ -56,7 +56,7 @@ pub struct Settings {
     pub node_type: NodeType,
     /// The label to be used when reporting Metrics.
     pub statsd_label: String,
-    /// Whether or not to run the Tokenserver migrations upon startup.
+    /// Whether or not to run the Tokenserver migrations upon startup. Defaults to true.
     pub run_migrations: bool,
     /// The database ID of the Spanner node.
     pub spanner_node_id: Option<i32>,
@@ -175,7 +175,7 @@ impl Default for Settings {
             node_capacity_release_rate: None,
             node_type: NodeType::Spanner,
             statsd_label: "syncstorage.tokenserver".to_owned(),
-            run_migrations: cfg!(test),
+            run_migrations: true,
             spanner_node_id: None,
             additional_blocking_threads_for_fxa_requests: Some(1),
             token_duration: 3600,

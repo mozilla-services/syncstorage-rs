@@ -105,10 +105,10 @@ DATABASE_URL=postgres://sample_user:sample_password@localhost/syncstorage
 
 ### Bootstrapping Tokenserver (Postgres)
 
-Tokenserver includes migrations to initialize its database, but they do not run by default. These can be enabled via the setting:
+Tokenserver includes migrations to initialize its database. These run by default. To turn them off, use the setting:
 
 ```bash
-SYNC_TOKENSERVER__RUN_MIGRATIONS=true
+SYNC_TOKENSERVER__RUN_MIGRATIONS=false
 ```
 
 Once you have created and defined your database, copy the URL.
@@ -119,7 +119,7 @@ SYNC_TOKENSERVER__DATABASE_URL=postgres://<DB URL>
 
 #### Running Migrations Manually for Tokenserver
 
-If you prefer to run migrations manually instead of using `SYNC_TOKENSERVER__RUN_MIGRATIONS=true`, you can use Diesel CLI:
+If you prefer to run migrations manually, set `SYNC_TOKENSERVER__RUN_MIGRATIONS=false` and use Diesel CLI:
 
 **Prerequisites:**
 1. Install diesel_cli with PostgreSQL support:
@@ -171,7 +171,7 @@ ON CONFLICT DO NOTHING;
 
 ### Bootstrapping Syncstorage (Postgres)
 
-Syncstorage includes migrations to initialize its database. These run by default (unlike Tokenserver).
+Syncstorage includes migrations to initialize its database. These run by default, as Tokenserver migrations do.
 
 Configure the database URL:
 ```bash
@@ -216,10 +216,10 @@ diesel migration redo --database-url="postgres://<DB URL>"
 
 ### Bootstrapping Tokenserver (MySQL)
 
-Tokenserver includes migrations to initialize its database, but they do not run by default. These can be enabled via the setting:
+Tokenserver includes migrations to initialize its database. These run by default. To turn them off, use the setting:
 
 ```bash
-SYNC_TOKENSERVER__RUN_MIGRATIONS=true
+SYNC_TOKENSERVER__RUN_MIGRATIONS=false
 ```
 
 **NOTE:** These migrations don't run with any locking (at least on MySQL), it's probably safest to limit the node count to 1 during the first run.

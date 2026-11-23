@@ -45,8 +45,8 @@ Most settings have sensible defaults. Regardless of backend you must supply:
 Backend-specific notes:
 
 - **MySQL:** set `tokenserver.node_type = "mysql"`. Syncstorage MySQL schema
-  migrations run automatically at startup; set
-  `tokenserver.run_migrations = true` to apply the Tokenserver schema too.
+  migrations run automatically at startup. Tokenserver migrations also run by
+  default; set `tokenserver.run_migrations = false` to turn them off.
 - **Spanner:** `syncstorage.database_url` must use the
   `spanner://projects/.../instances/.../databases/...` form — the `spanner://`
   scheme is what selects the Spanner backend. Leave `tokenserver.node_type` at
