@@ -69,7 +69,7 @@ services:
       start_period: 60s
 
   sync-db:
-    image: docker.io/library/mysql:8.0
+    image: docker.io/library/mysql:8.4
     container_name: syncserver-sync-db
     command: --explicit_defaults_for_timestamp
     environment:
@@ -88,7 +88,7 @@ services:
     restart: unless-stopped
 
   tokenserver-db:
-    image: docker.io/library/mysql:8.0
+    image: docker.io/library/mysql:8.4
     container_name: syncserver-tokenserver-db
     command: --explicit_defaults_for_timestamp
     environment:

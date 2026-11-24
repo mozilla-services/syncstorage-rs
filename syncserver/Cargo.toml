@@ -35,6 +35,9 @@ slog-stdlog.workspace = true
 slog-term.workspace = true
 hmac.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
+tracing-appender.workspace = true
+tracing-subscriber.workspace = true
 uuid.workspace = true
 
 actix-http = "3"
@@ -76,6 +79,7 @@ tokenserver-auth = { path = "../tokenserver-auth", features = ["test-support"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 slog-journald = "3.0.0"
+tracing-journald = "0.3"
 
 [features]
 default = ["mysql", "py_verifier"]
