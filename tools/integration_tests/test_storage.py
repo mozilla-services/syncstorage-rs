@@ -41,6 +41,10 @@ WEAVE_SIZE_LIMIT_EXCEEDED = 17  # Size limit exceeded
 
 BATCH_MAX_IDS = 100
 
+# Required to delete an entire collection when the server enables
+# require_collection_delete_confirmation; ignored otherwise.
+CONFIRM_DELETE = {"X-Confirm-Delete": "1"}
+
 
 def get_limit_config(limit):
     """Get a default value for the named size limit.
@@ -180,7 +184,7 @@ def test_get_collection_only(st_ctx):
     # Returns only ids for objects in the collection that have been last
     # modified after the timestamp given.
 
-    retry_delete(app, root + "/storage/xxx_col2")
+    retry_delete(app, root + "/storage/xxx_col2", headers=CONFIRM_DELETE)
 
     bso = {"id": "128", "payload": "x"}
     res = retry_put_json(app, root + "/storage/xxx_col2/128", bso)
@@ -205,7 +209,7 @@ def test_get_collection_only(st_ctx):
     # Returns only ids for objects in the collection that have been last
     # modified before the timestamp given.
 
-    retry_delete(app, root + "/storage/xxx_col2")
+    retry_delete(app, root + "/storage/xxx_col2", headers=CONFIRM_DELETE)
 
     bso = {"id": "128", "payload": "x"}
     res = retry_put_json(app, root + "/storage/xxx_col2/128", bso)
@@ -243,7 +247,7 @@ def test_get_collection_only(st_ctx):
 
     # "limit"
     # Sets the maximum number of ids that will be returned
-    retry_delete(app, root + "/storage/xxx_col2")
+    retry_delete(app, root + "/storage/xxx_col2", headers=CONFIRM_DELETE)
 
     bsos = []
     for i in range(10):
@@ -340,7 +344,7 @@ def test_get_collection_only(st_ctx):
     #   'newest': Orders by timestamp number (newest first)
     #   'oldest': Orders by timestamp number (oldest first)
     #   'index':  Orders by the sortindex descending (highest weight first)
-    retry_delete(app, root + "/storage/xxx_col2")
+    retry_delete(app, root + "/storage/xxx_col2", headers=CONFIRM_DELETE)
 
     for index, sortindex in (("00", -1), ("01", 34), ("02", 12)):
         bso = {"id": index, "payload": "x", "sortindex": sortindex}
@@ -539,7 +543,7 @@ def test_set_collection_input_formats(st_ctx):
     items = app.get(root + "/storage/xxx_col2").json
     assert len(items) == 2
     # If we send an unknown content type, we get an error.
-    retry_delete(app, root + "/storage/xxx_col2")
+    retry_delete(app, root + "/storage/xxx_col2", headers=CONFIRM_DELETE)
     body = json_dumps(bsos)
     retry_post(
         app,
@@ -566,7 +570,7 @@ def test_set_item_input_formats(st_ctx):
     item = app.get(root + "/storage/xxx_col2/TEST").json
     assert item["payload"] == _PLD
     # If we send json with some other content type, it should fail
-    retry_delete(app, root + "/storage/xxx_col2")
+    retry_delete(app, root + "/storage/xxx_col2", headers=CONFIRM_DELETE)
     app.put(
         root + "/storage/xxx_col2/TEST",
         body,
@@ -652,7 +656,7 @@ def test_delete_collection_items(st_ctx):
     assert len(res.json) == 3
 
     # deleting all items
-    retry_delete(app, root + "/storage/xxx_col2")
+    retry_delete(app, root + "/storage/xxx_col2", headers=CONFIRM_DELETE)
     items = app.get(root + "/storage/xxx_col2").json
     assert len(items) == 0
 
@@ -713,7 +717,7 @@ def test_delete_storage(st_ctx):
     retry_delete(app, root + "/storage")
     items = app.get(root + "/storage/xxx_col2").json
     assert len(items) == 0
-    retry_delete(app, root + "/storage/xxx_col2", status=200)
+    retry_delete(app, root + "/storage/xxx_col2", headers=CONFIRM_DELETE, status=200)
     assert len(items) == 0
 
 
@@ -1366,7 +1370,7 @@ def test_delete_collection_updates_info_collections(st_ctx):
     # Timestamps have 10ms resolution, so make sure the delete lands later.
     time.sleep(0.02)
     # Delete the collection that was written last.
-    retry_delete(app, root + "/storage/xxx_col2")
+    retry_delete(app, root + "/storage/xxx_col2", headers=CONFIRM_DELETE)
     # The previous timestamp must now read the updated list, not a 304.
     headers = {"X-If-Modified-Since": str(ts1)}
     r = app.get(root + "/info/collections", headers=headers, status=200)
