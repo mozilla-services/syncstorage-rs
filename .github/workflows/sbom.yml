@@ -21,10 +21,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The SBOM filename is built from sbom_name, so a ref like release/0.25 would
+  # point at a nested path that doesn't exist. Swap slashes for dashes first.
+  sbom-name:
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.name.outputs.value }}
+    steps:
+      - id: name
+        run: echo "value=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
+
   sbom:
+    needs: sbom-name
     uses: mozilla/ssdlc-actions/.github/workflows/ssdlc-sbom.yml@5456c9f9c5dd9c5bde239bc39cff36d1b3995bf1
     with:
-      sbom_name: ${{ github.ref_name }}
+      sbom_name: ${{ needs.sbom-name.outputs.value }}
     permissions:
       actions: read # required by anchore/sbom-action to read workflow run context
       contents: write # required to upload the SBOM as a release asset
