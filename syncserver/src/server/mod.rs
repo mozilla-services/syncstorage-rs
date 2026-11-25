@@ -49,8 +49,7 @@ const MYSQL_UID_REGEX: &str = r"[0-9]{1,10}";
 const SYNC_VERSION_PATH: &str = "1.5";
 
 /// Four segments deliberately. A three segment path such as
-/// `/1.0/users/{fxa_uid}` would be matched by `/1.0/{application}/{version}`
-///
+/// `/1.0/users/{fxa_uid}` would be matched by `/1.0/{application}/{version}`.
 /// `fxa_uid` mirrors FxA's own uid validator: exactly 32 hex characters
 /// (fxa-auth-server `lib/routes/validators.js`).
 pub const FXA_DELETE_DATA_PATH: &str = r"/1.0/users/{fxa_uid:[0-9a-fA-F]{32}}/storage";
