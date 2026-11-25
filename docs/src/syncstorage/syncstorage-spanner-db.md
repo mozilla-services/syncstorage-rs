@@ -47,7 +47,7 @@ Set under `[syncstorage.limits]` in TOML, or as `SYNC_SYNCSTORAGE__LIMITS__*` en
 | `max_record_payload_bytes` | 2,621,440 (2.5 MB)                       | Per-BSO payload size ceiling.                                                                                                                                    |
 | `max_request_bytes`        | 2,625,536 (≈ 2.5 MB + 4 KB)              | HTTP `Content-Length` ceiling also enforced upstream of the API (e.g., nginx).                                                                                  |
 | `max_total_bytes`          | 250 MB declared, clamped                 | Combined batch payload size. **`Settings::normalize()` clamps this to `MAX_SPANNER_LOAD_SIZE` (100 MB) for Spanner deployments.**                                |
-| `max_total_records`        | 10,000 default; 9,984 in Spanner prod    | BSOs per batch. The Spanner ceiling is driven by the per-commit mutation budget, see [below](#batch-commit-mutation-budget).                                    |
+| `max_total_records`        | 10,000 default; 7,984 for Spanner        | BSOs per batch. The Spanner ceiling is driven by the per-commit mutation budget, see [below](#batch-commit-mutation-budget).                                    |
 | `max_quota_limit`          | 2 GB                                     | Per-collection quota; only enforced when `enforce_quota = true`.                                                                                                  |
 
 ### Quota toggles
@@ -208,16 +208,13 @@ With no secondary indexes on `bsos` (per [#2382](https://github.com/mozilla-serv
 
 For `N` BSOs in the batch: `10N` mutations.
 
-> **The figures below still assume the pre-offload 8 mutations per BSO and are
-> stale.** `batch_commit_upsert.sql` gained `payload_link` with payload offload
-> ([#2407](https://github.com/mozilla-services/syncstorage-rs/pull/2407)) and
-> `payload_size` alongside it; both are written for every row in the batch,
-> whether or not the collection offloads. At 10 per BSO the ceiling is
-> `10N + 13 <= 80,000`, i.e. `N <= 7,998` — below the deployed
-> `max_total_records` of 9,984, which would consume 99,853 mutations at a full
-> batch. Recalculating the budget and the deployed value is tracked separately;
-> the totals, evolution, and justification sections below have not been
-> rewritten.
+`payload_link` arrived with payload offload
+([#2407](https://github.com/mozilla-services/syncstorage-rs/pull/2407)) and
+`payload_size` alongside it. Both are written for **every** row in the batch,
+whether or not the collection offloads, so they raise the per-BSO cost
+unconditionally from 8 to 10. A full batch at the previous `max_total_records`
+of 9,984 would consume `10 × 9,984 + 13 = 99,853` mutations, well over the
+80,000 cap.
 
 #### Step 3 `delete_batch`
 
@@ -229,12 +226,12 @@ UPDATE of one `user_collections` row: **6 mutations** (3 PK + 3 non-PK columns).
 
 ### Totals and ceiling
 
-| Mode       | Formula              | At N = 9,984        | Headroom (80,000 − total) |
+| Mode       | Formula              | At N = 7,984        | Headroom (80,000 − total) |
 | ---------- | -------------------- | ------------------- | ------------------------- |
-| quota off  | `4 + 8N + 1`         | 79,877              | 123                       |
-| quota on   | `6 + 8N + 1 + 6`     | 79,885              | 115                       |
+| quota off  | `4 + 10N + 1`        | 79,845              | 155                       |
+| quota on   | `6 + 10N + 1 + 6`    | 79,853              | 147                       |
 
-Solving `8N + 13 <= 80,000` (quota on, the binding constraint) gives `N <= 9,998`. The deployed value is the more conservative **9,984** — which equals `6,656 × (12 / 8)` (the previous chosen value scaled by the per-BSO cost ratio) and equals `1,664 × 6` (the legacy 1,664 scaled by the combined cap-and-index gains since 2022). It holds total mutations at exactly **79,885** — identical to the pre-#2382 configuration at 6,656 — and leaves the same 115-mutation absolute headroom, with 14 BSOs of slack vs. the 9,998 ceiling.
+Solving `10N + 13 <= 80,000` (quota on, the binding constraint) gives `N <= 7,998`. The recommended value is the more conservative **7,984**, which keeps the same 14 BSOs of slack below the mathematical ceiling that the previous 9,984 kept below its 9,998 ceiling. It consumes **79,853** mutations at a full batch and leaves 147 mutations of absolute headroom, slightly more than the previous 115.
 
 ### Mutation budget evolution
 
@@ -251,28 +248,32 @@ timeline
     Post-#2382         : Cap 80,000 mutations
                        : 8 mutations / BSO
                        : 9,984 max_total_records
+    Payload offload    : Cap 80,000 mutations
+                       : 10 mutations / BSO
+                       : 7,984 max_total_records
 ```
 
-Three-way comparison, quota-on path (the binding constraint):
+Comparison across eras, quota-on path (the binding constraint):
 
-|                                  | Legacy (≤ 2022)        | Pre-#2382 (STOR-218 in place) | Current (post-#2382)      |
-| -------------------------------- | ---------------------- | ----------------------------- | ------------------------- |
-| Spanner per-commit cap           | 20,000                 | 80,000                        | 80,000                    |
-| Secondary indexes on `bsos`      | `BsoModified`, `BsoExpiry` | `BsoModified`, `BsoExpiry` | none                      |
-| Per-BSO mutation cost            | 12                     | 12                            | **8**                     |
-| Formula (quota on)               | `12N + 13 ≤ 20,000`    | `12N + 13 ≤ 80,000`           | `8N + 13 ≤ 80,000`        |
-| Mathematical ceiling             | 1,665                  | 6,665                         | 9,998                     |
-| Chosen `max_total_records`       | **1,664**              | **6,656**                     | **9,984**                 |
-| Mutations consumed at chosen `N` | 19,981                 | 79,885                        | 79,885                    |
-| Headroom under cap               | 19                     | 115                           | 115                       |
+|                                  | Legacy (≤ 2022)        | Pre-#2382 (STOR-218 in place) | Post-#2382                | Current (payload offload) |
+| -------------------------------- | ---------------------- | ----------------------------- | ------------------------- | ------------------------- |
+| Spanner per-commit cap           | 20,000                 | 80,000                        | 80,000                    | 80,000                    |
+| Secondary indexes on `bsos`      | `BsoModified`, `BsoExpiry` | `BsoModified`, `BsoExpiry` | none                      | none                      |
+| Non-PK columns written on `bsos` | 4                      | 4                             | 4                         | 6 (+`payload_link`, `payload_size`) |
+| Per-BSO mutation cost            | 12                     | 12                            | 8                         | **10**                    |
+| Formula (quota on)               | `12N + 13 ≤ 20,000`    | `12N + 13 ≤ 80,000`           | `8N + 13 ≤ 80,000`        | `10N + 13 ≤ 80,000`       |
+| Mathematical ceiling             | 1,665                  | 6,665                         | 9,998                     | 7,998                     |
+| Chosen `max_total_records`       | **1,664**              | **6,656**                     | **9,984**                 | **7,984**                 |
+| Mutations consumed at chosen `N` | 19,981                 | 79,885                        | 79,885                    | 79,853                    |
+| Headroom under cap               | 19                     | 115                           | 115                       | 147                       |
 
-Capacity has grown ~6× since 2022 — first 4× from the Spanner cap raise (20k → 80k), then another 1.5× from the secondary-index removal (12 → 8 mutations per BSO) — while the absolute headroom under the cap has stayed effectively constant.
+Capacity grew ~6× from 2022 to post-#2382: first 4× from the Spanner cap raise (20k → 80k), then another 1.5× from the secondary-index removal (12 → 8 mutations per BSO). The two payload offload columns (8 → 10 mutations per BSO) give back 20% of that, leaving capacity ~4.8× the 2022 level. Absolute headroom under the cap has stayed roughly constant throughout.
 
 ### Justification
 
-- **Why not 9,998 (the math ceiling)?** 14 BSOs of slack is operationally negligible client-side, but the buffer absorbs minor Spanner accounting drift or a +1-mutation fixed-overhead schema change (e.g., a new column on `user_collections`) without an emergency config bump.
-- **Why 9,984 specifically?** It holds total mutations at exactly **79,885** — identical to the prior 6,656/12-mut configuration. The value drops out cleanly as `6,656 × (12 / 8) = 9,984` (per-BSO cost ratio) and as `1,664 × 6 = 9,984` (total scaling since 2022). Same absolute 115-mutation headroom.
-- **What headroom does NOT protect against.** Adding a column or a new index to `bsos` would scale per-BSO cost across all `N` rows and requires a fresh recalculation; the 115-mutation buffer only absorbs fixed-overhead changes and small accounting drift, not anything that multiplies `N`.
+- **Why not 7,998 (the math ceiling)?** 14 BSOs of slack makes no practical difference to clients. The buffer absorbs minor Spanner accounting drift, or a fixed-overhead schema change (for example, a new column on `user_collections`), without an emergency config bump.
+- **Why 7,984 specifically?** It keeps the same 14-BSO gap below the ceiling as the previous 9,984 (`9,998 − 14`), so the reasoning behind that choice carries over unchanged. Holding total mutations at the previous 79,885 isn't possible here, because `(79,885 − 13) / 10` is not an integer. 7,984 lands 32 mutations below that, at 79,853, with 147 mutations of headroom.
+- **What headroom does NOT protect against.** Adding a column or a new index to `bsos` raises the per-BSO cost on all `N` rows and needs a fresh recalculation, as the payload offload columns did. The 147-mutation buffer only absorbs fixed-overhead changes and small accounting drift, not anything that multiplies `N`.
 
 ### Env var
 
@@ -282,7 +283,7 @@ Capacity has grown ~6× since 2022 — first 4× from the Spanner cap raise (20k
 
 ### Why `INSERT OR UPDATE` is safe at this scale
 
-The pre-STOR-218 implementation issued two DML statements per commit (`UPDATE` for existing rows, then `INSERT INTO ... SELECT` for the remainder) with a pre-scan to bucket rows. The current single-statement upsert simplifies the code path without changing the mutation accounting: with both secondary indexes removed (per [#2382](https://github.com/mozilla-services/syncstorage-rs/pull/2382)), the upsert pays only base-row mutations (4 PK + 4 non-PK = 8), and that cost is identical on the insert and update paths.
+The pre-STOR-218 implementation issued two DML statements per commit (`UPDATE` for existing rows, then `INSERT INTO ... SELECT` for the remainder) with a pre-scan to bucket rows. The current single-statement upsert simplifies the code path without changing the mutation accounting: with both secondary indexes removed (per [#2382](https://github.com/mozilla-services/syncstorage-rs/pull/2382)), the upsert pays only base-row mutations (4 PK + 6 non-PK = 10), and that cost is identical on the insert and update paths.
 
 ## Database Diagram and Relationship
 
