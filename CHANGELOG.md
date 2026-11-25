@@ -1,3 +1,17 @@
+<a name="0.25.2"></a>
+## 0.25.2 (2026-11-24)
+
+
+#### Bug Fixes
+
+* **deps:**  bump url to 2.5.9 for RUSTSEC-2026-0592 (#2778) ([ad0e46b0](https://github.com/mozilla-services/syncstorage-rs/commit/ad0e46b006e426a1dcfe7be48718c74debe588bc))
+
+#### Test
+
+*   force collection deletes ([417f4024](https://github.com/mozilla-services/syncstorage-rs/commit/417f40246f1f1a4fc980e2385e4564dce58aa56b))
+
+
+
 <a name="0.25.1"></a>
 ## 0.25.1 (2026-11-18)
 
