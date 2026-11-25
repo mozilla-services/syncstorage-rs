@@ -1070,7 +1070,7 @@ mod tests {
 
     const TEST_DELETE_AUD: &str = "urn:mozilla:fxa:tokenserver";
     const TEST_DELETE_ISS: &str = "https://accounts.firefox.com";
-    const TEST_FXA_UID: &str = "testuid";
+    const TEST_FXA_UID: &str = "0123456789abcdef0123456789abcdef";
 
     /// Mint the assertion the endpoint expects, the way FxA will.
     fn assertion(sub: &str) -> DeleteAssertionBuilder {
@@ -1244,7 +1244,10 @@ mod tests {
         // And it must look the user up by the derived FxA email.
         let lookups = call_log.get_users.lock().unwrap();
         assert_eq!(lookups.len(), 1);
-        assert_eq!(lookups[0].email, "testuid@api.accounts.firefox.com");
+        assert_eq!(
+            lookups[0].email,
+            "0123456789abcdef0123456789abcdef@api.accounts.firefox.com"
+        );
     }
 
     #[actix_web::test]
@@ -1457,7 +1460,7 @@ mod tests {
             // Validly signed, but naming a different user than the path.
             (
                 "sub does not match the path",
-                Some(assertion("otheruid").build()),
+                Some(assertion("fedcba9876543210fedcba9876543210").build()),
             ),
             // A webhook SET must not authorize a deletion.
             (
