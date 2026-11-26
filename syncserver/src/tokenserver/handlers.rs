@@ -504,8 +504,8 @@ pub async fn delete_user_syncstorage_data(
     let Some(node) = &row.node else {
         // No node assignment means no location to derive and nothing to ask.
         info!(
-            "No node assigned, nothing to delete";
-            "metrics_uid" => &hashed_fxa_uid
+            metrics_uid = %hashed_fxa_uid,
+            "No node assigned, nothing to delete"
         );
         metrics.incr_with_tag(METRIC_DELETE_SKIPPED, "reason", "no_node");
         metrics.incr_with_tag(METRIC_DELETE_REQUESTS, "result", "ok");
@@ -513,9 +513,9 @@ pub async fn delete_user_syncstorage_data(
     };
 
     info!(
-        "Deleting syncstorage data";
-        "metrics_uid" => &hashed_fxa_uid,
-        "uid" => row.uid
+        metrics_uid = %hashed_fxa_uid,
+        uid = row.uid,
+        "Deleting syncstorage data"
     );
 
     apply_timeout(

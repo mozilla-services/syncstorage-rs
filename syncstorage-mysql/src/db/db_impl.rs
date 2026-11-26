@@ -210,7 +210,11 @@ impl Db for MysqlDb {
                 if self.quota.enforced {
                     return Err(DbError::quota());
                 } else {
-                    warn!("Quota at limit for user ({} bytes)", usage.total_bytes; "collection"=>bso.collection.clone());
+                    warn!(
+                        collection = %bso.collection,
+                        "Quota at limit for user ({} bytes)",
+                        usage.total_bytes
+                    );
                 }
             }
         }

@@ -3,7 +3,7 @@ extern crate diesel;
 extern crate diesel_migrations;
 
 #[macro_use]
-extern crate slog_scope;
+extern crate tracing;
 
 mod db;
 #[allow(clippy::result_large_err)]

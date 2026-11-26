@@ -18,7 +18,7 @@ jsonwebtoken.workspace = true
 base64.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
-slog-scope.workspace = true
+tracing.workspace = true
 
 dyn-clone = "1.0.20"
 reqwest = { workspace = true, features = ["json"] }

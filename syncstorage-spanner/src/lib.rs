@@ -1,7 +1,7 @@
 use chrono::Utc;
 
 #[macro_use]
-extern crate slog_scope;
+extern crate tracing;
 
 #[macro_use]
 mod macros;

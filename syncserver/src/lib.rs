@@ -2,7 +2,7 @@
 #![allow(clippy::try_err)]
 
 #[macro_use]
-extern crate slog_scope;
+extern crate tracing;
 #[macro_use]
 extern crate validator_derive;
 

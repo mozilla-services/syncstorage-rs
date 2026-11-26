@@ -207,7 +207,7 @@ where
                 .get_remote_jwks()
                 .await
                 .unwrap_or_else(|e| {
-                    slog_scope::warn!("Error requesting remote jwks: {}", e);
+                    tracing::warn!("Error requesting remote jwks: {}", e);
                     vec![]
                 })
                 .into_iter()

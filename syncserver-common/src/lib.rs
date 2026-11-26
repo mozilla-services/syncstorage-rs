@@ -1,5 +1,5 @@
 #[macro_use]
-extern crate slog_scope;
+extern crate tracing;
 
 mod metrics;
 pub mod middleware;

@@ -15,8 +15,7 @@ sha2.workspace = true
 sentry.workspace = true
 sentry-backtrace.workspace = true
 serde_json.workspace = true
-slog.workspace = true
-slog-scope.workspace = true
+tracing.workspace = true
 hkdf.workspace = true
 
 scopeguard = "1.2"

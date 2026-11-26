@@ -312,7 +312,7 @@ impl FromRequest for DbTransactionPool {
             };
             let method = req.method().clone();
             let user_id = HawkIdentifier::extract(&req).await.map_err(|e| {
-                warn!("⚠️ Bad Hawk Id: {:?}", e; "user_agent"=> useragent);
+                warn!(user_agent = %useragent, "⚠️ Bad Hawk Id: {:?}", e);
                 e
             })?;
             let bso = BsoParam::extrude(req.head(), &mut req.extensions_mut()).ok();
