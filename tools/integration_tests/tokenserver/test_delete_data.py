@@ -20,7 +20,7 @@ from integration_tests.tokenserver.helpers import (
     storage_app_for_token,
 )
 
-FXA_UID = "deletedatauid"
+FXA_UID = "de1e7eda7a0000000000000000000001"
 EMAIL = f"{FXA_UID}@{FXA_EMAIL_DOMAIN}"
 
 
@@ -161,6 +161,8 @@ def test_delete_data_rejects_sub_path_mismatch(ts_local_node_ctx):
     conn = ts_local_node_ctx["db_conn"]
     add_user(conn, ts_local_node_ctx["service_id"], email=EMAIL)
 
-    response = delete_syncstorage_data(app, FXA_UID, sub="someoneelse", status=401)
+    response = delete_syncstorage_data(
+        app, FXA_UID, sub="de1e7eda7a0000000000000000000002", status=401
+    )
 
     assert response.status_code == 401
