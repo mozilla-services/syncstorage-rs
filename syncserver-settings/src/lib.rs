@@ -521,6 +521,26 @@ mod test {
         );
     }
 
+    #[test]
+    fn test_tokenserver_run_migrations_defaults_to_true() {
+        // Lives here, not in tokenserver-settings, where cfg!(test) would hide a false default.
+        for (value, expected) in [(None, true), (Some("false"), false)] {
+            temp_env::with_vars(
+                [
+                    (
+                        "SYNC_SYNCSTORAGE__DATABASE_URL",
+                        Some(TEST_SYNCSTORAGE_DATABASE_URL),
+                    ),
+                    ("SYNC_TOKENSERVER__RUN_MIGRATIONS", value),
+                ],
+                || {
+                    let settings = Settings::with_env_and_config_file(None).unwrap();
+                    assert_eq!(settings.tokenserver.run_migrations, expected);
+                },
+            );
+        }
+    }
+
     fn jwk_env_vars(jwk: &str, kid: &'static str) -> Vec<(String, Option<&'static str>)> {
         [
             ("KTY", "RSA"),

@@ -80,8 +80,8 @@ tokenserver.database_url = "mysql://sample_user:sample_password@localhost/tokens
 # topology leave this as the default "spanner". Valid: "mysql"/"postgres"/"spanner".
 tokenserver.node_type = "spanner"
 
-# Run the tokenserver DB migrations on startup. Default: false.
-# tokenserver.run_migrations = true
+# Run the tokenserver DB migrations on startup. Default: true.
+# tokenserver.run_migrations = false
 
 # FxA environment used to verify OAuth tokens. The defaults below point at the
 # FxA *stage* environment; point them at production for a real deployment
