@@ -23,6 +23,7 @@ use utoipa;
 use crate::{
     error::{ApiError, ApiErrorKind},
     server::ServerState,
+    tokenserver,
     web::{
         extractors::{
             BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, EmitApiMetric,
@@ -990,13 +991,13 @@ pub async fn get_configuration(state: Data<ServerState>) -> HttpResponse {
     path = "/__heartbeat__",
     tag = "dockerflow",
     summary = "Service health check",
-    description = "Returns health status of the service including database connectivity and quota status.",
+    description = "Returns health status of the service including database connectivity and quota status. When Tokenserver is enabled in the same service, the response also reports the Tokenserver database as `tokenserver_database`.",
     responses(
         (status = 200, description = "Service is healthy", content_type = "application/json"),
         (status = 503, description = "Service is unhealthy", content_type = "application/json"),
     )
 )]
-pub async fn heartbeat(hb: HeartbeatRequest) -> Result<HttpResponse, ApiError> {
+pub async fn heartbeat(hb: HeartbeatRequest, req: HttpRequest) -> Result<HttpResponse, ApiError> {
     let mut checklist = HashMap::new();
     checklist.insert(
         "version".to_owned(),
@@ -1006,29 +1007,48 @@ pub async fn heartbeat(hb: HeartbeatRequest) -> Result<HttpResponse, ApiError> {
 
     checklist.insert("quota".to_owned(), serde_json::to_value(hb.quota)?);
 
-    match db.check().await {
-        Ok(result) => {
-            if result {
-                checklist.insert("database".to_owned(), Value::from("Ok"));
-            } else {
-                checklist.insert("database".to_owned(), Value::from("Err"));
+    let mut checks = vec![("database", db.check().await.map_err(|e| format!("{:?}", e)))];
+    // Return the connection to the pool instead of waiting on the Tokenserver check
+    drop(db);
+    // The Tokenserver state is registered only when Tokenserver runs in this
+    // service.  Its database is then a dependency of this service too.
+    if let Some(state) = req.app_data::<Data<tokenserver::ServerState>>() {
+        let result = match state.db_pool.get().await {
+            Ok(mut db) => tokenserver::handlers::apply_timeout(db.timeout(), db.check()).await,
+            Err(e) => Err(e.into()),
+        };
+        checks.push((
+            "tokenserver_database",
+            result.map_err(|e| format!("{:?}", e)),
+        ));
+    }
+
+    let mut status = "Ok";
+    let mut http_status = StatusCode::OK;
+    for (name, result) in checks {
+        match result {
+            Ok(true) => {
+                checklist.insert(name.to_owned(), Value::from("Ok"));
+            }
+            Ok(false) => {
+                status = "Err";
+                checklist.insert(name.to_owned(), Value::from("Err"));
                 checklist.insert(
-                    "database_msg".to_owned(),
+                    format!("{name}_msg"),
                     Value::from("check failed without error"),
                 );
-            };
-            let status = if result { "Ok" } else { "Err" };
-            checklist.insert("status".to_owned(), Value::from(status));
-
-            Ok(HttpResponse::Ok().json(checklist))
-        }
-        Err(e) => {
-            error!("Heartbeat error: {:?}", e);
-            checklist.insert("status".to_owned(), Value::from("Err"));
-            checklist.insert("database".to_owned(), Value::from("Unknown"));
-            Ok(HttpResponse::ServiceUnavailable().json(checklist))
+            }
+            Err(e) => {
+                error!("Heartbeat error: {}: {}", name, e);
+                status = "Err";
+                http_status = StatusCode::SERVICE_UNAVAILABLE;
+                checklist.insert(name.to_owned(), Value::from("Unknown"));
+            }
         }
     }
+    checklist.insert("status".to_owned(), Value::from(status));
+
+    Ok(HttpResponseBuilder::new(http_status).json(checklist))
 }
 
 #[utoipa::path(
