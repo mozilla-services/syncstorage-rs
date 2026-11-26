@@ -1404,6 +1404,15 @@ async fn put_bso_offloads_to_gcs() {
         // TODO: should be Spanner only (for now)
         return;
     }
+    let collection = uuid::Uuid::new_v4().simple().to_string();
+    let expected_id = {
+        let setup_state = get_test_state(&settings).await;
+        let mut db = setup_state.db_pool.get().await.unwrap();
+        db.begin(true).await.unwrap();
+        let id = db.create_collection(&collection).await.unwrap();
+        db.commit().await.unwrap();
+        id
+    };
 
     // Mock GCS: match the JSON multipart upload to bsos's bucket. The matcher
     // inspects the multipart body for `committed=false` metadata and a
@@ -1414,9 +1423,14 @@ async fn put_bso_offloads_to_gcs() {
         Expectation::matching(all_of![
             request::method_path("POST", "/upload/storage/v1/b/test-bucket/o"),
             request::query(url_decoded(contains(("uploadType", "multipart")))),
+            request::body(matches(format!(r#""collection_id"\s*:\s*"{expected_id}""#))),
             request::body(matches(r#""committed""#)),
             request::body(matches(r#""false""#)),
             request::body(matches(r#""customTime""#)),
+            request::query(url_decoded(contains((
+                "name",
+                matches(format!(r"^v1/[^/]+/{expected_id}/[0-9a-f]{{32}}$"))
+            )))),
         ])
         .respond_with(
             status_code(200)
@@ -1432,14 +1446,14 @@ async fn put_bso_offloads_to_gcs() {
     );
 
     settings.syncstorage.gcs_payload_bucket = Some("test-bucket".to_owned());
-    settings.syncstorage.gcs_payload_offload_collections = vec!["bookmarks".to_owned()];
+    settings.syncstorage.gcs_payload_offload_collections = vec![collection.to_owned()];
     settings.syncstorage.gcs_endpoint = Some(format!("http://{}", server.addr()));
 
     let app = init_app!(settings).await;
 
     let req = create_request(
         http::Method::PUT,
-        "/1.5/42/storage/bookmarks/wibble",
+        &format!("/1.5/42/storage/{collection}/wibble"),
         None,
         Some(json!({ "payload": "hello world" })),
     )
@@ -1473,6 +1487,49 @@ async fn put_bso_offloads_to_gcs() {
     );
 }
 
+#[cfg(feature = "spanner")]
+#[actix_rt::test]
+async fn put_and_post_missing_offload_collection_do_not_create_it() {
+    use syncstorage_db::DbErrorIntrospect;
+
+    let mut settings = get_test_settings();
+    let collection = uuid::Uuid::new_v4().simple().to_string();
+    let server = Server::run();
+
+    settings.syncstorage.gcs_payload_bucket = Some("test-bucket".to_owned());
+    settings.syncstorage.gcs_payload_offload_collections = vec![collection.clone()];
+    settings.syncstorage.gcs_endpoint = Some(format!("http://{}", server.addr()));
+
+    let state = get_test_state(&settings).await;
+    let pool = state.db_pool.clone();
+    let app = init_app!(settings, state).await;
+
+    let req = create_request(
+        http::Method::PUT,
+        &format!("/1.5/42/storage/{collection}/wibble"),
+        None,
+        Some(json!({ "payload": "hello world" })),
+    )
+    .to_request();
+
+    let resp = app.call(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+    let req = create_request(
+        http::Method::POST,
+        &format!("/1.5/42/storage/{collection}"),
+        None,
+        Some(json!([{ "id": "wibble", "payload": "hello world" }])),
+    )
+    .to_request();
+    let resp = app.call(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+    let mut db = pool.get().await.unwrap();
+    let err = db.get_collection_id(&collection).await.unwrap_err();
+    assert!(err.is_collection_not_found());
+}
+
 #[actix_rt::test]
 async fn post_collection_offloads_to_gcs() {
     let mut settings = get_test_settings();
@@ -1489,9 +1546,14 @@ async fn post_collection_offloads_to_gcs() {
         Expectation::matching(all_of![
             request::method_path("POST", "/upload/storage/v1/b/test-bucket/o"),
             request::query(url_decoded(contains(("uploadType", "multipart")))),
+            request::body(matches(r#""collection_id"\s*:\s*"7""#)),
             request::body(matches(r#""committed""#)),
             request::body(matches(r#""false""#)),
             request::body(matches(r#""customTime""#)),
+            request::query(url_decoded(contains((
+                "name",
+                matches(r"^v1/[^/]+/7/[0-9a-f]{32}$")
+            )))),
         ])
         .times(BSO_COUNT)
         .respond_with(

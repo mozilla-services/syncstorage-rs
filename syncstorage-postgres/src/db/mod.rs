@@ -126,7 +126,10 @@ impl PgDb {
         Ok(collection_id)
     }
 
-    async fn _get_collection_id(&mut self, name: &str) -> DbResult<results::GetCollectionId> {
+    pub(super) async fn _get_collection_id(
+        &mut self,
+        name: &str,
+    ) -> DbResult<results::GetCollectionId> {
         if let Some(id) = self.coll_cache.get_id(name)? {
             return Ok(id);
         }

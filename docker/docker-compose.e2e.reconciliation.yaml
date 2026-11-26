@@ -63,6 +63,8 @@ services:
   reconciliation-setup:
     image: docker.io/library/alpine:3.20
     depends_on:
+      sync-db-setup:
+        condition: service_started
       pubsub-emulator:
         condition: service_healthy
       fake-gcs:
@@ -80,7 +82,7 @@ services:
     entrypoint:
       - /bin/sh
       - -c
-      - "apk add --no-cache curl >/dev/null && /setup.sh && touch /tmp/setup-done && exec tail -f /dev/null"
+      - "apk add --no-cache curl jq >/dev/null && /setup.sh && touch /tmp/setup-done && exec tail -f /dev/null"
     environment:
       PROJECT_ID: test-project
       PUBSUB_HOST: http://pubsub-emulator:8085
@@ -144,7 +146,7 @@ services:
       SYNC_SYNCSTORAGE__GCS_ENDPOINT: http://fake-gcs:4443
       # Collections used by test_storage.py -- opts them all into offload
       # so test_storage.py exercises the offload path as regression
-      # coverage. Extend if new collections appear in the test suite.
+      # coverage. Register custom names in reconciliation-setup.sh as well.
       SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS: >-
         apis-1,crypto,meta,passwords,xxx_col,xxx_col1,xxx_col2,xxx_meh,xxxx,nonexistent
 
