@@ -100,15 +100,25 @@ pub const OP_DOWNLOAD: &str = "download";
 /// spans the whole set, can measure it.
 const BATCH_METRIC: &str = "storage.gcs.payload.batch";
 
-/// Return the GCS bucket name if `collection` is opted into payload off-load
-/// and a bucket is configured. `None` disables off-load for this request.
-pub fn offload_bucket<'a>(state: &'a ServerState, collection: &str) -> Option<&'a str> {
-    let bucket = state.gcs_payload_bucket.as_deref()?;
+/// Whether `collection` is opted into payload off-load.
+///
+/// Deliberately independent of [`ServerState::gcs_payload_bucket`]: a node
+/// with off-load switched off can still hold `payload_link` rows written
+/// earlier, and those rows' change records must keep reaching the reconciler.
+/// Callers that need to *write* an off-loaded payload want
+/// [`offload_bucket`] instead.
+pub fn is_offload_collection(state: &ServerState, collection: &str) -> bool {
     state
         .gcs_payload_offload_collections
         .iter()
         .any(|c| c == collection)
-        .then_some(bucket)
+}
+
+/// Return the GCS bucket name if `collection` is opted into payload off-load
+/// and a bucket is configured. `None` disables off-load for this request.
+pub fn offload_bucket<'a>(state: &'a ServerState, collection: &str) -> Option<&'a str> {
+    let bucket = state.gcs_payload_bucket.as_deref()?;
+    is_offload_collection(state, collection).then_some(bucket)
 }
 
 /// Build a GCS client honoring the `endpoint` override. When the override is

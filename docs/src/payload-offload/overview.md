@@ -239,12 +239,29 @@ is in preserving one of them.
    only thing standing between a crashed write and an object that leaks
    forever.
 
+9. **The change stream only sees offloaded collections.** Column-scoped
+   change streams emit a record for every insert and delete of a watched row,
+   not just the ones where the watched column is set, so the stream would
+   otherwise be dominated by `payload_link = NULL` records that the
+   reconciler discards. Syncstorage sets
+   `TransactionOptions.exclude_txn_from_change_streams` on write transactions
+   whose collection is not in `gcs_payload_offload_collections`, and
+   `payload_link_changes` declares `allow_txn_exclusion` so Spanner honors it.
+   This is the one way a delete escapes invariant 4, which is why a
+   collection must be drained before it leaves that setting -- see
+   [Offboarding a collection](onboarding.md#offboarding-a-collection).
+   Transactions that span every collection (`DELETE /storage`) are never
+   excluded, and neither are reads or Spanner's own TTL deletes, which are
+   not our transactions at all.
+
 ## Where to look
 
 | Concern | Where |
 | --- | --- |
 | Upload, download, delete, URL parsing | `syncserver/src/web/payload_offload.rs` |
 | Which collections offload, request wiring | `syncserver/src/web/handlers.rs` |
+| Change stream exclusion decision | `syncserver/src/web/transaction.rs` |
+| Change stream exclusion on the wire | `syncstorage-spanner/src/db/db_impl.rs` |
 | Settings and startup validation | `syncstorage-settings/src/lib.rs` |
 | `payload_link`/`payload_size` columns, change stream, access role | `syncstorage-spanner/src/schema.ddl` |
 | Dataflow pipeline (prod publisher, Java) | `tools/payload-link-dataflow/` |

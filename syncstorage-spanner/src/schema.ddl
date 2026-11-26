@@ -129,3 +129,30 @@ CREATE CHANGE STREAM payload_link_changes
 CREATE ROLE payload_link_reader;
 GRANT SELECT ON CHANGE STREAM payload_link_changes TO ROLE payload_link_reader;
 GRANT EXECUTE ON TABLE FUNCTION READ_payload_link_changes TO ROLE payload_link_reader;
+
+-- Let a transaction opt out of this stream
+-- (TransactionOptions.exclude_txn_from_change_streams). syncserver excludes
+-- writes to collections that aren't offloaded: their bsos/batch_bsos rows
+-- never carry a payload_link, so those records only consume retention space
+-- that the reconciler discards. Spanner ignores the per-transaction flag
+-- unless the stream opts in here.
+--
+-- All options are restated so this doesn't depend on whether SET OPTIONS
+-- merges with or replaces the existing set.
+--
+-- Rollback (re-captures every transaction, no redeploy required):
+--   ALTER CHANGE STREAM payload_link_changes SET OPTIONS (
+--     retention_period = '7d',
+--     value_capture_type = 'OLD_AND_NEW_VALUES',
+--     allow_txn_exclusion = false
+--   );
+-- NOTE: the closing paren is indented on purpose. prepare-spanner.sh feeds
+-- this file through `sed -n 's/ \+/ /gp'`, which prints only lines whose
+-- substitution matched -- so a line holding no space at all (a bare `);`) is
+-- dropped, taking the statement terminator with it and gluing this statement
+-- onto the previous one.
+ALTER CHANGE STREAM payload_link_changes SET OPTIONS (
+  retention_period = '7d',
+  value_capture_type = 'OLD_AND_NEW_VALUES',
+  allow_txn_exclusion = true
+  );

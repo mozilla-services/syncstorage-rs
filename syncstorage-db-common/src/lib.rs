@@ -77,6 +77,11 @@ pub trait Db: BatchDb {
     /// the change stream); other backends ignore it. See STOR-668.
     fn set_transaction_tag(&mut self, _tag: String) {}
 
+    /// Exclude this request's transaction from Spanner's change streams. Must
+    /// be called before the transaction is opened. Only the Spanner backend
+    /// acts on this; other backends ignore it.
+    fn set_exclude_from_change_streams(&mut self) {}
+
     async fn lock_for_read(&mut self, params: params::LockCollection) -> Result<(), Self::Error>;
 
     async fn lock_for_write(&mut self, params: params::LockCollection) -> Result<(), Self::Error>;

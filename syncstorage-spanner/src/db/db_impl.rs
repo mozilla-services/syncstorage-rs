@@ -9,6 +9,7 @@ use google_cloud_rust_raw::spanner::v1::{
     },
     type_pb::TypeCode,
 };
+use protobuf::Message;
 use syncserver_common::MAX_SPANNER_LOAD_SIZE;
 use syncstorage_db_common::{Db, error::DbErrorIntrospect, params, results, util::SyncTimestamp};
 
@@ -20,6 +21,38 @@ use crate::{DbResult, error::DbError};
 
 pub(super) const PRETOUCH_TS: &str = "0001-01-01T00:00:00.00Z";
 
+/// `TransactionOptions.exclude_txn_from_change_streams`, field 5 (bool) in
+/// google/spanner/v1/transaction.proto.
+///
+/// google-cloud-rust-raw 0.16.1 was generated from a googleapis snapshot
+/// predating the field, so its `TransactionOptions` carries only the `mode`
+/// oneof and there's no generated setter. It's written as an unknown varint
+/// field instead: rust-protobuf 2.28 round-trips unknown fields verbatim, so
+/// it lands on the wire as the real field would. Pinned by
+/// `exclude_txn_from_change_streams_is_field_5`.
+const EXCLUDE_TXN_FROM_CHANGE_STREAMS_FIELD: u32 = 5;
+
+/// Build the `TransactionOptions` for a [`Db::begin`].
+///
+/// Exclusion only applies to writes: a read-only transaction produces no
+/// change records to exclude. Spanner ignores the flag unless the change
+/// stream declares `allow_txn_exclusion` (see schema.ddl), so a deploy that
+/// gets ahead of the DDL is a no-op rather than an error.
+fn transaction_options(for_write: bool, exclude_from_change_streams: bool) -> TransactionOptions {
+    let mut options = TransactionOptions::new();
+    if for_write {
+        options.set_read_write(TransactionOptions_ReadWrite::new());
+        if exclude_from_change_streams {
+            options
+                .mut_unknown_fields()
+                .add_varint(EXCLUDE_TXN_FROM_CHANGE_STREAMS_FIELD, 1);
+        }
+    } else {
+        options.set_read_only(TransactionOptions_ReadOnly::new());
+    }
+    options
+}
+
 #[async_trait(?Send)]
 impl Db for SpannerDb {
     fn set_transaction_tag(&mut self, tag: String) {
@@ -27,6 +60,12 @@ impl Db for SpannerDb {
         // (see SpannerDb::request_options) so Spanner records it on the change
         // stream. Must be called before the transaction is opened. See STOR-668.
         self.session.transaction_tag = Some(tag);
+    }
+
+    fn set_exclude_from_change_streams(&mut self) {
+        // Applied to the TransactionOptions of the write begin below. Must be
+        // called before the transaction is opened.
+        self.session.exclude_from_change_streams = true;
     }
 
     async fn lock_for_read(&mut self, params: params::LockCollection) -> DbResult<()> {
@@ -133,13 +172,8 @@ impl Db for SpannerDb {
         // Spanner records the transaction tag from beginTransaction, so it must
         // be set here for the whole transaction to be tagged. See STOR-668.
         let request_options = self.request_options();
+        let options = transaction_options(for_write, self.session.exclude_from_change_streams);
         let spanner = &self.conn;
-        let mut options = TransactionOptions::new();
-        if for_write {
-            options.set_read_write(TransactionOptions_ReadWrite::new());
-        } else {
-            options.set_read_only(TransactionOptions_ReadOnly::new());
-        }
         let mut req = BeginTransactionRequest::new();
         req.set_session(spanner.session.get_name().to_owned());
         req.set_options(options);
@@ -944,4 +978,37 @@ impl Db for SpannerDb {
 
 fn sync_timestamp_from_rfc3339(val: &str) -> Result<SyncTimestamp, DbError> {
     SyncTimestamp::from_rfc3339(val).map_err(|e| DbError::integrity(e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `TransactionOptions.exclude_txn_from_change_streams` has no generated
+    /// setter (see [`EXCLUDE_TXN_FROM_CHANGE_STREAMS_FIELD`]), so nothing but
+    /// the encoded bytes can show it lands where Spanner reads it. A wrong
+    /// field number would otherwise fail silently: Spanner would skip it as an
+    /// unknown field and keep capturing every transaction.
+    #[test]
+    fn exclude_txn_from_change_streams_is_field_5() {
+        let bytes = transaction_options(true, true).write_to_bytes().unwrap();
+        // 0x0a 0x00: field 1 (read_write), an empty message.
+        // 0x28 0x01: field 5 (5 << 3 | varint = 40), true.
+        assert_eq!(bytes, [0x0a, 0x00, 0x28, 0x01]);
+    }
+
+    #[test]
+    fn write_without_exclusion_is_unchanged() {
+        let bytes = transaction_options(true, false).write_to_bytes().unwrap();
+        assert_eq!(bytes, [0x0a, 0x00]);
+    }
+
+    /// Reads produce no change records, so the flag is never worth sending on
+    /// one.
+    #[test]
+    fn reads_are_never_excluded() {
+        let bytes = transaction_options(false, true).write_to_bytes().unwrap();
+        // 0x12 0x00: field 2 (read_only), an empty message.
+        assert_eq!(bytes, [0x12, 0x00]);
+    }
 }

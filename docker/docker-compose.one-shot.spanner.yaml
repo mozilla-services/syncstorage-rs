@@ -32,7 +32,7 @@
 services:
   sync-db:
     # Keep in sync with SPANNER_EMULATOR_VER in .github/workflows/main-workflow.yml
-    image: gcr.io/cloud-spanner-emulator/emulator:1.5.52
+    image: gcr.io/cloud-spanner-emulator/emulator:1.5.59
     container_name: syncserver-spanner-emulator
     ports:
       - "9010:9010"

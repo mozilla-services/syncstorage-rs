@@ -98,13 +98,20 @@ column. Supported on the Spanner backend only: setting
 backend fails startup, since those backends have no `payload_link` column and
 would silently drop the payload.
 
+`SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS` also selects which writes
+reach the `payload_link_changes` change stream: writes to collections outside
+the list are excluded from it, since they hold no `payload_link` for the
+reconciler to act on. Removing a collection from the list therefore orphans
+any GCS objects it still has -- see
+[Offboarding a collection](payload-offload/onboarding.md#offboarding-a-collection).
+
 For configuration changes and deployment order, see
 [Onboarding an Offloaded Collection](payload-offload/onboarding.md).
 
 | Env Var | Default Value | Description |
 | --- | --- | --- |
 | <span id="SYNC_SYNCSTORAGE__GCS_PAYLOAD_BUCKET"></span>SYNC_SYNCSTORAGE__GCS_PAYLOAD_BUCKET | unset | GCS bucket for off-loaded payloads. Unset disables off-load. |
-| <span id="SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS"></span>SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS | unset | Comma-separated collection names whose payloads are off-loaded. Empty disables off-load for all collections. |
+| <span id="SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS"></span>SYNC_SYNCSTORAGE__GCS_PAYLOAD_OFFLOAD_COLLECTIONS | unset | Comma-separated collection names whose payloads are off-loaded. Empty disables off-load for all collections. Also determines which writes are captured by the `payload_link_changes` change stream. |
 | <span id="SYNC_SYNCSTORAGE__GCS_PAYLOAD_PREFIX"></span>SYNC_SYNCSTORAGE__GCS_PAYLOAD_PREFIX | v1 | The prefix for off-loaded GCS object names. The server formats each object name as `{prefix}/{fxa_uid}/{uuid}`. |
 | <span id="SYNC_SYNCSTORAGE__GCS_PAYLOAD_MAX_CONCURRENCY"></span>SYNC_SYNCSTORAGE__GCS_PAYLOAD_MAX_CONCURRENCY | 4 | The maximum number of concurrent GCS payload uploads and downloads within one batch request. This value must be greater than zero. |
 | <span id="SYNC_SYNCSTORAGE__GCS_ENDPOINT"></span>SYNC_SYNCSTORAGE__GCS_ENDPOINT | unset | A test-only override for the GCS endpoint URL, for example a mock server or a fake-gcs-server instance. If set, the server uses anonymous credentials. Do not set this variable in production. |
